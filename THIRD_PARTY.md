@@ -1,5 +1,9 @@
 # Dependency provenance
 
+## Home wallpaper artwork
+
+`src/assets/lunaos-aurora-wallpaper.png` is the exact AI-generated Luna Aurora artwork supplied by the owner for inclusion in the Home wallpaper picker. It is not copied from the original inspiration images or a stock-photo source. Its SHA-256 is `a1fcbb11a7cd619c33751a32496fa892c31ca519ad23dd3abddb308242049c36`. The source PNG is preserved byte-for-byte; CSS crops it to the screen and adds a contrast overlay without modifying the asset. No new library, remote image service or telemetry is introduced.
+
 The original draft preview introduced two direct dependencies, pinned in `package.json` and `package-lock.json`:
 
 | Package | Version | Upstream | License | Purpose |

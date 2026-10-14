@@ -23,6 +23,18 @@
         <span>LUNA <span class="brand-light">OS</span> HOME</span>
       </a>
       <span class="header-note">A little room to breathe.</span>
+      <details id="wallpaper-settings" class="wallpaper-settings">
+        <summary>Wallpaper</summary>
+        <div class="wallpaper-panel">
+          <fieldset>
+            <legend>Make yourself at home</legend>
+            <label class="wallpaper-choice"><input type="radio" name="wallpaper" value="twilight" checked><span class="wallpaper-swatch twilight-swatch" aria-hidden="true"></span><span>Quiet twilight</span></label>
+            <label class="wallpaper-choice"><input type="radio" name="wallpaper" value="aurora"><span class="wallpaper-swatch aurora-swatch" aria-hidden="true"></span><span>Luna Aurora</span></label>
+          </fieldset>
+          <p>Changes the background in Home. Your clock screensaver and device wallpaper stay as they are.</p>
+          <p id="wallpaper-status" role="status" aria-live="polite"></p>
+        </div>
+      </details>
     </header>
     <main>
       <section id="welcome" class="welcome" aria-labelledby="welcome-heading">
