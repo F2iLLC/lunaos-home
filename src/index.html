@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Luna OS Home</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">A little room to think</p>
+      <h1>Luna OS Home<span aria-hidden="true">.</span></h1>
+      <p class="intro">Gather the small things. Take them one at a time.</p>
+    </header>
+    <aside class="notice" aria-label="About this starter">
+      <strong>Just for this session</strong>
+      <p>Your checklist stays in this browser tab and clears when you reload or close it. Nothing is saved or sent. Use generic task labels; keep personal details and documents elsewhere.</p>
+      <p>This starter organizes tasks. Booking appointments, filling forms, reminders, and reading files are not available yet.</p>
+    </aside>
+    <section aria-labelledby="add-heading">
+      <h2 id="add-heading">What's on your mind?</h2>
+      <form id="task-form">
+        <label for="task-title">Task</label>
+        <input id="task-title" name="title" maxlength="160" required autocomplete="off" placeholder="For example: Review the sample school checklist">
+        <div class="form-row">
+          <div>
+            <label for="task-category">Category</label>
+            <select id="task-category" name="category"></select>
+          </div>
+          <button type="submit">Add task</button>
+        </div>
+        <p id="form-error" role="alert"></p>
+      </form>
+    </section>
+    <section aria-labelledby="list-heading">
+      <div class="list-heading"><h2 id="list-heading">Your checklist</h2><p id="task-count" role="status"></p></div>
+      <p id="empty-state">A clear page. Add one thing you'd like to take care of.</p>
+      <ul id="task-list"></ul>
+    </section>
+    <footer>A starting point for a calmer home day.</footer>
+  </main>
+</body>
+</html>
