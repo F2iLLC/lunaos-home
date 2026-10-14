@@ -37,6 +37,8 @@ npm run native:android -- init --ci --skip-targets-install
 npm run native:android -- build --debug --target x86_64 --apk --ci
 ```
 
+For an ARM64 build check, use `--target aarch64` instead of `--target x86_64`. Both commands use the same generated `universal/debug/app-universal-debug.apk` output location, so a later build replaces that file. Inspect its `lib/` entries before choosing a device; the directory name does not guarantee multiple architectures. The ARM64 package has been built and inspected, but has not been installed or launched on a physical phone.
+
 The pinned Tauri CLI generates `src-tauri/gen/android`; keep this machine-specific tree ignored. The Android configuration invokes `scripts/prepare-android.mjs` before building. That script removes the generated Internet permission, fixes cleartext traffic to false and sets `allowBackup=false`. It refuses unexpected permissions/template changes instead of quietly widening access. Inspect the merged APK manifest as well; a source-manifest test alone is not platform enforcement evidence. Backup/transfer behavior still requires Session 2 experiments before any sensitive use.
 
 Keep the `tauri` npm script alias: the generated Gradle Rust task invokes `npm run tauri android android-studio-script`, even when the initial command used the `native:android` alias.
@@ -66,9 +68,11 @@ After the owner enabled Windows Developer Mode, the full Tauri x86_64 debug APK 
 
 Installation succeeded on the isolated `emulator-5556` instance. Android reported `Status: ok` and `LaunchState: COLD` for both the first launch and a second launch after explicitly force-stopping the app; a new app process was observed. Its WebView provider is `com.android.webview` 133.0.6943.137. No fatal app exception or native panic was observed in the collected startup diagnostics, and process-exit history identified the deliberate force-stop. This is startup evidence, not proof of rendered content or draft state. The software renderer emitted EGL/MESA warnings and skipped frames, and WebView reported variation-seed warnings; smooth rendering is not established.
 
+The separate `aarch64` full debug build also passed. Inspection found only `lib/arm64-v8a/liblunaos_home_preview_lib.so` in the resulting APK; v2 signature verification passed. Its packaged manifest retains the debug application ID, no Internet permission, `allowBackup=false` and `usesCleartextTraffic=false`, with only the app-scoped AndroidX receiver permission requested. This is ARM64 compilation/package evidence only. The installed x86_64 emulator app was left unchanged for the pending manual check; no ARM64 runtime or physical-device compatibility is claimed.
+
 The available browser automation policy blocks the Android inspector, and native screen automation is unavailable. UI rendering, touch/keyboard, system back, draft correction, background/resume and restart clearing therefore still require a manual pass. The native assistant connection is also unimplemented. Neither the emulator result nor the separate desktop-browser Claude Code test establishes physical Android or Android assistant compatibility. All 15 local JavaScript tests pass, including offline manifest checks and the existing stdio/HTTP draft integration. No Android SDK, emulator state, generated project, signing material or binary is committed.
 
-To reproduce installation and the process-level launch check on this named test emulator:
+To reproduce installation and the process-level launch check on this named test emulator, first build with `--target x86_64` as above (an ARM64-only APK will not run on this emulator):
 
 ```powershell
 $apk = 'src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk'
