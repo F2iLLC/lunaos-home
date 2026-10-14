@@ -1,4 +1,5 @@
 import { categories, createTask, toggleTask, removeTask } from './tasks.js';
+import { refreshDraft } from './vault.js';
 
 let tasks = [];
 const form = document.querySelector('#task-form');
@@ -10,18 +11,27 @@ const welcome = document.querySelector('#welcome');
 const checklist = document.querySelector('#checklist');
 
 function showPage(moveFocus = true) {
-  const showChecklist = location.hash === '#checklist';
-  welcome.hidden = showChecklist;
-  checklist.hidden = !showChecklist;
-  document.title = showChecklist ? 'Your checklist · Luna OS Home' : 'Luna OS Home';
+  const page = ['#checklist', '#vault'].includes(location.hash) ? location.hash.slice(1) : 'welcome';
+  welcome.hidden = page !== 'welcome';
+  checklist.hidden = page !== 'checklist';
+  document.querySelector('#vault').hidden = page !== 'vault';
+  document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : 'Your checklist'} · Luna OS Home`;
+  if (page === 'vault') refreshDraft();
   if (moveFocus) {
-    document.querySelector(showChecklist ? '#checklist-heading' : '#welcome-heading').focus();
+    document.querySelector(`#${page}-heading`).focus();
     window.scrollTo(0, 0);
   }
 }
 
 window.addEventListener('hashchange', () => showPage());
 showPage(false);
+
+document.querySelector('#home-actions-toggle').addEventListener('click', event => {
+  const toggle = event.currentTarget;
+  const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+  toggle.setAttribute('aria-expanded', String(expanded));
+  document.querySelector('#home-actions').hidden = !expanded;
+});
 
 for (const name of categories) {
   const option = document.createElement('option');
