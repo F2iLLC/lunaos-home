@@ -43,6 +43,8 @@ There are no third-party runtime or development dependencies and no install step
 
 ## Develop and contribute
 
+Track the vault feature in the [GitHub project](https://github.com/orgs/F2iLLC/projects/4) and [epic issue](https://github.com/F2iLLC/lunaos-home/issues/2). The first two build sessions and remaining workstreams are linked sub-issues with dependencies.
+
 ```sh
 npm test
 ```

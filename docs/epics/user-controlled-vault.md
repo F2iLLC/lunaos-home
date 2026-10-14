@@ -224,7 +224,21 @@ Consent for one image is not permission for further images, vault browsing, send
 
 ## Delivery stories and acceptance
 
-Story IDs below are planning references, not claims of created child issues or completed work. Split into implementation issues after plan review. All examples and evidence must be synthetic.
+The work is tracked as native GitHub sub-issues of the epic, with blocking dependencies and a [repository-linked project](https://github.com/orgs/F2iLLC/projects/4). Creation of issues does not mark implementation complete. All examples and evidence must be synthetic.
+
+- [VLT-01: Prove platforms and the privacy model](https://github.com/F2iLLC/lunaos-home/issues/4)
+- [VLT-02: Shared authorization and storage contracts](https://github.com/F2iLLC/lunaos-home/issues/5)
+- [VLT-03: Encrypted vault and unlock lifecycle](https://github.com/F2iLLC/lunaos-home/issues/6)
+- [VLT-04: Phone-only onboarding and household records](https://github.com/F2iLLC/lunaos-home/issues/7)
+- [VLT-05: Guided phone/computer pairing](https://github.com/F2iLLC/lunaos-home/issues/8)
+- [VLT-06: Delegated record management and analysis handoff](https://github.com/F2iLLC/lunaos-home/issues/9)
+- [VLT-07: Recovery, device removal, and data lifecycle](https://github.com/F2iLLC/lunaos-home/issues/10)
+- [VLT-09: Learn about me plugin skill](https://github.com/F2iLLC/lunaos-home/issues/11)
+- [VLT-08: Independent security and household acceptance](https://github.com/F2iLLC/lunaos-home/issues/12)
+
+Start with the two sub-issues under VLT-01: [Session 1: Prove the app and assistant review flow](https://github.com/F2iLLC/lunaos-home/issues/13) → [Session 2: Prove encrypted storage, device connection, and session permissions](https://github.com/F2iLLC/lunaos-home/issues/14).
+
+The table below remains the acceptance contract; each linked issue contains its implementation scope and dependencies.
 
 | Story | Depends on | Reviewable outcome and acceptance |
 | --- | --- | --- |
