@@ -13,6 +13,10 @@ No third-party source is vendored in this repository. npm packages include their
 
 The preview and tests were authored with AI assistance and reviewed against the public SDK API. No enterprise source, user reference-image assets or private data were copied.
 
+## Reproducible native inventory
+
+Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and both Android targets without fetching packages or executing build scripts. The current combined scope contains 286 distinct third-party package/version entries, with 11 requiring candidate license-file review: the six Windows gaps described below plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
+
 ## Native shell development dependencies
 
 | Package | Version | Upstream | License | Purpose |
@@ -32,6 +36,3 @@ The MPL-2.0 crates are `cssparser` 0.37.0, `cssparser-macros` 0.7.1, `dtoa-short
 
 The bundled JavaScript uses only Home and Zod; the build rejects accidental MCP SDK/server inclusion and preserves Zod's MIT license in the frontend notices page. The Tauri CLI and esbuild are build tools; their runtime dependencies have their own terms. The moon icon is original SVG artwork authored for this project and rendered with the Tauri CLI, not copied from the user's inspiration images.
 
-## Reproducible native inventory
-
-Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and both Android targets without fetching packages or executing build scripts. The current combined scope contains 286 distinct third-party package/version entries, with 11 requiring candidate license-file review: the six Windows gaps above plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
