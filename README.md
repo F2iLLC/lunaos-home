@@ -6,7 +6,7 @@ Home is intended to be **MCP first, with a companion GUI**. MCP exposes househol
 
 The user's assistant remains the conversational and voice host. Home supplies onboarding scripts and workflows, not a new voice service. Third-party MCP connections are chosen for the user's needs and managed in their assistant environment. Local MCP, tool, plan, client, and voice compatibility must be verified before claiming support on any particular surface.
 
-This is a separate project from enterprise LunaOS, currently hosted privately under F2iLLC. Apache-2.0 is selected for newly authored Home material; public release is planned but has not occurred. Publishing the source and delivering a usable V1 are separate decisions and gates.
+This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC. Newly authored Home material is licensed under Apache-2.0. Public source visibility is an early preview, not a usable V1 release; the bootstrap remains under review in PR #1.
 
 ## What works today
 
@@ -51,7 +51,7 @@ Tests cover task validation and state changes, plus the static server's allowed 
 - [REPOSITORY_RULES.md](REPOSITORY_RULES.md): authoritative team rules for repository contents, sensitive data, rights, and public contribution safety. These are project contribution rules, not extra downstream license conditions.
 - [ROADMAP.md](ROADMAP.md): planned V1 and distinct public-source/V1 release gates; not a claim of implementation.
 
-CI currently runs on F2iLLC's shared self-hosted `ci-general` pool for PRs and pushes to `main`. This is **not a public-contribution isolation policy**. The tested, isolated self-hosted runner/trust policy required by the repository rules must be established before making the repository public.
+GitHub Actions is currently **disabled for this repository** so public contributions cannot run on shared enterprise infrastructure. The workflow still references the previously used self-hosted `ci-general` pool; do not re-enable it as-is. Establish and test the isolated self-hosted runner/trust policy in the repository rules before resuming CI. Run `npm test` locally in the meantime. Report vulnerabilities through the [private reporting route](REPOSITORY_RULES.md#vulnerability-reports).
 
 ## License
 

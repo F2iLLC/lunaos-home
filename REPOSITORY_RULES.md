@@ -29,26 +29,26 @@ Prefer suitable existing contracts/libraries to duplicate implementations, but s
 
 ## CI and untrusted contributions
 
-**Current state:** the workflow uses shared F2iLLC self-hosted `ci-general` infrastructure. Read-only job token permissions and nonpersisted checkout credentials are configured; these do not isolate arbitrary contributor code. The repository is private. A safe public-contribution runner/trust policy is not established by this starter.
+**Current state:** the repository is public, and GitHub Actions is disabled at the repository level. The workflow still references shared F2iLLC self-hosted `ci-general` infrastructure. Read-only job token permissions and nonpersisted checkout credentials do not isolate arbitrary contributor code. A safe public-contribution runner/trust policy is not established by this starter; do not re-enable the existing workflow as-is.
 
-**Before public visibility or accepting untrusted code for execution:** establish a tested, isolated self-hosted runner/trust policy. Do not route untrusted forks or PR code onto enterprise runners, even after a human clicks an approval button. Use a separate appropriate runner pool with no enterprise network/data/credential access, no secrets for untrusted jobs, minimal token permissions, and disposable clean execution state. Keep trusted release jobs separately controlled. Labels alone are not proof of isolation.
+**Before re-enabling CI or accepting untrusted code for execution:** establish a tested, isolated self-hosted runner/trust policy. Do not route untrusted forks or PR code onto enterprise runners, even after a human clicks an approval button. Use a separate appropriate runner pool with no enterprise network/data/credential access, no secrets for untrusted jobs, minimal token permissions, and disposable clean execution state. Keep trusted release jobs separately controlled. Labels alone are not proof of isolation.
 
-Never use `pull_request_target` to execute an untrusted checkout. Do not allow an untrusted workflow change or build script to select the enterprise pool, obtain secrets, poison shared caches, or persist state for another job. Validate the chosen repository/runner-group controls and trust policy with a synthetic fork/PR: verify the assigned runner, denied enterprise access, absent secrets, and cleanup between runs. Restrict enterprise runner access to trusted repositories/workflows through the appropriate authorized administrator. Do not change organization policy casually to make checks green. If an isolated policy cannot be established, keep the repository private and do not execute untrusted contributions.
+Never use `pull_request_target` to execute an untrusted checkout. Do not allow an untrusted workflow change or build script to select the enterprise pool, obtain secrets, poison shared caches, or persist state for another job. Validate the chosen repository/runner-group controls and trust policy with a synthetic fork/PR: verify the assigned runner, denied enterprise access, absent secrets, and cleanup between runs. Restrict enterprise runner access to trusted repositories/workflows through the appropriate authorized administrator. Do not change organization policy casually to make checks green. Until an isolated policy is established, keep repository Actions disabled and do not execute untrusted contributions on enterprise infrastructure.
 
 Self-hosted infrastructure remains required; this rule is not an instruction to switch to GitHub-hosted compute. Infrastructure and policy changes need their own review and authority; they are not configured by these documents.
 
 ## Public source release checklist
 
-The owner must authorize visibility change after a reviewer verifies:
+Public visibility requires explicit owner authorization and review of the following. A source-only preview may remain public with repository Actions disabled while runner isolation is pending; this is not acceptance of a runnable public CI policy or usable V1.
 
 - All publishable history/refs and relevant issues, PRs, release files, and CI artifacts have been reviewed for secrets, personal information, private references, and enterprise material. Resolve findings and credential exposure before publication.
 - Copyright/provenance, Apache scope, dependency licenses, and required notices are reviewed; no proprietary enterprise material is included without written rights and compatible terms.
-- A clean external checkout builds/tests without enterprise or household access, and the isolated self-hosted trust policy above has been exercised successfully.
+- A clean external checkout builds/tests without enterprise or household access. Before enabling CI, the isolated self-hosted trust policy above has been exercised successfully; until then, verify repository Actions is disabled.
 - A private vulnerability reporting route is established and tested, with instructions visible to future reporters. Do not claim GitHub private vulnerability reporting is enabled until it has been verified.
 - Documentation accurately distinguishes the starter, proposed V1, known limitations, supported combinations, and actually enforced controls. No real screenshots or live data are used as release examples.
 
-This checklist is not yet a passed gate. Public source release may precede V1, but neither happens automatically when a PR passes CI. See [ROADMAP.md](ROADMAP.md) for usable V1 acceptance.
+Source visibility does not certify that every release gate has passed. Runner isolation is still pending, and Actions must stay disabled. Public source may precede V1, but neither follows automatically from a passing PR. See [ROADMAP.md](ROADMAP.md) for usable V1 acceptance.
 
-## Vulnerability reports while private
+## Vulnerability reports
 
-Use an existing private channel to the project owner/maintainer to request secure report handling; share minimal detail until that channel is confirmed appropriate. If you have no such channel, request a private reporting route without disclosing exploit details or personal data. Do not post a vulnerability publicly to get attention. No reporting email is designated here, and GitHub private reporting is not claimed to be enabled. Establishing and testing that route is a public-release blocker, not a reason to invent a contact address.
+GitHub private vulnerability reporting is enabled. Use [Report a vulnerability](https://github.com/F2iLLC/lunaos-home/security/advisories/new) to submit a private report to the repository maintainers. Include a minimal synthetic reproduction, not household records or credentials. Do not disclose vulnerabilities in public issues or PRs. If that route is unavailable, use an existing private channel to the owner/maintainer to arrange secure handling; no reporting email is designated here. The enabled setting and reporting route are verified; no response-time or completed report-handling exercise is claimed.

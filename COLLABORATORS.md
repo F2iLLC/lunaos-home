@@ -32,4 +32,4 @@ PRs that add access or external actions should show what is authorized, how revo
 
 ## Public collaboration
 
-Use issues and PRs for product defects, proposed changes, and fictional reproductions. The repository rules cover prohibited data and the private vulnerability route. Do not invite public contributions onto the current shared enterprise runner setup: public source release first requires the isolated self-hosted trust policy and publication review described there. External contributors must not need enterprise code, enterprise credentials, or access to a household vault to build and test accepted Home source.
+Use issues and PRs for product defects, proposed changes, and fictional reproductions. The repository rules cover prohibited data and the private vulnerability route. Actions is disabled for the public source preview; do not run public contributions on the shared enterprise runner setup. CI must remain disabled until the isolated self-hosted trust policy is established and tested. External contributors must not need enterprise code, enterprise credentials, or access to a household vault to build and test accepted Home source.
