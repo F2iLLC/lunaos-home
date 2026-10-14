@@ -70,8 +70,8 @@ Initial probe: October 14, 2026. Results apply only to the combinations actually
 | Claude Code 2.1.291, existing authenticated subscription | **Verified real round trip:** model called stage; GUI displayed two fictional people; GUI flag reached model; model asked clarification; GUI reply reached model; model corrected; GUI displayed correction and confirmed it. Tool results and actual GUI state were both checked. This does not establish a minimum subscription tier. |
 | SDK protocol client | Automated child-process stdio test verifies the same tool → HTTP GUI → tool correction sequence. This test alone would not prove a real assistant integration. |
 | Narrow desktop browser viewport | Family selection and manual edits checked at a narrow rendered viewport with no horizontal overflow. This is not Android, touch-device or mobile installation proof. |
-| Android native app/device | **Unavailable in initial environment:** no SDK at the standard Android SDK location, no Android Studio at the standard installation location, and no adb/Java on PATH. Device model/OS and native installation are unverified. |
-| Native Windows package | Not built; Rust/Cargo were not on PATH. |
+| Android native app/device | [Android probe](android.md): SDK and emulator installed; Android 16 x86_64 emulator boot and native-library compilation verified. APK packaging is blocked by Windows symbolic-link permission; app installation, launch and UI remain unverified. |
+| Native Windows package | [Offline shell](native-shell.md): debug executable builds; process and WebView debugger started. Native rendering/interactions and installer lifecycle remain unverified. |
 | Claude Desktop, Claude Android and ChatGPT clients | Untested. Claude Code success does not establish support in these other clients. |
 | Assistant memory and Gmail/calendar discovery | Not exercised. Test used supplied fictional facts only; no real source access. |
 | Embedded GUI, phone-only local host, paired devices, background suspension | Untested. Current GUI is a separate local browser window. |
