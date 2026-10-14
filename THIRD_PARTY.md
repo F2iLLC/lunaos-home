@@ -19,6 +19,8 @@ Run the [native license audit](docs/prototypes/native-license-audit.md) against 
 
 ## Native shell development dependencies
 
+The [native notice source catalog](docs/prototypes/native-license-sources.md) records checksum-verified release provenance and pinned upstream license candidates for nine of the 11 archive gaps, with explicit unresolved steps for `cesu8` and `selectors`. Candidate bytes remain local; no upstream text is newly vendored or automatically treated as approved. This source reconciliation does not clear the final native/runtime notice review.
+
 The separate [Android runtime notice inventory](docs/prototypes/android-notice-audit.md) covers resolved Java/Android JAR/AAR artifacts, including candidate notices in nested `classes.jar` and `libs/*.jar`. The offline debug scan found 80 external modules, 70 artifacts and 27 candidate notice entries; 57 modules still require artifact/notice review. It also inspected all 80 cached POMs: 79 have direct license declarations, while `com.google.guava:listenablefuture:1.0` needs parent/source review. Metadata declarations do not replace license text or clear the artifact flags. The inventory lists local projects as excluded and does not interpret license compatibility, clear source obligations or certify final APK coverage. Use it alongside the Cargo report when assembling the native notice bundle.
 
 | Package | Version | Upstream | License | Purpose |
