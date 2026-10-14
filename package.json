@@ -13,6 +13,7 @@
     "test": "node --test",
     "assistant": "node assistant.js",
     "build:native": "node scripts/build-native.mjs",
+    "audit:native-licenses": "node scripts/audit-native-licenses.mjs",
     "native": "tauri",
     "native:build": "tauri build --debug --no-bundle",
     "native:android": "tauri android"
