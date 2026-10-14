@@ -1,0 +1,265 @@
+import groovy.json.JsonOutput
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+
+// Original Home tooling. Read resolved archives without extracting or executing
+// their contents. This inventory is not a license bundle or legal clearance.
+class LunaAndroidNotices {
+    static final int TEXT_LIMIT = 2 * 1024 * 1024
+    static final int JAR_LIMIT = 64 * 1024 * 1024
+    static final int ENTRY_LIMIT = 20000
+    static final int EXPANDED_LIMIT = 256 * 1024 * 1024
+
+    static String digest(InputStream stream) {
+        def sha = MessageDigest.getInstance('SHA-256')
+        byte[] buffer = new byte[65536]
+        int size
+        while ((size = stream.read(buffer)) != -1) sha.update(buffer, 0, size)
+        sha.digest().encodeHex().toString()
+    }
+
+    static byte[] bounded(InputStream stream, int limit) {
+        def bytes = new ByteArrayOutputStream()
+        byte[] buffer = new byte[8192]
+        int size
+        while ((size = stream.read(buffer)) != -1) {
+            if (bytes.size() + size > limit) throw new GradleException('Archive entry exceeds audit limit.')
+            bytes.write(buffer, 0, size)
+        }
+        bytes.toByteArray()
+    }
+
+    static void safeEntry(String path) {
+        if (path.startsWith('/') || path.contains('\\') || path.contains(':') ||
+            path.split('/').any { it == '..' || it == '.' }) {
+            throw new GradleException('Unsafe archive entry name.')
+        }
+    }
+
+    static boolean notice(String path) {
+        path.tokenize('/').last() ==~ /(?i)(LICENSE|LICENCE|COPYING|NOTICE|AUTHORS|COPYRIGHT)([._-].*)?/
+    }
+
+    static Map evidence(String path, byte[] bytes) {
+        [path: path, bytes: bytes.length,
+         sha256: digest(new ByteArrayInputStream(bytes)),
+         empty: new String(bytes, 'UTF-8').trim().isEmpty()]
+    }
+
+    static int drain(InputStream stream, int limit) {
+        byte[] buffer = new byte[8192]
+        int total = 0
+        int size
+        while ((size = stream.read(buffer)) != -1) {
+            total += size
+            if (total > limit) throw new GradleException('Expanded archive exceeds audit limit.')
+        }
+        total
+    }
+
+    static List scanJar(byte[] bytes, String prefix, int expandedLimit = EXPANDED_LIMIT) {
+        if (bytes.length < 4 || bytes[0] != 80 || bytes[1] != 75 ||
+            !((bytes[2] == 3 && bytes[3] == 4) || (bytes[2] == 5 && bytes[3] == 6))) {
+            throw new GradleException('Invalid nested JAR header.')
+        }
+        def found = []
+        def seen = new HashSet<String>()
+        new ZipInputStream(new ByteArrayInputStream(bytes)).withCloseable { stream ->
+            ZipEntry entry
+            int count = 0
+            int expanded = 0
+            while ((entry = stream.nextEntry) != null) {
+                if (++count > ENTRY_LIMIT) throw new GradleException('Too many archive entries.')
+                safeEntry(entry.name)
+                if (!seen.add(entry.name)) throw new GradleException('Duplicate archive entry.')
+                if (!entry.directory && notice(entry.name)) {
+                    def content = bounded(stream, Math.min(TEXT_LIMIT, expandedLimit - expanded))
+                    expanded += content.length
+                    found.add(evidence(prefix + '!/' + entry.name, content))
+                } else {
+                    // nextEntry otherwise drains skipped compressed entries
+                    // without a bound; cap that work as well as notice reads.
+                    expanded += drain(stream, expandedLimit - expanded)
+                }
+            }
+        }
+        found
+    }
+
+    static Map inspect(File archive) {
+        if (!(archive.name ==~ /(?i).+\.(aar|jar)/)) throw new GradleException('Unsupported runtime artifact type.')
+        def found = []
+        new ZipFile(archive).withCloseable { zip ->
+            def entries = Collections.list(zip.entries())
+            if (entries.size() > ENTRY_LIMIT) throw new GradleException('Too many archive entries.')
+            def seen = new HashSet<String>()
+            entries.each { entry ->
+                safeEntry(entry.name)
+                if (!seen.add(entry.name)) throw new GradleException('Duplicate archive entry.')
+                if (!entry.directory && notice(entry.name)) {
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        found.add(evidence(entry.name, bounded(stream, TEXT_LIMIT)))
+                    }
+                } else if (!entry.directory && archive.name.endsWith('.aar') &&
+                    (entry.name == 'classes.jar' || entry.name ==~ /libs\/[^\/]+\.jar/)) {
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        found.addAll(scanJar(bounded(stream, JAR_LIMIT), entry.name))
+                    }
+                }
+            }
+        }
+        def gaps = []
+        if (!found.any { !it.empty }) gaps.add('bundled-license-or-notice-text-not-found')
+        if (found.any { it.empty }) gaps.add('empty-notice-text')
+        [file: archive.name, bytes: archive.length(),
+         sha256: archive.withInputStream { digest(it) },
+         notices: found.sort { it.path }, gaps: gaps]
+    }
+
+    static void writeReport(File destination, File sourceRoot, Map report) {
+        def root = sourceRoot.toPath().toRealPath()
+        def output = destination.toPath().toAbsolutePath().normalize()
+        def parent = output.parent.toRealPath()
+        if (output.startsWith(root) || parent.startsWith(root)) {
+            throw new GradleException('Keep generated reports outside the source checkout.')
+        }
+        // CREATE_NEW rejects existing files, including output-file symlinks.
+        Files.write(output, (JsonOutput.prettyPrint(JsonOutput.toJson(report)) + '\n').getBytes('UTF-8'),
+            StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+    }
+
+    static byte[] syntheticZip(Map<String, byte[]> entries) {
+        def bytes = new ByteArrayOutputStream()
+        new ZipOutputStream(bytes).withCloseable { zip ->
+            entries.each { name, content ->
+                zip.putNextEntry(new ZipEntry(name))
+                zip.write(content)
+                zip.closeEntry()
+            }
+        }
+        bytes.toByteArray()
+    }
+
+    static void rejected(Closure operation, String message) {
+        boolean failed = false
+        try { operation.call() }
+        catch (Exception error) { failed = true; assert error.message.contains(message) }
+        assert failed : 'Expected rejection: ' + message
+    }
+
+    static void verify() {
+        def parent = new File(System.getProperty('java.io.tmpdir')).toPath().toRealPath()
+        def directory = Files.createTempDirectory(parent, 'luna-android-notices-')
+        try {
+            byte[] text = 'Synthetic attribution only'.getBytes('UTF-8')
+            def aar = directory.resolve('fixture.aar').toFile()
+            aar.bytes = syntheticZip([
+                'NOTICE': text,
+                'classes.jar': syntheticZip(['META-INF/LICENSE.txt': text]),
+                'libs/helper.jar': syntheticZip(['META-INF/NOTICE': text]),
+                'res/raw/ignored.txt': text,
+            ])
+            def result = inspect(aar)
+            assert result.notices*.path == ['NOTICE', 'classes.jar!/META-INF/LICENSE.txt', 'libs/helper.jar!/META-INF/NOTICE']
+            assert result.notices.every { it.sha256.size() == 64 && !it.empty }
+            assert result.gaps.isEmpty()
+            assert result == inspect(aar)
+            assert !JsonOutput.toJson(result).contains(directory.toString())
+            def empty = directory.resolve('empty.jar').toFile()
+            empty.bytes = syntheticZip(['META-INF/LICENSE': ' \n'.getBytes('UTF-8')])
+            assert inspect(empty).gaps.contains('empty-notice-text')
+            assert inspect(empty).gaps.contains('bundled-license-or-notice-text-not-found')
+            empty.bytes = syntheticZip(['code.class': text])
+            assert inspect(empty).gaps == ['bundled-license-or-notice-text-not-found']
+            empty.bytes = syntheticZip(['../LICENSE': text])
+            rejected({ inspect(empty) }, 'Unsafe')
+            empty.bytes = syntheticZip(['classes.jar': syntheticZip(['../LICENSE': text])])
+            def badAar = directory.resolve('bad.aar').toFile()
+            badAar.bytes = empty.bytes
+            rejected({ inspect(badAar) }, 'Unsafe')
+            rejected({ bounded(new ByteArrayInputStream(new byte[4]), 3) }, 'limit')
+            rejected({ scanJar(syntheticZip(['code.class': new byte[64]]), 'classes.jar', 32) }, 'limit')
+            rejected({ scanJar(text, 'classes.jar') }, 'Invalid')
+            def source = Files.createDirectory(directory.resolve('source')).toFile()
+            rejected({ writeReport(new File(source, 'report.json'), source, [:]) }, 'outside')
+            def output = directory.resolve('report.json').toFile()
+            writeReport(output, source, [test: true])
+            def original = output.text
+            boolean refused = false
+            try { writeReport(output, source, [:]) }
+            catch (java.nio.file.FileAlreadyExistsException expected) { refused = true }
+            assert refused && output.text == original
+        } finally {
+            assert directory.toRealPath().parent == parent
+            assert directory.fileName.toString().startsWith('luna-android-notices-')
+            Files.walk(directory).withCloseable { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) }
+            }
+        }
+    }
+}
+
+if (!gradle.startParameter.offline) throw new GradleException('Run this audit with --offline.')
+
+gradle.projectsEvaluated {
+    // Init scripts also run for buildSrc/included build-tool projects.
+    if (gradle.parent != null) return
+    def app = gradle.rootProject.findProject(':app')
+    if (app == null) throw new GradleException('Expected generated Android :app project.')
+    app.tasks.register('verifyLunaNoticeAudit') {
+        doLast {
+            LunaAndroidNotices.verify()
+            println('PASS: synthetic Android archive, nested notice, limit, privacy and output-safety checks.')
+        }
+    }
+    app.tasks.register('auditLunaAndroidNotices') {
+        doLast {
+            def output = app.findProperty('lunaNoticeOutput')
+            if (!output) throw new GradleException('Set -PlunaNoticeOutput to a new report outside the checkout.')
+            def name = app.findProperty('lunaNoticeConfiguration') ?: 'universalDebugRuntimeClasspath'
+            def configuration = app.configurations.getByName(name)
+            if (!configuration.canBeResolved) throw new GradleException('Configuration is not resolvable.')
+            // Filter local project artifacts to avoid triggering compilation.
+            // List them separately, so the exclusion cannot imply full coverage.
+            def artifacts = configuration.incoming.artifactView {
+                componentFilter { it instanceof ModuleComponentIdentifier }
+            }.artifacts.artifacts
+            def modules = configuration.incoming.resolutionResult.allComponents
+                .findAll { it.id instanceof ModuleComponentIdentifier }.collect { component ->
+                    def id = component.id
+                    def inspected = artifacts.findAll { it.id.componentIdentifier == id }
+                        .collect { LunaAndroidNotices.inspect(it.file) }.sort { it.file }
+                    [coordinate: "${id.group}:${id.module}:${id.version}".toString(), artifacts: inspected,
+                     gaps: inspected.isEmpty() ? ['no-runtime-artifact-metadata-review'] : []]
+                }.sort { it.coordinate }
+            def projects = configuration.incoming.resolutionResult.allComponents
+                .findAll { it.id instanceof ProjectComponentIdentifier }
+                .collect { it.id.projectPath }.sort()
+            def buildInputs = ['app/build.gradle.kts', 'app/tauri.build.gradle.kts', 'build.gradle.kts',
+                'settings.gradle', 'tauri.settings.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties']
+                .collect { path ->
+                    def file = new File(gradle.rootProject.projectDir, path)
+                    [path: path, sha256: file.withInputStream { LunaAndroidNotices.digest(it) }]
+                }
+            def report = [schemaVersion: 1, configuration: name, distributionApproved: false,
+                gradleVersion: gradle.gradleVersion, buildInputs: buildInputs,
+                scope: 'Resolved external Android runtime JAR/AAR artifacts and bundled candidate notice text',
+                limitations: ['Not the final APK inventory or a redistributable license bundle.',
+                    'POM licenses, source obligations, local projects, Rust/native libraries and platform runtimes need separate review.',
+                    'Only direct archive notices plus classes.jar and libs/*.jar inside AARs are scanned; other nested archives are excluded.'],
+                localProjectsExcluded: projects, modules: modules,
+                modulesWithGaps: modules.count { it.gaps || it.artifacts.any { artifact -> artifact.gaps } }]
+            def sourceRoot = new File(gradle.rootProject.projectDir, '../../..').canonicalFile
+            if (!new File(sourceRoot, 'src-tauri/Cargo.toml').isFile()) throw new GradleException('Unexpected source root.')
+            LunaAndroidNotices.writeReport(new File(output.toString()), sourceRoot, report)
+            println("Inventoried ${modules.size()} external runtime modules; ${report.modulesWithGaps} need artifact/notice review. Redistribution remains unapproved.")
+        }
+    }
+}
