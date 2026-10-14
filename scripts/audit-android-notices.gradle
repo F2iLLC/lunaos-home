@@ -8,6 +8,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import javax.xml.parsers.DocumentBuilderFactory
+import org.xml.sax.ErrorHandler
+import org.xml.sax.SAXParseException
 
 // Original Home tooling. Read resolved archives without extracting or executing
 // their contents. This inventory is not a license bundle or legal clearance.
@@ -51,6 +54,105 @@ class LunaAndroidNotices {
         [path: path, bytes: bytes.length,
          sha256: digest(new ByteArrayInputStream(bytes)),
          empty: new String(bytes, 'UTF-8').trim().isEmpty()]
+    }
+
+    static List children(org.w3c.dom.Node parent, String name) {
+        def result = []
+        if (parent != null) {
+            for (int i = 0; i < parent.childNodes.length; i++) {
+                def node = parent.childNodes.item(i)
+                if (node.nodeType == org.w3c.dom.Node.ELEMENT_NODE && node.localName == name) result.add(node)
+            }
+        }
+        result
+    }
+
+    static String field(org.w3c.dom.Node parent, String name) {
+        def nodes = children(parent, name)
+        if (nodes.size() > 1) throw new GradleException('Ambiguous POM field.')
+        nodes ? nodes[0].textContent.trim() : ''
+    }
+
+    static Map inspectPom(byte[] bytes, String coordinate) {
+        if (bytes.length > TEXT_LIMIT) throw new GradleException('POM exceeds audit limit.')
+        def factory = DocumentBuilderFactory.newInstance()
+        factory.namespaceAware = true
+        factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)
+        factory.setFeature('http://xml.org/sax/features/external-general-entities', false)
+        factory.setFeature('http://xml.org/sax/features/external-parameter-entities', false)
+        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_DTD, '')
+        factory.setAttribute(javax.xml.XMLConstants.ACCESS_EXTERNAL_SCHEMA, '')
+        factory.setXIncludeAware(false)
+        factory.setExpandEntityReferences(false)
+        def parser = factory.newDocumentBuilder()
+        parser.setErrorHandler(new ErrorHandler() {
+            void warning(SAXParseException error) { throw error }
+            void error(SAXParseException error) { throw error }
+            void fatalError(SAXParseException error) { throw error }
+        })
+        def project = parser.parse(new ByteArrayInputStream(bytes)).documentElement
+        if (project.localName != 'project') throw new GradleException('Unexpected POM root.')
+        def parents = children(project, 'parent')
+        if (parents.size() > 1) throw new GradleException('Ambiguous POM parent.')
+        def parent = parents ? parents[0] : null
+        def group = field(project, 'groupId') ?: field(parent, 'groupId')
+        def version = field(project, 'version') ?: field(parent, 'version')
+        def declared = "${group}:${field(project, 'artifactId')}:${version}".toString()
+        if (declared != coordinate) throw new GradleException('POM identity does not match selected module.')
+        def gaps = []
+        // Only report public web references, never follow them or expose a
+        // local-file URL. A reference does not supply its license text.
+        def webReference = { String value ->
+            if (!value) return null
+            try {
+                def uri = new URI(value)
+                if (!(uri.scheme in ['https', 'http']) || !uri.host || uri.userInfo || uri.query || uri.fragment) {
+                    gaps.add('non-web-or-unresolved-reference'); return null
+                }
+                return value
+            } catch (Exception ignored) { gaps.add('non-web-or-unresolved-reference'); return null }
+        }
+        def licenseContainers = children(project, 'licenses')
+        if (licenseContainers.size() > 1) throw new GradleException('Ambiguous POM licenses.')
+        def licenses = licenseContainers.collectMany { children(it, 'license') }.collect { license ->
+            def name = field(license, 'name')
+            if (!name || name.contains('${')) gaps.add('incomplete-license-declaration')
+            [name: name, url: webReference(field(license, 'url'))]
+        }.sort { it.name + (it.url ?: '') }
+        if (licenses.isEmpty()) gaps.add('direct-license-declaration-not-found')
+        def scm = children(project, 'scm')
+        if (scm.size() > 1) throw new GradleException('Ambiguous POM SCM metadata.')
+        def sourceUrl = scm ? webReference(field(scm[0], 'url')) : null
+        [status: 'inspected', sha256: digest(new ByteArrayInputStream(bytes)), bytes: bytes.length,
+         declaredCoordinate: declared, parentPresent: parent != null,
+         directLicenses: licenses, sourceUrl: sourceUrl, gaps: gaps.unique().sort()]
+    }
+
+    static byte[] cachedPom(File cacheRoot, String coordinate) {
+        def parts = coordinate.split(':', -1)
+        if (parts.length != 3 || !parts.every { it ==~ /[A-Za-z0-9_][A-Za-z0-9_.+-]*/ }) {
+            throw new GradleException('Unsafe Maven coordinate.')
+        }
+        if (!cacheRoot.isDirectory()) return null
+        def root = cacheRoot.toPath().toRealPath()
+        def directory = root.resolve(parts[0]).resolve(parts[1]).resolve(parts[2])
+        if (!Files.isDirectory(directory)) return null
+        if (!directory.toRealPath().startsWith(root)) throw new GradleException('POM cache path leaves cache.')
+        def contents = []
+        // Only the exact module/version's immediate hash directories; never
+        // search the whole cache or choose an arbitrary newer POM copy.
+        Files.walk(directory, 2).withCloseable { paths ->
+            paths.filter { Files.isRegularFile(it) && it.fileName.toString() == "${parts[1]}-${parts[2]}.pom" }
+                .forEach { path ->
+                    if (!path.toRealPath().startsWith(root)) throw new GradleException('POM cache link leaves cache.')
+                    contents.add(Files.newInputStream(path).withCloseable { bounded(it, TEXT_LIMIT) })
+                }
+        }
+        if (contents.isEmpty()) return null
+        if (contents.collect { digest(new ByteArrayInputStream(it)) }.unique().size() != 1) {
+            throw new GradleException('Conflicting cached POM copies require review.')
+        }
+        contents[0]
     }
 
     static int drain(InputStream stream, int limit) {
@@ -187,6 +289,33 @@ class LunaAndroidNotices {
             rejected({ bounded(new ByteArrayInputStream(new byte[4]), 3) }, 'limit')
             rejected({ scanJar(syntheticZip(['code.class': new byte[64]]), 'classes.jar', 32) }, 'limit')
             rejected({ scanJar(text, 'classes.jar') }, 'Invalid')
+            def pom = '<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>example</groupId><artifactId>sample</artifactId><version>1</version><licenses><license><name>Synthetic license</name><url>https://example.org/license</url></license></licenses><scm><url>https://example.org/source</url></scm></project>'
+            def pomResult = inspectPom(pom.getBytes('UTF-8'), 'example:sample:1')
+            assert pomResult.directLicenses == [[name: 'Synthetic license', url: 'https://example.org/license']]
+            assert pomResult.sourceUrl == 'https://example.org/source' && pomResult.gaps.isEmpty()
+            rejected({ inspectPom(pom.getBytes('UTF-8'), 'example:other:1') }, 'identity')
+            def inherited = '<project><parent><groupId>example</groupId><artifactId>parent</artifactId><version>1</version></parent><artifactId>sample</artifactId></project>'
+            assert inspectPom(inherited.getBytes('UTF-8'), 'example:sample:1').gaps == ['direct-license-declaration-not-found']
+            def unsafePom = pom.replace('https://example.org/license', 'file:///must-not-read')
+            def unsafeResult = inspectPom(unsafePom.getBytes('UTF-8'), 'example:sample:1')
+            assert unsafeResult.directLicenses[0].url == null
+            assert unsafeResult.gaps == ['non-web-or-unresolved-reference']
+            assert !JsonOutput.toJson(unsafeResult).contains('must-not-read')
+            def entityPom = '<!DOCTYPE project [<!ENTITY external SYSTEM "file:///must-not-read">]>' + pom
+            rejected({ inspectPom(entityPom.getBytes('UTF-8'), 'example:sample:1') }, 'DOCTYPE')
+            def cache = Files.createDirectory(directory.resolve('cache')).toFile()
+            assert cachedPom(cache, 'example:missing:1') == null
+            def pomFolder = new File(cache, 'example/sample/1/hash-one')
+            assert pomFolder.mkdirs()
+            new File(pomFolder, 'sample-1.pom').text = pom
+            assert new String(cachedPom(cache, 'example:sample:1'), 'UTF-8') == pom
+            rejected({ cachedPom(cache, '../escape:sample:1') }, 'Unsafe')
+            def secondFolder = new File(cache, 'example/sample/1/hash-two')
+            assert secondFolder.mkdirs()
+            new File(secondFolder, 'sample-1.pom').text = pom
+            assert new String(cachedPom(cache, 'example:sample:1'), 'UTF-8') == pom
+            new File(secondFolder, 'sample-1.pom').text = pom + '\n'
+            rejected({ cachedPom(cache, 'example:sample:1') }, 'Conflicting')
             def source = Files.createDirectory(directory.resolve('source')).toFile()
             rejected({ writeReport(new File(source, 'report.json'), source, [:]) }, 'outside')
             def output = directory.resolve('report.json').toFile()
@@ -216,7 +345,7 @@ gradle.projectsEvaluated {
     app.tasks.register('verifyLunaNoticeAudit') {
         doLast {
             LunaAndroidNotices.verify()
-            println('PASS: synthetic Android archive, nested notice, limit, privacy and output-safety checks.')
+            println('PASS: synthetic archive/POM identity, XML security, privacy, limits and output-safety checks.')
         }
     }
     app.tasks.register('auditLunaAndroidNotices') {
@@ -236,7 +365,32 @@ gradle.projectsEvaluated {
                     def id = component.id
                     def inspected = artifacts.findAll { it.id.componentIdentifier == id }
                         .collect { LunaAndroidNotices.inspect(it.file) }.sort { it.file }
-                    [coordinate: "${id.group}:${id.module}:${id.version}".toString(), artifacts: inspected,
+                    def coordinate = "${id.group}:${id.module}:${id.version}".toString()
+                    def pom
+                    File pomFile = null
+                    // Resolve the exact metadata artifact through the same
+                    // repositories/cache. Do not scan unrelated cache folders.
+                    try {
+                        def request = app.dependencies.create(coordinate + '@pom')
+                        def pomConfiguration = app.configurations.detachedConfiguration(request)
+                        pomConfiguration.transitive = false
+                        pomFile = pomConfiguration.singleFile
+                    } catch (org.gradle.api.artifacts.ResolveException unavailable) {
+                        // Gradle may cache a POM as metadata without indexing it
+                        // as an explicitly requested artifact. Inspect that
+                        // exact coordinate only; no network/cache mutation.
+                    }
+                    byte[] content = null
+                    String obtainedFrom = 'artifact-resolution'
+                    if (pomFile != null) {
+                        content = pomFile.withInputStream { LunaAndroidNotices.bounded(it, LunaAndroidNotices.TEXT_LIMIT) }
+                    } else {
+                        content = LunaAndroidNotices.cachedPom(new File(gradle.gradleUserHomeDir, 'caches/modules-2/files-2.1'), coordinate)
+                        obtainedFrom = 'exact-coordinate-cache'
+                    }
+                    pom = content == null ? [status: 'unavailable-offline', gaps: ['pom-unavailable-offline']] :
+                        LunaAndroidNotices.inspectPom(content, coordinate) + [obtainedFrom: obtainedFrom]
+                    [coordinate: coordinate, artifacts: inspected, pom: pom,
                      gaps: inspected.isEmpty() ? ['no-runtime-artifact-metadata-review'] : []]
                 }.sort { it.coordinate }
             def projects = configuration.incoming.resolutionResult.allComponents
@@ -248,14 +402,16 @@ gradle.projectsEvaluated {
                     def file = new File(gradle.rootProject.projectDir, path)
                     [path: path, sha256: file.withInputStream { LunaAndroidNotices.digest(it) }]
                 }
-            def report = [schemaVersion: 1, configuration: name, distributionApproved: false,
+            def report = [schemaVersion: 2, configuration: name, distributionApproved: false,
                 gradleVersion: gradle.gradleVersion, buildInputs: buildInputs,
                 scope: 'Resolved external Android runtime JAR/AAR artifacts and bundled candidate notice text',
                 limitations: ['Not the final APK inventory or a redistributable license bundle.',
-                    'POM licenses, source obligations, local projects, Rust/native libraries and platform runtimes need separate review.',
+                    'POM declarations are not license text. Parent license inheritance and property interpolation are not resolved.',
+                    'Source obligations, local projects, Rust/native libraries and platform runtimes need separate review.',
                     'Only direct archive notices plus classes.jar and libs/*.jar inside AARs are scanned; other nested archives are excluded.'],
                 localProjectsExcluded: projects, modules: modules,
-                modulesWithGaps: modules.count { it.gaps || it.artifacts.any { artifact -> artifact.gaps } }]
+                modulesWithGaps: modules.count { it.gaps || it.artifacts.any { artifact -> artifact.gaps } },
+                modulesWithPomGaps: modules.count { it.pom.gaps }]
             def sourceRoot = new File(gradle.rootProject.projectDir, '../../..').canonicalFile
             if (!new File(sourceRoot, 'src-tauri/Cargo.toml').isFile()) throw new GradleException('Unexpected source root.')
             LunaAndroidNotices.writeReport(new File(output.toString()), sourceRoot, report)
