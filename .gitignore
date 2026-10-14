@@ -1,0 +1,25 @@
+# Personal content belongs outside this checkout, even when ignored.
+personal/
+private/
+records/
+data/
+uploads/
+attachments/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+# Working material is not application source.
+work/
+scratch/
+notes/
+transcripts/
+plans/
+status/
+node_modules/
+coverage/
+.DS_Store
+Thumbs.db
