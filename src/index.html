@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#303451">
+  <title>Luna OS Home</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div class="landscape" aria-hidden="true">
+    <div class="stars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="horizon"></div>
+    <div class="hill hill-far"></div>
+    <div class="hill hill-middle"></div>
+    <div class="hill hill-near"></div>
+  </div>
+  <div class="shell">
+    <header class="site-header">
+      <a class="brand" href="#welcome" aria-label="Luna OS Home, welcome page">
+        <span class="brand-moon" aria-hidden="true"></span>
+        <span>LUNA <span class="brand-light">OS</span> HOME</span>
+      </a>
+      <span class="header-note">A little room to breathe.</span>
+    </header>
+    <main>
+      <section id="welcome" class="welcome" aria-labelledby="welcome-heading">
+        <div class="moon-scene" aria-hidden="true">
+          <span class="moon-halo"></span><span class="moon"></span>
+          <span class="moon-star star-one">✦</span><span class="moon-star star-two">✦</span>
+        </div>
+        <p class="eyebrow">YOUR OWN LITTLE ORBIT</p>
+        <h1 id="welcome-heading" tabindex="-1">Welcome home.</h1>
+        <p class="intro">A little less to carry.<br>A little more space for you.</p>
+        <a class="primary-button enter" href="#checklist">Step inside <span aria-hidden="true">→</span></a>
+        <p class="entry-note">Start with a simple checklist.</p>
+      </section>
+      <section id="checklist" class="checklist" aria-labelledby="checklist-heading" hidden>
+        <a class="back-link" href="#welcome"><span aria-hidden="true">←</span> Back to your quiet place</a>
+        <div class="checklist-intro">
+          <p class="eyebrow">ONE THING AT A TIME</p>
+          <h1 id="checklist-heading" tabindex="-1">Set it down here.</h1>
+          <p>A small space for the things on your mind.</p>
+        </div>
+        <div class="list-panel">
+          <form id="task-form">
+            <label for="task-title">What would you like to remember?</label>
+            <input id="task-title" type="text" name="title" maxlength="160" required autocomplete="off" placeholder="Review the sample school checklist">
+            <div class="form-row">
+              <div>
+                <label for="task-category">Category</label>
+                <select id="task-category" name="category"></select>
+              </div>
+              <button type="submit" class="primary-button">Add to my list <span aria-hidden="true">+</span></button>
+            </div>
+            <p id="form-error" role="alert"></p>
+          </form>
+          <div class="list-heading"><h2>Your little list</h2><p id="task-count" role="status"></p></div>
+          <div id="empty-state"><span aria-hidden="true">✧</span><p>Nothing to carry here yet.</p></div>
+          <ul id="task-list"></ul>
+          <aside class="notice" aria-label="About this checklist">
+            <p>Just for this visit. Your list clears when you reload or close this tab. Nothing is saved or sent.</p>
+            <p>Use generic task labels; keep personal details elsewhere. This early preview doesn't book appointments, read files, or send reminders.</p>
+          </aside>
+        </div>
+      </section>
+      <noscript><p class="no-script">This preview needs JavaScript to open and use the checklist. Tasks are never saved.</p></noscript>
+    </main>
+    <footer class="site-footer"><span>Made for a softer landing.</span><span class="footer-star" aria-hidden="true">✧</span><span>At your pace.</span></footer>
+  </div>
+</body>
+</html>
