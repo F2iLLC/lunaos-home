@@ -2,7 +2,7 @@
 
 Luna OS Home is a personal and household assistant project intended to help ordinary households get more from an existing AI subscription: prepare appointments, work with forms, find the right information, and follow through on everyday administration.
 
-Home is intended to be **MCP first, with a companion GUI**. MCP exposes household capabilities to the user's own Claude or ChatGPT; the GUI helps nontechnical users understand their local setup, what Home can access, what it is attempting, and the results. Both interfaces will use the same local application services and state, rather than separate engines. Discovery will be limited to user-authorized locations and configuration.
+Home is intended to be **MCP first, with a companion GUI for mobile and desktop**. MCP exposes household capabilities to the user's own Claude or ChatGPT; the GUI helps nontechnical users understand their local setup, what Home can access, what it is attempting, and the results. Both interfaces will use the same local application services and state, rather than separate engines. Discovery will be limited to user-authorized locations and configuration. Mobile and desktop app delivery is a product requirement; installation, device-local storage, and assistant connectivity need verification on each supported platform.
 
 The user's assistant remains the conversational and voice host. Home supplies onboarding scripts and workflows, not a new voice service. Third-party MCP connections are chosen for the user's needs and managed in their assistant environment. Local MCP, tool, plan, client, and voice compatibility must be verified before claiming support on any particular surface.
 
@@ -10,7 +10,7 @@ This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC.
 
 ## What works today
 
-Only the local, session-only browser checklist is implemented. You can add a task, choose a category, mark it complete, and remove it. Task state lives in the current tab's memory and clears on reload or close. Tasks are not sent to the local server or external services.
+A responsive dusk welcome screen leads into the local, session-only browser checklist. Select **Step inside** to add a task, choose a category, mark it complete, or remove it; return to the welcome screen without losing the current list. Task state lives in the current tab's memory and clears on reload or close. Tasks are not sent to the local server or external services. The design adapts to mobile and desktop browser sizes; installable mobile/desktop packages are not implemented.
 
 The checklist is a limited scaffold. It does not implement MCP tools, environment discovery, profiles, a vault, credentials, document analysis, calendars, reminders, form filling, booking, or integrations. There are no implemented vault encryption or access controls. No personal records are processed by this starter.
 

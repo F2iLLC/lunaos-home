@@ -6,6 +6,22 @@ const title = document.querySelector('#task-title');
 const category = document.querySelector('#task-category');
 const error = document.querySelector('#form-error');
 const list = document.querySelector('#task-list');
+const welcome = document.querySelector('#welcome');
+const checklist = document.querySelector('#checklist');
+
+function showPage(moveFocus = true) {
+  const showChecklist = location.hash === '#checklist';
+  welcome.hidden = showChecklist;
+  checklist.hidden = !showChecklist;
+  document.title = showChecklist ? 'Your checklist · Luna OS Home' : 'Luna OS Home';
+  if (moveFocus) {
+    document.querySelector(showChecklist ? '#checklist-heading' : '#welcome-heading').focus();
+    window.scrollTo(0, 0);
+  }
+}
+
+window.addEventListener('hashchange', () => showPage());
+showPage(false);
 
 for (const name of categories) {
   const option = document.createElement('option');
