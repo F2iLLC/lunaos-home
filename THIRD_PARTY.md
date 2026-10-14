@@ -19,6 +19,8 @@ Run the [native license audit](docs/prototypes/native-license-audit.md) against 
 
 ## Native shell development dependencies
 
+The separate [Android runtime notice inventory](docs/prototypes/android-notice-audit.md) covers resolved Java/Android JAR/AAR artifacts, including candidate notices in nested `classes.jar` and `libs/*.jar`. The initial offline debug scan found 80 external modules, 70 artifacts and 27 candidate notice entries; 57 modules still require artifact/notice review. It lists local projects as excluded and does not interpret POM licenses, clear source obligations or certify final APK coverage. Use it alongside the Cargo report when assembling the native notice bundle.
+
 | Package | Version | Upstream | License | Purpose |
 | --- | --- | --- | --- | --- |
 | `@tauri-apps/cli` | 2.12.2 | [Tauri](https://github.com/tauri-apps/tauri) | Apache-2.0 OR MIT | Development/build CLI and icon generation. |
