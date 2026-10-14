@@ -14,6 +14,7 @@
     "assistant": "node assistant.js",
     "build:native": "node scripts/build-native.mjs",
     "native": "tauri",
+    "tauri": "tauri",
     "native:build": "tauri build --debug --no-bundle",
     "native:android": "tauri android"
   },

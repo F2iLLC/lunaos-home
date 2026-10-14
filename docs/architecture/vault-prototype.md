@@ -6,7 +6,7 @@ Status: provisional. Applies to the fictional [Session 1 probe](../prototypes/dr
 
 Keep the existing web interface and isolate a draft-only domain service. The Windows probe uses Node HTTP plus the official MCP SDK over stdio, sharing one service instance. Use a local browser window until embedded presentation and its data path are proven. There is no saved-record adapter and no production authorization claim.
 
-Evaluate **Tauri with platform-native adapters** as the installable Windows/Android candidate. It can reuse a web interface, but the current Node process is not an Android runtime or a finished Tauri core. A native command adapter and shared contract tests must replace/bridge the experimental transport deliberately; do not bundle a desktop sidecar and claim phone support. The [offline shell probe](../prototypes/native-shell.md) now bundles the shared JavaScript domain and compiles a Windows debug executable without a Node runtime. It has no assistant transport or persistent storage. Native UI acceptance, Android tooling/build/launch, complete binary notices and installer validation remain feasibility work. Tauri prerequisites include Windows build facilities and Android-specific tooling; none of that is established by responsive CSS. [Tauri prerequisites](https://tauri.app/start/prerequisites/).
+Evaluate **Tauri with platform-native adapters** as the installable Windows/Android candidate. It can reuse a web interface, but the current Node process is not an Android runtime or a finished Tauri core. A native command adapter and shared contract tests must replace/bridge the experimental transport deliberately; do not bundle a desktop sidecar and claim phone support. The [offline shell probe](../prototypes/native-shell.md) now bundles the shared JavaScript domain and compiles a Windows debug executable without a Node runtime. The [Android probe](../prototypes/android.md) also builds, installs and starts on an Android 16 x86_64 emulator. Neither shell has an assistant transport or persistent storage. Native UI acceptance, complete binary notices and installer validation remain feasibility work. Tauri prerequisites include Windows build facilities and Android-specific tooling; none of that is established by responsive CSS. [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ## Assistant path
 
@@ -21,6 +21,24 @@ ChatGPT connection documentation and Secure MCP Tunnel describe additional trans
 - Windows user-scoped DPAPI as a key-wrapping candidate, paired with a separately verified OS unlock interaction and protected storage location. DPAPI protection alone is not per-operation user presence or a portable recovery plan. Never collect a Windows password in Home. [CryptProtectData](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
 - A maintained authenticated direct transport with explicit device identity approval for pairing; no protocol/library selected yet. TLS, key trust, revocation and sleep/retry behavior need an experiment before use. Current loopback HTTP must not be repurposed for LAN access.
 - User-held encrypted backup/restore, with recovery usability and key loss tested. No operator escrow. No storage or crypto library is selected by this draft-only slice.
+
+### Android host and custody experiments
+
+The installed offline shell is not a phone-hosted service. Before recommending a phone as the authoritative host, distinguish these proposed experiments from the startup result:
+
+| Experiment | Required observation before accepting the candidate |
+| --- | --- |
+| Home visible and unlocked | A synthetic local operation completes through the native service, with the approved workflow session and draft identity intact. |
+| Switch to an assistant app, lock the screen, or let the phone sleep | Measure whether the service remains reachable; report unavailable or locked truthfully. An unacknowledged operation must not appear saved. |
+| Process termination, reboot and reconnect | Stale sessions and queued operations cannot regain write permission; unlock and a new authorization must be required according to the chosen policy. |
+| Key custody | Query the actual key's security level and authentication enforcement on a physical device, then test cancellation and invalidation. Emulator success is insufficient evidence of hardware protection. |
+| Backup and migration | Test synthetic files against backup, restore and device-transfer paths, including any supported cross-platform transfer. Verify exclusions and recovery separately. |
+
+Android restricts starting foreground services from the background for apps targeting API 31 or later, subject to specific exceptions. A foreground service is therefore an unproven candidate, not an always-available phone-host guarantee. Do not silently change battery settings, add cloud wakeups or route through a public relay to pass the experiment. The supported background behavior and any required visible notification still need design and measurement. [Android foreground-service restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
+
+For a storage experiment, evaluate the application-private `getNoBackupFilesDir()` location together with explicit version-appropriate extraction rules. Android documents that `allowBackup=false` can still allow device-to-device transfer on some devices; the current manifest check alone cannot meet local-custody acceptance. Include temporary files, journals, attachments and preferences in the eventual exclusion review. No persistent records are introduced by this decision record. [Android backup and transfer rules](https://developer.android.com/identity/data/autobackup).
+
+The key experiment should inspect `KeyInfo.getSecurityLevel()` and the actual key's authentication behavior. Keystore availability does not establish hardware backing, a passkey-based unlock path or recovery after losing the device. These checks refine Session 2 inputs; they do not start that session or clear its prerequisite. [Android Keystore security features](https://developer.android.com/privacy-and-security/keystore).
 
 ## Consequences
 

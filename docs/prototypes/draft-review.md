@@ -1,6 +1,6 @@
 # Fictional family draft review
 
-This is the first working slice of [Session 1](../epics/vault-first-two-sessions.md#session-1-prove-the-app-and-assistant-path). Android is the first mobile target. **The session remains open:** a native Android launch, packaged desktop launch and full client compatibility investigation are not complete. Do not enter real household information.
+This is the first working slice of [Session 1](../epics/vault-first-two-sessions.md#session-1-prove-the-app-and-assistant-path). Android is the first mobile target. **The session remains open:** native Android build/install/process launch has passed on an emulator, but native UI acceptance, assistant connection and full client compatibility investigation are not complete. Do not enter real household information.
 
 ## What is implemented
 
@@ -70,8 +70,10 @@ Initial probe: October 14, 2026. Results apply only to the combinations actually
 | Claude Code 2.1.291, existing authenticated subscription | **Verified real round trip:** model called stage; GUI displayed two fictional people; GUI flag reached model; model asked clarification; GUI reply reached model; model corrected; GUI displayed correction and confirmed it. Tool results and actual GUI state were both checked. This does not establish a minimum subscription tier. |
 | SDK protocol client | Automated child-process stdio test verifies the same tool → HTTP GUI → tool correction sequence. This test alone would not prove a real assistant integration. |
 | Narrow desktop browser viewport | Family selection and manual edits checked at a narrow rendered viewport with no horizontal overflow. This is not Android, touch-device or mobile installation proof. |
-| Android native app/device | **Unavailable in initial environment:** no SDK at the standard Android SDK location, no Android Studio at the standard installation location, and no adb/Java on PATH. Device model/OS and native installation are unverified. |
-| Native Windows package | Not built; Rust/Cargo were not on PATH. |
+| Android native app/device | [Android probe](android.md): full x86_64 debug APK build, signature check, installation and two cold process launches passed on Android 16 / API 36 emulator, WebView 133.0.6943.137. APK and installed package have no Internet permission. Native rendering/interactions, restart clearing, physical phone and native assistant connection remain unverified. |
+| Android ARM64 package | Full `aarch64` debug build and v2 signature check passed; APK contains the `arm64-v8a` native library and retains the offline manifest restrictions. No installation or runtime check on an ARM64 device has been performed. |
+| Android 11 physical ARMv7 test, WebView 146.0.7680.153 | Standard debug APK installation succeeded, but the device operator reported a native HWUI RenderThread crash immediately after activity start. Physical launch is **failed**, not passed. The [opt-in software-rendering build](android.md#opt-in-activity-software-rendering) is an unverified mitigation awaiting device retest. |
+| Native Windows package | [Offline shell](native-shell.md): debug executable builds; process and WebView debugger started. Native rendering/interactions and installer lifecycle remain unverified. |
 | Claude Desktop, Claude Android and ChatGPT clients | Untested. Claude Code success does not establish support in these other clients. |
 | Assistant memory and Gmail/calendar discovery | Not exercised. Test used supplied fictional facts only; no real source access. |
 | Embedded GUI, phone-only local host, paired devices, background suspension | Untested. Current GUI is a separate local browser window. |
@@ -81,4 +83,4 @@ Initial probe: October 14, 2026. Results apply only to the combinations actually
 
 `npm test` covers checklist regression, static allowlisting, HTTP origin/Host/body checks, draft identity/revision, correction preconditions, re-review after edits, suggestion decisions, discard invalidation and the stdio/HTTP round trip. No model subscription is needed for automated tests. `npm ci --ignore-scripts` uses the committed lockfile. See [dependency provenance](../../THIRD_PARTY.md).
 
-Do not close Session 1 from this PR. Next: provision and test the Android/native packaging candidate, record exact device/client combinations, test phone-only and desktop launch, and investigate a permissible ChatGPT path. Session 2 still depends on those feasibility checks. Source review and independent sensitive-access review remain distinct from local tests. Actions stays disabled.
+Do not close Session 1 from this PR. Next: complete native Android and Windows on-screen checks, prove an assistant-to-native-GUI path, test phone-only behavior, and investigate a permissible ChatGPT path. Session 2 still depends on those feasibility checks. Source review and independent sensitive-access review remain distinct from local tests. Actions stays disabled.
