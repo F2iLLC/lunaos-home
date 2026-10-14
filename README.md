@@ -9,8 +9,8 @@ These are intended workflows, not implemented features. This is a separate proje
 These proposals describe the direction for discussion, not implemented capabilities or release commitments:
 
 - **Household profiles:** Reuse information for household members so users do not repeatedly answer the same questions.
-- **Household vault:** Hold household documents, reusable personal information, passwords, and other credentials for authorized use by the program. All real vault contents belong outside the code repository.
-- **Document-photo onboarding:** Accept photos of documents such as IDs and birth certificates, extract relevant information, and use it to populate household profiles. Users would review and correct extracted fields before saving; missing or uncertain fields would be flagged rather than silently guessed.
+- **Household vault:** Hold household documents, reusable personal information, passwords, and other credentials for authorized use by the program. Each household member would have their own folder for their records, reusable personal information, and applicable credentials. All real vault contents belong outside the code repository. Folder organization alone is not access control or encryption.
+- **Document-photo onboarding:** Accept photos of documents such as IDs and birth certificates, extract relevant information, and use it to populate household profiles. Users would select the correct household member and review and correct extracted fields before saving them in that person's folder/profile; missing or uncertain fields would be flagged rather than silently guessed.
 - **Document references:** Identify records needed for a task and where to find them, with personal records and real references stored outside the source repository.
 - **Appointment coordination:** Find workable times, prepare requests, and eventually book with providers within user-set permissions.
 - **Form assistance:** Prefill known information and flag missing or uncertain details for review.
