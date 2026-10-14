@@ -62,7 +62,30 @@ October 14, 2026, Windows 11 build 26300: Temurin JDK 21.0.12.1+1, Rust 1.99.0, 
 
 The x86_64 native library compiled successfully. Gradle project configuration, Android Kotlin compilation and manifest merging also passed. The merged debug manifest has the `.debug` application ID, no Internet permission, `allowBackup=false` and `usesCleartextTraffic=false`; its only requested permission is the app-scoped AndroidX dynamic-receiver permission. These are build-artifact checks, not device backup or network-isolation acceptance tests. Upstream generated code emits deprecation warnings for Java 8 targets and Android APIs; no warning suppression or dependency bypass was added.
 
-APK packaging stopped because Windows denied symbolic-link creation; Developer Mode was not enabled. Installation, app launch and Android UI acceptance remain unverified pending that prerequisite. All 15 local JavaScript tests pass, including offline manifest checks and the existing stdio/HTTP draft integration. No Android SDK, emulator state, generated project, signing material or binary is committed.
+After the owner enabled Windows Developer Mode, the full Tauri x86_64 debug APK build passed without bypassing the symbolic-link or Gradle checks. The generated output is `src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`; despite the generated directory name, this invocation built only the x86_64 target. APK signature verification passed using v2 signing. The APK manifest independently confirmed no Internet permission, backups disabled and cleartext traffic disabled. The installed package also reports no Internet permission and no backup flag.
+
+Installation succeeded on the isolated `emulator-5556` instance. Android reported `Status: ok` and `LaunchState: COLD` for both the first launch and a second launch after explicitly force-stopping the app; a new app process was observed. Its WebView provider is `com.android.webview` 133.0.6943.137. No fatal app exception or native panic was observed in the collected startup diagnostics, and process-exit history identified the deliberate force-stop. This is startup evidence, not proof of rendered content or draft state. The software renderer emitted EGL/MESA warnings and skipped frames, and WebView reported variation-seed warnings; smooth rendering is not established.
+
+The available browser automation policy blocks the Android inspector, and native screen automation is unavailable. UI rendering, touch/keyboard, system back, draft correction, background/resume and restart clearing therefore still require a manual pass. The native assistant connection is also unimplemented. Neither the emulator result nor the separate desktop-browser Claude Code test establishes physical Android or Android assistant compatibility. All 15 local JavaScript tests pass, including offline manifest checks and the existing stdio/HTTP draft integration. No Android SDK, emulator state, generated project, signing material or binary is committed.
+
+To reproduce installation and the process-level launch check on this named test emulator:
+
+```powershell
+$apk = 'src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk'
+apkanalyzer.bat manifest permissions $apk
+apksigner.bat verify --verbose $apk
+adb.exe -s emulator-5556 install -r $apk
+adb.exe -s emulator-5556 shell am start -W -n io.github.f2illc.lunaos.home.preview.debug/io.github.f2illc.lunaos.home.preview.MainActivity
+```
+
+For the remaining on-screen check, open the emulator window and use only the example family:
+
+1. Expand the welcome button, choose **Explore my vault**, then **Try the example family**. Verify both people can be selected and the screen fits without sideways scrolling.
+2. Select Alex's workplace, choose **Needs review**, and check that the app says an assistant is not connected. Change the fictional value to `Willow Workshop` and choose **Update draft**. It must remain **Please check** until **Looks right** is selected separately. Sam's school must remain unchanged.
+3. Accept or decline a suggestion; cancel a discard first, then confirm a discard. No saved vault record should be claimed.
+4. Check typing with the Android keyboard, scrolling with a finger or emulator pointer, system back and background/resume. Finally force-stop/relaunch: the in-memory draft should be gone. Record each result separately; a successful process restart does not prove clearing.
+
+These manual checks are pending, not implied passes. Record the tested revision, OS/WebView version and any failure before updating the compatibility matrix.
 
 The independent Android host checks can be repeated after the native build has generated Tauri's bindings:
 
