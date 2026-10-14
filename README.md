@@ -6,7 +6,7 @@ Home is intended to be **MCP first, with a companion GUI for mobile and desktop*
 
 The user's assistant remains the conversational and voice host. Home supplies onboarding scripts and workflows, not a new voice service. Third-party MCP connections are chosen for the user's needs and managed in their assistant environment. Local MCP, tool, plan, client, and voice compatibility must be verified before claiming support on any particular surface.
 
-This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC. Newly authored Home material is licensed under Apache-2.0. Public source visibility is an early preview, not a usable V1 release; the bootstrap remains under review in PR #1.
+This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC. Newly authored Home material is licensed under Apache-2.0. The bootstrap has merged; public source visibility is an early preview, not a usable V1 release.
 
 ## What works today
 
@@ -19,8 +19,8 @@ The checklist is a limited scaffold. It does not implement MCP tools, environmen
 The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, dependencies, acceptance criteria, and release gates. Its core outcomes are:
 
 - A GUI that separates configured access, verified access, attempted actions, and observed results. It does not claim to see assistant or connector activity outside Home's observation.
-- A user-controlled local vault, with a folder/profile for each household member and established facilities for protecting records, reusable information, and credentials. No operator-hosted vault.
-- Reviewed document-photo intake with correct-person assignment. External analysis uses a provider the user chooses, with understandable consent and provider disclosure before selected content leaves the local environment. A local-model option is future work.
+- A [user-controlled shared vault](docs/epics/user-controlled-vault.md), with per-person profiles and established protection for records and sign-ins. Onboarding chooses phone-only storage or a vault shared with an explicitly connected computer, where information is kept, and how to unlock it. No operator-hosted vault or implicit cloud sync.
+- Reviewed document-photo intake with correct-person assignment. Optional image analysis happens in the user's chosen ChatGPT, Claude, or other provider, with understandable disclosure before the user sends selected content. Home does not offer the analysis service; manual entry remains available. Private vault data stays on enrolled devices by default and is not automatically returned to hosted assistants.
 - Assistant-led, purpose-based onboarding: discover household needs before suggesting MCP connections; pair conversation or supported voice with on-screen review.
 - One unified household calendar with read and write capabilities: view, create, update, and delete events on calendars the user authorizes. Preserve person/source filters and event origin, initially bounded to one verified calendar provider.
 - One useful appointment-preparation and follow-through workflow. Broad autonomous booking, sending, and external form submission are outside V1.
@@ -50,6 +50,7 @@ Tests cover task validation and state changes, plus the static server's allowed 
 - [COLLABORATORS.md](COLLABORATORS.md): roles, contribution workflow, review, and publication evidence for human and AI workers.
 - [REPOSITORY_RULES.md](REPOSITORY_RULES.md): authoritative team rules for repository contents, sensitive data, rights, and public contribution safety. These are project contribution rules, not extra downstream license conditions.
 - [ROADMAP.md](ROADMAP.md): planned V1 and distinct public-source/V1 release gates; not a claim of implementation.
+- [User-controlled shared vault epic](docs/epics/user-controlled-vault.md): onboarding, device pairing, configurable unlocking, recovery, delivery stories, and acceptance criteria.
 
 GitHub Actions is currently **disabled for this repository** so public contributions cannot run on shared enterprise infrastructure. The workflow still references the previously used self-hosted `ci-general` pool; do not re-enable it as-is. Establish and test the isolated self-hosted runner/trust policy in the repository rules before resuming CI. Run `npm test` locally in the meantime. Report vulnerabilities through the [private reporting route](REPOSITORY_RULES.md#vulnerability-reports).
 
