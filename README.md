@@ -10,9 +10,11 @@ This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC.
 
 ## What works today
 
-A responsive dusk welcome screen leads into the local, session-only browser checklist. Select **Step inside** to add a task, choose a category, mark it complete, or remove it; return to the welcome screen without losing the current list. Task state lives in the current tab's memory and clears on reload or close. Tasks are not sent to the local server or external services. The design adapts to mobile and desktop browser sizes; installable mobile/desktop packages are not implemented.
+A responsive dusk welcome screen expands **What would you like to do today?** into a checklist or a fictional family draft. The checklist supports adding, completing and removing tasks. Task state lives in the current tab's memory and clears on reload or close; tasks are not sent to the local server or external services.
 
-The checklist is a limited scaffold. It does not implement MCP tools, environment discovery, profiles, a vault, credentials, document analysis, calendars, reminders, form filling, booking, or integrations. There are no implemented vault encryption or access controls. No personal records are processed by this starter.
+The new [draft-review prototype](docs/prototypes/draft-review.md) lets a local MCP client stage fictional profiles in the same Home GUI, receive **Needs review** questions and replies, and propose corrections for local confirmation. People organize one shared draft; suggestions can be accepted for later or declined. Drafts live only in the local process and clear when it stops or the user discards them. A real Claude Code round trip has been exercised on Windows; other assistant clients remain unverified.
+
+This is not a secure vault. It has no encrypted persistence, family admission, production workflow grants, sign-ins, source discovery, image analysis, calendars, reminders, form filling or booking. Use made-up details only. Android is the first mobile target; a narrow browser layout does not establish an installable Android or desktop app. See the [provisional architecture](docs/architecture/vault-prototype.md) and compatibility matrix for remaining work.
 
 ## Intended V1
 
@@ -21,7 +23,7 @@ The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, 
 - A GUI that separates configured access, verified access, attempted actions, and observed results. It does not claim to see assistant or connector activity outside Home's observation.
 - A [user-controlled shared vault](docs/epics/user-controlled-vault.md), organized by family member, with family-system access covering all members' records and established protection for records and sign-ins. Onboarding chooses phone-only storage or a vault shared with an explicitly connected computer, where information is kept, and how to unlock it. No operator-hosted vault or implicit cloud sync.
 - Reviewed document-photo intake with correct-person assignment. Optional image analysis happens in the user's chosen ChatGPT, Claude, or other provider, with understandable disclosure before the user sends selected content. Home does not offer the analysis service; manual entry remains available. Private vault data stays on enrolled devices by default and is not automatically returned to hosted assistants.
-- Direct record management or delegated creation, editing, and deletion through the user's chosen assistant, within revocable workflow permissions. A planned expanding home action menu leads to family member views.
+- Direct record management or delegated creation, editing, and deletion through the user's chosen assistant, within revocable workflow permissions. The expanding home menu currently leads to the draft preview; protected records remain future work.
 - Assistant-led, purpose-based onboarding: discover household needs before suggesting MCP connections; pair conversation or supported voice with on-screen review.
 - A proposed **Learn about me** plugin skill uses the assistant's available memories and already authorized sources such as Gmail and calendars to suggest a personal/family profile in the Luna OS GUI. Review and correct it together before saving approved details locally; it never silently writes inferred family relationships.
 - One unified household calendar with read and write capabilities: view, create, update, and delete events on calendars the user authorizes. Preserve person/source filters and event origin, initially bounded to one verified calendar provider.
@@ -34,12 +36,13 @@ Suitable enterprise libraries, contracts, and skill/tool/workflow machinery may 
 Install Node.js 24 or newer. From this repository's directory:
 
 ```sh
+npm ci --ignore-scripts
 npm start
 ```
 
-Open <http://127.0.0.1:4173>. Stop the server with Ctrl+C. The server listens only on loopback and serves the four application assets. If port 4173 is occupied, stop the other process using it first.
+Open <http://127.0.0.1:4173>. Stop the server with Ctrl+C. The server listens only on loopback, serves allowlisted assets and provides the in-memory draft review API. If port 4173 is occupied, stop the other process using it first. Do not expose this preview on a network.
 
-There are no third-party runtime or development dependencies and no install step. Use fictional or generic task labels such as "Review the sample school checklist." There is no save or export function.
+For the assistant-backed preview, configure a local client to launch `node` with the absolute path to `assistant.js`; open the URL it returns, normally <http://127.0.0.1:4183/#vault>. This instance is separate from the standalone preview. Keep the client running while reviewing. See [connection instructions and checks](docs/prototypes/draft-review.md). Use fictional or generic content only. There is no vault save or export function. Dependencies and license review are recorded in [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Develop and contribute
 
@@ -49,7 +52,9 @@ Track the vault feature in the [GitHub project](https://github.com/orgs/F2iLLC/p
 npm test
 ```
 
-Tests cover task validation and state changes, plus the static server's allowed files, methods, and headers. Application files are in `src/`; `server.js` provides the server. For a browser check, add a fictional task, complete it, remove it, and reload to confirm that tasks do not persist.
+Tests cover checklist regression, local HTTP controls, draft validation/revision/review behavior and a real stdio protocol round trip sharing GUI state. The protocol test needs no model subscription; a real model/client check is documented separately. Application files are in `src/`; `server.js` provides HTTP and `assistant.js` provides MCP. For a browser check, review a fictional draft, try a correction and switch family members. Checklist tasks clear on reload; drafts clear on process exit or discard.
+
+Dependabot is configured for weekly npm and GitHub Actions version-update PRs. Security alerts and automatic security fixes are enabled on the repository. Updating dependency versions does not authorize merging them or re-enabling Actions.
 
 - [COLLABORATORS.md](COLLABORATORS.md): roles, contribution workflow, review, and publication evidence for human and AI workers.
 - [REPOSITORY_RULES.md](REPOSITORY_RULES.md): authoritative team rules for repository contents, sensitive data, rights, and public contribution safety. These are project contribution rules, not extra downstream license conditions.

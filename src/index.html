@@ -33,8 +33,41 @@
         <p class="eyebrow">YOUR OWN LITTLE ORBIT</p>
         <h1 id="welcome-heading" tabindex="-1">Welcome home.</h1>
         <p class="intro">A little less to carry.<br>A little more space for you.</p>
-        <a class="primary-button enter" href="#checklist">Step inside <span aria-hidden="true">→</span></a>
-        <p class="entry-note">Start with a simple checklist.</p>
+        <button id="home-actions-toggle" class="primary-button enter" aria-expanded="false" aria-controls="home-actions">What would you like to do today? <span aria-hidden="true">+</span></button>
+        <nav id="home-actions" class="home-actions" aria-label="Things to do" hidden>
+          <a href="#vault">Explore my vault <small>Try a fictional family profile</small></a>
+          <a href="#checklist">Open my checklist <small>A little space for today's tasks</small></a>
+        </nav>
+        <p class="entry-note">One small step, at your pace.</p>
+      </section>
+      <section id="vault" class="vault" aria-labelledby="vault-heading" hidden>
+        <a class="back-link" href="#welcome"><span aria-hidden="true">←</span> Back home</a>
+        <div class="checklist-intro">
+          <p class="eyebrow">GETTING TO KNOW YOUR FAMILY</p>
+          <h1 id="vault-heading" tabindex="-1">A place for everyone.</h1>
+          <p>Check each detail together. Keep what fits, change what doesn't.</p>
+        </div>
+        <aside class="preview-note"><strong>Fictional preview · Nothing saved</strong><p>Use made-up details only. This is a draft, not a secure vault. It clears when the local preview stops or you discard it.</p></aside>
+        <div class="vault-toolbar"><p id="draft-status" role="status" aria-live="polite"></p><button id="refresh-draft" class="quiet-button">Check for updates</button></div>
+        <p id="vault-error" role="alert"></p>
+        <div id="draft-empty" class="list-panel empty-draft">
+          <span class="empty-star" aria-hidden="true">✧</span>
+          <h2>Your family's story starts here.</h2>
+          <p>A connected assistant can send a fictional profile for you to review. Or take a look around with our made-up family.</p>
+          <button id="example-draft" class="primary-button">Try the example family</button>
+        </div>
+        <div id="draft-content" hidden>
+          <div class="family-heading"><h2>One family, one shared space</h2><p>People keep things organized. Family access covers everyone.</p></div>
+          <nav id="family-members" class="family-members" aria-label="Family members"></nav>
+          <div class="draft-grid">
+            <div class="list-panel"><h2 id="person-heading"></h2><p class="section-help">Choose a detail to review it.</p><div id="draft-fields"></div></div>
+            <div id="field-editor" class="list-panel" aria-label="Review a detail"></div>
+          </div>
+          <section class="list-panel suggestions-panel" aria-labelledby="suggestions-heading"><h2 id="suggestions-heading">Would these be useful?</h2><p class="section-help">Choose what you'd like to keep later. These choices won't create records yet.</p><div id="draft-suggestions"></div></section>
+          <p class="draft-footer">Reviewed details stay in this draft. Saving to a protected vault is coming in a later step.</p>
+          <button id="discard-draft" class="quiet-button">Discard this draft</button>
+          <div id="discard-confirmation" class="preview-note" hidden><p>Discard this draft and all of its review choices?</p><button id="confirm-discard" class="quiet-button">Yes, discard it</button> <button id="cancel-discard" class="quiet-button">Keep reviewing</button></div>
+        </div>
       </section>
       <section id="checklist" class="checklist" aria-labelledby="checklist-heading" hidden>
         <a class="back-link" href="#welcome"><span aria-hidden="true">←</span> Back to your quiet place</a>
@@ -65,7 +98,7 @@
           </aside>
         </div>
       </section>
-      <noscript><p class="no-script">This preview needs JavaScript to open and use the checklist. Tasks are never saved.</p></noscript>
+      <noscript><p class="no-script">This preview needs JavaScript. It does not save records.</p></noscript>
     </main>
     <footer class="site-footer"><span>Made for a softer landing.</span><span class="footer-star" aria-hidden="true">✧</span><span>At your pace.</span></footer>
   </div>
