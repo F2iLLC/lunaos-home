@@ -10,6 +10,7 @@ const routes = new Map([
   ['/app.js', ['app.js', 'text/javascript']],
   ['/tasks.js', ['tasks.js', 'text/javascript']],
   ['/vault.js', ['vault.js', 'text/javascript']],
+  ['/draft-client.js', ['draft-client.js', 'text/javascript']],
 ]);
 
 export function createAppServer({ drafts = createDraftStore() } = {}) {

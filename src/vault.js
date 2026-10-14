@@ -1,3 +1,5 @@
+import { requestDraft, canRequestAssistantReview } from './draft-client.js';
+
 let draft = null;
 let personId;
 let fieldId;
@@ -25,14 +27,7 @@ async function request(path, input) {
   $('#vault-error').textContent = '';
   $('#vault').setAttribute('aria-busy', 'true');
   try {
-    const response = await fetch(path, {
-      method: input === undefined ? 'GET' : 'POST',
-      headers: { 'X-Home-Preview': '1', ...(input === undefined ? {} : { 'Content-Type': 'application/json' }) },
-      body: input === undefined ? undefined : JSON.stringify(input),
-      signal: AbortSignal.timeout(8000),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'This change could not be completed.');
+    const data = await requestDraft(path, input);
     const changed = data.draft?.id !== draft?.id || data.draft?.revision !== draft?.revision;
     draft = data.draft;
     if (changed || !draft) {
@@ -87,7 +82,10 @@ function render() {
   confirm.disabled = field.status === 'needs-review';
   actions.append(confirm, button('Needs review', () => review(person, field, 'flag', revision)), button('Skip this detail', () => review(person, field, 'skip', revision)));
   editor.append(actions);
-  if (field.status === 'needs-review') {
+  if (field.status === 'needs-review' && !canRequestAssistantReview()) {
+    editor.append(element('p', 'An assistant is not connected to this app preview. You can change this detail yourself below.', 'section-help'));
+  }
+  if (field.status === 'needs-review' && canRequestAssistantReview()) {
     editor.append(element('p', field.question, 'review-question'));
     const reply = element('form');
     const label = element('label', 'Tell your assistant what needs changing'); label.htmlFor = 'review-reply';

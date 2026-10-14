@@ -31,6 +31,8 @@ The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, 
 
 Suitable enterprise libraries, contracts, and skill/tool/workflow machinery may be reused through deliberately versioned interfaces after rights review. Home must isolate its configuration, credentials, data, logs, sessions, names, and background jobs. Enterprise LunaOS is proprietary; Home's license does not authorize copying it. No enterprise source has been copied or packages extracted for this starter. See the [reuse boundaries](ROADMAP.md#architecture-and-reuse) and [authoritative repository rules](REPOSITORY_RULES.md).
 
+An [offline native shell probe](docs/prototypes/native-shell.md) bundles the interface and shared review rules without a server. The Windows debug executable builds locally. Native GUI acceptance, Android builds and the native assistant connection remain unverified. This separate preview has no assistant connection or persistent storage; installer distribution is still gated.
+
 ## Run the starter
 
 Install Node.js 24 or newer. From this repository's directory:
@@ -54,7 +56,7 @@ npm test
 
 Tests cover checklist regression, local HTTP controls, draft validation/revision/review behavior and a real stdio protocol round trip sharing GUI state. The protocol test needs no model subscription; a real model/client check is documented separately. Application files are in `src/`; `server.js` provides HTTP and `assistant.js` provides MCP. For a browser check, review a fictional draft, try a correction and switch family members. Checklist tasks clear on reload; drafts clear on process exit or discard.
 
-Dependabot is configured for weekly npm and GitHub Actions version-update PRs. Security alerts and automatic security fixes are enabled on the repository. Updating dependency versions does not authorize merging them or re-enabling Actions.
+Dependabot is configured for weekly npm, Cargo and GitHub Actions version-update PRs. Security alerts and automatic security fixes are enabled on the repository. Updating dependency versions does not authorize merging them or re-enabling Actions.
 
 - [COLLABORATORS.md](COLLABORATORS.md): roles, contribution workflow, review, and publication evidence for human and AI workers.
 - [REPOSITORY_RULES.md](REPOSITORY_RULES.md): authoritative team rules for repository contents, sensitive data, rights, and public contribution safety. These are project contribution rules, not extra downstream license conditions.

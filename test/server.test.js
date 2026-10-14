@@ -11,7 +11,7 @@ test('local server exposes only application assets and rejects arbitrary writes'
   t.after(() => new Promise(resolve => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js']) {
+  for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js', '/draft-client.js']) {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.equal(response.headers.get('cache-control'), 'no-store');
