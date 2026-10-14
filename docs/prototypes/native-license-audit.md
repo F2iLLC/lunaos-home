@@ -1,6 +1,6 @@
 # Native dependency license inventory
 
-This development audit supports the [native shell probe](native-shell.md) and its outstanding binary-notice work. It inventories the committed Cargo dependency graph and identifies missing candidate license files. It neither creates a redistributable notice bundle nor approves a dependency's license obligations. Native binary distribution remains gated by [THIRD_PARTY.md](../../THIRD_PARTY.md).
+This development audit supports the [native shell probe](native-shell.md) and its outstanding binary-notice work. It inventories the committed Cargo dependency graph and identifies missing candidate license files. A separate command collects the inspected text as a **candidate bundle for review**. Neither command approves a dependency's license obligations or creates the final redistributable notice page. Native binary distribution remains gated by [THIRD_PARTY.md](../../THIRD_PARTY.md).
 
 ## Run locally
 
@@ -28,6 +28,20 @@ npm run audit:native-licenses -- --target armv7-linux-androideabi --output ../wo
 
 Output creation is exclusive, so it cannot overwrite an earlier report or follow an existing output-file link. Reports belong outside the source checkout. They contain no absolute package paths or raw Cargo metadata; retain them locally as working material.
 
+## Collect candidate notice text
+
+With the same offline Cargo environment, choose a new directory in an existing parent outside the checkout:
+
+```sh
+npm run bundle:native-notices -- --output ../work/native-notice-candidates
+```
+
+The same optional `--target` arguments and exit codes apply. The command resolves the locked graph again, inventories candidate files, then rereads and verifies every copied file against its inventoried byte length and SHA-256. It keeps original bytes, including line endings, encoding markers and empty files; it does not rewrite license terms, choose a branch of a compound license expression, or fill missing text with a generic license. Each file is limited to 2 MiB and combined copied content to 32 MiB. Oversized or nonregular candidates fail the audit/export.
+
+The output contains numeric filenames under `files/`, a short `README.txt`, and `manifest.json`. The manifest maps each copied file to its original relative name, package/version, targets, declared license, exact-version source archive and hash. Packages with no candidate files remain in the manifest with their gaps. Numeric output names avoid treating dependency-controlled paths as output locations. No absolute source paths or raw Cargo metadata are included.
+
+The tool refuses existing output directories, files or links, and resolved parents inside the checkout. It writes the manifest last: **a directory without `manifest.json` is an incomplete export**. Failed output is left for inspection, never overwritten or recursively deleted. Retry with a fresh destination. A manifest with `complete: true` means only that export finished; `distributionApproved` remains false even with zero file gaps. Keep candidates local for review, and do not ship them automatically or treat this directory as the final APK notice bundle.
+
 ## What the report establishes
 
 The report binds the inventory to a SHA-256 of `Cargo.lock`, lists per-target package counts, and merges exact package/version entries across targets. It uses the resolved graph rather than every package present in Cargo metadata. Build dependencies are included conservatively; this is not a runtime-only software bill of materials.
@@ -46,4 +60,6 @@ The October 14, 2026 four-target audit of the committed lockfile resolved 242 Wi
 
 These are scan gaps, not claims that those projects are unlicensed. For example, `cesu8` has a `COPYRIGHT-RUST.txt` notice with references to license files; that is retained as notice evidence, while missing candidate license text remains flagged. Resolve each gap using its exact released source and required attribution, then review the complete notice bundle before distribution.
 
-The scan does not discover every nested/vendor notice, interpret compound license expressions, check legal compatibility, or fulfill source-availability obligations. The [Android runtime notice inventory](android-notice-audit.md) separately inventories resolved JAR/AAR artifacts; Java metadata, embedded SDK/runtime files and the final packaged binary still need review. Even a future zero-gap result keeps `distributionApproved: false`. No generated inventory is shipped as the user's notice page, and this tooling does not clear Session 1's UI/assistant checks or Session 2's prerequisite.
+The candidate-bundle command was also run against this four-target graph: it collected 488 files totaling 2,392,929 bytes for the 286 packages. Every output file matched its inventoried hash and length, and a second export produced identical manifest and file bytes. The 11 gaps remain unchanged. This verifies collection, not interpretation or notice completeness.
+
+The scan does not discover every nested/vendor notice, interpret compound license expressions, check legal compatibility, or fulfill source-availability obligations. The [Android runtime notice inventory](android-notice-audit.md) separately inventories resolved JAR/AAR artifacts; Java metadata, embedded SDK/runtime files and the final packaged binary still need review. Even a future zero-gap result keeps `distributionApproved: false`. Neither generated inventory nor candidate bundle is shipped as the user's notice page, and this tooling does not clear Session 1's UI/assistant checks or Session 2's prerequisite.
