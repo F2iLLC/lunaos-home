@@ -154,6 +154,8 @@ button:disabled { opacity: .5; cursor: default; }
 .suggestion h3 { font-size: 16px; font-weight: 500; }
 .suggestion p { font-size: 13px; line-height: 1.6; }
 .draft-footer { margin: 24px 0 16px; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
+.site-footer { flex-wrap: wrap; }
 #discard-confirmation { margin-top: 12px; }
 #discard-confirmation button { margin-top: 12px; }
 @media (max-width: 700px) {
