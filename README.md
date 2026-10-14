@@ -2,7 +2,7 @@
 
 Luna OS Home is a personal and household assistant project intended to make everyday administration easier, starting with appointment preparation, form-filling workflows, and finding the right reference information when it is needed.
 
-The intended product supplies scripts and workflows for the user's own Claude or ChatGPT to guide household administration in the user's chosen assistant and computing environment. Voice onboarding runs through that assistant, not through a Luna OS Home voice interface or hosted voice service. Luna OS Home is not intended to centrally control users' external connectors.
+Luna OS Home is intended to be **MCP first**: expose household capabilities primarily through MCP tools, with scripts and workflows that guide their use and onboarding. The user's own Claude or ChatGPT is the conversational and voice host in the user's chosen computing environment. Voice onboarding runs through that assistant, not through a Luna OS Home voice interface or hosted voice service. Third-party MCP connections belong to the user's assistant environment; Home does not centrally control them.
 
 These are intended workflows, not implemented features. This is a separate project from LunaOS. It is an early private project owned by F2i LLC. A public release may be considered later; no open-source commitment has been made and no license has been selected.
 
@@ -19,12 +19,21 @@ These proposals describe the direction for discussion, not implemented capabilit
 - **Voice onboarding through the user's assistant:** Supply scripts and workflows for the user's own Claude or ChatGPT to guide a conversation through household setup, per-person vault organization, document-photo intake and review, AI provider choice and disclosure, and MCP connection choices. Pair voice guidance with on-screen review of documents and extracted fields before saving. This is a proposed experience, not a Luna OS Home-owned voice interface or a new hosted voice service. No voice vendor is selected, and voice, tool, and MCP compatibility on either platform must be verified during implementation.
 - **Document references:** Identify records needed for a task and where to find them, with personal records and real references stored outside the source repository.
 - **Appointment coordination:** Find workable times, prepare requests, and eventually book with providers within user-set permissions.
+- **Unified household calendar:** Show multiple people's connected calendars together, with filters and separate views by person or source. Preserve each event's provider, account, calendar, and event origin so the combined display does not conflate owners or duplicate events. This is future work; no calendar connections or calendar view are implemented.
 - **Form assistance:** Prefill known information and flag missing or uncertain details for review.
 - **Follow-through:** Track confirmations, missing paperwork, deadlines, and reminders.
 
 A suggested first workflow for discussion is one appointment from request to confirmed booking, including the information and preparation it requires. This workflow is not implemented or a committed release promise.
 
 The vault and document-photo onboarding are planned capabilities, not current features. Vault storage must be local and user-controlled; selected document contents may be sent to a user-chosen external AI provider for analysis. No specific provider, integration, retention configuration, implementation architecture, or license has been selected. No encryption or vault security controls are implemented. The repository boundary does not prevent the eventual program from processing sensitive records with the user's authorization; it keeps those records out of the source repository. No documents are being sent as part of this starter.
+
+## Planned architecture and reuse
+
+Home-owned MCP tools could expose the local vault, per-person profiles, and unified calendar capability. The assistant would use Home's scripts and workflows to guide onboarding and task completion, alongside purpose-selected third-party MCPs connected in the user's assistant environment. No Home MCP tools are implemented yet. Verify local MCP connectivity and voice/tool compatibility for each assistant and client before promising support; a local server does not automatically work in every Claude or ChatGPT surface.
+
+Avoid duplicate work by evaluating suitable LunaOS libraries, contracts, and skill/tool/workflow machinery for reuse behind deliberately versioned interfaces. This is a plan, not an implemented shared core. Enterprise packages have substantial product and workspace dependencies and are not yet independently consumable Home packages. Evaluate those reuse points before copying or reimplementing capabilities; do not bring over the full enterprise agent runtime or create a new Home voice service simply to reuse code. No enterprise source has been copied or packages extracted for this starter.
+
+Keep Home's local configuration, data/vault, credentials, logs, sessions, event/tool names, and background-job identity isolated from enterprise LunaOS. Before adopting shared machinery, check configuration and environment-variable discovery, child-process environment inheritance, relative transcript/knowledge/memory paths, and scheduler/worker queue and namespace defaults. Use explicit Home-specific boundaries rather than inherited enterprise defaults. Existing event/config collision checks and tool-name prefixes are useful reuse points, but namespacing alone does not prove data or security isolation. These boundaries remain implementation work to evaluate and verify.
 
 ## What works today
 
@@ -50,7 +59,7 @@ There are no third-party runtime or development dependencies and no install step
 npm test
 ```
 
-Tests cover task validation and state changes, along with the local server's allowed files, methods, and response headers. Application files are in `src/`; `server.js` provides the local static server. GitHub Actions runs the tests on pushes and pull requests.
+Tests cover task validation and state changes, along with the local server's allowed files, methods, and response headers. Application files are in `src/`; `server.js` provides the local static server. GitHub Actions is configured to test pull requests and pushes to `main` using F2iLLC's existing self-hosted Linux x64 `ci-general` runner pool. The repository must have access to that pool for CI to run.
 
 For a quick browser check, add a fictional task, complete it, remove it, and reload the page to verify that tasks do not persist.
 
