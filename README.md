@@ -31,7 +31,7 @@ The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, 
 
 Suitable enterprise libraries, contracts, and skill/tool/workflow machinery may be reused through deliberately versioned interfaces after rights review. Home must isolate its configuration, credentials, data, logs, sessions, names, and background jobs. Enterprise LunaOS is proprietary; Home's license does not authorize copying it. No enterprise source has been copied or packages extracted for this starter. See the [reuse boundaries](ROADMAP.md#architecture-and-reuse) and [authoritative repository rules](REPOSITORY_RULES.md).
 
-An [offline native shell probe](docs/prototypes/native-shell.md) bundles the interface and shared review rules without a server. The Windows debug executable builds locally. Native GUI acceptance, Android builds and the native assistant connection remain unverified. This separate preview has no assistant connection or persistent storage; installer distribution is still gated.
+An [offline native shell probe](docs/prototypes/native-shell.md) bundles the interface and shared review rules without a server. The Windows debug executable builds locally. Native GUI acceptance, Android builds and the native assistant connection remain unverified. This separate preview has no assistant connection or persistent household records; installer distribution is still gated. The [Home wallpaper setting](docs/prototypes/home-wallpaper.md) remembers only a built-in background choice locally.
 
 ## Run the starter
 

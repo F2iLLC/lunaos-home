@@ -1,5 +1,8 @@
 import { categories, createTask, toggleTask, removeTask } from './tasks.js';
 import { refreshDraft } from './vault.js';
+import { setupWallpaper } from './wallpaper.js';
+
+setupWallpaper(document);
 
 let tasks = [];
 const form = document.querySelector('#task-form');

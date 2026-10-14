@@ -14,6 +14,22 @@ button, a, input, select { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid #fff1cb; outline-offset: 6px; }
 h1:focus { outline: none; }
 .landscape { position: fixed; inset: 0; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, #252e4a 0%, #4d4a70 43%, #967b9b 75%, #e7aeaa 100%); }
+body[data-wallpaper="aurora"] .landscape { background: linear-gradient(#07122233, #07122255), url('./assets/lunaos-aurora-wallpaper.png') center / cover no-repeat #071222; }
+body[data-wallpaper="aurora"] .landscape > * { display: none; }
+body[data-wallpaper="aurora"] .moon-scene { visibility: hidden; }
+body[data-wallpaper="aurora"] .welcome { text-shadow: 0 2px 14px #000; }
+.wallpaper-settings { position: relative; z-index: 5; flex-shrink: 0; }
+.wallpaper-settings summary { cursor: pointer; padding: 12px 16px; min-height: 44px; border: 1px solid #a69ab077; border-radius: 24px; background: #252e4ae6; font-size: 13px; }
+.wallpaper-panel { position: absolute; right: 0; top: calc(100% + 10px); width: min(320px, calc(100vw - 32px)); padding: 20px; border: 1px solid #a69ab077; border-radius: 20px; background: #242a43; box-shadow: 0 12px 40px #0008; }
+.wallpaper-panel fieldset { margin: 0; padding: 0; border: 0; }
+.wallpaper-panel legend { margin-bottom: 16px; font-size: 16px; }
+.wallpaper-panel .wallpaper-choice { display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 64px; cursor: pointer; }
+.wallpaper-choice input { accent-color: #e0bfd2; width: 20px; height: 20px; margin: 0; }
+.wallpaper-swatch { width: 68px; height: 44px; border-radius: 8px; flex-shrink: 0; }
+.twilight-swatch { background: linear-gradient(#252e4a, #967b9b, #e7aeaa); }
+.aurora-swatch { background: url('./assets/lunaos-aurora-wallpaper.png') center / cover; }
+.wallpaper-panel p { font-size: 12px; line-height: 1.6; color: #d7c9df; margin-bottom: 0; }
+@media (max-width: 600px) { .site-header:has(.wallpaper-settings) { justify-content: space-between; gap: 10px; padding-inline: 16px; } }
 .horizon { position: absolute; inset: 35% -10% -20%; background: radial-gradient(ellipse at 50% 100%, #f5beb57a, transparent 65%); }
 .stars { position: absolute; inset: 0; }
 .stars i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #f8e9df; opacity: .45; }

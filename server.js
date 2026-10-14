@@ -11,6 +11,8 @@ const routes = new Map([
   ['/tasks.js', ['tasks.js', 'text/javascript']],
   ['/vault.js', ['vault.js', 'text/javascript']],
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
+  ['/wallpaper.js', ['wallpaper.js', 'text/javascript']],
+  ['/assets/lunaos-aurora-wallpaper.png', ['assets/lunaos-aurora-wallpaper.png', 'image/png']],
 ]);
 
 export function createAppServer({ drafts = createDraftStore() } = {}) {
@@ -18,7 +20,7 @@ export function createAppServer({ drafts = createDraftStore() } = {}) {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
-    response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
     const port = request.socket.localPort;
     if (![ `127.0.0.1:${port}`, `localhost:${port}` ].includes(request.headers.host)) {
       response.writeHead(403).end();
@@ -75,7 +77,7 @@ export function createAppServer({ drafts = createDraftStore() } = {}) {
     }
     try {
       const content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
-      response.writeHead(200, { 'Content-Type': `${route[1]}; charset=utf-8` });
+      response.writeHead(200, { 'Content-Type': route[1].startsWith('text/') ? `${route[1]}; charset=utf-8` : route[1] });
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch {
       response.writeHead(500).end('Unable to load the application.');

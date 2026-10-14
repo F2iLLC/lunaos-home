@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { get } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { createAppServer } from '../server.js';
 
 test('local server exposes only application assets and rejects arbitrary writes', async t => {
@@ -11,7 +12,7 @@ test('local server exposes only application assets and rejects arbitrary writes'
   t.after(() => new Promise(resolve => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
 
-  for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js', '/draft-client.js']) {
+  for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js', '/draft-client.js', '/wallpaper.js']) {
     const response = await fetch(base + path);
     assert.equal(response.status, 200, path);
     assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -19,6 +20,11 @@ test('local server exposes only application assets and rejects arbitrary writes'
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.ok((await response.text()).length > 0);
   }
+  const wallpaper = await fetch(base + '/assets/lunaos-aurora-wallpaper.png');
+  assert.equal(wallpaper.headers.get('content-type'), 'image/png');
+  assert.match(wallpaper.headers.get('content-security-policy'), /img-src 'self';/);
+  assert.deepEqual(Buffer.from(await wallpaper.arrayBuffer()), await readFile(new URL('../src/assets/lunaos-aurora-wallpaper.png', import.meta.url)));
+  assert.equal((await fetch(base + '/assets/unknown.png')).status, 404);
   for (const path of ['/README.md', '/.git/config', '/.env', '/server.js', '/package.json', '/%2e%2e/server.js']) {
     assert.equal((await fetch(base + path)).status, 404, path);
   }
