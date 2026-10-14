@@ -21,6 +21,38 @@ The owner has specified:
 
 “Local” means the user's explicitly enrolled private devices. Access from a paired phone to a computer-held record necessarily transfers that selected information between those devices over a protected connection; onboarding must say so. It does not mean that a record can appear on another device without a transfer. Granting a human access to the family system includes all member views. Connecting an assistant still requires the workflow permissions the user approves; it does not give that assistant unrestricted read/write authority.
 
+## Expected deliverables and completion
+
+This epic must deliver working software and verification evidence, not just this plan or mock screens:
+
+| Deliverable | Required result |
+| --- | --- |
+| Local encrypted family vault | Persistent records organized by member designation, configurable supported unlocking, and verified user-held backup/recovery. Family access includes every member view. |
+| Mobile and desktop Home interface | Installable delivery for the chosen supported targets, expanding home navigation, member views, and direct create/view/edit/delete for all five record types. Responsive browser styling alone does not complete this deliverable. |
+| Assistant plugin workflows | Distributable workflow/skill definitions and supported client setup, local tool/service integration, guided onboarding, and delegated record operations with recommended permissions and actual enforcement. |
+| Phone/computer connection | Phone-only operation and guided installation/configuration/pairing for computer-hosted storage, with verified connection, sleep/offline behavior, revocation, and truthful status. |
+| Learn about me and GUI review | Available memories/authorized connected sources produce a structured on-screen draft; field-level Needs review drives assistant clarification/correction; only reviewed choices become records. |
+| Guided record intake | Skippable ID types, optional selected-image provider analysis, and relevant record suggestions from discovered applications, work, memberships, and similar context, accepted or declined by the user. |
+| Verified delivery package | Installation and recovery instructions, exact tested platform/client support, permission/session-expiry tests, end-to-end synthetic evidence, independent sensitive-design review, and owner acceptance. |
+
+Completion means a nontechnical evaluator can install/setup on the supported targets, review and correct a suggested profile, save chosen records, manage them directly or through the assistant, stop permissions, and restore a backup. All nine delivery stories and acceptance gates must pass. This epic proves the read-only permission contract for form preparation; the complete appointment/form/calendar workflows remain separate roadmap work. Publishing the plan, merging a prototype, or passing a subset of tests does not complete the epic.
+
+## Provisional session estimate
+
+Budget **15–20 focused build sessions** as an initial engineering estimate, not a delivery commitment. A session means a bounded implementation/test/review cycle ending with reviewable published work, not an arbitrary chat length or fixed number of hours. External review scheduling, app distribution approval if required, and unavailable test devices/accounts can add calendar time. Overlap and rework are uncertain; do not treat story count as session count.
+
+| Work area | Provisional sessions |
+| --- | --- |
+| Platform, mobile storage, assistant/GUI and bridge feasibility | 2 |
+| Vault storage, permissions, unlocking, and recovery | 4–5 |
+| Home GUI, member views, and record management | 3–4 |
+| Plugin workflows, Learn about me, review, and intake | 3–4 |
+| Integrated device journeys, failure cases, review fixes, and handoff | 3–5 |
+
+Re-estimate after the first two feasibility sessions using demonstrated capabilities and a selected platform/client matrix. The range assumes a narrow initial supported mobile/desktop combination, the proposed direct local connection, and no cloud sync or offline multiwriter replication. Supporting additional platforms or overcoming an unsupported assistant bridge may increase the estimate. Dates and elapsed hours remain unset.
+
+The [first two session plans](vault-first-two-sessions.md) define their inputs, bounded work, concrete outputs, checks, and handoff decisions. They are planned feasibility work, not completed experiments.
+
 ## Starting record types
 
 These are the proposed first catalog and plain-language labels. Templates organize information; they do not imply validation by an issuer, medical advice, or a complete specialist records system.
@@ -124,6 +156,10 @@ At every step, cancel/skip/back must preserve confirmed work, avoid silent dupli
 
 **Review together in the Luna OS GUI:** the assistant submits the structured proposal to a local draft-review operation and opens the same Home interface, embedded only where verified safe or in a local window. Show the proposed personal profile and family members on screen, including plain-language source labels such as “Remembered by your assistant,” “From Gmail,” or “From your calendar,” and visible uncertainty/conflicts. The user can confirm, correct, remove, or skip details and people while discussing the draft with the assistant; no manual copying of the entire profile is required. Draft display is distinct from committing records. The review operation accepts only a bounded proposal and cannot mutate the saved vault; any retained draft must use encrypted local storage, be labeled unconfirmed, and have a discard path. Clearly distinguish “suggested” from “confirmed by you”; confirmation is not issuer verification. Resolve ambiguous family membership before adding the designation. Save only approved fields/person assignments under an active setup create/edit grant or an explicit later save grant. If no write grant is active, keep the result a draft; a read-only skill invocation cannot create lasting vault write permission. On repeat runs, propose differences and never overwrite user corrections automatically.
 
+**Field-level correction:** every assistant-filled field is selectable by touch/keyboard and can be marked **Needs review**. Route its draft/field identity and permitted context to the current assistant workflow so it asks, “What needs to be changed?” Apply the user's correction to the draft, show the revised value, and request confirmation of that correction without redoing the entire profile. Do not silently send undisclosed field contents to a hosted model merely because it was selected. Pending/unclear corrections remain flagged; save reviewed fields only and clearly identify skipped/pending ones. If the assistant is disconnected, keep the flag and offer manual editing. Test repeated selections, conflicting corrections, an expired setup grant, and persistence of user corrections on re-analysis.
+
+**Suggest useful records:** use reviewed discoveries about applications/services, work, library membership, or other relevant context to ask whether the user wants to store associated information for that family member. For example, suggest an employment record or library-card record, with the source and uncertainty shown. Discovery does not authorize creating every suggested record, connecting an account, or guessing an identifier. Accept, decline, or defer each category; reuse approved known details to minimize typing and ask only for missing details. Store chosen, reviewed records under the active grant and correct member designation. Do not repeatedly prompt for a declined suggestion in the same workflow.
+
 **Custody:** email/calendar originals remain with their existing providers. The chosen assistant processes source information under its provider's terms; this step is not device-only analysis. Home operates no profiling backend and acquires no source-account credentials. Store only the reviewed profile output locally in the encrypted family vault. Avoid returning existing private vault contents to the hosted assistant without the separately approved disclosure scope. Labels, permissions, progress, and errors remain plain language.
 
 **Failure and acceptance:** test with fictional assistant-memory and email/calendar fixtures containing a coworker with the same surname, ambiguous attendees, old addresses, duplicate contacts, conflicting relationships, and misleading embedded instructions. Verify the skill creates a reviewable draft, clearly identifies uncertainty and unavailable sources, sends/modifies nothing externally, and commits no unreviewed profile. Confirm that a session expiring during review blocks a later save, revoked source access stops further reads, corrections survive repeat runs, and users without connected sources can continue manual setup. Verify the source tools and presentation supported by each declared ChatGPT/Claude environment before promising compatibility.
@@ -202,7 +238,7 @@ Story IDs below are planning references, not claims of created child issues or c
 | VLT-08: Independent security and household acceptance | VLT-01 through VLT-07 and VLT-09 | Run all journeys below, Learn about me review/negative cases, plain-language comprehension checks, and the failure matrix on declared mobile/desktop targets. A second person reviews privacy/key/authorization/recovery decisions and evidence. Owner accepts supported behavior and remaining limits before sensitive use. CI evidence is separate from local verification; no implementation or release gate is passed by this plan. |
 | VLT-09: Learn about me plugin skill | VLT-01 and VLT-02 for read/draft; VLT-04 and VLT-06 for reviewed save | Define the reusable skill/workflow and typed draft output. Use available assistant memories and relevant already-authorized sources such as Gmail/calendars autonomously, display a sourced/uncertainty-labeled profile and family designations in the Luna OS GUI, review/correct with the user, and save only approved output under an active write grant. Verify source coverage, unavailable sources, ambiguous identities, conflicting facts, prompt injection, no external mutations, session expiry, and safe repeat runs. Connect this output to onboarding with manual entry as a fallback. |
 
-First implementation PR: VLT-01, with a bounded synthetic feasibility prototype and decision record. Do not begin by moving real records or building a full password manager. No estimate or delivery date is asserted before the platform and pairing spike resolves the major risks.
+First implementation PR: VLT-01, with a bounded synthetic feasibility prototype and decision record. Do not begin by moving real records or building a full password manager. The provisional session estimate above must be revised using the platform and pairing evidence; no delivery date is committed.
 
 ## Acceptance journeys and failure matrix
 
