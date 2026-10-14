@@ -20,10 +20,10 @@ Evaluate ChatGPT and voice/tool operation explicitly, but expand the support mat
 | Local per-person profiles/folders for records and reusable information, with established protected storage and credential facilities | Operator-hosted vault, operator custody, cloud backup/sync, a new password manager or custom cryptography |
 | Selected document-photo intake, explicit external-analysis choice/consent, review/correction, and person assignment before save | Bulk unreviewed imports; silent guessing; local-model analysis in the first release |
 | Needs-led onboarding and purposeful MCP choices in a verified assistant environment | A new Home voice service, central third-party connector control, universal client/voice/MCP promises |
-| Read-only unified calendar for multiple people/accounts from one verified provider, with person/source filters | Every calendar service, calendar writes, or cross-provider conflict resolution |
+| Read/write unified calendar for multiple people/accounts from one verified provider: view, create, update, and delete events on authorized calendars, with person/source filters | Every calendar service, attendee invitations/notifications, or cross-provider conflict resolution |
 | Appointment preparation, reviewed local form drafts, manual recording of confirmation, local follow-through/reminders | Autonomous booking, external form submission, sending messages, payments, or unattended external commitments |
 
-Important external writes are a future extension that must use scoped authorization, visible intent/results, and a local audit trail; already-authorized routine actions should not require repeated prompts. V1's external document-analysis upload is explicitly authorized per selected content/provider and is not permission to book or submit anything.
+V1 calendar writes must use scoped authorization, visible intent/results, and a local audit trail; already-authorized routine actions should not require repeated prompts. Show the target person/account/calendar and the proposed change, including whether a recurring-event change affects one occurrence or the series. Creating a calendar entry does not book an appointment with a provider. V1's external document-analysis upload is explicitly authorized per selected content/provider and is not permission to book or submit anything. Attendee invitations/notifications remain outside V1; do not perform a calendar write if the provider cannot avoid those external messaging effects.
 
 ## Architecture and reuse
 
@@ -41,7 +41,7 @@ Home needs separate configuration, credentials, data/vault, logs, sessions, even
 
 **Depends on:** owner acceptance of the proposed V1 boundaries; rights review before selecting shared components; access to test accounts/client versions without collecting household records.
 
-**Acceptance:** demonstrate one harmless synthetic local MCP request and response in the proposed assistant/client; verify GUI connectivity; document exact versions/plans and any analysis charges. Test voice/tool interaction separately from text/tool interaction and record unsupported combinations. Confirm the initial calendar provider can expose multiple authorized test accounts read-only, and select one external-analysis adapter after reviewing consent/handling requirements. Use synthetic data only. Decide an authorized versioned reuse approach or a small original implementation when rights/dependencies block reuse. No compatibility assumption counts as a pass.
+**Acceptance:** demonstrate one harmless synthetic local MCP request and response in the proposed assistant/client; verify GUI connectivity; document exact versions/plans and any analysis charges. Test voice/tool interaction separately from text/tool interaction and record unsupported combinations. Confirm the initial calendar provider supports reading multiple authorized test accounts and scoped event creation, updates, and deletion on writable calendars without attendee invitations/notifications. Verify that read access alone does not grant write authority. Select one external-analysis adapter after reviewing consent/handling requirements. Use synthetic data only. Decide an authorized versioned reuse approach or a small original implementation when rights/dependencies block reuse. No compatibility assumption counts as a pass.
 
 ### 2. One observable local service through GUI and MCP
 
@@ -69,13 +69,15 @@ Select a synthetic document photo and intended person, choose the analysis provi
 
 **Acceptance:** a synthetic household completes needs-discovery questions, maps its priorities to capabilities and relevant MCP choices, and can decline individual connections without blanket enablement. Explain each option's purpose/access; configure third-party connections in the user's own assistant environment. Home confirms only access it can verify. Scripts guide per-person setup and document review through conversation, with voice only in a combination proven in milestone 1 and on-screen review for fields/consent. No new Home voice service. Test a disconnected provider and an unsupported client so setup does not falsely report completion.
 
-### 5. One trustworthy household calendar view
+### 5. One trustworthy household calendar with read and write access
 
-**Outcome:** users see multiple people's schedules together and can isolate one person, account, or source without confusing ownership.
+**Outcome:** users see multiple people's schedules together, isolate one person/account/source, and create, update, or delete events on authorized calendars without confusing ownership.
 
-**Depends on:** milestones 2 and 4; read-only access to the single verified initial provider.
+**Depends on:** milestones 2 and 4; verified read and scoped write permissions for the single initial provider, with shared authorization and local audit evidence through GUI and MCP.
 
-**Acceptance:** connect at least two synthetic people's test accounts and show a combined page plus person/source filters. Preserve provider, account, calendar, event ID, and recurrence-instance identity where applicable. Repeated refresh does not duplicate the same source event; shared invitations are not silently merged across owners. Demonstrate time zones, all-day/recurring events, pagination, expired authorization, disconnected sources, and stale/offline results with explicit freshness. Revocation stops new reads. GUI and MCP return consistent authorized data. No calendar write is required for V1.
+**Acceptance:** connect at least two synthetic people's test accounts and show a combined page plus person/source filters. Preserve provider, account, calendar, event ID, and recurrence-instance identity where applicable. Repeated refresh does not duplicate the same source event; shared invitations are not silently merged across owners. Demonstrate time zones, all-day/recurring events, pagination, expired authorization, disconnected sources, and stale/offline results with explicit freshness. GUI and MCP return consistent authorized data.
+
+Create a fictional event, update it, and delete it through both interfaces on selected writable test calendars; verify the provider's resulting state and retain minimal local audit evidence of authorization, target, attempt, and result. Demonstrate that read-only accounts and unapproved calendars reject writes. Show single-occurrence versus whole-series edits explicitly. Test concurrent edits, ambiguous timeouts, and retries without duplicate creation or repeated destructive changes: reconcile provider state before retrying and surface unresolved outcomes instead of claiming success. Revocation stops new reads/writes and prevents queued work from executing; explain any in-flight operation that cannot be undone. Never interpret access to the combined view as authority to modify every contributing calendar.
 
 ### 6. Complete appointment preparation and follow-through
 
@@ -83,7 +85,7 @@ Select a synthetic document photo and intended person, choose the analysis provi
 
 **Depends on:** milestones 3–5 and the shared workflow state.
 
-**Acceptance:** run one complete fictional scenario: choose the household member and appointment need; inspect the calendar for workable times; select reviewed profile fields and document references; produce an on-screen preparation checklist and request/form draft; flag missing details; record a confirmation received outside Home with its source; track outstanding paperwork and deadlines; trigger a local reminder. Unknown or unverified confirmations remain labeled that way. Verify cancellation, restart/retry without duplicate reminders, revocation, and errors. Reminders and jobs must use Home-specific identity and stay local. No message, booking, or external form submission is performed by this V1 workflow.
+**Acceptance:** run one complete fictional scenario: choose the household member and appointment need; inspect the calendar for workable times; select reviewed profile fields and document references; produce an on-screen preparation checklist and request/form draft; flag missing details; record a confirmation received outside Home with its source; create the corresponding event on an authorized calendar and verify it was saved; track outstanding paperwork and deadlines; trigger a local reminder. Unknown or unverified confirmations remain labeled that way, and a saved calendar event is not evidence of a provider booking. Verify event changes/deletion, workflow cancellation, restart/retry without duplicate events or reminders, revocation, and errors. Reminders and jobs must use Home-specific identity and stay local. No message, provider booking, or external form submission is performed by this V1 workflow.
 
 A nontechnical evaluator must complete this scenario from setup without developer help and correctly explain what Home accessed, what it sent for analysis, and what remains manual. Keep only sanitized acceptance outcomes in project review. Any later real-household pilot requires separate user authorization and local handling under the repository rules; real records never become fixtures or release evidence.
 

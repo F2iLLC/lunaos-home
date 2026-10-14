@@ -22,7 +22,7 @@ The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, 
 - A user-controlled local vault, with a folder/profile for each household member and established facilities for protecting records, reusable information, and credentials. No operator-hosted vault.
 - Reviewed document-photo intake with correct-person assignment. External analysis uses a provider the user chooses, with understandable consent and provider disclosure before selected content leaves the local environment. A local-model option is future work.
 - Assistant-led, purpose-based onboarding: discover household needs before suggesting MCP connections; pair conversation or supported voice with on-screen review.
-- One unified household calendar with person/source filters and preserved event origin, initially bounded to one verified calendar provider.
+- One unified household calendar with read and write capabilities: view, create, update, and delete events on calendars the user authorizes. Preserve person/source filters and event origin, initially bounded to one verified calendar provider.
 - One useful appointment-preparation and follow-through workflow. Broad autonomous booking, sending, and external form submission are outside V1.
 
 Suitable enterprise libraries, contracts, and skill/tool/workflow machinery may be reused through deliberately versioned interfaces after rights review. Home must isolate its configuration, credentials, data, logs, sessions, names, and background jobs. Enterprise LunaOS is proprietary; Home's license does not authorize copying it. No enterprise source has been copied or packages extracted for this starter. See the [reuse boundaries](ROADMAP.md#architecture-and-reuse) and [authoritative repository rules](REPOSITORY_RULES.md).
