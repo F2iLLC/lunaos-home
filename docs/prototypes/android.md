@@ -39,6 +39,8 @@ npm run native:android -- build --debug --target x86_64 --apk --ci
 
 For an ARM64 build check, use `--target aarch64` instead of `--target x86_64`. Both commands use the same generated `universal/debug/app-universal-debug.apk` output location, so a later build replaces that file. Inspect its `lib/` entries before choosing a device; the directory name does not guarantee multiple architectures. The ARM64 package has been built and inspected, but has not been installed or launched on a physical phone.
 
+For 32-bit ARM userspace, install the Rust target `armv7-linux-androideabi` and build with `--target armv7`. A 64-bit-capable CPU does not establish a 64-bit Android userspace. A combined build with `--target aarch64 armv7` was successfully packaged and its ELF headers verified for both architectures; the 32-bit-only command avoids including an unused ARM64 library.
+
 The pinned Tauri CLI generates `src-tauri/gen/android`; keep this machine-specific tree ignored. The Android configuration invokes `scripts/prepare-android.mjs` before building. That script removes the generated Internet permission, fixes cleartext traffic to false and sets `allowBackup=false`. It refuses unexpected permissions/template changes instead of quietly widening access. Inspect the merged APK manifest as well; a source-manifest test alone is not platform enforcement evidence. Backup/transfer behavior still requires Session 2 experiments before any sensitive use.
 
 Keep the `tauri` npm script alias: the generated Gradle Rust task invokes `npm run tauri android android-studio-script`, even when the initial command used the `native:android` alias.
@@ -90,6 +92,24 @@ For the remaining on-screen check, open the emulator window and use only the exa
 4. Check typing with the Android keyboard, scrolling with a finger or emulator pointer, system back and background/resume. Finally force-stop/relaunch: the in-memory draft should be gone. Record each result separately; a successful process restart does not prove clearing.
 
 These manual checks are pending, not implied passes. Record the tested revision, OS/WebView version and any failure before updating the compatibility matrix.
+
+## Opt-in activity software rendering
+
+A physical 32-bit ARM Android 11 test using WebView 146.0.7680.153 installed the standard debug preview and initially reported a successful activity start, then exited with a native crash in Android HWUI's `WebViewFunctorManager::destroyFunctor` on RenderThread. The supplied app startup diagnostics showed graphics initialization warnings but no captured JavaScript exception or Rust panic. This narrows the investigation to a platform rendering/lifecycle interaction; it does not prove a driver, ROM, WebView or application root cause. Activity-start success alone must not be counted as a successful launch.
+
+The optional configuration requests software rendering for `.MainActivity` before its window/WebView is created:
+
+```powershell
+npm run native:android -- build --debug --target armv7 --apk --ci --config src-tauri/tauri.software-rendering.conf.json
+```
+
+It sets `android:hardwareAccelerated="false"` only on Home's main activity. Android documents this as an activity-specific control. It does not change system graphics settings, the installed WebView, app permissions, networking, backup policy or the native assistant boundary. The normal build explicitly sets the activity flag back to `true`, preventing an earlier compatibility build from affecting the next normal build. Unknown rendering values or duplicate main activities fail preparation. [Android hardware acceleration controls](https://developer.android.com/develop/ui/views/graphics/hardware-accel#control).
+
+This is a compatibility experiment, not a confirmed crash fix or a universal guarantee that every WebView/GPU operation is bypassed. Inspect the final APK's main-activity flag, architecture, offline permissions and signature. Keep the same debug package identity/signing key for an authorized replacement install. Then observe process survival and the rendered welcome screen, exercise the synthetic review flow, and test background/resume and restart. Software rendering may affect drawing or responsiveness; those results need actual device testing.
+
+Local validation passed: all 17 JavaScript tests, including mode switching and activity isolation; full ARMv7 APK build; v2 signature verification; and inspection of the final APK showing only `armeabi-v7a`, main-activity hardware acceleration disabled, no Internet permission, backups disabled and cleartext disabled. Its debug signing certificate matches the earlier test package. No physical-device or emulator operation was performed for this compatibility build; the device retest remains pending.
+
+If it still crashes, retain the app-scoped startup diagnostics, native crash trace and process-exit reason for comparison. Do not repeatedly relaunch, replace the ROM/WebView or change global device security/graphics settings as an automatic workaround. Device installation and validation remain with the authorized device operator. Local test artifacts do not clear public binary-distribution or human-review gates.
 
 The independent Android host checks can be repeated after the native build has generated Tauri's bindings:
 
