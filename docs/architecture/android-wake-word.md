@@ -1,6 +1,8 @@
 # Possible wake-word activation on Android
 
-**Status: design note only; no voice feature implemented or approved for implementation.** The candidate device is a converted Echo Show 8 running LineageOS Android 11 with ARM32 (`armeabi-v7a`) userspace and no Google Play services or Play Store. Home currently has no microphone capture, wake-word engine or native assistant transport. Its [resting screen](../prototypes/resting-screen.md) displays a clock and greeting only. The existing product direction keeps the user's chosen assistant as the conversation host; this note explores a possible activation path without selecting a provider or committing to a new Home voice service.
+**Status: design note only; no voice feature implemented or approved for implementation.** The candidate device is a converted Echo Show 8 running LineageOS Android 11 with ARM32 (`armeabi-v7a`) userspace and no Google Play services or Play Store. Home currently has no microphone capture, wake-word engine or native assistant transport. Its [resting screen](../prototypes/resting-screen.md) displays a clock and greeting only.
+
+The proposed direction is a **Luna-owned assistant experience**: Luna's wake-word/voice interface, permissions and tools. Alexa is only an analogy for the activation experience, not an integration or restoration target. The underlying speech and language-model engines, providers and local-versus-hosted processing remain undecided. Owning the experience does not imply training a foundation model or entirely offline inference. Existing ChatGPT/Claude plugin feasibility work is separate; this note neither selects those providers for Luna voice nor changes that work's acceptance status.
 
 ## Proposed experience and privacy boundary
 
