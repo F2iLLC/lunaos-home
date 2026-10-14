@@ -19,6 +19,8 @@ Run the [native license audit](docs/prototypes/native-license-audit.md) against 
 
 ## Native shell development dependencies
 
+The same [Cargo audit guide](docs/prototypes/native-license-audit.md#collect-candidate-notice-text) now includes an offline candidate-bundle command. It preserves inspected license/notice bytes with per-package hashes, source links and unresolved gaps in a local review directory. This is preparation for notice review, not the final user-facing bundle or binary-distribution clearance; no dependency text is newly vendored in this repository.
+
 The separate [Android runtime notice inventory](docs/prototypes/android-notice-audit.md) covers resolved Java/Android JAR/AAR artifacts, including candidate notices in nested `classes.jar` and `libs/*.jar`. The initial offline debug scan found 80 external modules, 70 artifacts and 27 candidate notice entries; 57 modules still require artifact/notice review. It lists local projects as excluded and does not interpret POM licenses, clear source obligations or certify final APK coverage. Use it alongside the Cargo report when assembling the native notice bundle.
 
 | Package | Version | Upstream | License | Purpose |
