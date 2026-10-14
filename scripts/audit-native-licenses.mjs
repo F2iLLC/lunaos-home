@@ -4,7 +4,7 @@ import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const supportedTargets = ['x86_64-pc-windows-msvc', 'x86_64-linux-android', 'aarch64-linux-android'];
+export const supportedTargets = ['x86_64-pc-windows-msvc', 'x86_64-linux-android', 'aarch64-linux-android', 'armv7-linux-androideabi'];
 const registry = 'registry+https://github.com/rust-lang/crates.io-index';
 const licenseName = /^(LICENSE|LICENCE|COPYING)([._-]|$)/i;
 const noticeName = /^(NOTICE|AUTHORS|COPYRIGHT)([._-]|$)/i;

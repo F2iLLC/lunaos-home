@@ -4,7 +4,7 @@ This development audit supports the [native shell probe](native-shell.md) and it
 
 ## Run locally
 
-Use Node 24+, Cargo and the same Cargo cache used for the native builds. The audit runs `cargo metadata --locked --offline` separately for Windows x64, Android x86_64 and Android ARM64. It does not fetch packages, compile code, start the app, contact an assistant, or enable Actions. If the local cache is incomplete, it fails; provision dependencies through the reviewed build setup first.
+Use Node 24+, Cargo and the same Cargo cache used for the native builds. The audit runs `cargo metadata --locked --offline` separately for Windows x64, Android x86_64, Android ARM64 and Android ARM32. ARM32 is included by default because the physical preview device uses 32-bit Android userspace. It does not fetch packages, compile code, start the app, contact an assistant, or enable Actions. If the local cache is incomplete, it fails; provision dependencies through the reviewed build setup first.
 
 Choose an existing output directory outside the checkout and a new filename:
 
@@ -15,10 +15,10 @@ npm run audit:native-licenses -- --output ../work/native-license-inventory.json
 To inspect just one target:
 
 ```sh
-npm run audit:native-licenses -- --target aarch64-linux-android --output ../work/android-license-inventory.json
+npm run audit:native-licenses -- --target armv7-linux-androideabi --output ../work/android-arm32-license-inventory.json
 ```
 
-`--target` can be repeated for these supported triples: `x86_64-pc-windows-msvc`, `x86_64-linux-android`, `aarch64-linux-android`. Duplicate or unknown targets fail. Run tests with `npm test`; their fixtures contain synthetic license text and do not require Cargo.
+`--target` can be repeated for these supported triples: `x86_64-pc-windows-msvc`, `x86_64-linux-android`, `aarch64-linux-android`, `armv7-linux-androideabi`. Duplicate or unknown targets fail. Run tests with `npm test`; their fixtures contain synthetic license text and do not require Cargo.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -38,7 +38,7 @@ The report is deterministic for unchanged lockfile, metadata and inspected files
 
 ## Initial findings and remaining work
 
-The October 14, 2026 audit of the committed lockfile resolved 242 Windows packages and 258 for each Android architecture, with 286 distinct third-party package/version entries overall. It found 11 entries requiring license-file review:
+The October 14, 2026 four-target audit of the committed lockfile resolved 242 Windows packages, 258 each for Android x86_64 and ARM64, and 257 for Android ARM32, with 286 distinct third-party package/version entries overall. The ARM32 resolved graph omits `cpufeatures` 0.2.17, which appears in the other three target graphs; package counts must not be copied between architectures. This is dependency-inventory evidence, not a device-compatibility check. It found the same 11 entries requiring license-file review:
 
 - Shared by Windows and Android: `alloc-stdlib` 0.3.0, `defmt-parser` 1.0.0, `selectors` 0.38.0.
 - Windows: `webview2-com` 0.39.1, `webview2-com-macros` 0.8.1, `webview2-com-sys` 0.39.1.

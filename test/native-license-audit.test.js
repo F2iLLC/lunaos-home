@@ -2,15 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { inventoryNativeLicenses } from '../scripts/audit-native-licenses.mjs';
 
 const source = 'registry+https://github.com/rust-lang/crates.io-index';
 const windows = 'x86_64-pc-windows-msvc';
 const android = 'aarch64-linux-android';
+const arm32 = 'armv7-linux-androideabi';
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'luna-native-licenses-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(async () => {
+    assert.equal(dirname(resolve(root)), resolve(tmpdir()));
+    assert.ok(basename(root).startsWith('luna-native-licenses-'));
+    await rm(root, { recursive: true, force: true });
+  });
   const home = { id: 'home', name: 'lunaos-home-preview', version: '0.1.0', manifest_path: join(root, 'Cargo.toml') };
   await writeFile(home.manifest_path, '# synthetic package');
   async function pkg(name, files = { LICENSE: 'Synthetic test license text' }, extra = {}) {
@@ -35,18 +40,21 @@ test('target resolution excludes unused packages, merges shared packages and rem
   const f = await fixture(t);
   const shared = await f.pkg('shared');
   const mobile = await f.pkg('mobile');
+  const armOnly = await f.pkg('arm-only', {});
   const unused = { id: 'unused', manifest_path: 'must-not-read' };
-  const report = await f.run([f.input([shared], windows, [unused]), f.input([mobile, shared], android)]);
-  assert.equal(report.packages.length, 2);
-  assert.deepEqual(report.targets.map(item => item.packageCount).sort(), [1, 2]);
-  assert.deepEqual(report.packages.find(item => item.name === 'shared').targets, [android, windows]);
-  assert.equal(report.packagesWithGaps, 0);
+  const report = await f.run([f.input([shared], windows, [unused]), f.input([mobile, shared], android), f.input([shared, armOnly], arm32)]);
+  assert.equal(report.packages.length, 3);
+  assert.deepEqual(report.targets.map(item => item.packageCount).sort(), [1, 2, 2]);
+  assert.deepEqual(report.packages.find(item => item.name === 'shared').targets, [android, arm32, windows]);
+  assert.deepEqual(report.packages.find(item => item.name === 'arm-only').targets, [arm32]);
+  assert.deepEqual(report.packages.find(item => item.name === 'arm-only').gaps, ['license-text-not-found']);
+  assert.equal(report.packagesWithGaps, 1);
   assert.equal(report.distributionApproved, false);
   assert.match(report.cargoLockSha256, /^[a-f0-9]{64}$/);
-  assert.match(report.packages[0].files[0].sha256, /^[a-f0-9]{64}$/);
+  assert.match(report.packages.find(item => item.name === 'shared').files[0].sha256, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(report).includes(f.root), false);
   assert.equal(JSON.stringify(report).includes('manifest_path'), false);
-  assert.deepEqual(report, await f.run([f.input([shared, mobile], android), f.input([shared], windows, [unused])]));
+  assert.deepEqual(report, await f.run([f.input([armOnly, shared], arm32), f.input([shared, mobile], android), f.input([shared], windows, [unused])]));
 });
 
 test('license declarations and notices alone cannot hide missing license text', async t => {

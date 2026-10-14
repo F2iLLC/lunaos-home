@@ -15,7 +15,7 @@ The preview and tests were authored with AI assistance and reviewed against the 
 
 ## Reproducible native inventory
 
-Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and both Android targets without fetching packages or executing build scripts. The current combined scope contains 286 distinct third-party package/version entries, with 11 requiring candidate license-file review: the six Windows gaps described below plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
+Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and Android x86_64, ARM64 and ARM32 without fetching packages or executing build scripts. The current combined scope contains 286 distinct third-party package/version entries (242 Windows, 258 Android x86_64/ARM64, 257 Android ARM32), with 11 requiring candidate license-file review: the six Windows gaps described below plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
 
 ## Native shell development dependencies
 
