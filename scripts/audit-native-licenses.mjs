@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { open, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +13,24 @@ const within = (root, path) => {
   const part = relative(root, path);
   return part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part);
 };
+
+export async function readNoticeBytes(path) {
+  const limit = 2 * 1024 * 1024;
+  const handle = await open(path, 'r');
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > limit) throw new Error('Notice must be a regular file no larger than 2 MiB.');
+    const buffer = Buffer.alloc(limit + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, size, buffer.length - size, null);
+      if (!bytesRead) break;
+      size += bytesRead;
+    }
+    if (size > limit) throw new Error('Notice exceeds 2 MiB.');
+    return Buffer.from(buffer.subarray(0, size));
+  } finally { await handle.close(); }
+}
 
 async function inspectPackage(pkg) {
   const gaps = [];
@@ -42,7 +60,7 @@ async function inspectPackage(pkg) {
       continue;
     }
     if (!within(root, actual)) throw new Error(`License link leaves package: ${pkg.name}@${pkg.version}`);
-    const bytes = await readFile(actual);
+    const bytes = await readNoticeBytes(actual);
     if (!bytes.toString('utf8').trim()) gaps.push(`empty-${kind}-file`);
     files.push({ path: relative(root, path).split(sep).join('/'), kind, bytes: bytes.length, sha256: hash(bytes) });
   }
