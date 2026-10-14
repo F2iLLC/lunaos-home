@@ -62,6 +62,7 @@ Dependabot is configured for weekly npm, Cargo and GitHub Actions version-update
 - [REPOSITORY_RULES.md](REPOSITORY_RULES.md): authoritative team rules for repository contents, sensitive data, rights, and public contribution safety. These are project contribution rules, not extra downstream license conditions.
 - [ROADMAP.md](ROADMAP.md): planned V1 and distinct public-source/V1 release gates; not a claim of implementation.
 - [User-controlled shared vault epic](docs/epics/user-controlled-vault.md): onboarding, device pairing, configurable unlocking, recovery, delivery stories, and acceptance criteria.
+- [Possible Android wake-word activation](docs/architecture/android-wake-word.md): proposed experience, privacy boundaries and unresolved device/engine checks; documentation only, not an implemented voice feature.
 
 GitHub Actions is currently **disabled for this repository** so public contributions cannot run on shared enterprise infrastructure. The workflow still references the previously used self-hosted `ci-general` pool; do not re-enable it as-is. Establish and test the isolated self-hosted runner/trust policy in the repository rules before resuming CI. Run `npm test` locally in the meantime. Report vulnerabilities through the [private reporting route](REPOSITORY_RULES.md#vulnerability-reports).
 
