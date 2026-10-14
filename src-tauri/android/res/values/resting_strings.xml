@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="resting_name">Luna OS Home</string>
+    <string name="resting_greeting">Rest easy.</string>
+    <string name="resting_open_home">Open Luna OS Home</string>
+</resources>

@@ -1,5 +1,7 @@
 # Android offline preview
 
+The optional [clock and greeting resting screen](resting-screen.md) uses Android's user-selected screensaver integration. Its activation and physical acceptance checks are separate from the Home launch checks below.
+
 This is the Android build path for the [native shell probe](native-shell.md). It uses only the example family and in-memory draft rules. It has no assistant connection, vault storage or phone/computer bridge. Android 16 / API 36 on an x86_64 Pixel 7 emulator is the initial test target; a physical phone is a separate acceptance check.
 
 ## Prerequisites
