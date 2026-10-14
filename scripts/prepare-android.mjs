@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { restingManifest, copyRestingSources } from './prepare-resting.mjs';
 
 // The pinned Tauri CLI generates machine-specific Android files. Keep this
 // narrow transformation reproducible instead of committing local SDK paths.
@@ -52,6 +53,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (error.code !== 'ENOENT') throw error;
     throw new Error('Initialize Android first: npm run native:android -- init --ci --skip-targets-install');
   }
-  await writeFile(path, offlineManifest(manifest, { softwareRendering }));
+  const prepared = restingManifest(offlineManifest(manifest, { softwareRendering }));
+  await copyRestingSources(fileURLToPath(new URL('../src-tauri/gen/android/app/src/main/', import.meta.url)));
+  await writeFile(path, prepared);
   console.log(`Prepared offline Android source manifest: no requested permissions, cleartext disabled, backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }
