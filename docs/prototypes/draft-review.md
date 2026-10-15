@@ -10,6 +10,14 @@ The GUI and the three MCP tools use the same in-memory draft service. IDs and a 
 
 These are preview controls, **not family authentication, encryption, session grants or production security**. A local process can access the preview. Data stays in process memory until discard or process termination, not just until a browser tab closes. Input validation cannot tell whether a person typed real information. The fictional-only boundary is an operator/test restriction. Do not expose this service over a LAN or a tunnel.
 
+### Recovering from a lost connection
+
+A successful HTTP response is not enough to resume editing. Home checks the returned draft's identity, revision, people, fields, suggestions and review states before accepting it. Missing or unusable details and duplicate IDs keep recovery blocked, so a malformed reply cannot replace the displayed draft or enable another change. A valid `draft: null` is accepted when the service has no draft. This validates the response format; it does not authenticate the service.
+
+If a request times out, loses its response or receives an unreadable response, Home cannot know whether the change arrived. It shows **Update not confirmed**, retains the displayed draft and does not retry the write. Further changes, including discard and example creation, are blocked until a refresh successfully reads the current draft. Use **Check for updates**, or return to the preview when no field is being edited. Stale-edit conflicts and server errors also require this refresh. A failed refresh keeps the block in place; the app never silently replays the previous action after reconnecting. A restarted service may return no draft, in which case the old display is cleared.
+
+Automated coverage includes a server that applies a fictional edit and closes the socket before replying. It verifies that neither an immediate retry nor discard reaches the server, a failed refresh does not unblock writes, and a successful refresh recovers the applied value for separate confirmation. Timeout, malformed response, conflict and server-error cases are also covered. In a local desktop browser, the same dropped-response scenario showed the unavailable message, blocked retry, recovered **Willow Workshop** as **Please check**, and allowed **Looks right** after refreshing. The typed value remained present during the failure. This is browser evidence; native on-screen recovery and assistant-client recovery remain separate checks.
+
 ## Launch without an assistant
 
 Install Node.js 24 or newer, then from a clean checkout:
@@ -73,7 +81,7 @@ Initial probe: October 14, 2026. Results apply only to the combinations actually
 | Android native app/device | [Android probe](android.md): full x86_64 debug APK build, signature check, installation and two cold process launches passed on Android 16 / API 36 emulator, WebView 133.0.6943.137. APK and installed package have no Internet permission. Native rendering/interactions, restart clearing, physical phone and native assistant connection remain unverified. |
 | Android ARM64 package | Full `aarch64` debug build and v2 signature check passed; APK contains the `arm64-v8a` native library and retains the offline manifest restrictions. No installation or runtime check on an ARM64 device has been performed. |
 | Android 11 physical ARMv7 test, WebView 146.0.7680.153 | Standard debug APK installation succeeded, but the device operator reported a native HWUI RenderThread crash immediately after activity start. Physical launch is **failed**, not passed. The [opt-in software-rendering build](android.md#opt-in-activity-software-rendering) is an unverified mitigation awaiting device retest. |
-| Native Windows package | [Offline shell](native-shell.md): debug executable builds; process and WebView debugger started. Native rendering/interactions and installer lifecycle remain unverified. |
+| Native Windows package | [Native shell probes](native-shell.md): debug executable builds. Optional Windows debug review mode loaded the HTTP page and read an SDK-staged fictional draft inside WebView2. This is startup/request evidence only; native rendering, real-client correction interactions and installer lifecycle remain unverified. |
 | Claude Desktop, Claude Android and ChatGPT clients | Untested. Claude Code success does not establish support in these other clients. |
 | Assistant memory and Gmail/calendar discovery | Not exercised. Test used supplied fictional facts only; no real source access. |
 | Embedded GUI, phone-only local host, paired devices, background suspension | Untested. Current GUI is a separate local browser window. |
