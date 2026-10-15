@@ -1,5 +1,28 @@
 // The browser preview uses the local process. The native entry supplies an
 // offline client before loading the GUI; there is no automatic network fallback.
+function isReadableDraft(draft) {
+  if (draft === null) return true;
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const text = (value, max = 240, min = 1) => typeof value === 'string' && value.length >= min && value.length <= max;
+  const list = (value, min, max, valid) => Array.isArray(value) && value.length >= min && value.length <= max && value.every(valid);
+  const ids = new Set();
+  const uniqueId = value => {
+    if (!text(value, 80) || ids.has(value)) return false;
+    ids.add(value);
+    return true;
+  };
+  // Validate the read contract before replacing UI state or clearing recovery.
+  // This is response integrity checking, not authentication of the local service.
+  return object(draft) && uniqueId(draft.id) && Number.isSafeInteger(draft.revision) && draft.revision >= 0
+    && list(draft.people, 1, 6, person => object(person) && uniqueId(person.id) && text(person.name)
+      && list(person.fields, 1, 12, field => object(field) && uniqueId(field.id)
+        && text(field.label) && text(field.value) && text(field.source)
+        && ['proposed', 'needs-review', 'confirmed', 'skipped'].includes(field.status)
+        && text(field.question, 1024, 0) && text(field.reply, 240, 0))
+      && list(person.suggestions, 0, 6, item => object(item) && uniqueId(item.id)
+        && text(item.title) && text(item.reason) && ['proposed', 'accepted', 'declined'].includes(item.status)));
+}
+
 export function createHttpDraftClient(fetcher = (...args) => fetch(...args)) {
   let needsRefresh = false;
   return async (path, input) => {
@@ -17,7 +40,9 @@ export function createHttpDraftClient(fetcher = (...args) => fetch(...args)) {
       });
       data = await response.json();
       if (!data || typeof data !== 'object') throw new TypeError('Invalid preview response.');
-      if (response.ok && !Object.hasOwn(data, 'draft')) throw new TypeError('Missing preview draft.');
+      if (response.ok && (!Object.hasOwn(data, 'draft') || !isReadableDraft(data.draft))) {
+        throw new TypeError('Invalid preview draft.');
+      }
     } catch {
       // A failed response cannot tell us whether a write reached the service.
       // Never replay it; only a successful current-draft read clears this gate.

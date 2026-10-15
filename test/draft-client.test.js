@@ -75,3 +75,63 @@ test('timeout, malformed replies, stale edits and server errors require a real d
     assert.equal(calls, 4);
   }
 });
+
+test('unusable drafts cannot replace a known draft or unlock writes after recovery', async () => {
+  const valid = createDraftStore().stage(exampleProposal);
+  const invalid = [false, '', 0, [], {}, { ...valid, people: [] }];
+  for (const change of [
+    draft => { draft.revision = -1; },
+    draft => { draft.revision = 0.5; },
+    draft => { draft.people[0].fields = []; },
+    draft => { draft.people[0].fields[0].value = {}; },
+    draft => { draft.people[0].fields[0].status = 'saved'; },
+    draft => { delete draft.people[0].fields[0].reply; },
+    draft => { draft.people[0].fields[0].question = null; },
+    draft => { draft.people[0].suggestions = null; },
+    draft => { draft.people[0].suggestions[0].status = 'confirmed'; },
+    draft => { draft.people[1].id = draft.people[0].id; },
+    draft => { draft.people[0].fields[1].id = draft.people[0].fields[0].id; },
+  ]) {
+    const draft = structuredClone(valid);
+    change(draft);
+    invalid.push(draft);
+  }
+  for (const malformed of invalid) {
+    let responseDraft = valid;
+    let writes = 0;
+    const client = createHttpDraftClient((path, options) => {
+      if (options.method === 'POST') writes++;
+      return Response.json({ draft: responseDraft });
+    });
+    assert.deepEqual((await client('/api/draft')).draft, valid);
+    responseDraft = malformed;
+    await assert.rejects(client('/api/draft'), TypeError);
+    await assert.rejects(client('/api/review', {}), /Check for updates/);
+    assert.equal(writes, 0);
+    responseDraft = valid;
+    assert.deepEqual((await client('/api/draft')).draft, valid);
+    await client('/api/review', {});
+    assert.equal(writes, 1);
+  }
+});
+
+test('every service-produced review state and an empty restarted service remain readable', async () => {
+  const store = createDraftStore();
+  const proposal = structuredClone(exampleProposal);
+  // A generated question can exceed the input text limit after Unicode casing.
+  proposal.people[0].fields[0].label = '\u0130'.repeat(240);
+  let draft = store.stage(proposal);
+  const client = createHttpDraftClient(() => Response.json({ draft: store.read() }));
+  const ref = { draftId: draft.id, personId: draft.people[0].id, itemId: draft.people[0].fields[0].id };
+  for (const action of ['flag', 'reply', 'edit', 'confirm', 'skip']) {
+    draft = store.review({ ...ref, revision: draft.revision, action, value: 'Fictional correction' });
+    assert.deepEqual((await client('/api/draft')).draft, draft);
+  }
+  const suggestion = { ...ref, itemId: draft.people[0].suggestions[0].id };
+  for (const action of ['accept', 'decline']) {
+    draft = store.review({ ...suggestion, revision: draft.revision, action });
+    assert.deepEqual((await client('/api/draft')).draft, draft);
+  }
+  store.discard({ draftId: draft.id, revision: draft.revision });
+  assert.deepEqual(await client('/api/draft'), { draft: null });
+});
