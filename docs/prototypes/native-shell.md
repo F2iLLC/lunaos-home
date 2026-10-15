@@ -50,6 +50,8 @@ The smoke script stages the supplied fixture through an in-memory SDK client, st
 
 Still required: observe the native screen and repeat the real-client flag → question → reply → correction → local confirmation sequence, test service loss visibly, and verify the navigation/download restrictions in the running WebView. Request traces do not prove displayed content or user interaction. Session 1 remains open.
 
+The shared HTTP client now blocks additional writes after an uncertain response until a successful draft refresh. Its lost-response recovery passed automated checks and a desktop browser walkthrough, as recorded in [draft review](draft-review.md#recovering-from-a-lost-connection). This does not clear the native service-loss check above. The default offline adapter does not use this HTTP recovery state.
+
 ## Earlier offline evidence and outstanding checks
 
 On Windows 11 x64 with Node 24.19.0, Rust/Cargo 1.99.0 and Visual Studio 2022 C++ Build Tools:

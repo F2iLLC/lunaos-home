@@ -10,6 +10,12 @@ The GUI and the three MCP tools use the same in-memory draft service. IDs and a 
 
 These are preview controls, **not family authentication, encryption, session grants or production security**. A local process can access the preview. Data stays in process memory until discard or process termination, not just until a browser tab closes. Input validation cannot tell whether a person typed real information. The fictional-only boundary is an operator/test restriction. Do not expose this service over a LAN or a tunnel.
 
+### Recovering from a lost connection
+
+If a request times out, loses its response or receives an unreadable response, Home cannot know whether the change arrived. It shows **Update not confirmed**, retains the displayed draft and does not retry the write. Further changes, including discard and example creation, are blocked until a refresh successfully reads the current draft. Use **Check for updates**, or return to the preview when no field is being edited. Stale-edit conflicts and server errors also require this refresh. A failed refresh keeps the block in place; the app never silently replays the previous action after reconnecting. A restarted service may return no draft, in which case the old display is cleared.
+
+Automated coverage includes a server that applies a fictional edit and closes the socket before replying. It verifies that neither an immediate retry nor discard reaches the server, a failed refresh does not unblock writes, and a successful refresh recovers the applied value for separate confirmation. Timeout, malformed response, conflict and server-error cases are also covered. In a local desktop browser, the same dropped-response scenario showed the unavailable message, blocked retry, recovered **Willow Workshop** as **Please check**, and allowed **Looks right** after refreshing. The typed value remained present during the failure. This is browser evidence; native on-screen recovery and assistant-client recovery remain separate checks.
+
 ## Launch without an assistant
 
 Install Node.js 24 or newer, then from a clean checkout:
