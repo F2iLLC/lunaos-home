@@ -37,11 +37,19 @@ npm run native:android -- init --ci --skip-targets-install
 npm run native:android -- build --debug --target x86_64 --apk --ci
 ```
 
-For an ARM64 build check, use `--target aarch64` instead of `--target x86_64`. Both commands use the same generated `universal/debug/app-universal-debug.apk` output location, so a later build replaces that file. Inspect its `lib/` entries before choosing a device; the directory name does not guarantee multiple architectures. The ARM64 package has been built and inspected, but has not been installed or launched on a physical phone.
+For an ARM64 build check, use `--target aarch64` instead of `--target x86_64`. Both commands use the same generated `universal/debug/app-universal-debug.apk` output location, so a later build replaces that file. Inspect its `lib/` entries before choosing a device; the directory name does not guarantee multiple architectures. An earlier ARM64 preview was reported to open on a Samsung phone and show the welcome screen in [Session 1's device assessment](https://github.com/F2iLLC/lunaos-home/issues/13#issuecomment-6182783646). That report does not identify a current-main build or establish touch, review or lifecycle acceptance. Record the exact device, Android/WebView versions and package hash on the next check.
 
 For 32-bit ARM userspace, install the Rust target `armv7-linux-androideabi` and build with `--target armv7`. A 64-bit-capable CPU does not establish a 64-bit Android userspace. A combined build with `--target aarch64 armv7` was successfully packaged and its ELF headers verified for both architectures; the 32-bit-only command avoids including an unused ARM64 library.
 
 The pinned Tauri CLI generates `src-tauri/gen/android`; keep this machine-specific tree ignored. The Android configuration invokes `scripts/prepare-android.mjs` before building. That script removes the generated Internet permission, fixes cleartext traffic to false and sets `allowBackup=false`. It refuses unexpected permissions/template changes instead of quietly widening access. Inspect the merged APK manifest as well; a source-manifest test alone is not platform enforcement evidence. Backup/transfer behavior still requires Session 2 experiments before any sensitive use.
+
+### Clean generated files before a branch retest
+
+Ignored Android files survive Git branch changes. Before calling a package a build of the selected revision, inspect the generated manifest, Java/Kotlin sources and resources for additions from another branch. A screen-saver service from a separate preview was found in this tree during a current-main retest. Its first package was excluded from acceptance; no device received it.
+
+Preserve the existing generated directory outside the checkout, then run the pinned `init --ci --skip-targets-install` command again and rebuild. Do not delete another worker's build or replace an installed app as part of this cleanup. The offline manifest preparation now rejects services, broadcast receivers and activity aliases instead of silently retaining them. This check catches declared extra components; it does not establish provenance of every generated source/resource. A fresh generated tree and final package inspection remain necessary.
+
+Before handing off a local test package, verify its signature, SHA-256, native architecture, application ID, main-activity rendering setting and final manifest. The offline package must have no Internet permission, cleartext disabled and backups disabled. Verify no screen-saver service is present. Keep raw build logs, debugging keys and APKs outside Git; the binary-distribution notice gate still applies. Record the app source revision separately from any later documentation commit.
 
 Keep the `tauri` npm script alias: the generated Gradle Rust task invokes `npm run tauri android android-studio-script`, even when the initial command used the `native:android` alias.
 
@@ -61,6 +69,8 @@ Choose the emulator serial explicitly for every install/launch command; never in
 Record installation, cold launch, UI behavior and restart separately. Exercise the home menu, family-member selection, Needs review, manual correction, separate confirmation, suggestions and discard. The offline UI must state that an assistant is unavailable. Check touch/keyboard, system back behavior, small screens, background/resume and full process restart. A successful build, emulator boot or activity-launch command alone does not pass these UI checks.
 
 ## Probe evidence
+
+October 15 clean-tree retest package: application source `9b85c020171ed54a0168a7370a05791d373af3d0`, rebuilt after regenerating the Android project with the pinned CLI. Full ARM64 debug packaging and v2 signature verification passed. The 137,301,399-byte local APK has SHA-256 `3cb49ef65c53eb3f95b8b04f669a10d757e48b7c224d286248e2b0dde1aa62c6`, only the `arm64-v8a` Home library, the debug application ID, normal hardware rendering, no Internet permission or screen-saver service, and backup/cleartext disabled in its manifest. The 30-test app suite passed before the manifest safeguard was added; all five manifest tests then passed, including rejection of leftover components. The new safeguard also rejected the preserved contaminated manifest and accepted the regenerated one unchanged. This package has not been installed or launched by this build session. Device acceptance and complete redistribution notices remain open.
 
 October 14, 2026, Windows 11 build 26300: Temurin JDK 21.0.12.1+1, Rust 1.99.0, Android command-line tools 22.0, platform tools 37.0.1, SDK platform/build tools 37, NDK 29.0.14206865 and emulator 37.2.12. The emulator uses the API 36 default x86_64 image revision 2 and Pixel 7 hardware profile, with WHPX acceleration. It reports Android 16 and completed boot. This is not a physical Pixel phone result.
 

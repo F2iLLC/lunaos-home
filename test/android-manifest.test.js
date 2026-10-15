@@ -25,6 +25,19 @@ test('unexpected permissions or Android template changes fail before building', 
   assert.throws(() => offlineManifest(template.replace('<application', '<application android:allowBackup="true"')), /backup policy/);
 });
 
+test('generated components from another feature cannot silently enter the offline build', () => {
+  for (const component of [
+    '<service android:name=".RestingDreamService" android:permission="android.permission.BIND_DREAM_SERVICE" />',
+    '<receiver android:name=".OtherFeatureReceiver" />',
+    '<activity-alias android:name=".OtherLauncher" android:targetActivity=".MainActivity" />',
+  ]) {
+    const contaminated = template.replace('</application>', `${component}</application>`);
+    assert.throws(() => offlineManifest(contaminated), /Unexpected Android component/);
+    assert.throws(() => offlineManifest(contaminated, { softwareRendering: true }), /Unexpected Android component/);
+  }
+  assert.doesNotThrow(() => offlineManifest(template));
+});
+
 test('software rendering is activity-scoped, preserves offline policy and resets on a normal build', () => {
   const withOtherActivity = template.replace('</application>', '<activity android:name=".OtherActivity" android:hardwareAccelerated="true" /></application>');
   const software = offlineManifest(withOtherActivity, { softwareRendering: true });
