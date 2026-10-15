@@ -6,6 +6,11 @@ import { resolve } from 'node:path';
 // narrow transformation reproducible instead of committing local SDK paths.
 export function offlineManifest(xml, { softwareRendering = false } = {}) {
   if (typeof softwareRendering !== 'boolean') throw new Error('Unexpected Android rendering option.');
+  // Generated projects survive branch changes. A separate feature's service
+  // must not silently ship in this offline probe just because it is ignored.
+  if (/<(?:service|receiver|activity-alias)\b/.test(xml)) {
+    throw new Error('Unexpected Android component. Preserve and regenerate the Android project before building this offline preview.');
+  }
   const activities = [...xml.matchAll(/<activity(?=\s|>)[^>]*>/g)]
     .map(match => match[0]).filter(tag => /\bandroid:name="\.MainActivity"/.test(tag));
   if ((xml.match(/<application\b/g) || []).length !== 1 || activities.length !== 1) {
