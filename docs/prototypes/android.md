@@ -70,6 +70,65 @@ Record installation, cold launch, UI behavior and restart separately. Exercise t
 
 ## Probe evidence
 
+### October 16 emulator interaction and system-bar correction
+
+The dedicated LunaHome API 36 emulator (Android 16, Pixel 7 hardware profile,
+x86_64, WebView 133.0.6943.137) was operated through its native Windows window.
+This establishes emulator pointer interaction, not physical-phone touch support.
+A fresh build from `3de2e42f37975958256fa65618e77637ed27908f` passed v2 signature
+verification and same-signer replacement installation without uninstalling or
+clearing app data. Its APK SHA-256 was
+`471125c4e8447411329896c707bdf8bb323e55ce311852343507a714d7de4563`.
+
+Observed on that baseline:
+
+| Check | Observed result |
+| --- | --- |
+| Cold launch, expanding home actions and opening the vault | Passed; actual welcome and draft screens displayed. |
+| Example family, scrolling and member selection | Passed; Alex and Sam were selectable, and Sam retained Meadow School. |
+| Workplace Needs review | Passed; confirmation became disabled and the offline assistant-unavailable notice appeared. |
+| Library suggestion | Yes, later was visibly recorded. Not now was clicked afterward, but its resulting label was not separately verified. |
+| Background and resume through Android Home/recent apps | Passed; Sam remained selected with the existing draft. |
+| Full force-stop and cold restart | Passed; reopening the vault showed Ready for a fictional draft and the empty-state example action. |
+| Manual text correction and separate confirmation | Not passed. The field focused, but supported host keyboard input did not change the text; a usable on-screen keyboard was not visible. Root cause remains unestablished. |
+
+The baseline visibly drew content underneath the Android status/navigation bars.
+The build preparation now installs the project-owned
+`scripts/android/MainActivity.kt` override. It applies system-bar, display-cutout
+and keyboard insets to the native content container, using existing AndroidX
+facilities. Padding is assigned from each inset dispatch, rather than added
+repeatedly. Insets are consumed at that container to avoid applying them twice.
+This follows [Android's system-bar overlap guidance](https://developer.android.com/develop/ui/views/layout/edge-to-edge#system-bars-insets).
+
+Preparation accepts only the known generated activity or the exact current
+override (with line-ending normalization). Unknown activity changes cause a
+failure before either generated file is written; preserve and review them instead
+of overwriting them. The manifest safeguards still apply. No permissions, native
+commands, networking, dependency versions or assistant capabilities are added.
+
+The corrected x86_64 APK has SHA-256
+`98eef677dae9597e52810b0a5214644cfc289e7f48207d5d20832eaf27c37480`.
+Its full build, signature and same-signer installation passed. The actual emulator
+showed the welcome header/footer clear of the bars, and the vault could be opened,
+scrolled, populated with the example family and focused for editing. The keyboard
+gap remains; this is not a claim that inset handling fixed text entry. All 32
+JavaScript tests passed, including repeatable activity preparation and refusal to
+overwrite an unrelated custom activity. Earlier baseline lifecycle results are
+not a substitute for repeating the full checklist on the corrected build.
+
+Still required: usable text input and correction/confirmation, verified decline,
+discard cancellation/confirmation, lock/unlock, landscape/cutout and keyboard
+insets, physical-device checks, and native assistant integration. One connected
+physical device reported unauthorized and was not operated. The ARM64 retest
+package below was rechecked, but this inset correction has only been built and
+run for x86_64. No binary-distribution or Session 1 acceptance is implied.
+
+### Earlier package and startup checks
+
+The following paragraphs retain the earlier scope and blockers. The October 16
+table above supersedes their emulator-rendering, pointer, resume and restart gaps;
+it does not turn the remaining checks into passes.
+
 October 15 clean-tree retest package: application source `9b85c020171ed54a0168a7370a05791d373af3d0`, rebuilt after regenerating the Android project with the pinned CLI. Full ARM64 debug packaging and v2 signature verification passed. The 137,301,399-byte local APK has SHA-256 `3cb49ef65c53eb3f95b8b04f669a10d757e48b7c224d286248e2b0dde1aa62c6`, only the `arm64-v8a` Home library, the debug application ID, normal hardware rendering, no Internet permission or screen-saver service, and backup/cleartext disabled in its manifest. The 30-test app suite passed before the manifest safeguard was added; all five manifest tests then passed, including rejection of leftover components. The new safeguard also rejected the preserved contaminated manifest and accepted the regenerated one unchanged. This package has not been installed or launched by this build session. Device acceptance and complete redistribution notices remain open.
 
 October 14, 2026, Windows 11 build 26300: Temurin JDK 21.0.12.1+1, Rust 1.99.0, Android command-line tools 22.0, platform tools 37.0.1, SDK platform/build tools 37, NDK 29.0.14206865 and emulator 37.2.12. The emulator uses the API 36 default x86_64 image revision 2 and Pixel 7 hardware profile, with WHPX acceleration. It reports Android 16 and completed boot. This is not a physical Pixel phone result.

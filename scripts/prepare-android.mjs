@@ -2,6 +2,27 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
+const activityTemplate = await readFile(new URL('./android/MainActivity.kt', import.meta.url), 'utf8');
+const generatedActivity = `package io.github.f2illc.lunaos.home.preview
+
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+
+class MainActivity : TauriActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    enableEdgeToEdge()
+    super.onCreate(savedInstanceState)
+  }
+}`;
+const normalized = text => text.replace(/\r\n/g, '\n').trim();
+
+export function insetActivity(source) {
+  if (![generatedActivity, activityTemplate].some(expected => normalized(expected) === normalized(source))) {
+    throw new Error('Unexpected Android activity. Preserve and review its changes before preparing this preview.');
+  }
+  return activityTemplate;
+}
+
 // The pinned Tauri CLI generates machine-specific Android files. Keep this
 // narrow transformation reproducible instead of committing local SDK paths.
 export function offlineManifest(xml, { softwareRendering = false } = {}) {
@@ -57,6 +78,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (error.code !== 'ENOENT') throw error;
     throw new Error('Initialize Android first: npm run native:android -- init --ci --skip-targets-install');
   }
-  await writeFile(path, offlineManifest(manifest, { softwareRendering }));
+  const activityPath = new URL('../src-tauri/gen/android/app/src/main/java/io/github/f2illc/lunaos/home/preview/MainActivity.kt', import.meta.url);
+  // Validate both inputs before writing either generated file. Never overwrite
+  // another feature's custom activity just because its directory is ignored.
+  const activity = insetActivity(await readFile(activityPath, 'utf8'));
+  const preparedManifest = offlineManifest(manifest, { softwareRendering });
+  await writeFile(path, preparedManifest);
+  await writeFile(activityPath, activity);
   console.log(`Prepared offline Android source manifest: no requested permissions, cleartext disabled, backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }

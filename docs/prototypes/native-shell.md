@@ -54,6 +54,21 @@ The shared HTTP client now blocks additional writes after an uncertain response 
 
 ## Earlier offline evidence and outstanding checks
 
+On October 16, the Windows debug executable was rebuilt from the source tree
+matching main `3de2e42f37975958256fa65618e77637ed27908f`. Its SHA-256 was
+`f64666e522387ee7c6e7a25500dc1e79a6e4aa4840abf125648fb1af1ddb55ef`.
+Three Rust argument/navigation tests passed. A fresh Claude Code 2.1.291 session,
+restricted to the three Home tools, staged the fictional Alex/Sam profile and its
+local browser GUI displayed it. This repeat establishes staging and browser
+presentation only. The attempted native-window launch was blocked by the test
+environment's approval policy; no native window was available for interaction.
+The pending manual launch must be verified before counting a Windows native
+correction flow. The synthetic session can be kept open for that handoff.
+
+The [October 16 Android checks](android.md#october-16-emulator-interaction-and-system-bar-correction)
+now supply partial native emulator interaction evidence. They do not validate
+the Windows WebView, a physical Android phone, or Android assistant integration.
+
 On Windows 11 x64 with Node 24.19.0, Rust/Cargo 1.99.0 and Visual Studio 2022 C++ Build Tools:
 
 - All 13 JavaScript tests passed, including existing stdio/HTTP integration and new offline correction, stale-edit, discard and session-reset checks.
