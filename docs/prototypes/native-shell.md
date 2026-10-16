@@ -1,6 +1,6 @@
 # Native shell probes
 
-This developer build advances [Session 1](../epics/vault-first-two-sessions.md) using fictional data only. It is not an installable vault release or proof of Android support. Android remains the first mobile target; Windows is the initial desktop candidate.
+This developer build advances [Session 1](../epics/vault-first-two-sessions.md) using fictional data only. It is not a usable vault release. The [Android guide](android.md) separately records tested Android combinations; a Windows result alone does not establish Android support.
 
 ## Default offline scope
 
@@ -77,10 +77,29 @@ this does not demonstrate automatic conversational resumption or unsolicited
 updates. No protected vault record exists in this prototype.
 
 This clears the Windows debug assistant-to-native-GUI correction and stopped-service
-interaction checks. Default offline Windows lifecycle/discard checks, runtime
-navigation/new-window/download guards, installer lifecycle and full redistribution
-notices remain separate work. Android, other assistant clients, phone-only hosting,
-pairing and protected storage are not validated by this result.
+interaction checks. Runtime navigation/new-window/download guards remain unverified
+in a running WebView. Installer lifecycle and full redistribution notices remain
+distribution work. Android, other assistant clients, phone-only hosting, pairing
+and protected storage are not validated by this result.
+
+## October 16 Windows offline interaction and restart
+
+The default launch of the same executable (SHA-256 below) was exercised in its
+actual native window using pointer and keyboard input, with the supplied fixtures.
+No HTTP/MCP service is used by this mode.
+
+| Check | Observed result |
+| --- | --- |
+| Review and manual correction | Needs review disabled confirmation and accurately reported the absent assistant. Keyboard replacement changed Willow Studio to Willow Workshop. Update draft showed Your edit / Please check; a separate Looks right action confirmed the value and raised the checked count to one. |
+| Member isolation | Switching to Sam showed unchanged Meadow School. |
+| Cancel discard | Keep reviewing retained the draft and review choices. |
+| Confirm discard | Yes, discard it returned to Ready for a fictional draft and the empty-state example action. |
+| Close and relaunch | Loaded a new example, closed the native window, reopened the executable, and entered the vault. The visible empty state confirmed that the in-memory draft had cleared. |
+
+These results close the default offline Windows interaction/lifecycle gaps. They
+do not establish encrypted persistence, installer behavior, or the debug review
+mode's navigation/download guards. See the [Session 1 handoff](session-one-handoff.md)
+for the actual exit-check mapping and remaining client-route decision.
 
 ## Earlier offline evidence and outstanding checks
 
@@ -95,9 +114,8 @@ environment's approval policy; no native window was available for interaction.
 The later manual launch and native correction check above supersede that initial
 launch blocker; the blocked automatic launch itself was not bypassed.
 
-The [October 16 Android checks](android.md#october-16-emulator-interaction-and-system-bar-correction)
-now supply partial native emulator interaction evidence. They do not validate
-the Windows WebView, a physical Android phone, or Android assistant integration.
+The [October 16 Android guide](android.md) records emulator and physical ARM64
+phone evidence separately. Neither establishes Android assistant integration.
 
 On Windows 11 x64 with Node 24.19.0, Rust/Cargo 1.99.0 and Visual Studio 2022 C++ Build Tools:
 
@@ -105,7 +123,13 @@ On Windows 11 x64 with Node 24.19.0, Rust/Cargo 1.99.0 and Visual Studio 2022 C+
 - The bundled frontend and Windows debug executable built successfully.
 - A browser served only the generated files under the shell's frontend policy. The example loaded, a flagged workplace was manually changed, confirmation remained a separate action, and reload cleared the draft. No console errors appeared during that flow. This is not native WebView or Android acceptance evidence.
 
-Remaining: complete the Windows checks listed above, Android keyboard/correction and physical-device acceptance, notices and installer lifecycle, and phone-only/client feasibility. The [Android probe](android.md) records partial native emulator interaction separately. Windows debug/Claude Code correction is now verified; Android assistant connection and ChatGPT compatibility remain unverified. Session 1 stays open; Session 2 remains blocked by its acceptance criteria. Actions remains disabled; these are local checks only.
+The later Windows offline and physical Android results supersede the earlier UI
+gaps. Runtime debug-window guard checks, emulator keyboard coverage, human usability,
+installer lifecycle and redistribution notices remain explicitly open; they are
+tracked separately from Session 1's listed exit criteria. Phone-only service hosting
+belongs to the next custody experiment. The [handoff](session-one-handoff.md)
+records the client limitation that still needs an owner decision. Actions remains
+disabled; these are local checks only.
 
 ## Manual acceptance checklist
 

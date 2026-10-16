@@ -162,16 +162,18 @@ inspection; it is not a human finger-usability assessment.
 | Discard cancellation and confirmation | Passed separately; Keep reviewing retained the corrected draft and choices. On a fresh example draft, Yes, discard it returned to Ready for a fictional draft and the example action. |
 | Background/resume | Passed; Android Home followed by a hot app resume retained Sam's selection, Meadow School and the one-checked count. |
 | Force-stop/cold restart | Passed; after the cold start and the owner returning the app to the foreground, reopening the vault visibly showed Ready for a fictional draft and the empty-state example action. |
-| Landscape layout | Passed for the inspected empty state and family review; the owner rotated the phone, content remained clear of the system bars and side cutout area, and injected taps switched Alex to Sam in the two-column layout. Landscape keyboard behavior was not exercised. |
+| Landscape layout | Passed for the inspected empty state and family review; the owner rotated the phone, content remained clear of the system bars and side cutout area, and injected taps switched Alex to Sam in the two-column layout. |
 | Return to portrait and brief lock/unlock | The owner performed the combined sequence and reported ready. The next app screen was upright with the draft, zero-checked count and Sam still selected. This is a brief resume result, not prolonged sleep or a phone-hosted service test. |
+| General system Back | With the keyboard closed, Android Back returned from the family review to the welcome screen. Reopening Explore my vault retained Sam's selection and the current checked count. |
+| Landscape keyboard | With Sam selected, the Samsung keyboard appeared in landscape with the editor and Update draft visible above it. An injected tap on the displayed x key changed Meadow School to Meadow Schoolx; the displayed backspace restored Meadow School. Android Back dismissed the keyboard and retained the text. No update was submitted. The temporary test rotation lock was removed and the original free-rotation setting was verified afterward. |
 
-Landscape keyboard behavior, general system-Back navigation and human touch
-usability remain unverified. Longer sleep/suspension remains a separate check.
-The keyboard dismissal result does not establish general Back navigation.
+Human finger usability and longer sleep/suspension remain separate checks.
+The rows above distinguish keyboard dismissal from general Back navigation.
 No Android assistant connection, protected persistence or phone-hosted service
 is implemented by this offline preview. Wireless debugging is a development
 connection, not the product's phone/computer vault bridge. No raw phone screens,
-logs, pairing material or binaries are published. Session 1 remains open.
+logs, pairing material or binaries are published. The [Session 1 handoff](session-one-handoff.md)
+maps these results to the issue's exit checks and the remaining client decision.
 
 ### Earlier package and startup checks
 
