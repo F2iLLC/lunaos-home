@@ -135,14 +135,41 @@ earlier packages. The final manifest retains no Internet permission, backup
 disabled, cleartext disabled and standard activity hardware rendering. No Home
 service is present; the merged AndroidX profile-installer receiver is retained.
 
-This package is prepared for local synthetic phone testing, not public release.
-It has not been installed or launched on a physical phone. During preparation,
-Windows reported a Samsung phone and a healthy ADB interface, but ADB 37.0.1
-listed only the separate Echo Show and emulator. No phone OS, ABI or runtime
-compatibility was inferred from the Windows USB label. No connected device was
-installed, launched, cleared or reconfigured in this build check. Reconnect and
-identify the authorized phone explicitly before installation; do not substitute
-the Echo Show or emulator for physical-phone acceptance.
+This package is for local synthetic phone testing, not public release. USB
+enumeration initially blocked the phone check. The owner subsequently enabled
+wireless debugging and explicitly paired the intended phone; the physical check
+below supersedes that connection blocker. Pairing details and device identifiers
+are excluded from published evidence.
+
+### October 16 physical ARM64 phone interaction
+
+The authorized Samsung SM-S938U reports Android 17 / API 37, `arm64-v8a` and
+`com.google.android.webview` 155.0.8059.43. The package above was hash-checked and
+its signer compared with the existing preview before a successful replacement
+installation. No uninstall or app-data clear was used. These observations apply
+to that exact package and device/runtime combination, not all Samsung or Android
+phones. Interaction used ADB-injected touches and keys with actual phone screen
+inspection; it is not a human finger-usability assessment.
+
+| Check | Observed result |
+| --- | --- |
+| Native launch and portrait layout | Passed; rendered welcome, expanding home actions, vault empty state and fictional family appeared. Content stayed clear of status/navigation bars, with no visible horizontal overflow. |
+| Needs review | Passed; Alex's workplace became Needs review, Looks right was disabled, and the screen accurately stated that no assistant was connected. |
+| Keyboard and editor visibility | Passed; Samsung's on-screen keyboard appeared with the editor and Update draft visible above it. Text replacement worked; tapping the displayed letter and backspace keys changed the field. Android Back dismissed the keyboard without losing the edit. |
+| Correction and separate confirmation | Passed; Willow Workshop appeared as Your edit / Please check after Update draft. A separate Looks right action confirmed it and raised the checked count to one. |
+| Member isolation | Passed; Alex's Moonrise Library and Sam's Meadow School remained unchanged. |
+| Suggestion decisions | Passed; Yes, later and then Not now were each visibly recorded for the library-card suggestion. |
+| Discard cancellation and confirmation | Passed separately; Keep reviewing retained the corrected draft and choices. On a fresh example draft, Yes, discard it returned to Ready for a fictional draft and the example action. |
+| Background/resume | Passed; Android Home followed by a hot app resume retained Sam's selection, Meadow School and the one-checked count. |
+| Force-stop/cold restart | Passed; after the cold start and the owner returning the app to the foreground, reopening the vault visibly showed Ready for a fictional draft and the empty-state example action. |
+
+Landscape/return-to-portrait, deliberate lock/unlock with an existing draft,
+general system-Back navigation and human touch usability remain unverified.
+The keyboard dismissal result does not establish general Back navigation.
+No Android assistant connection, protected persistence or phone-hosted service
+is implemented by this offline preview. Wireless debugging is a development
+connection, not the product's phone/computer vault bridge. No raw phone screens,
+logs, pairing material or binaries are published. Session 1 remains open.
 
 ### Earlier package and startup checks
 
