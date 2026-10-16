@@ -120,8 +120,29 @@ Still required: usable text input and correction/confirmation, verified decline,
 discard cancellation/confirmation, lock/unlock, landscape/cutout and keyboard
 insets, physical-device checks, and native assistant integration. One connected
 physical device reported unauthorized and was not operated. The ARM64 retest
-package below was rechecked, but this inset correction has only been built and
-run for x86_64. No binary-distribution or Session 1 acceptance is implied.
+package below was rechecked. At this stage, the inset correction had only been
+built and run for x86_64; the later ARM64 packaging check is recorded next.
+No binary-distribution or Session 1 acceptance is implied.
+
+### October 16 ARM64 retest package
+
+A fresh `aarch64` debug build from `81f331e54a9d9fa8e5f6cfdda45bf460ef8730fc`
+includes the system-bar inset correction. Its SHA-256 is
+`470c86e541576465751fe810c3f30a700d78ad4db096c842f801d4411bf3c36d`
+and its size is 137,301,399 bytes. Full packaging and v2 signature verification
+passed. The sole native payload is `arm64-v8a`; the debug signer matches the
+earlier packages. The final manifest retains no Internet permission, backup
+disabled, cleartext disabled and standard activity hardware rendering. No Home
+service is present; the merged AndroidX profile-installer receiver is retained.
+
+This package is prepared for local synthetic phone testing, not public release.
+It has not been installed or launched on a physical phone. During preparation,
+Windows reported a Samsung phone and a healthy ADB interface, but ADB 37.0.1
+listed only the separate Echo Show and emulator. No phone OS, ABI or runtime
+compatibility was inferred from the Windows USB label. No connected device was
+installed, launched, cleared or reconfigured in this build check. Reconnect and
+identify the authorized phone explicitly before installation; do not substitute
+the Echo Show or emulator for physical-phone acceptance.
 
 ### Earlier package and startup checks
 
