@@ -1,6 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { offlineManifest } from '../scripts/prepare-android.mjs';
+import { offlineManifest, insetActivity } from '../scripts/prepare-android.mjs';
+
+test('Android activity preparation is repeatable and refuses unrelated activity changes', () => {
+  const original = `package io.github.f2illc.lunaos.home.preview
+
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+
+class MainActivity : TauriActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    enableEdgeToEdge()
+    super.onCreate(savedInstanceState)
+  }
+}`;
+  const prepared = insetActivity(original.replace(/\n/g, '\r\n'));
+  assert.equal(insetActivity(prepared), prepared);
+  assert.throws(() => insetActivity(original.replace('super.onCreate(savedInstanceState)', 'super.onCreate(savedInstanceState)\n    startOtherFeature()')), /Unexpected Android activity/);
+  assert.throws(() => insetActivity(prepared.replace('WindowInsetsCompat.Type.ime()', '0')), /Unexpected Android activity/);
+});
 
 const template = `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.INTERNET" />
