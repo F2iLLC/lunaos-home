@@ -4,11 +4,16 @@ Status: provisional. Applies to the fictional [Session 1 probe](../prototypes/dr
 
 ## Decision
 
-Keep the existing web interface and isolate a draft-only domain service. The Windows probe uses Node HTTP plus the official MCP SDK over stdio, sharing one service instance. The browser remains the observed real-client review path. An explicit Windows debug launch can now load that service in the native WebView; startup HTTP reads passed, while embedded presentation and the interactive round trip still need observation. There is no saved-record adapter and no production authorization claim.
+Keep the existing web interface and isolate a draft-only domain service. The Windows probe uses Node HTTP plus the official MCP SDK over stdio, sharing one service instance. Both the browser and the explicit Windows debug WebView completed the fictional Claude Code correction round trip; [the native check](../prototypes/native-shell.md#october-16-windows-native-correction-check) records the exact scope. An embedded assistant panel remains untested. There is no saved-record adapter and no production authorization claim.
 
 Evaluate **Tauri with platform-native adapters** as the installable Windows/Android candidate. It can reuse a web interface, but the current Node process is not an Android runtime or a finished Tauri core. A native command adapter and shared contract tests must replace/bridge the experimental transport deliberately; do not bundle a desktop sidecar and claim phone support. The [offline shell probe](../prototypes/native-shell.md) now bundles the shared JavaScript domain and compiles a Windows debug executable without a Node runtime. The [Android probe](../prototypes/android.md) also builds, installs and starts on an Android 16 x86_64 emulator. Neither default offline shell has an assistant transport or persistent storage. The optional Windows debug connection is documented in the native shell probe; Android remains offline. Native UI acceptance, complete binary notices and installer validation remain feasibility work. Tauri prerequisites include Windows build facilities and Android-specific tooling; none of that is established by responsive CSS. [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ## Assistant path
+
+The [physical Android check](../prototypes/android.md#october-16-physical-arm64-phone-interaction)
+also verifies offline draft editing on the tested ARM64 phone, including portrait
+keyboard input, separate confirmation and limited lifecycle checks. This does not
+establish an Android assistant transport or an always-available phone host.
 
 The observed Claude Code stdio path can launch the local service and exchange fictional drafts. It does not prove Claude Android, Claude Desktop, ChatGPT or embedded GUI support. [Claude Code local MCP documentation](https://code.claude.com/docs/en/mcp).
 

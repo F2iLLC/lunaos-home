@@ -162,9 +162,11 @@ inspection; it is not a human finger-usability assessment.
 | Discard cancellation and confirmation | Passed separately; Keep reviewing retained the corrected draft and choices. On a fresh example draft, Yes, discard it returned to Ready for a fictional draft and the example action. |
 | Background/resume | Passed; Android Home followed by a hot app resume retained Sam's selection, Meadow School and the one-checked count. |
 | Force-stop/cold restart | Passed; after the cold start and the owner returning the app to the foreground, reopening the vault visibly showed Ready for a fictional draft and the empty-state example action. |
+| Landscape layout | Passed for the inspected empty state and family review; the owner rotated the phone, content remained clear of the system bars and side cutout area, and injected taps switched Alex to Sam in the two-column layout. Landscape keyboard behavior was not exercised. |
+| Return to portrait and brief lock/unlock | The owner performed the combined sequence and reported ready. The next app screen was upright with the draft, zero-checked count and Sam still selected. This is a brief resume result, not prolonged sleep or a phone-hosted service test. |
 
-Landscape/return-to-portrait, deliberate lock/unlock with an existing draft,
-general system-Back navigation and human touch usability remain unverified.
+Landscape keyboard behavior, general system-Back navigation and human touch
+usability remain unverified. Longer sleep/suspension remains a separate check.
 The keyboard dismissal result does not establish general Back navigation.
 No Android assistant connection, protected persistence or phone-hosted service
 is implemented by this offline preview. Wireless debugging is a development
