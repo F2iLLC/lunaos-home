@@ -15,6 +15,7 @@ class MainActivity : TauriActivity() {
   }
 }`;
 const normalized = text => text.replace(/\r\n/g, '\n').trim();
+const initializationGuidance = 'Initialize Android first: npm run native:android -- init --ci --skip-targets-install';
 export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <application>
@@ -107,23 +108,45 @@ export async function prepareAndroid({
   softwareRendering = false,
 } = {}) {
   const sourceTree = resolve(projectRoot, 'app/src');
-  const files = await sourceInventory(sourceTree);
-  const path = join(sourceTree, 'main/AndroidManifest.xml');
-  let manifest;
-  try { manifest = await readFile(path, 'utf8'); }
+  let files;
+  try { files = await sourceInventory(sourceTree); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    throw new Error('Initialize Android first: npm run native:android -- init --ci --skip-targets-install');
+    throw new Error(initializationGuidance);
   }
+  // Reject aliases on every platform: Windows would resolve these names to the
+  // canonical Gradle manifest even if the same tree is harmless on Linux.
+  for (const file of files) {
+    if (file.toLowerCase().endsWith('/androidmanifest.xml') &&
+      !['main/AndroidManifest.xml', 'debug/AndroidManifest.xml'].includes(file)) {
+      throw new Error('Unexpected variant manifest; preserve and regenerate before building.');
+    }
+  }
+  const path = join(sourceTree, 'main/AndroidManifest.xml');
   const activityPath = join(sourceTree, 'main/java/io/github/f2illc/lunaos/home/preview/MainActivity.kt');
-  // Validate both inputs before writing either generated file. Never overwrite
-  // another feature's custom activity just because its directory is ignored.
-  const activity = insetActivity(await readFile(activityPath, 'utf8'));
-  const preparedManifest = offlineManifest(manifest, { softwareRendering });
   const debugRoot = join(sourceTree, 'debug');
   const javaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/preview');
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
+  // Inventory traverses directories; planned file destinations need an explicit
+  // type check so a later copy cannot fail after earlier files were replaced.
+  for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),
+    ...sources.map(source => join(javaRoot, source))]) {
+    let info;
+    try { info = await lstat(destination); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (!info.isFile() || info.nlink !== 1) throw new Error('Invalid generated file destination.');
+  }
+  let manifest;
+  try { manifest = await readFile(path, 'utf8'); }
+  catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    throw new Error(initializationGuidance);
+  }
+  // Validate both inputs before writing either generated file. Never overwrite
+  // another feature's custom activity just because its directory is ignored.
+  const activity = insetActivity(await readFile(activityPath, 'utf8'));
+  const preparedManifest = offlineManifest(manifest, { softwareRendering });
   const generatedSources = ['Ipc.kt', 'Logger.kt', 'PermissionHelper.kt', 'Rust.kt', 'RustWebChromeClient.kt',
     'RustWebView.kt', 'RustWebViewClient.kt', 'TauriActivity.kt', 'WryActivity.kt'];
   // Inspect every source-set directory, including ABI, combined flavor/build
@@ -133,7 +156,7 @@ export async function prepareAndroid({
     const file = parts.join('/');
     const mainSource = variant === 'main' && (file === 'java/io/github/f2illc/lunaos/home/preview/MainActivity.kt' ||
       generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
-    if (/\.(?:java|kt)$/.test(file) && !mainSource &&
+    if (/\.(?:java|kt)$/i.test(file) && !mainSource &&
         !(variant === 'debug' && sources.includes(file.split('/').at(-1)) && file === `java/io/github/f2illc/lunaos/home/preview/${file.split('/').at(-1)}`)) {
       throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
     }

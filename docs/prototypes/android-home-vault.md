@@ -31,7 +31,9 @@ main sources and reviewed debug vault destinations may contain Java/Kotlin;
 only the main manifest and exact reviewed debug manifest are accepted.
 Existing destination files and ancestors are checked without following links,
 and hardlinked/nonregular files are refused before any writes. Regression
-checks cover flavor contamination, linked destinations/ancestors, unchanged
+checks also reject manifest-name case variants and directories at every planned
+output file; missing generated projects retain the Android initialization command.
+They also cover flavor contamination, linked destinations/ancestors, unchanged
 outside sentinel files and byte-for-byte clean repeatability. This protects
 against stale generated inputs, not concurrent filesystem replacement or
 custom Gradle source mappings outside `app/src`. Keep the project exclusively
