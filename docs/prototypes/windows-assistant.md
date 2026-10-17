@@ -54,6 +54,10 @@ Observed actual tool calls/results: an initial read was denied; approved create/
 
 For reproduction, configure only this MCP server in a local, nonpersistent Claude Code test session, disable unrelated tools/sources, and perform the fixed calls above while using Home for the corresponding approvals. Retain only synthetic summary evidence. Do not give the assistant the GUI capability or let it perform its own approvals.
 
+## Native Windows follow-up
+
+The separate [native verification experiment](windows-native-vault.md) now places both example routes behind a real Windows verification result in an opt-in debug shell. Human success and cancellation were observed separately from this guide's live Claude test. That does not establish a combined native/live-client acceptance result or authentication-bound encryption-key release.
+
 ## Remaining gates
 
-This does not establish ChatGPT support, mobile hosted-assistant automation, arbitrary user-record handling, native-shell integration, trusted OS unlock, secure device enrollment, direct phone pairing, hostile same-account process isolation, backup/recovery or production security acceptance. The current-user DPAPI and subprocess limitations remain. Session 2 is not complete. The Android assertion approval is unchanged; Actions remains disabled and nothing is merged or deployed.
+This does not establish ChatGPT support, mobile hosted-assistant automation, arbitrary user-record handling, complete native acceptance, authentication-bound key release, secure device enrollment, direct phone pairing, hostile same-account process isolation, backup/recovery or production security acceptance. The current-user DPAPI and subprocess limitations remain. Session 2 is not complete. The Android assertion approval is unchanged; Actions remains disabled and nothing is merged or deployed.

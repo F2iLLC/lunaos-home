@@ -101,7 +101,11 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
       return;
     }
     try {
-      const content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
+      let content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
+      if (route[0] === 'windows-vault.html' && windowsPreview.nativeVerification) {
+        content = content.toString('utf8').replace('It does not unlock a vault or connect your phone.',
+          'Windows verification is required for this visit. Closing the app or reaching five minutes ends all access. This test does not connect your phone.');
+      }
       response.writeHead(200, { 'Content-Type': `${route[1]}; charset=utf-8` });
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch {
