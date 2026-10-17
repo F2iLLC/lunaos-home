@@ -1,6 +1,6 @@
-import { readFile, writeFile, mkdir, readdir, copyFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile, lstat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 
 const activityTemplate = await readFile(new URL('./android/MainActivity.kt', import.meta.url), 'utf8');
 const generatedActivity = `package io.github.f2illc.lunaos.home.preview
@@ -76,52 +76,85 @@ export function offlineManifest(xml, { softwareRendering = false } = {}) {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  if (args.length > 1 || (args.length === 1 && args[0] !== '--software-rendering')) {
-    throw new Error('Usage: node scripts/prepare-android.mjs [--software-rendering]');
+async function sourceInventory(root) {
+  // Check ancestors before traversing or reading generated input. This is a
+  // stale-tree safeguard, not protection against concurrent filesystem swaps.
+  for (let path = root; ; path = dirname(path)) {
+    const info = await lstat(path);
+    if (info.isSymbolicLink() || !info.isDirectory()) throw new Error('Linked or invalid Android source ancestor.');
+    if (dirname(path) === path) break;
   }
-  const softwareRendering = args[0] === '--software-rendering';
-  const path = new URL('../src-tauri/gen/android/app/src/main/AndroidManifest.xml', import.meta.url);
+  const files = [];
+  async function walk(directory, prefix = '') {
+    for (const name of await readdir(directory)) {
+      const path = join(directory, name);
+      const relative = prefix ? `${prefix}/${name}` : name;
+      const info = await lstat(path);
+      if (info.isSymbolicLink()) throw new Error('Linked Android source entry.');
+      if (info.isDirectory()) await walk(path, relative);
+      else {
+        if (!info.isFile() || info.nlink !== 1) throw new Error('Linked or invalid Android source file.');
+        files.push(relative);
+      }
+    }
+  }
+  await walk(root);
+  return files;
+}
+
+export async function prepareAndroid({
+  projectRoot = fileURLToPath(new URL('../src-tauri/gen/android/', import.meta.url)),
+  softwareRendering = false,
+} = {}) {
+  const sourceTree = resolve(projectRoot, 'app/src');
+  const files = await sourceInventory(sourceTree);
+  const path = join(sourceTree, 'main/AndroidManifest.xml');
   let manifest;
   try { manifest = await readFile(path, 'utf8'); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
     throw new Error('Initialize Android first: npm run native:android -- init --ci --skip-targets-install');
   }
-  const activityPath = new URL('../src-tauri/gen/android/app/src/main/java/io/github/f2illc/lunaos/home/preview/MainActivity.kt', import.meta.url);
+  const activityPath = join(sourceTree, 'main/java/io/github/f2illc/lunaos/home/preview/MainActivity.kt');
   // Validate both inputs before writing either generated file. Never overwrite
   // another feature's custom activity just because its directory is ignored.
   const activity = insetActivity(await readFile(activityPath, 'utf8'));
   const preparedManifest = offlineManifest(manifest, { softwareRendering });
-  const debugRoot = new URL('../src-tauri/gen/android/app/src/debug/', import.meta.url);
-  const javaRoot = new URL('java/io/github/f2illc/lunaos/home/preview/', debugRoot);
+  const debugRoot = join(sourceTree, 'debug');
+  const javaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/preview');
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const generatedSources = ['Ipc.kt', 'Logger.kt', 'PermissionHelper.kt', 'Rust.kt', 'RustWebChromeClient.kt',
     'RustWebView.kt', 'RustWebViewClient.kt', 'TauriActivity.kt', 'WryActivity.kt'];
-  for (const variant of ['main', 'debug', 'release']) {
-    const root = new URL(`../src-tauri/gen/android/app/src/${variant}/`, import.meta.url);
-    let files = [];
-    try { files = await readdir(root, { recursive: true }); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    for (const relative of files) {
-      const file = relative.replaceAll('\\', '/');
-      const mainSource = variant === 'main' && (file === 'java/io/github/f2illc/lunaos/home/preview/MainActivity.kt' ||
-        generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
-      if (/\.(?:java|kt)$/.test(file) && !mainSource &&
-          !(variant === 'debug' && sources.includes(file.split('/').at(-1)) && file === `java/io/github/f2illc/lunaos/home/preview/${file.split('/').at(-1)}`)) {
-        throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
-      }
-      if (file === 'AndroidManifest.xml' && variant !== 'main') {
-        if (variant !== 'debug' || await readFile(new URL(file, root), 'utf8') !== vaultDebugManifest)
-          throw new Error('Unexpected variant manifest; preserve and regenerate before building.');
-      }
+  // Inspect every source-set directory, including ABI, combined flavor/build
+  // variants and future names; no fixed main/debug/release list can cover them.
+  for (const relative of files) {
+    const [variant, ...parts] = relative.split('/');
+    const file = parts.join('/');
+    const mainSource = variant === 'main' && (file === 'java/io/github/f2illc/lunaos/home/preview/MainActivity.kt' ||
+      generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
+    if (/\.(?:java|kt)$/.test(file) && !mainSource &&
+        !(variant === 'debug' && sources.includes(file.split('/').at(-1)) && file === `java/io/github/f2illc/lunaos/home/preview/${file.split('/').at(-1)}`)) {
+      throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
+    }
+    if (relative.endsWith('/AndroidManifest.xml') && relative !== 'main/AndroidManifest.xml') {
+      if (relative !== 'debug/AndroidManifest.xml' || await readFile(join(sourceTree, relative), 'utf8') !== vaultDebugManifest)
+        throw new Error('Unexpected variant manifest; preserve and regenerate before building.');
     }
   }
   await mkdir(javaRoot, { recursive: true });
-  for (const source of sources) await copyFile(new URL(source, sourceRoot), new URL(source, javaRoot));
-  await writeFile(new URL('AndroidManifest.xml', debugRoot), vaultDebugManifest);
+  for (const source of sources) await copyFile(new URL(source, sourceRoot), join(javaRoot, source));
+  await writeFile(join(debugRoot, 'AndroidManifest.xml'), vaultDebugManifest);
   await writeFile(path, preparedManifest);
   await writeFile(activityPath, activity);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const args = process.argv.slice(2);
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--software-rendering')) {
+    throw new Error('Usage: node scripts/prepare-android.mjs [--software-rendering]');
+  }
+  const softwareRendering = args[0] === '--software-rendering';
+  await prepareAndroid({ softwareRendering });
   console.log(`Prepared Android main manifest without permissions; debug adds only USE_BIOMETRIC and the non-exported fictional Activity. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }
