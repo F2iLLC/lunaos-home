@@ -16,11 +16,24 @@ The code never requests machine lock, sleep, shutdown or logoff and never handle
 
 On 2026-10-17 the Windows debug build and nine Rust tests passed. A hidden, owned test window successfully registered both actual Windows notification APIs and its subclass. `SendMessageW` addressed **only that window** with injected lock, suspend and resume messages; each reached the callback and ended the visit, preventing later verification. Invalid-HWND registration failed. Additional state tests cover the other terminal events, broken receipt output and verification/end concurrency. No broadcast message, OS lock/sleep operation or authentication prompt was used by these tests.
 
-All 64 platform-neutral tests passed. Controlled-child tests prove absent monitor readiness denies access, monitor termination during authentication cannot reopen, a shared pending read is withheld, its queued edit does not reach storage, and an in-flight committed write returns an ended receipt without retry. These are injected events/controlled races, **not real Windows lock/sleep evidence**. Earlier real verification/cancellation and encrypted-record evidence remains recorded separately in the native guide; the human prompt has not been repeated with this monitor revision.
+All 64 platform-neutral tests passed. Controlled-child tests prove absent monitor readiness denies access, monitor termination during authentication cannot reopen, a shared pending read is withheld, its queued edit does not reach storage, and an in-flight committed write returns an ended receipt without retry. These are injected events/controlled races, **not real Windows lock/sleep evidence**. Earlier real verification/cancellation and encrypted-record evidence remains recorded separately in the native guide; the automated evidence above does not establish a repeated human prompt with this monitor revision.
 
-## Separate human test, pending
+## Human evidence and remaining checks
 
-After rebuilding as in the native guide, with the person ready and their work saved:
+The [owner clarification on issue #14](https://github.com/F2iLLC/lunaos-home/issues/14#issuecomment-6237743685) records that **lock checks were performed**. The earlier blanket statement that lock checks were unperformed was incorrect. Preserve that report and reconcile existing evidence before requesting any repeat. The clarification does not identify a monitored Windows build, event receipt or old-access denial result, and does not supply sleep/resume or retained-record restart results.
+
+| Check | Available evidence | What it establishes |
+| --- | --- | --- |
+| Lock checks | Owner reports completion in the linked clarification. The [Session 1 handoff](session-one-handoff.md) separately records physical Android brief lock/unlock. | Do not mark lock checks unperformed. Exact Windows monitor build/event/access-denial linkage still needs reconciliation; Android results do not establish Windows behavior. |
+| Windows verification and cancellation | [Native verification evidence](windows-native-vault.md#evidence-2026-10-17), revision `f6771f6`. | Real successful and canceled OS prompts, before the monitor increment; neither is a workstation-lock result. |
+| Windows monitor callback | Revision `2921136`, with the tests described above. | Actual notification registration and injected event delivery; not physical lock or sleep. |
+| Sleep/resume and retained-record restart | No completed human result supplied by the clarification. | These remain separate acceptance checks. |
+
+The monitor implementation is already present. Missing evidence for a physical scenario does not imply missing event-handling code or justify duplicating it.
+
+## Procedures for separately scheduled checks
+
+These commands describe the harness; listing them is not a request to repeat the reported lock check. First reconcile the existing lock result. For a separately scheduled outstanding check, rebuild as in the native guide, with the person ready and their work saved:
 
 ```powershell
 node scripts/probe-windows-native-vault.mjs --lock
@@ -28,7 +41,7 @@ node scripts/probe-windows-native-vault.mjs --lock
 node scripts/probe-windows-native-vault.mjs --sleep
 ```
 
-For each run, the person completes the trusted Windows verification prompt. The harness creates only its own fixed synthetic examples, then prints that it is ready for the person to lock/unlock or sleep/resume Windows. It does not perform that action. Do not merely close the Home window. The requested lock/suspend notification must be observed along with the session-ended receipt; window closure or timeout does not pass. The harness checks old GUI/assistant reads are denied and removes its own fixture/process/server. These modes are prepared, **not yet run**.
+For each run, the person completes the trusted Windows verification prompt. The harness creates only its own fixed synthetic examples, then prints that it is ready for the person to lock/unlock or sleep/resume Windows. It does not perform that action. Do not merely close the Home window. The requested lock/suspend notification must be observed along with the session-ended receipt; window closure or timeout does not pass. The harness checks old GUI/assistant reads are denied and removes its own fixture/process/server. These modes are available; their existence alone is not execution evidence. The evidence distinctions above replace the earlier blanket “not yet run” status.
 
 For retained-record restart coverage, separately run the interactive launcher, add both examples, note its resume command locally, then manually lock/unlock or sleep/resume. Resume that same synthetic example using the printed ID. Confirm a new Windows prompt is required before new approvals, then read both records. Keep any old capabilities out of assistant messages and public artifacts. Verify that old connections/grants never regain access. The human must operate Windows verification; the assistant must not substitute credentials or claim an injected test passed this step.
 
