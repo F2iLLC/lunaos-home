@@ -8,8 +8,23 @@ import { buildCommand, parseArgs, prepare, validateBase, validateManifest } from
 
 const base = `localhost/approved-runner@sha256:${'a'.repeat(64)}`;
 const components = ['jdk', 'rust', 'rust-android-std', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
+const ndkPrefix = 'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/';
+const vendorPaths = [
+  'python3/include/python3.11/token.h',
+  'python3/lib/python3.11/lib2to3/pgen2/token.py',
+  'python3/lib/python3.11/secrets.py',
+  'python3/lib/python3.11/site-packages/pip/_internal/network/auth.py',
+  'python3/lib/python3.11/site-packages/pip/_vendor/certifi/cacert.pem',
+  'python3/lib/python3.11/site-packages/pip/_vendor/pygments/token.py',
+  'python3/lib/python3.11/site-packages/pip/_vendor/requests/auth.py',
+  'python3/lib/python3.11/site-packages/setuptools/command/launcher manifest.xml',
+  'python3/lib/python3.11/site-packages/setuptools/script (dev).tmpl',
+  'python3/lib/python3.11/token.py',
+  'sysroot/usr/include/sound/intel/avs/tokens.h',
+  'sysroot/usr/include/sound/sof/tokens.h',
+].map(path => `${ndkPrefix}${path}`);
 
-async function fixture(context) {
+async function fixture(context, extraContents = {}) {
   const root = await mkdtemp(join(tmpdir(), 'android-container-'));
   context.after(() => rm(root, { recursive: true, force: true }));
   const input = join(root, 'input');
@@ -31,6 +46,7 @@ async function fixture(context) {
     ...['aapt2', 'd8', 'apksigner', 'zipalign'].map(name => `sdk/build-tools/37.0.0/${name}`),
     ...['clang', 'x86_64-linux-android24-clang'].map(name => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/${name}`),
   ]) contents[path] = 'synthetic fixture, not a compiler\n';
+  Object.assign(contents, extraContents);
   const manifest = {
     schema: 1, jdk: '21.0.1', rust: '1.80.0', commandLineTools: '1.0.0',
     archives: components.map(component => ({ component, filename: `${component}.tar.xz`, sha256: 'c'.repeat(64), vendor: 'Fictional test vendor' })),
@@ -56,6 +72,74 @@ test('base and CLI accept only explicit bounded arguments', () => {
     { base, input: '/input', manifestPath: '/manifest.json', output: '/output' });
   assert.throws(() => parseArgs(['--base', base, '--input', '/input', '--output', '/out', '--output', '/other']));
   assert.throws(() => parseArgs(['--shell', 'anything']));
+});
+
+test('stages every exact NDK vendor exception with hashes and supported supervisor versions', async context => {
+  const contents = Object.fromEntries(vendorPaths.map(path => [path, `synthetic vendor fixture: ${path}\n`]));
+  contents['jdk/release'] = 'JAVA_VERSION="21.0.12.1"\nOS_NAME="Linux"\nOS_ARCH="x86_64"\n';
+  contents['sdk/cmdline-tools/pinned/source.properties'] = 'Pkg.Revision=22.0\n';
+  const options = await fixture(context, contents);
+  Object.assign(options.manifest, { jdk: '21.0.12.1', rust: '1.99.0', commandLineTools: '22.0' });
+  await options.save();
+  assert.equal(validateManifest(options.manifest), options.manifest);
+  await prepare(options);
+  const stagedManifest = JSON.parse(await readFile(join(options.output, 'context/manifest.json'), 'utf8'));
+  for (const path of vendorPaths) {
+    const content = await readFile(join(options.output, 'context/toolchain', path), 'utf8');
+    assert.equal(content, contents[path]);
+    assert.equal(createHash('sha256').update(content).digest('hex'), stagedManifest.files[path]);
+  }
+});
+
+test('rejects vendor-name lookalikes, extra spaces and credentials in manifest and disk inventory', async context => {
+  const options = await fixture(context);
+  const rejectedPaths = [
+    ...vendorPaths.flatMap(path => [
+      path.replace(ndkPrefix, 'jdk/'),
+      path.replace(ndkPrefix, `${ndkPrefix}extra/`),
+      path.replace('linux-x86_64/', 'linux-aarch64/'),
+      path.replace('29.0.14206865/', '29.0.14206866/'),
+    ]),
+    `${ndkPrefix}python3/lib/python3.11/site-packages/setuptools/script  (dev).tmpl`,
+    `${ndkPrefix}python3/lib/python3.11/site-packages/setuptools/command/launcher  manifest.xml`,
+    `${ndkPrefix}extra file.txt`, 'jdk/extra file.txt',
+    ...['secret.key', 'private.pem', 'signing.jks', 'credentials.json', 'auth.json', 'id_rsa', 'passwords.txt', 'token.py'].map(name => `${ndkPrefix}${name}`),
+  ];
+  for (const path of rejectedPaths) {
+    assert.throws(() => validateManifest({ ...options.manifest, files: { ...options.manifest.files, [path]: 'a'.repeat(64) } }), /Unsafe inventory/, path);
+    await mkdir(dirname(join(options.input, path)), { recursive: true });
+    await writeFile(join(options.input, path), 'synthetic rejected fixture');
+    await assert.rejects(prepare(options), /unsafe filename/, path);
+    await rm(join(options.input, path));
+  }
+  for (const path of vendorPaths) {
+    for (const unsafe of [path.replace(ndkPrefix, `${ndkPrefix}../linux-x86_64/`), path.replace(ndkPrefix, `${ndkPrefix}./`), `${path}/child`, `${path} `]) {
+      assert.throws(() => validateManifest({ ...options.manifest, files: { [unsafe]: 'a'.repeat(64) } }), /Unsafe inventory/, unsafe);
+    }
+  }
+  await assert.rejects(lstat(options.output), { code: 'ENOENT' });
+});
+
+test('NDK exceptions still require complete inventory, matching hashes and regular unlinked files', async context => {
+  for (const failure of ['unlisted', 'checksum', 'symlink', 'hardlink', 'directory']) {
+    const path = vendorPaths[4];
+    const options = await fixture(context, { [path]: 'synthetic CA bundle' });
+    const source = join(options.input, path);
+    if (failure === 'unlisted') delete options.manifest.files[path];
+    if (failure === 'checksum') await writeFile(source, 'changed');
+    if (['symlink', 'hardlink', 'directory'].includes(failure)) {
+      await rm(source);
+      if (failure === 'symlink') await symlink(join(options.input, 'jdk/LICENSE'), source);
+      if (failure === 'hardlink') await link(join(options.input, 'jdk/LICENSE'), source);
+      if (failure === 'directory') await mkdir(source);
+    }
+    await options.save();
+    await assert.rejects(prepare(options), {
+      unlisted: /exactly match SHA256 inventory/, checksum: /SHA256 mismatch/,
+      symlink: /regular files/, hardlink: /Hardlinked/, directory: /unsafe filename/,
+    }[failure]);
+    await assert.rejects(lstat(options.output), { code: 'ENOENT' });
+  }
 });
 
 test('staging preserves checksums/licenses and generates only an offline build argv', async context => {

@@ -8,6 +8,20 @@ const checkout = fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/
 const digest = /^[a-f0-9]{64}$/;
 const version = /^\d+(?:\.\d+){0,3}$/;
 const forbidden = /(?:^|\/)(?:\.[^/]*|(?:credentials?|auth|secrets?|signing|tokens?|passwords?|service-account)(?:[.-][^/]*)?|id_rsa|id_ed25519|node_modules|target)(?:\/|$)|\.(?:pem|key|p12|pfx|jks|keystore|pkcs8|p8|env)$/i;
+const ndkPackageFiles = new Set([
+  'python3/include/python3.11/token.h',
+  'python3/lib/python3.11/lib2to3/pgen2/token.py',
+  'python3/lib/python3.11/secrets.py',
+  'python3/lib/python3.11/site-packages/pip/_internal/network/auth.py',
+  'python3/lib/python3.11/site-packages/pip/_vendor/certifi/cacert.pem',
+  'python3/lib/python3.11/site-packages/pip/_vendor/pygments/token.py',
+  'python3/lib/python3.11/site-packages/pip/_vendor/requests/auth.py',
+  'python3/lib/python3.11/site-packages/setuptools/command/launcher manifest.xml',
+  'python3/lib/python3.11/site-packages/setuptools/script (dev).tmpl',
+  'python3/lib/python3.11/token.py',
+  'sysroot/usr/include/sound/intel/avs/tokens.h',
+  'sysroot/usr/include/sound/sof/tokens.h',
+].map(path => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/${path}`));
 const required = [
   'jdk/bin/java', 'jdk/bin/javac', 'jdk/release', 'jdk/LICENSE',
   'rust/bin/rustc', 'rust/bin/cargo',
@@ -65,6 +79,13 @@ function keys(value, expected) {
     Object.keys(value).sort().join(',') === [...expected].sort().join(','), 'Unexpected manifest fields.');
 }
 
+function safeInventoryPath(path, directory = false) {
+  if (!directory && ndkPackageFiles.has(path)) return true;
+  if (directory && ['jdk', 'rust', 'sdk'].includes(path)) return true;
+  return /^(?:jdk|rust|sdk)\/[A-Za-z0-9_+@.,=()-]+(?:\/[A-Za-z0-9_+@.,=()-]+)*$/.test(path) &&
+    !path.split('/').some(part => part.startsWith('.') || forbidden.test(part));
+}
+
 export function validateManifest(manifest) {
   keys(manifest, ['schema', 'jdk', 'rust', 'commandLineTools', 'archives', 'files']);
   assert(manifest.schema === 1 && [manifest.jdk, manifest.rust, manifest.commandLineTools].every(value => typeof value === 'string') && /^21\.\d+\.\d+(?:\.\d+)?$/.test(manifest.jdk) &&
@@ -81,8 +102,7 @@ export function validateManifest(manifest) {
   assert(manifest.files && typeof manifest.files === 'object' && !Array.isArray(manifest.files) &&
     Object.keys(manifest.files).length > 0, 'File SHA256 inventory required.');
   for (const [path, hash] of Object.entries(manifest.files)) {
-    assert(/^(?:jdk|rust|sdk)\/[A-Za-z0-9_+@.,=()-]+(?:\/[A-Za-z0-9_+@.,=()-]+)*$/.test(path) &&
-      !path.split('/').some(part => part === '..' || part.startsWith('.')) && !forbidden.test(path) && typeof hash === 'string' && digest.test(hash),
+    assert(safeInventoryPath(path) && typeof hash === 'string' && digest.test(hash),
     'Unsafe inventory filename or checksum.');
     if (path.startsWith('sdk/')) assert(/^sdk\/(?:cmdline-tools\/pinned|platforms\/android-37\.0|build-tools\/37\.0\.0|ndk\/29\.0\.14206865|licenses)\//.test(path), 'Unexpected SDK package.');
     const rustDirectory = path.match(/^rust\/lib\/rustlib\/([^/]+)\//)?.[1];
@@ -101,8 +121,8 @@ async function inventory(root, prefix = '') {
   const result = [];
   for (const entry of (await readdir(join(root, prefix))).sort()) {
     const path = prefix ? `${prefix}/${entry}` : entry;
-    assert(!forbidden.test(path), 'Credential, hidden or checkout input is forbidden.');
     const stat = await lstat(join(root, path));
+    assert(safeInventoryPath(path, stat.isDirectory()), 'Credential, hidden, checkout or unsafe filename input is forbidden.');
     assert(!stat.isSymbolicLink() && (stat.isDirectory() || stat.isFile()), 'Only regular files and directories are allowed.');
     if (stat.isDirectory()) result.push(...await inventory(root, path));
     else {

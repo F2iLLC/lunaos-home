@@ -44,12 +44,32 @@ and unchanged throughout validation/copy/build; this is not a defense against
 another process concurrently replacing files. Filename checks are not a secret
 scanner: supervisor review of every included file remains required.
 
+The only filename exceptions are the twelve exact NDK 29 Linux x86_64 vendor
+paths enumerated in `ndkPackageFiles` in `scripts/android-container/prepare.mjs`:
+Python source/header files, pip authentication modules, the public certifi CA
+bundle, two setuptools filenames containing spaces, and two sysroot token
+headers. The supervisor authenticated the official archive against Google's
+published checksum and computed its SHA256. These exceptions apply to both
+manifest and disk inventory checks, not to other SDK paths or similarly named
+files. Hash verification, regular-file/link checks and all other credential,
+signing, path and manifest restrictions still apply.
+
 ### Prepared layout
 
 `jdk/` is a complete JDK 21 Linux x86_64 distribution with `bin/java`,
 `bin/javac`, `release`, root `LICENSE`, and all vendor legal notices. Its exact
 `JAVA_VERSION` (21.x.y, optionally a fourth numeric component), `OS_NAME=Linux`
 and `OS_ARCH=x86_64` must match. Preserve vendor licenses, including `legal/`.
+The supervisor-observed Temurin 21 Linux archive has `legal/java.base/LICENSE`
+and `legal/java.base/NOTICE`, not a root `LICENSE`. Preserve all original legal
+files and copy that vendor `legal/java.base/LICENSE` unchanged to the required
+`jdk/LICENSE` before inventorying. This is preparation normalization, not an
+edit to legal text.
+
+The supervisor-supplied versions are JDK `21.0.12.1`, Rust `1.99.0` and
+command-line-tools `22.0`; the existing version contract accepts these values.
+Accepting metadata is not evidence of successful native execution: real image
+build, compilation and APK validation remain pending.
 
 `rust/` is a complete relocatable, standalone installed Rust toolchain prefix,
 not rustup shims or a developer `.cargo`/`.rustup` directory. Include
