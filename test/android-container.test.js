@@ -153,6 +153,11 @@ test('staging preserves checksums/licenses and generates only an offline build a
   assert.equal((await lstat(join(options.output, 'context/toolchain/jdk/bin/java'))).mode & 0o777, 0o555);
   assert.equal((await lstat(join(options.output, 'context/toolchain/jdk/bin/java'))).mtimeMs, 0);
   const containerfile = await readFile(join(options.output, 'context/Containerfile'), 'utf8');
+  assert.match(containerfile, /node \/opt\/home-android\/provenance\/verify-rust-target\.mjs/);
+  assert(!containerfile.includes('--print target-libdir'));
+  assert.equal(await readFile(join(options.output, 'context/verify-rust-target.mjs'), 'utf8'),
+    await readFile(new URL('../scripts/android-container/verify-rust-target.mjs', import.meta.url), 'utf8'));
+  assert((await readFile(join(options.output, 'context/.containerignore'), 'utf8')).split('\n').includes('!verify-rust-target.mjs'));
   assert(!/^(?:USER|ENTRYPOINT|CMD|SHELL|ADD|VOLUME|EXPOSE)\b/m.test(containerfile));
   assert(!/curl|wget|--licenses|sdkmanager --install/.test(containerfile));
   assert.deepEqual(JSON.parse(await readFile(join(options.output, 'context/manifest.json'), 'utf8')), options.manifest);

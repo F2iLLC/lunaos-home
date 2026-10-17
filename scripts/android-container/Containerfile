@@ -2,6 +2,7 @@ ARG RUNNER_BASE
 FROM ${RUNNER_BASE}
 COPY toolchain/ /opt/home-android/
 COPY manifest.json /opt/home-android/provenance/manifest.json
+COPY verify-rust-target.mjs /opt/home-android/provenance/verify-rust-target.mjs
 ENV JAVA_HOME=/opt/home-android/jdk \
     ANDROID_HOME=/opt/home-android/sdk \
     ANDROID_SDK_ROOT=/opt/home-android/sdk \
@@ -14,6 +15,6 @@ ARG RUST_VERSION
 ARG JDK_VERSION
 RUN test "$(rustc --version | cut -d ' ' -f 2)" = "$RUST_VERSION" && \
     test "$(javac -version 2>&1)" = "javac $JDK_VERSION" && \
-    rustc --print target-libdir --target x86_64-linux-android && \
+    node /opt/home-android/provenance/verify-rust-target.mjs && \
     java -version && cargo --version && \
     "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version

@@ -168,6 +168,31 @@ output leaf; disposal of old external output belongs to the operator.
 
 ## Evidence and next native checks
 
+### Rust target validation correction (#38)
+
+The image now compiles and links a fixed, synthetic Rust program using `std`,
+`String` and `Vec` for `x86_64-linux-android` with the configured NDK API-24
+linker. A successful exit must also produce an ELF64 x86_64 executable/PIE.
+The temporary output is removed on success or failure and is never executed.
+The staging inventory's single `libstd` check remains only a preliminary file
+check; the image build must pass compilation. Printing `target-libdir` alone
+does not prove that the target libraries are usable.
+
+Run `node scripts/android-container/probe-rust-target.mjs` in a disposable Linux
+toolchain container with networking disabled. It first checks the complete
+toolchain, then copies target libraries into three temporary sysroots: only
+`libstd`, missing `core`, and missing `compiler_builtins`. Each must pass the
+old path-print check but fail the new compile/link check. Installed libraries
+are never changed; only those temporary copies are removed.
+
+On 2026-10-17, this regression passed with the configured Linux Rust 1.99.0
+and NDK 29.0.14206865 toolchain. This establishes a minimal target compile/link
+and rejects the reproduced incomplete-library cases. It does not establish a
+fresh image build, full APK build, runtime compatibility or device acceptance.
+The earlier preparation-only evidence below remains historical.
+
+### Earlier preparation-only evidence
+
 This dispatch has no JDK, Rust, Android SDK, container image build, compiler
 execution, APK, emulator or device evidence. Node safety tests use inert fake
 files, never real tool binaries. Their passing status cannot establish native

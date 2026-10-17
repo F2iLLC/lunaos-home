@@ -197,8 +197,9 @@ export async function prepare({ base, input, manifestPath, output }) {
       await chmod(destination, (await lstat(join(input, path))).mode & 0o111 ? 0o555 : 0o444);
     }
     await copyFile(new URL('./Containerfile', import.meta.url), join(context, 'Containerfile'));
+    await copyFile(new URL('./verify-rust-target.mjs', import.meta.url), join(context, 'verify-rust-target.mjs'));
     await writeFile(join(context, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-    await writeFile(join(context, '.containerignore'), '**\n!Containerfile\n!manifest.json\n!toolchain/\n!toolchain/**\n');
+    await writeFile(join(context, '.containerignore'), '**\n!Containerfile\n!manifest.json\n!verify-rust-target.mjs\n!toolchain/\n!toolchain/**\n');
     await normalizeContext(context);
     const command = buildCommand({ base, output, manifest });
     await writeFile(join(output, 'build-command.json'), `${JSON.stringify(command, null, 2)}\n`);
