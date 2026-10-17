@@ -34,7 +34,7 @@ async function snapshot(root, prefix = '') {
 
 test('every flavor and combined source set rejects extra Java, Kotlin and manifests before writes', async context => {
   for (const variant of ['universal', 'universalDebug', 'x86_64', 'x86_64Debug', 'arm64', 'arm64Release', 'futureFlavor']) {
-    for (const extra of [`${pkg}/Unexpected.java`, `${pkg}/Unexpected.kt`, 'AndroidManifest.xml']) {
+    for (const extra of [`${pkg}/Unexpected.java`, `${pkg}/Unexpected.kt`, `${pkg}/Unexpected.JAVA`, `${pkg}/Unexpected.KT`, 'AndroidManifest.xml']) {
       const f = await fixture(context);
       const path = join(f.src, variant, extra);
       await mkdir(dirname(path), { recursive: true });
@@ -84,4 +84,41 @@ test('clean generated tree is byte-for-byte repeatable, including empty flavor d
   await prepareAndroid(f);
   assert.deepEqual(await snapshot(f.root), first);
   assert.match(await readFile(join(f.src, 'debug/AndroidManifest.xml'), 'utf8'), /VaultActivity/);
+});
+
+test('missing generated project, source tree and main manifest retain initialization guidance', async context => {
+  for (const missing of ['project', 'src', 'manifest']) {
+    const f = await fixture(context);
+    await rm(missing === 'project' ? f.projectRoot : missing === 'src' ? f.src : join(f.src, 'main/AndroidManifest.xml'), { recursive: true });
+    const before = await snapshot(f.root);
+    await assert.rejects(prepareAndroid(f), /Initialize Android first: npm run native:android -- init --ci --skip-targets-install/);
+    assert.deepEqual(await snapshot(f.root), before);
+  }
+});
+
+test('case variants of main, debug and flavor manifests are refused without writes', async context => {
+  for (const relative of ['main/androidmanifest.xml', 'debug/ANDROIDMANIFEST.XML',
+    'x86_64Debug/androidmanifest.xml', 'universalDebug/Androidmanifest.xml', 'DEBUG/AndroidManifest.xml']) {
+    const f = await fixture(context);
+    if (relative.startsWith('main/')) await rm(join(f.src, 'main/AndroidManifest.xml'));
+    const path = join(f.src, relative);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, manifest);
+    const before = await snapshot(f.root);
+    await assert.rejects(prepareAndroid(f), /Unexpected variant manifest/);
+    assert.deepEqual(await snapshot(f.root), before);
+  }
+});
+
+test('directories at any planned generated file destination are rejected before writes', async context => {
+  for (const relative of ['main/AndroidManifest.xml', `main/${pkg}/MainActivity.kt`,
+    'debug/AndroidManifest.xml', ...['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'].map(name => `debug/${pkg}/${name}`)]) {
+    const f = await fixture(context);
+    const path = join(f.src, relative);
+    if (relative.startsWith('main/')) await rm(path);
+    await mkdir(path, { recursive: true });
+    const before = await snapshot(f.root);
+    await assert.rejects(prepareAndroid(f), /Invalid generated file destination/);
+    assert.deepEqual(await snapshot(f.root), before);
+  }
 });
