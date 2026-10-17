@@ -1,6 +1,6 @@
 # Fictional family draft review
 
-This is the first working slice of [Session 1](../epics/vault-first-two-sessions.md#session-1-prove-the-app-and-assistant-path). Android is the first mobile target. **The session remains open for handoff:** the listed technical exit checks now have evidence on Windows and the physical Android phone; the mobile assistant transport requires an owner scope decision. See the [exit-check mapping and proposed next step](session-one-handoff.md). Do not enter real household information.
+This is the first working slice of [Session 1](../epics/vault-first-two-sessions.md#session-1-prove-the-app-and-assistant-path). Android is the first mobile target. **The bounded Session 2 handoff is cleared:** the listed technical exit checks have evidence, PR #30 was reviewed and merged, and the owner accepted Windows assistant/direct Android scope with deferred integrations tracked in issue 31. See the [exit-check mapping and accepted next step](session-one-handoff.md). Do not enter real household information.
 
 ## What is implemented
 
@@ -91,4 +91,4 @@ Initial probe: October 14, 2026. Results apply only to the combinations actually
 
 `npm test` covers checklist regression, static allowlisting, HTTP origin/Host/body checks, draft identity/revision, correction preconditions, re-review after edits, suggestion decisions, discard invalidation and the stdio/HTTP round trip. No model subscription is needed for automated tests. `npm ci --ignore-scripts` uses the committed lockfile. See [dependency provenance](../../THIRD_PARTY.md).
 
-The [Session 1 handoff](session-one-handoff.md) maps the listed exit checks to actual Windows/Android and real Claude Code evidence. It records the mobile client limitation and a concrete proposed next-session scope for owner disposition. Keep issue 13 open until that handoff is accepted; issue 14 retains its prerequisite. Installer/distribution work, human usability and production security are separate gates. Source review and independent sensitive-access review remain distinct from local tests. Actions stays disabled.
+The [Session 1 handoff](session-one-handoff.md) maps the listed exit checks to actual Windows/Android and real Claude Code evidence. It records the mobile client limitation and the accepted next-session scope. The [Windows storage experiment](windows-storage.md) starts Session 2 with a narrow OS-facility check. Issue metadata remains unchanged; product and security acceptance do not follow from handoff readiness. Installer/distribution work, human usability and production security are separate gates. Source review and independent sensitive-access review remain distinct from local tests. Actions stays disabled.

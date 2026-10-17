@@ -8,7 +8,7 @@ Tracking: [Session 1: Prove the app and assistant review flow](https://github.co
 
 **Question to resolve:** can the chosen assistant produce a structured draft and show it in the same local Home interface on the intended desktop/mobile setup without contradicting the custody model?
 
-**Inputs:** current starter; the epic's accepted product boundaries; access to test devices and supported assistant clients/accounts. Windows 11 is the first desktop candidate. The owner selected Android as the first mobile target; the tested phone is Samsung SM-S938U on Android 17/API 37. Record exact OS/app/client versions and plan requirements. An unavailable device/account is a concrete test gap, not evidence of compatibility. The [draft-review prototype](../prototypes/draft-review.md) records verified combinations; the [Session 1 handoff](../prototypes/session-one-handoff.md) maps evidence to these checks and identifies the outstanding client-scope decision.
+**Inputs:** current starter; the epic's accepted product boundaries; access to test devices and supported assistant clients/accounts. Windows 11 is the first desktop candidate. The owner selected Android as the first mobile target; the tested phone is Samsung SM-S938U on Android 17/API 37. Record exact OS/app/client versions and plan requirements. An unavailable device/account is a concrete test gap, not evidence of compatibility. The [draft-review prototype](../prototypes/draft-review.md) records verified combinations; the [Session 1 handoff](../prototypes/session-one-handoff.md) maps evidence to these checks and records the accepted client scope, with deferred integrations tracked in issue 31.
 
 **Bounded work:**
 
