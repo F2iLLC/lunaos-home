@@ -25,6 +25,18 @@ npm run native:android -- build --debug --target x86_64 --apk --ci
 
 Initialize only if the generated project is absent. Preparation is repeatable, rejects extra activities/services/receivers and unexpected generated source/variant manifests, and copies the reviewed native sources. The debug manifest explicitly removes the pinned AndroidX dependency's exported `ProfileInstallReceiver`; it adds no receiver or service. Generated paths and dependency/build caches stay ignored. A prepared offline Cargo directory source must be writable because Gradle builds the Tauri Android library there; copy verified vendor sources without changing their contents/checksums. Set Cargo offline mode/jobs=2 and Gradle offline/max workers=2. Keep disposable debug signing material outside the checkout, and inspect the **final APK**, not just source XML, for permissions, backups, exported activities, ABI and signature. No installation or distribution is part of these commands.
 
+Preparation scans every directory under the generated `app/src`, including
+universal, ABI-specific and combined flavor/build source sets. Only the known
+main sources and reviewed debug vault destinations may contain Java/Kotlin;
+only the main manifest and exact reviewed debug manifest are accepted.
+Existing destination files and ancestors are checked without following links,
+and hardlinked/nonregular files are refused before any writes. Regression
+checks cover flavor contamination, linked destinations/ancestors, unchanged
+outside sentinel files and byte-for-byte clean repeatability. This protects
+against stale generated inputs, not concurrent filesystem replacement or
+custom Gradle source mappings outside `app/src`. Keep the project exclusively
+owned during preparation and retain final APK inspection as separate evidence.
+
 The isolated build uses the installed API37 platform revision 2, Build Tools 37.0.0 and NDK 29.0.14206865 with their matching SDK package metadata. Local ignored Gradle configuration selects `compileSdk=37` and `buildToolsVersion=37.0.0` for both application and library modules; the Tauri library otherwise asks for absent API36. The exact cached Linux AAPT2 9.3.1-15703166 executable is selected with `android.aapt2FromMavenOverride` after byte-for-byte verification against the prepared artifact, because its offline Gradle artifact metadata is incomplete. Kotlin compilation runs in-process. These are local build-environment settings, not vendor-source edits or permission/authentication exceptions.
 
 Automated checks in the isolated JDK21/Node24 environment pass: all 76 JavaScript tests, the dependency-free Java service harness, direct Java compilation against the actual API37 `android.jar`, offline locked Android Cargo metadata, repeated source preparation, and the integrated x86_64 Rust debug build. The JavaScript launcher test executes the bundled code against a fake DOM/invocation adapter: only the open command is sent, pending actions disable the button, diagnostics stay sanitized, and non-Android-debug bundles do not install the button. The Java harness exercises selected-record scope, read-only/delete denial, monotonic expiry without a timer callback, held reads/writes, queued writes, grant replacement/end, a live lock-state predicate, restart without authority resurrection, duplicate operations, confirmed-after-end writes and uncertain acknowledgements. Direct Java compilation uses a test-only debug `BuildConfig` constant; the actual Gradle build uses its generated variant configuration. Compiler checks do not execute AndroidKeyStore, credential UI or lifecycle behavior.
