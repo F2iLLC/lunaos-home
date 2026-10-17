@@ -37,8 +37,11 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
         return;
       }
       try {
-        if (request.url === '/api/windows-preview' && windowsPreview) {
-          if (!windowsPreview.acceptsKey(request.headers['x-home-windows-key'])) {
+        if (['/api/windows-preview', '/api/windows-assistant'].includes(request.url) && windowsPreview) {
+          const assistantRequest = request.url === '/api/windows-assistant';
+          const accepted = assistantRequest ? windowsPreview.acceptsAssistantKey(request.headers['x-home-assistant-key'])
+            : windowsPreview.acceptsKey(request.headers['x-home-windows-key']);
+          if (!accepted) {
             send(403, { error: 'Open the link from this Windows preview to continue.' }); return;
           }
           if (request.method !== 'POST') { send(405, { error: 'Use a preview action.' }); return; }
@@ -50,7 +53,8 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
             if (bytes > 2048) { send(413, { error: 'That request is too large.' }); return; }
             chunks.push(chunk);
           }
-          const result = await windowsPreview.request(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const result = await (assistantRequest ? windowsPreview.assistantRequest(input) : windowsPreview.request(input));
           send(200, result);
           return;
         }

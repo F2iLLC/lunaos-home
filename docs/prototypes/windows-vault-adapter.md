@@ -1,6 +1,6 @@
 # Windows encrypted adapter with session permissions
 
-This [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) experiment connects the [permission service](session-permissions.md) to actual encrypted files through `lib/windows-probe-store.js`. It advances beyond the standalone [DPAPI probe](windows-storage.md), but is still developer-only and synthetic. An opt-in [Windows browser screen](windows-vault-screen.md) now uses this adapter and service. The ordinary draft preview, existing MCP tools and packaged native/Android app do not load it.
+This [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) experiment connects the [permission service](session-permissions.md) to actual encrypted files through `lib/windows-probe-store.js`. It advances beyond the standalone [DPAPI probe](windows-storage.md), but is still developer-only and synthetic. An opt-in [Windows browser screen](windows-vault-screen.md) and [fixed-example assistant bridge](windows-assistant.md) use this adapter and service. The ordinary draft preview, its existing MCP tools and packaged native/Android app do not load it.
 
 ## Run locally
 
@@ -49,4 +49,4 @@ The uncertain-write checks inject an error in the local adapter wrapper before a
 
 ## Remaining Session 2 work
 
-Extend the fixed-example browser experiment to reviewed native GUI and real assistant transport boundaries without exposing arbitrary paths or general approval authority. Prove trusted OS unlock/cancellation, the Android Keystore/private-storage counterpart and phone-only use, authenticated direct pairing, unknown-write recovery, host sleep and user-held backup/restore. Replace or deliberately approve the subprocess prototype approach before claiming a packaged native service. Independent security and product acceptance remain open; Session 2 is not complete. Actions stays disabled and no binaries are distributed by this work.
+Extend the fixed-example browser/assistant experiment to reviewed native GUI and production assistant transport boundaries without exposing arbitrary paths or general approval authority. The separate assistant guide records the bounded live Claude Code result; it does not establish general integration. Prove trusted OS unlock/cancellation, the Android Keystore/private-storage counterpart and phone-only use, authenticated direct pairing, unknown-write recovery, host sleep and user-held backup/restore. Replace or deliberately approve the subprocess prototype approach before claiming a packaged native service. Independent security and product acceptance remain open; Session 2 is not complete. Actions stays disabled and no binaries are distributed by this work.

@@ -98,5 +98,6 @@ test('opt-in HTTP preview requires current process capability and same-origin gu
   const normal = `http://127.0.0.1:${ordinary.address().port}`;
   assert.equal((await fetch(normal + '/windows-vault')).status, 404);
   assert.equal((await fetch(normal + '/windows-vault.js')).status, 404);
+  assert.equal((await fetch(normal + '/api/windows-assistant', { method: 'POST', headers: { ...headers, Origin: normal }, body: JSON.stringify({ action: 'connect' }) })).status, 404);
   assert.equal((await fetch(normal + '/api/windows-preview', { method: 'POST', headers: { ...headers, Origin: normal }, body: JSON.stringify(approve) })).status, 404);
 });

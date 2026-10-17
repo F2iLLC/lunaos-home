@@ -37,7 +37,7 @@ for (const mode of ['read', 'setup']) document.querySelector(`#approve-${mode}`)
     const remaining = approved.lifetimeMs - (performance.now() - started);
     if (remaining <= 0) { clearAccess('Access has ended. Choose access again to continue.'); return; }
     grant = approved.grantId;
-    status.textContent = `${mode === 'read' ? 'Viewing' : 'Adding and changing'} approved for both examples · up to one minute. Nothing shared with an assistant.`;
+    status.textContent = `${mode === 'read' ? 'Viewing' : 'Adding and changing'} approved for both examples · up to one minute. This approval does not share with an assistant.`;
     timer = setTimeout(() => clearAccess('Access has ended. Choose access again to continue.'), remaining);
   } catch (failure) { if (pending === revision) { clearAccess('Approval could not be confirmed. Any access granted ends within one minute.'); error.textContent = failure.message; } }
   finally { accessButtons.forEach(button => { button.disabled = false; }); }
@@ -75,4 +75,55 @@ for (const operation of ['read', 'create', 'edit']) document.querySelector(`#${o
       ? 'The example could not be read. Check that the preview is still running.'
       : 'The save could not be confirmed. Approve viewing and check the saved example before retrying.';
   } finally { recordButtons.forEach(button => { button.disabled = false; }); }
+});
+
+const assistantStatus = document.querySelector('#assistant-status');
+const sharingStatus = document.querySelector('#sharing-status');
+const assistantError = document.querySelector('#assistant-error');
+const assistantButtons = [...document.querySelectorAll('#assistant-read, #assistant-setup, #assistant-end, #assistant-share, #assistant-unshare, #assistant-disconnect')];
+let assistantTimer;
+let assistantRevision = 0;
+for (const action of ['read', 'setup', 'end', 'share', 'unshare', 'disconnect']) document.querySelector(`#assistant-${action}`).addEventListener('click', async () => {
+  assistantButtons.forEach(button => { button.disabled = true; });
+  assistantError.textContent = '';
+  const started = performance.now();
+  if (['read', 'setup'].includes(action)) {
+    assistantRevision++;
+    clearTimeout(assistantTimer);
+    assistantStatus.textContent = 'Waiting for the assistant access decision…';
+    sharingStatus.textContent = 'Waiting for confirmation. Do not assume earlier sharing has ended.';
+  }
+  const pending = assistantRevision;
+  const input = ['read', 'setup'].includes(action) ? { action: 'assistant-approve', mode: action } : { action: `assistant-${action}` };
+  if (action === 'share') {
+    input.recordId = document.querySelector('#share-record').value;
+    input.field = document.querySelector('#share-field').value;
+  }
+  try {
+    const value = await request(input);
+    if (pending !== assistantRevision) return;
+    if (['read', 'setup'].includes(action)) {
+      clearTimeout(assistantTimer);
+      assistantStatus.textContent = `${action === 'read' ? 'Viewing' : 'Adding and changing'} approved for the test assistant · up to one minute.`;
+      sharingStatus.textContent = 'Nothing approved for sharing. Choose one part below.';
+      assistantTimer = setTimeout(() => {
+        assistantRevision++;
+        assistantStatus.textContent = 'Assistant access has ended.';
+        sharingStatus.textContent = 'Sharing has ended.';
+      }, Math.max(0, value.lifetimeMs - (performance.now() - started)));
+    } else if (action === 'share') {
+      const person = input.recordId === 'alex-work' ? 'Alex' : 'Sam';
+      const part = { value: 'saved detail', label: 'type of detail', memberId: 'made-up person label' }[input.field];
+      sharingStatus.textContent = `Only ${person}'s ${part} is approved for viewing by the connected test assistant, until its current access ends.`;
+    } else if (action === 'unshare') {
+      sharingStatus.textContent = 'Sharing stopped. Previously received information may remain with your assistant.';
+    } else {
+      clearTimeout(assistantTimer);
+      assistantStatus.textContent = action === 'end' ? 'Assistant access ended.' : 'Test bridge disconnected. Reconnect it before approving again.';
+      sharingStatus.textContent = 'Sharing ended. Previously received information may remain with your assistant.';
+    }
+  } catch (failure) {
+    if (pending !== assistantRevision) return;
+    assistantError.textContent = failure.code ? failure.message : 'This permission change could not be confirmed. The one-minute limit still applies; do not assume access or sharing ended.';
+  } finally { assistantButtons.forEach(button => { button.disabled = false; }); }
 });

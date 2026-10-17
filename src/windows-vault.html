@@ -11,10 +11,10 @@
     <header class="site-header"><a class="brand" href="/">LUNA OS HOME</a><span class="header-note">A little room to breathe.</span></header>
     <main class="vault">
       <div class="checklist-intro"><p class="eyebrow">WINDOWS EXAMPLE</p><h1>A place for everyone.</h1><p>One family space, organized by person.</p></div>
-      <aside class="preview-note"><strong>Made-up details only</strong><p>This experiment saves fixed examples encrypted on this computer. It does not unlock a vault, connect your phone, or share with an assistant. It is not ready for personal information.</p></aside>
+      <aside class="preview-note"><strong>Made-up details only</strong><p>This experiment saves fixed examples encrypted on this computer. It does not unlock a vault or connect your phone. Assistant sharing needs separate approval below. It is not ready for personal information.</p></aside>
       <section class="list-panel" aria-labelledby="access-heading">
         <h2 id="access-heading">Choose access for this visit</h2>
-        <p>Access covers Alex's workplace and Sam's school for one minute. Everyone with this approved family access can see both people. Nothing is sent to an assistant.</p>
+        <p>Access covers Alex's workplace and Sam's school for one minute. Everyone with this approved family access can see both people. This approval does not share details with an assistant.</p>
         <div class="vault-toolbar"><button id="approve-read" class="quiet-button">Allow viewing</button><button id="approve-setup" class="primary-button">Allow adding and changing</button><button id="end-access" class="quiet-button">End access</button></div>
         <p id="access-status" role="status">No access approved.</p>
         <p>Ending access stops new changes. A change already saving may finish. Saved examples remain on this computer after you close the preview; a new visit needs new approval.</p>
@@ -27,6 +27,21 @@
         <p id="record-result" role="status"></p>
         <p id="preview-error" role="alert"></p>
         <p>Adding an existing example or changing a missing one is refused. If a save cannot be confirmed, approve viewing and check the record before trying again.</p>
+      </section>
+      <section class="list-panel suggestions-panel" aria-labelledby="assistant-heading">
+        <h2 id="assistant-heading">Let your test assistant help</h2>
+        <p>Connect the local test bridge configured for Claude Code first. This label describes the test setup; it does not verify who is running the bridge.</p>
+        <p>Allow access to Alex's workplace and Sam's school for one minute. Adding and changing returns only a save receipt. Viewing still needs a separate sharing approval below.</p>
+        <div class="vault-toolbar"><button id="assistant-read" class="quiet-button">Allow assistant viewing</button><button id="assistant-setup" class="quiet-button">Allow assistant adding and changing</button><button id="assistant-end" class="quiet-button">End assistant access</button></div>
+        <p id="assistant-status" role="status">No assistant access approved here.</p>
+        <label for="share-record">Which example can be shared?</label><select id="share-record"><option value="alex-work">Alex · Workplace</option><option value="sam-school">Sam · School</option></select>
+        <label for="share-field">Which part can be shared?</label><select id="share-field"><option value="value">The saved detail</option><option value="label">The type of detail</option><option value="memberId">The made-up person's label</option></select>
+        <p>Share only this selected part with the connected test assistant for viewing, until its current one-minute access ends. Choosing another part replaces the earlier sharing approval. Your assistant provider controls its own handling and retention of anything received.</p>
+        <div class="vault-toolbar"><button id="assistant-share" class="primary-button">Share this part with the assistant</button><button id="assistant-unshare" class="quiet-button">Stop sharing</button></div>
+        <p id="sharing-status" role="status">Nothing approved for sharing here.</p>
+        <p>Stopping sharing blocks future reads; it cannot erase information already received by the assistant. Ending assistant access stops new work; a save already in progress may finish.</p>
+        <button id="assistant-disconnect" class="quiet-button">Disconnect test bridge</button>
+        <p id="assistant-error" role="alert"></p>
       </section>
     </main>
   </div>

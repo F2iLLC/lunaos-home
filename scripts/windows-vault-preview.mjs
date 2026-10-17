@@ -22,5 +22,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 server.listen(0, '127.0.0.1', () => {
   console.log(`Fictional Windows example: http://127.0.0.1:${server.address().port}/windows-vault#${windowsPreview.key}`);
   console.log(`Resume this example after stopping: node scripts/windows-vault-preview.mjs --resume ${store.probeId}`);
+  console.log(`Assistant bridge environment: LUNA_HOME_WINDOWS_URL=http://127.0.0.1:${server.address().port} LUNA_HOME_WINDOWS_ASSISTANT_KEY=${windowsPreview.assistantKey}`);
+  console.log('Give only the assistant bridge environment to the MCP client. Never give it the screen link or approval key.');
   console.log('Only fixed examples are available. Records remain encrypted locally when this process stops; approvals do not survive restart.');
 });

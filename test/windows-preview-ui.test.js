@@ -72,3 +72,22 @@ test('GUI expiry clears displayed information and prevents further record reques
   assert.equal(calls, 2);
   assert.equal(ui.element('#preview-error').textContent, 'Choose access first.');
 });
+
+test('assistant sharing is a separate selected-field request and a late response cannot outlive expiry', async () => {
+  const sharing = Promise.withResolvers(); const calls = [];
+  const ui = screen(async (_url, options) => {
+    const input = JSON.parse(options.body); calls.push(input);
+    return input.action === 'assistant-share' ? sharing.promise : ok({ lifetimeMs: 60000 });
+  });
+  await ui.click('#assistant-read');
+  assert.deepEqual(calls, [{ action: 'assistant-approve', mode: 'read' }]);
+  assert.match(ui.element('#sharing-status').textContent, /Nothing approved for sharing/);
+  ui.element('#share-record').value = 'sam-school';
+  ui.element('#share-field').value = 'label';
+  const pending = ui.click('#assistant-share');
+  assert.deepEqual(calls[1], { action: 'assistant-share', recordId: 'sam-school', field: 'label' });
+  [...ui.timers.values()][0]();
+  sharing.resolve(ok({ status: 'sharing-approved' })); await pending;
+  assert.equal(ui.element('#sharing-status').textContent, 'Sharing has ended.');
+  assert.equal(ui.element('#assistant-status').textContent, 'Assistant access has ended.');
+});
