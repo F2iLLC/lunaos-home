@@ -61,7 +61,7 @@ signing, path and manifest restrictions still apply.
 `JAVA_VERSION` (21.x.y, optionally a fourth numeric component), `OS_NAME=Linux`
 and `OS_ARCH=x86_64` must match. Preserve vendor licenses, including `legal/`.
 The supervisor-observed Temurin 21 Linux archive has `legal/java.base/LICENSE`
-and `legal/java.base/NOTICE`, not a root `LICENSE`. Preserve all original legal
+and root `NOTICE`, not a root `LICENSE`. Preserve all original legal
 files and copy that vendor `legal/java.base/LICENSE` unchanged to the required
 `jdk/LICENSE` before inventorying. This is preparation normalization, not an
 edit to legal text.
@@ -84,7 +84,7 @@ compatibility with this repository's Cargo.lock is not yet established.
 | Directory | Required version/evidence |
 | --- | --- |
 | `cmdline-tools/pinned/` | Exact numeric `Pkg.Revision` in manifest; `bin/sdkmanager`, `NOTICE.txt`, libraries |
-| `platforms/android-37.0/` | Platform 37.0, `android.jar`, `source.properties` with API level 37 |
+| `platforms/android-37.0/` | Platform 37.0, `android.jar`, `source.properties` with exactly `AndroidVersion.ApiLevel=37.0` (supervisor-observed `platform-37.0_r02.zip`, `Pkg.Revision=2`) |
 | `build-tools/37.0.0/` | Revision 37.0.0; Linux aapt2, d8, apksigner, zipalign and supporting files |
 | `ndk/29.0.14206865/` | Revision 29.0.14206865; Linux x86_64 LLVM, sysroot, `NOTICE` |
 | `licenses/` | Existing **operator-accepted** SDK licenses, including nonempty `android-sdk-license` |

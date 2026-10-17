@@ -33,7 +33,7 @@ async function fixture(context, extraContents = {}) {
   const contents = {
     'jdk/release': 'JAVA_VERSION="21.0.1"\nOS_NAME="Linux"\nOS_ARCH="x86_64"\n',
     'sdk/cmdline-tools/pinned/source.properties': 'Pkg.Revision=1.0.0\n',
-    'sdk/platforms/android-37.0/source.properties': 'AndroidVersion.ApiLevel=37\n',
+    'sdk/platforms/android-37.0/source.properties': 'AndroidVersion.ApiLevel=37.0\nPkg.Revision=2\n',
     'sdk/build-tools/37.0.0/source.properties': 'Pkg.Revision=37.0.0\n',
     'sdk/ndk/29.0.14206865/source.properties': 'Pkg.Revision=29.0.14206865\n',
     'sdk/licenses/android-sdk-license': `${'b'.repeat(40)}\n`,
@@ -157,6 +157,25 @@ test('staging preserves checksums/licenses and generates only an offline build a
   assert(!/curl|wget|--licenses|sdkmanager --install/.test(containerfile));
   assert.deepEqual(JSON.parse(await readFile(join(options.output, 'context/manifest.json'), 'utf8')), options.manifest);
   await assert.rejects(prepare(options), /already exists/);
+});
+
+test('rejects wrong, missing and ambiguous platform API metadata before writing', async context => {
+  for (const metadata of [
+    'AndroidVersion.ApiLevel=37\n',
+    'AndroidVersion.ApiLevel=36.0\n',
+    'AndroidVersion.ApiLevel=38.0\n',
+    'AndroidVersion.ApiLevel=37.0.0\n',
+    '',
+    'AndroidVersion.ApiLevel=37.0\nAndroidVersion.ApiLevel=37\n',
+    'AndroidVersion.ApiLevel=37\nAndroidVersion.ApiLevel=37.0\n',
+    'AndroidVersion.ApiLevel=37.0\nAndroidVersion.ApiLevel=37.0\n',
+  ]) {
+    const options = await fixture(context, {
+      'sdk/platforms/android-37.0/source.properties': `${metadata}Pkg.Revision=2\n`,
+    });
+    await assert.rejects(prepare(options), /Tool metadata does not match the manifest/);
+    await assert.rejects(lstat(options.output), { code: 'ENOENT' });
+  }
 });
 
 test('rejects relative, traversal, checkout and overlapping staging paths before writing', async context => {

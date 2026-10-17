@@ -182,7 +182,7 @@ export async function prepare({ base, input, manifestPath, output }) {
   await property(input, 'jdk/release', 'OS_NAME', 'Linux');
   await property(input, 'jdk/release', 'OS_ARCH', 'x86_64');
   await property(input, 'sdk/cmdline-tools/pinned/source.properties', 'Pkg.Revision', manifest.commandLineTools);
-  await property(input, 'sdk/platforms/android-37.0/source.properties', 'AndroidVersion.ApiLevel', '37');
+  await property(input, 'sdk/platforms/android-37.0/source.properties', 'AndroidVersion.ApiLevel', '37.0');
   await property(input, 'sdk/build-tools/37.0.0/source.properties', 'Pkg.Revision', '37.0.0');
   await property(input, 'sdk/ndk/29.0.14206865/source.properties', 'Pkg.Revision', '29.0.14206865');
   await mkdir(output, { mode: 0o700 });
