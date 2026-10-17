@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.f2illc.lunaos.vaultprobe.outsider" android:versionCode="1" android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="37" />
+  <queries><package android:name="io.github.f2illc.lunaos.vaultprobe" /></queries>
+  <application android:label="Fictional vault isolation probe" android:debuggable="true"
+      android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="false" />
+  <instrumentation android:name="io.github.f2illc.lunaos.vaultprobe.VaultProbe"
+      android:targetPackage="io.github.f2illc.lunaos.vaultprobe.outsider" android:functionalTest="true" />
+</manifest>

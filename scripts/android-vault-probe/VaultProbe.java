@@ -5,6 +5,9 @@ import android.os.Bundle;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.AtomicFile;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
@@ -24,6 +27,8 @@ public final class VaultProbe extends Instrumentation {
     private File directory;
     private String alias;
     private String run;
+    private String check = "operation";
+    private static final String OWNER = "io.github.f2illc.lunaos.vaultprobe";
     private static final byte[] FIXTURE = ("{\"members\":[{\"id\":\"alex-example\","
         + "\"work\":\"Willow Studio\"},{\"id\":\"sam-example\",\"school\":\"Meadow School\"}]}")
         .getBytes(StandardCharsets.UTF_8);
@@ -46,7 +51,10 @@ public final class VaultProbe extends Instrumentation {
             keys = KeyStore.getInstance("AndroidKeyStore");
             keys.load(null);
             String operation = arguments.getString("operation", "");
+            boolean outsider = getTargetContext().getPackageName().equals(OWNER + ".outsider");
+            require(outsider ? operation.equals("isolation") : getTargetContext().getPackageName().equals(OWNER));
             switch (operation) {
+                case "isolation": require(outsider); isolationCheck(); break;
                 case "create": create(); break;
                 case "read": readCheck(); break;
                 case "tamper": tamperCheck(); break;
@@ -65,6 +73,7 @@ public final class VaultProbe extends Instrumentation {
         } catch (Exception failure) {
             // Never print records, key material, local paths or OS diagnostics.
             result.putString("result", "FAIL");
+            result.putString("check", check); // Fixed diagnostic labels, never caller data.
             finish(1, result);
         }
     }
@@ -183,5 +192,30 @@ public final class VaultProbe extends Instrumentation {
         file().delete();
         if (directory.exists()) require(directory.delete());
         require(!directory.exists() && !keys.containsAlias(alias));
+    }
+
+    private void isolationCheck() throws Exception {
+        // Only the other package installed by this test, and this run's fixed file.
+        // Package visibility permits metadata lookup, never changes the caller UID.
+        check = "owner-metadata";
+        android.content.pm.ApplicationInfo owner = getTargetContext().getPackageManager().getApplicationInfo(OWNER, 0);
+        check = "distinct-uid";
+        require(owner.uid != android.os.Process.myUid());
+        check = "own-uid";
+        require(getTargetContext().getApplicationInfo().uid == android.os.Process.myUid());
+        check = "key-namespace";
+        require(!keys.containsAlias(alias) && keys.getKey(alias, null) == null);
+        File ownerFile = new File(owner.dataDir, "no_backup/" + run + "/records.bin");
+        for (int access : new int[] {OsConstants.O_RDONLY, OsConstants.O_WRONLY}) {
+            check = access == OsConstants.O_RDONLY ? "read-denial" : "write-denial";
+            boolean denied = false;
+            try { Os.close(Os.open(ownerFile.getPath(), access, 0)); }
+            catch (ErrnoException failure) {
+                denied = failure.errno == OsConstants.EACCES;
+                if (!denied) check += failure.errno == OsConstants.ENOENT ? "-path-unavailable" : "-other-error";
+            }
+            require(denied); // ENOENT or an unrelated I/O error is not isolation evidence.
+        }
+        require(!directory.exists()); // The outsider never creates a record or key.
     }
 }

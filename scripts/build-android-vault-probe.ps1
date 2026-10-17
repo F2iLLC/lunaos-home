@@ -43,13 +43,16 @@ try {
     Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-classpath', $androidJar, '-d', $classes, (Join-Path $PSScriptRoot 'android-vault-probe/VaultProbe.java'))
     Invoke-ProbeTool $jar @('--create', '--file', "$output/classes.jar", '-C', $classes, '.')
     Invoke-ProbeTool "$buildTools/d8.bat" @('--min-api', '24', '--lib', $androidJar, '--output', $dex, "$output/classes.jar")
-    Invoke-ProbeTool "$buildTools/aapt2.exe" @('link', '-I', $androidJar, '--manifest', (Join-Path $PSScriptRoot 'android-vault-probe/AndroidManifest.xml'), '-o', "$output/unsigned.apk")
-    Invoke-ProbeTool $jar @('--update', '--file', "$output/unsigned.apk", '-C', $dex, 'classes.dex')
-    Invoke-ProbeTool "$buildTools/zipalign.exe" @('-p', '4', "$output/unsigned.apk", "$output/aligned.apk")
     Invoke-ProbeTool $keytool @('-genkeypair', '-keystore', "$output/probe.p12", '-storetype', 'PKCS12', '-alias', 'probe', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '30', '-dname', 'CN=Fictional Local Probe', '-storepass:env', 'LUNA_PROBE_SIGNING_PASSWORD', '-keypass:env', 'LUNA_PROBE_SIGNING_PASSWORD')
-    Invoke-ProbeTool "$buildTools/apksigner.bat" @('sign', '--ks', "$output/probe.p12", '--ks-pass', 'env:LUNA_PROBE_SIGNING_PASSWORD', '--out', "$output/probe.apk", "$output/aligned.apk")
-    Invoke-ProbeTool "$buildTools/apksigner.bat" @('verify', "$output/probe.apk")
-    Write-Output 'Built and signature-verified the isolated synthetic probe. No device installation performed.'
+    foreach ($variant in @(@{ Name = 'probe'; Manifest = 'AndroidManifest.xml' }, @{ Name = 'outsider'; Manifest = 'OutsiderManifest.xml' })) {
+        $name = $variant.Name
+        Invoke-ProbeTool "$buildTools/aapt2.exe" @('link', '-I', $androidJar, '--manifest', (Join-Path $PSScriptRoot "android-vault-probe/$($variant.Manifest)"), '-o', "$output/$name-unsigned.apk")
+        Invoke-ProbeTool $jar @('--update', '--file', "$output/$name-unsigned.apk", '-C', $dex, 'classes.dex')
+        Invoke-ProbeTool "$buildTools/zipalign.exe" @('-p', '4', "$output/$name-unsigned.apk", "$output/$name-aligned.apk")
+        Invoke-ProbeTool "$buildTools/apksigner.bat" @('sign', '--ks', "$output/probe.p12", '--ks-pass', 'env:LUNA_PROBE_SIGNING_PASSWORD', '--out', "$output/$name.apk", "$output/$name-aligned.apk")
+        Invoke-ProbeTool "$buildTools/apksigner.bat" @('verify', "$output/$name.apk")
+    }
+    Write-Output 'Built and signature-verified both isolated synthetic probes. No device installation performed.'
 } finally {
     $env:JAVA_HOME = $savedJava
     $env:LUNA_PROBE_SIGNING_PASSWORD = $savedPassword
