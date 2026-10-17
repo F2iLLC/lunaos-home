@@ -1,5 +1,5 @@
 //! Debug-only, fixed-example native screen; never reads an OS password or PIN.
-use std::io::{Read, Write};
+use std::io::Read;
 use tauri::Url;
 use windows::{
     core::HSTRING,
@@ -100,6 +100,15 @@ pub fn setup(app: &mut tauri::App, url: Url) -> Result<(), Box<dyn std::error::E
             handle.exit(2);
             return;
         };
+        let monitor_app = handle.clone();
+        let visit = match crate::windows_session::install(hwnd, move || monitor_app.exit(3)) {
+            Ok(visit) => visit,
+            Err(_) => {
+                eprintln!("HOME_WINDOWS_MONITOR_UNAVAILABLE");
+                handle.exit(3);
+                return;
+            }
+        };
         let operation =
             (|| -> windows::core::Result<IAsyncOperation<UserConsentVerificationResult>> {
                 let interop: IUserConsentVerifierInterop =
@@ -126,12 +135,7 @@ pub fn setup(app: &mut tauri::App, url: Url) -> Result<(), Box<dyn std::error::E
                 handle.exit(2);
                 return;
             }
-            let written = (|| -> std::io::Result<()> {
-                let mut output = std::io::stdout().lock();
-                output.write_all(b"HOME_WINDOWS_VERIFIED\n")?;
-                output.flush()
-            })();
-            if written.is_err() || owned_window.navigate(url).is_err() {
+            if !visit.verify() || owned_window.navigate(url).is_err() {
                 handle.exit(2);
             }
         });

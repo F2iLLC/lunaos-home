@@ -1,6 +1,8 @@
 #[cfg(all(target_os = "windows", debug_assertions))]
 mod desktop_review;
 #[cfg(all(target_os = "windows", debug_assertions))]
+mod windows_session;
+#[cfg(all(target_os = "windows", debug_assertions))]
 mod windows_vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

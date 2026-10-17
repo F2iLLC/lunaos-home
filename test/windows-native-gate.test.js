@@ -21,14 +21,64 @@ function fixture(store = {}, now) {
   return { gate, child, timers, records };
 }
 const denied = error => error.code === 'DENIED';
-const verify = child => child.stdout.emit('data', Buffer.from('HOME_WINDOWS_VERIFIED\n'));
+const verify = child => child.stdout.emit('data', Buffer.from('HOME_WINDOWS_MONITOR_READY\nHOME_WINDOWS_VERIFIED\n'));
+const monitorEnd = child => child.stdout.emit('data', Buffer.from('HOME_WINDOWS_SESSION_ENDED\n'));
+
+test('unavailable monitor, reordered readiness and lock during authentication cannot open access', async () => {
+  for (const lines of [
+    ['HOME_WINDOWS_VERIFIED\n'],
+    ['HOME_WINDOWS_MONITOR_UNAVAILABLE\n'],
+    ['HOME_WINDOWS_MONITOR_READY\n', 'HOME_WINDOWS_SESSION_ENDED\n', 'HOME_WINDOWS_VERIFIED\n'],
+    ['HOME_WINDOWS_MONITOR_READY\nHOME_WINDOWS_VERIFIED\nHOME_WINDOWS_SESSION_ENDED\n'],
+  ]) {
+    const f = fixture();
+    for (const line of lines) f.child.stdout.emit('data', Buffer.from(line));
+    await assert.rejects(f.gate.request({ action: 'approve', mode: 'setup' }), denied);
+    await assert.rejects(f.gate.assistantRequest({ action: 'connect' }), denied);
+    assert.equal(f.child.killed, true);
+  }
+  const f = fixture();
+  f.child.stdout.emit('data', Buffer.from('HOME_WINDOWS_MONITOR_READY\n'));
+  await assert.rejects(f.gate.request({ action: 'approve', mode: 'setup' }), denied);
+  f.gate.shutdown();
+});
+
+test('monitor event during disclosed read withholds contents and cancels queued mutation', async () => {
+  const entered = Promise.withResolvers(); const release = Promise.withResolvers(); let writes = 0;
+  const f = fixture({ read: async () => { entered.resolve(); await release.promise; return { label: 'Workplace', value: 'Willow Studio' }; }, edit: async () => { writes++; } });
+  verify(f.child);
+  const { connectionId } = await f.gate.assistantRequest({ action: 'connect' });
+  await f.gate.request({ action: 'assistant-approve', mode: 'setup' });
+  await f.gate.request({ action: 'assistant-share', recordId: 'alex-work', field: 'label' });
+  const request = { action: 'record', connectionId, recordId: 'alex-work' };
+  const read = f.gate.assistantRequest({ ...request, operation: 'read' });
+  await entered.promise;
+  const edit = f.gate.assistantRequest({ ...request, operation: 'edit' });
+  const checks = [assert.rejects(read, denied), assert.rejects(edit, denied)];
+  monitorEnd(f.child); release.resolve(); await Promise.all(checks);
+  assert.equal(writes, 0);
+  await assert.rejects(f.gate.request({ action: 'assistant-share', recordId: 'alex-work', field: 'value' }), denied);
+  verify(f.child);
+  await assert.rejects(f.gate.assistantRequest({ action: 'connect' }), denied);
+});
+
+test('monitor event during a committed write returns an ended receipt and never repeats it', async () => {
+  const entered = Promise.withResolvers(); const release = Promise.withResolvers(); let writes = 0;
+  const f = fixture({ create: async () => { writes++; entered.resolve(); await release.promise; } });
+  verify(f.child);
+  const { grantId } = await f.gate.request({ action: 'approve', mode: 'setup' });
+  const input = { action: 'record', grantId, operation: 'create', recordId: 'alex-work' };
+  const write = f.gate.request(input); await entered.promise; monitorEnd(f.child); release.resolve();
+  assert.deepEqual(await write, { status: 'applied', recordId: 'alex-work', accessEnded: true });
+  await assert.rejects(f.gate.request(input), denied); assert.equal(writes, 1);
+});
 
 test('native gate has no HTTP unlock and still requires separate record and disclosure approvals', async () => {
   const { gate, child, timers, records } = fixture();
   await assert.rejects(gate.request({ action: 'approve', mode: 'setup' }), denied);
   await assert.rejects(gate.assistantRequest({ action: 'connect' }), denied);
   await assert.rejects(gate.request({ action: 'unlock', verified: true }), denied);
-  child.stdout.emit('data', Buffer.from('HOME_WINDOWS_'));
+  child.stdout.emit('data', Buffer.from('HOME_WINDOWS_MONITOR_READY\nHOME_WINDOWS_'));
   await assert.rejects(gate.request({ action: 'approve', mode: 'setup' }), denied);
   child.stdout.emit('data', Buffer.from('VERIFIED\n'));
   assert.equal(timers[0].cancelled, true); assert.equal(timers[1].ms, 300000);

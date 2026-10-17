@@ -10,7 +10,7 @@ The Node supervisor creates the same DPAPI adapter and session controller as the
 
 Verification must finish within three minutes. The resulting visit lasts at most five minutes; separate local/assistant grants still last at most one minute, and disclosure still requires selected record/field approval. Child exit, pipe loss, extra/unexpected output, timeout or a backwards/invalid clock permanently shuts down that service instance. Elapsed time is checked around requests as well as by the timer. Pending reads are withheld and queued changes denied; an already committed write remains truthfully reported as applied with access ended. Restart requires fresh verification and fresh approvals.
 
-**This is an application access gate, not authentication-bound encryption-key release.** DPAPI CurrentUser is unchanged. A hostile same-account process, modified executable, privileged supervisor or the separate developer browser launcher is outside this gate's security claim. There is no signed client/device identity, authentication-bound key, anti-debugging boundary, workstation-lock notification or demonstrated sleep/resume policy. An OS verification result does not prove that the encryption key can only be released after verification. No real household data belongs in either prototype.
+**This is an application access gate, not authentication-bound encryption-key release.** DPAPI CurrentUser is unchanged. A hostile same-account process, modified executable, privileged supervisor or the separate developer browser launcher is outside this gate's security claim. There is no signed client/device identity, authentication-bound key, anti-debugging boundary, demonstrated physical lock/sleep policy. An OS verification result does not prove that the encryption key can only be released after verification. No real household data belongs in either prototype.
 
 ## Run locally
 
@@ -28,6 +28,10 @@ The availability command reports a status without requesting verification. `avai
 Use the launcher-provided example ID with `--resume <example-ID>` to reopen that synthetic store. It cannot select arbitrary paths. The launcher prints only the separate assistant bridge environment, for use with `scripts/windows-vault-assistant.mjs` as described in [the assistant guide](windows-assistant.md). Keep capabilities out of logs, issues and model messages. Example ciphertext remains after normal interactive shutdown. Test harnesses remove only their own uniquely identified fixture through bounded adapter cleanup.
 
 For the reproducible interactive probe, run `node scripts/probe-windows-native-vault.mjs` with a person present to complete verification; run again with `--cancel` and choose Cancel in Windows. The harness checks both HTTP roles before/after verification, native page asset requests, actual encrypted records, selected-field sharing and denial after child closure. It removes its own fixture and server. It never automates authentication or native record buttons. A timeout or other failure is a failed check, never a cancellation pass.
+
+## Session and power-event follow-up
+
+The [Windows session-event increment](windows-session-events.md) now requires event-monitor readiness before accepting verification and closes the visit on terminal session/power events. It has real registration plus injected-message evidence; actual lock/sleep and repeated human verification with that revision are pending. Use its physical-test procedure separately. The evidence below records the preceding verification-only revision, not a repeat of those human checks after adding the monitor.
 
 ## Evidence, 2026-10-17
 
