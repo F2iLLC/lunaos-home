@@ -40,7 +40,7 @@ This is an OS-facility experiment, **not the native app's storage adapter**. Nei
 
 1. Select the actual shared storage/key adapter and reviewed format, including schema validation, bounded reads, atomic updates and crash behavior. Consider DPAPI for wrapping a data key rather than treating this whole-record fixture format as the product format.
 2. Prove trusted OS unlock and cancellation separately; never collect a Windows password. Test the selected Android Keystore/private-storage counterpart on the phone, including phone-only operation.
-3. Integrate the same enforcing service with the GUI and local assistant, with explicit family admission, session-limited setup writes, read-only grants, revocation and scoped disclosure.
+3. Integrate the same enforcing service with the GUI and local assistant, with explicit family admission, session-limited setup writes, read-only grants, revocation and scoped disclosure. The [session permission experiment](session-permissions.md) now tests the process-local contract with a synthetic memory adapter; it is not yet connected to this DPAPI probe or the app.
 4. Prove authenticated direct phone/computer pairing, disconnect/unknown-write handling, sleep/suspension and user-held recovery. No cloud relay or public vault endpoint.
 
 Session 2 is in progress, not accepted. The full encrypted round trip on both chosen targets, OS unlock, phone-only path, direct bridge, unauthorized-client denial and session expiry still need evidence. Production sensitive-use, independent security review and binary-distribution gates remain open. Actions stays disabled.
