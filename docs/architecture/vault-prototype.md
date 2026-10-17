@@ -25,10 +25,13 @@ The [Session 1 assessment](../prototypes/session-one-handoff.md) maps all listed
 technical exit checks to evidence and records the dated provider investigation.
 The documented mobile connector routes do not offer the required direct local
 transport. This is a documentation finding, not a live mobile-client test.
-Recommend the verified Windows local assistant route plus the native Android GUI
-for the next experiment, retaining phone-only manual storage work. Owner
-acceptance is required before deferring mobile assistant automation from the
-first increment; neither Android nor a provider is silently removed from scope.
+The owner accepted the verified Windows local assistant route plus the native
+Android GUI for Session 2, retaining phone-only manual storage. Deferred mobile
+assistant automation and ChatGPT integration remain tracked in issue 31; neither
+Android nor a provider is removed from scope. The linked handoff records the
+explicit disposition. The first [Windows storage probe](../prototypes/windows-storage.md)
+checks DPAPI persistence across fresh processes and corruption rejection, without
+claiming OS unlock, device-exclusive key custody or a production storage adapter.
 No tunnel/public endpoint or hosted-vault exception is approved by this ADR.
 
 ## Candidates to prove in session 2

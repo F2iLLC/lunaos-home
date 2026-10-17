@@ -1,6 +1,6 @@
 # Session 1: tested paths and client decision
 
-This is the reproducible feasibility handoff for [issue 13](https://github.com/F2iLLC/lunaos-home/issues/13), assessed October 16, 2026. It distinguishes the listed exit checks from product support and later acceptance. Only fictional Alex/Sam fixtures were used. Source review and the client-scope decision are still open; this document does not close the issue or authorize Session 2 automatically.
+This is the reproducible feasibility handoff for [issue 13](https://github.com/F2iLLC/lunaos-home/issues/13), assessed October 16, 2026. It distinguishes the listed exit checks from product support and later acceptance. Only fictional Alex/Sam fixtures were used. PR #30 was reviewed and merged. The [owner disposition](https://github.com/F2iLLC/lunaos-home/issues/13#issuecomment-6228967004) accepts the proposed Windows assistant/direct Android scope for Session 2, with deferred integrations tracked in [issue 31](https://github.com/F2iLLC/lunaos-home/issues/31). Together with the exit evidence below, this clears the bounded Session 2 handoff; it does not certify the product or change issue metadata.
 
 ## Exit-check mapping
 
@@ -28,17 +28,17 @@ The following are documentation findings checked October 16, not live account or
 
 Inference: the documented consumer mobile connector routes do not supply the direct private-device transport required here. This is not a claim that every future client or every possible integration is impossible. No public endpoint, tunnel or cloud relay was introduced to manufacture a pass. A locally running client also does not make its hosted model local: production disclosure must still be separately scoped and minimized.
 
-## Proposed next-session scope requiring an owner decision
+## Accepted next-session scope
 
-Recommend proceeding with the tested Windows local assistant route and native Android GUI as the first experiment, while keeping phone-only manual vault operation in Session 2. Prove the protected local store, OS unlock, session grants and authenticated direct Windows/Android connection. Keep Android assistant automation and ChatGPT integration explicitly unresolved until a compatible client route is available or a separately reviewed interaction design is approved.
+Proceed with the tested Windows local assistant route and native Android GUI as the first experiment, while keeping phone-only manual vault operation in Session 2. Prove the protected local store, OS unlock, session grants and authenticated direct Windows/Android connection. Keep Android assistant automation and ChatGPT integration explicitly unresolved under issue 31 until a compatible client route is available or a separately reviewed interaction design is approved.
 
-This changes the order of assistant availability; it does not silently remove Android, phone-only storage, or either provider from the product roadmap. The owner must decide whether the first increment can have assistant automation on the computer while the phone uses Home directly. If phone-only ChatGPT/Claude automation is required in that same increment, the current transport decision remains blocked. Do not reinterpret that requirement as permission for hosted vault access.
+The owner accepted assistant automation on the computer while the phone uses Home directly for this increment, conditional on tracking the deferred capabilities. This changes delivery order; it does not remove Android, phone-only storage, or either provider from the roadmap. No hosted-vault access, cloud relay or tunnel is authorized.
 
 The [architecture decision](../architecture/vault-prototype.md#candidates-to-prove-in-session-2) supplies Android Keystore/application-private no-backup storage, Windows DPAPI key wrapping, maintained authenticated direct transport and user-held backup candidates. These are experiment inputs, not implemented guarantees. Session 2 must select and review concrete libraries, test phone-only foreground operation, and measure suspension, revocation and unknown-write outcomes before claiming support.
 
 ## Remaining checks by milestone
 
-- **Handoff:** owner disposition of the client scope above and review of the published prototype. Issue 14 retains its dependency on issue 13.
+- **Handoff:** reviewed prototype plus owner client-scope disposition now establish readiness for the bounded Session 2 experiment. Issue metadata remains unchanged; issue 14's prerequisite is satisfied by evidence and disposition, not by deleting its dependency. The first [Windows storage experiment](windows-storage.md) records its limited result and remaining Session 2 work.
 - **Additional prototype coverage:** Windows debug WebView navigation/new-window/download runtime guards and emulator keyboard input. Existing unit checks do not establish these runtime results.
 - **Session 2:** encrypted persistence, actual OS key behavior, direct pairing, phone-host lifecycle, expired/revoked grants, and backup/restore experiments. Brief lock/unlock of an offline draft is not a host-suspension test.
 - **Later acceptance/distribution:** human finger and plain-language usability, installer lifecycle, complete native license notices, production security/recovery review and supported-version coverage. The converted ARMv7 device remains a separately recorded failed launch; its software-rendering mitigation is unverified.

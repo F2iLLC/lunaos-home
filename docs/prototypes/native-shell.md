@@ -99,7 +99,7 @@ No HTTP/MCP service is used by this mode.
 These results close the default offline Windows interaction/lifecycle gaps. They
 do not establish encrypted persistence, installer behavior, or the debug review
 mode's navigation/download guards. See the [Session 1 handoff](session-one-handoff.md)
-for the actual exit-check mapping and remaining client-route decision.
+for the actual exit-check mapping and accepted client scope.
 
 ## Earlier offline evidence and outstanding checks
 
@@ -128,7 +128,7 @@ gaps. Runtime debug-window guard checks, emulator keyboard coverage, human usabi
 installer lifecycle and redistribution notices remain explicitly open; they are
 tracked separately from Session 1's listed exit criteria. Phone-only service hosting
 belongs to the next custody experiment. The [handoff](session-one-handoff.md)
-records the client limitation that still needs an owner decision. Actions remains
+records the client limitation and the owner's accepted next-session scope. Actions remains
 disabled; these are local checks only.
 
 ## Manual acceptance checklist
