@@ -42,6 +42,8 @@ The bundled JavaScript uses only Home and Zod; the build rejects accidental MCP 
 
 ## Android build probe
 
+The separate [Android storage experiment](docs/prototypes/android-storage.md) compiles original Java instrumentation source directly with the installed JDK and Android SDK tools. It calls platform Keystore, Cipher and AtomicFile APIs; it adds no runtime dependency, copied SDK example or vendored source. Android's SDK/platform and JDK distributions retain their existing terms and are not included in the repository. Its disposable signed APK is for local synthetic testing only, not public binary distribution or clearance of the Home native notice gates below.
+
 The Android build uses the same pinned Tauri packages and Cargo lockfile. Android x86_64 and ARM64 target-filtered metadata each resolve 258 third-party Cargo packages plus Home, using the same declared license families listed above. This inventory includes build dependencies and does not replace a complete APK notice review.
 
 The Android project and its Gradle wrapper are generated locally by the pinned CLI and remain excluded from Git. The generated project selects Gradle 9.6.1, Android Gradle Plugin 9.3.1 and Kotlin Gradle Plugin 2.2.10; AndroidX/Material/runtime dependencies also need to be included in the eventual APK dependency and notice inventory. No generated third-party source or wrapper JAR is newly vendored by this change. The manifest preparation script and Android configuration are original project code.
