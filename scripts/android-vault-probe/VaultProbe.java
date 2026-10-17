@@ -13,8 +13,10 @@ import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.Locale;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -28,6 +30,7 @@ public final class VaultProbe extends Instrumentation {
     private String alias;
     private String run;
     private String check = "operation";
+    private final Bundle evidence = new Bundle();
     private static final String OWNER = "io.github.f2illc.lunaos.vaultprobe";
     private static final byte[] FIXTURE = ("{\"members\":[{\"id\":\"alex-example\","
         + "\"work\":\"Willow Studio\"},{\"id\":\"sam-example\",\"school\":\"Meadow School\"}]}")
@@ -55,8 +58,8 @@ public final class VaultProbe extends Instrumentation {
             require(outsider ? operation.equals("isolation") : getTargetContext().getPackageName().equals(OWNER));
             switch (operation) {
                 case "isolation": require(outsider); isolationCheck(); break;
-                case "create": create(); break;
-                case "read": readCheck(); break;
+                case "create": create(); ownerEvidence(); break;
+                case "read": readCheck(); ownerEvidence(); break;
                 case "tamper": tamperCheck(); break;
                 case "delete-key":
                     require(keys.containsAlias(alias));
@@ -68,11 +71,13 @@ public final class VaultProbe extends Instrumentation {
                 default: throw new IllegalArgumentException();
             }
             result.putString("result", "PASS");
+            result.putAll(evidence);
             result.putInt("processId", android.os.Process.myPid());
             finish(-1, result);
         } catch (Exception failure) {
             // Never print records, key material, local paths or OS diagnostics.
             result.putString("result", "FAIL");
+            result.putAll(evidence);
             result.putString("check", check); // Fixed diagnostic labels, never caller data.
             finish(1, result);
         }
@@ -83,6 +88,20 @@ public final class VaultProbe extends Instrumentation {
     }
 
     private AtomicFile file() { return new AtomicFile(new File(directory, "records.bin")); }
+
+    private static String digest(byte[] value) throws Exception {
+        StringBuilder hex = new StringBuilder();
+        for (byte b : MessageDigest.getInstance("SHA-256").digest(value)) {
+            hex.append(String.format(Locale.ROOT, "%02x", b & 255));
+        }
+        return hex.toString();
+    }
+
+    private void ownerEvidence() throws Exception {
+        // Per-run synthetic control values for the host runner, never raw paths or records.
+        evidence.putString("locationProof", digest(file().getBaseFile().getAbsolutePath().getBytes(StandardCharsets.UTF_8)));
+        evidence.putString("ciphertextProof", digest(bytes()));
+    }
 
     private SecretKey key() throws Exception {
         // Missing key is a failure, never a reason to generate a replacement on read.
@@ -206,16 +225,29 @@ public final class VaultProbe extends Instrumentation {
         check = "key-namespace";
         require(!keys.containsAlias(alias) && keys.getKey(alias, null) == null);
         File ownerFile = new File(owner.dataDir, "no_backup/" + run + "/records.bin");
+        check = "same-path-control";
+        String expectedLocation = arguments.getString("locationProof", "");
+        require(expectedLocation.matches("[0-9a-f]{64}"));
+        require(digest(ownerFile.getAbsolutePath().getBytes(StandardCharsets.UTF_8)).equals(expectedLocation));
+        evidence.putString("sameLocationVerified", "true");
+        boolean allDenied = true;
+        String firstFailure = null;
         for (int access : new int[] {OsConstants.O_RDONLY, OsConstants.O_WRONLY}) {
             check = access == OsConstants.O_RDONLY ? "read-denial" : "write-denial";
             boolean denied = false;
+            String outcome = "OPENED";
             try { Os.close(Os.open(ownerFile.getPath(), access, 0)); }
             catch (ErrnoException failure) {
                 denied = failure.errno == OsConstants.EACCES;
+                outcome = denied ? "EACCES" : failure.errno == OsConstants.ENOENT ? "ENOENT" : "OTHER";
                 if (!denied) check += failure.errno == OsConstants.ENOENT ? "-path-unavailable" : "-other-error";
             }
-            require(denied); // ENOENT or an unrelated I/O error is not isolation evidence.
+            evidence.putString(access == OsConstants.O_RDONLY ? "readOpen" : "writeOpen", outcome);
+            if (!denied && firstFailure == null) firstFailure = check;
+            allDenied &= denied;
         }
+        if (firstFailure != null) check = firstFailure;
+        require(allDenied); // Still requires EACCES for both; ENOENT never becomes a pass.
         require(!directory.exists()); // The outsider never creates a record or key.
     }
 }

@@ -18,18 +18,34 @@ function Invoke-ProbeAdb([string[]] $AdbArgs) {
     if ($LASTEXITCODE -ne 0) { throw 'Android probe command failed.' }
     return ($response -join "`n")
 }
-function Invoke-ProbeStep([string] $Operation, [string] $Expected = 'PASS', [string] $Target = $package) {
-    $response = Invoke-ProbeAdb @('shell', 'am', 'instrument', '-w', '-e', 'run', $run, '-e', 'operation', $Operation, "$Target/$package.VaultProbe")
+function Invoke-ProbeStep([string] $Operation, [string] $Expected = 'PASS', [string] $Target = $package, [string] $LocationProof = '') {
+    if ($LocationProof -and $LocationProof -notmatch '^[a-f0-9]{64}$') { throw 'Invalid synthetic path control.' }
+    $arguments = @('shell', 'am', 'instrument', '-w', '-e', 'run', $run, '-e', 'operation', $Operation)
+    if ($LocationProof) { $arguments += @('-e', 'locationProof', $LocationProof) }
+    $response = Invoke-ProbeAdb ($arguments + @("$Target/$package.VaultProbe"))
     $code = if ($Expected -eq 'PASS') { '-1' } else { '1' }
     if ($response -notmatch "(?m)^INSTRUMENTATION_RESULT: result=$Expected\r?$" -or
         $response -notmatch "(?m)^INSTRUMENTATION_CODE: $code\r?$" ) {
         $check = 'unreported'
         if ($response -match '(?m)^INSTRUMENTATION_RESULT: check=([a-z-]{1,60})\r?$') { $check = $Matches[1] }
-        throw "Probe step failed: $Operation ($check)"
+        $failure = [InvalidOperationException]::new("Probe step failed: $Operation ($check)")
+        foreach ($field in @('sameLocationVerified', 'readOpen', 'writeOpen')) {
+            if ($response -match ("(?m)^INSTRUMENTATION_RESULT: ${field}=(true|EACCES|ENOENT|OTHER|OPENED)\r?$")) { $failure.Data[$field] = $Matches[1] }
+        }
+        throw $failure
     }
     if ($Expected -eq 'PASS') {
         if ($response -notmatch '(?m)^INSTRUMENTATION_RESULT: processId=(\d+)\r?$') { throw 'Missing process evidence.' }
-        return [int] $Matches[1]
+        $evidence = @{ ProcessId = [int] $Matches[1] }
+        if ($Target -eq $package -and $Operation -in @('create', 'read')) {
+            foreach ($field in @('locationProof', 'ciphertextProof')) {
+                if ($response -notmatch ("(?m)^INSTRUMENTATION_RESULT: ${field}=([a-f0-9]{64})\r?$")) { throw 'Missing synthetic owner control.' }
+                $evidence[$field] = $Matches[1]
+            }
+        }
+        return $evidence
+    } elseif ($Operation -eq 'isolation' -and $response -notmatch '(?m)^INSTRUMENTATION_RESULT: check=same-path-control\r?$') {
+        throw 'Mismatched location control did not fail at the expected boundary.'
     }
 }
 $packages = @(@{ Id = $package; Apk = $Apk }, @{ Id = $outsider; Apk = (Join-Path (Split-Path $Apk) 'outsider.apk') })
@@ -56,12 +72,15 @@ try {
     Invoke-ProbeStep 'create' 'FAIL' # Must not reset existing records or keys.
     Invoke-ProbeAdb @('shell', 'am', 'force-stop', $package) | Out-Null
     $secondProcess = Invoke-ProbeStep 'read'
-    if ($firstProcess -eq $secondProcess) { throw 'Fresh-process check did not observe a different process.' }
+    if ($firstProcess.ProcessId -eq $secondProcess.ProcessId) { throw 'Fresh-process check did not observe a different process.' }
+    if ($firstProcess.locationProof -ne $secondProcess.locationProof -or $firstProcess.ciphertextProof -ne $secondProcess.ciphertextProof) { throw 'Owner file changed across restart.' }
+    Invoke-ProbeStep 'isolation' 'FAIL' $outsider ('0' * 64)
     # Preserve a failed isolation result while still running independent storage checks.
-    try { Invoke-ProbeStep 'isolation' 'PASS' $outsider | Out-Null }
+    try { Invoke-ProbeStep 'isolation' 'PASS' $outsider $secondProcess.locationProof | Out-Null }
     catch { $isolationFailure = $_ }
     Invoke-ProbeStep 'create' 'FAIL' $outsider
-    Invoke-ProbeStep 'read' | Out-Null # Owner's key/file still work after outsider attempts.
+    $after = Invoke-ProbeStep 'read'
+    if ($after.locationProof -ne $secondProcess.locationProof -or $after.ciphertextProof -ne $secondProcess.ciphertextProof) { throw 'Owner file changed during outsider attempts.' }
     Invoke-ProbeStep 'tamper' | Out-Null
     Invoke-ProbeStep 'delete-key' | Out-Null
     Invoke-ProbeAdb @('shell', 'am', 'force-stop', $package) | Out-Null
@@ -79,6 +98,9 @@ try {
     if ($cleanupFailed) { throw 'One or more isolated probe packages could not be removed.' }
 }
 if ($isolationFailure) {
+    foreach ($field in @('sameLocationVerified', 'readOpen', 'writeOpen')) {
+        if ($isolationFailure.Exception.Data.Contains($field)) { Write-Output "$field=$($isolationFailure.Exception.Data[$field])" }
+    }
     Write-Output 'Storage/restart/tamper/missing-key checks and cleanup passed. File-isolation acceptance did not pass.'
     throw $isolationFailure
 }
