@@ -1,0 +1,8 @@
+{
+  "identifier": "android-fictional-launch",
+  "description": "Open the native fictional experiment only; no record or storage access.",
+  "local": true,
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["allow-open-fictional-vault"]
+}

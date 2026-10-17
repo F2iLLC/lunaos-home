@@ -1,5 +1,9 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "app": {
+    "withGlobalTauri": true,
+    "security": { "capabilities": ["android-fictional-launch"] }
+  },
   "build": {
     "beforeBuildCommand": "npm run build:native && node scripts/prepare-android.mjs"
   },
