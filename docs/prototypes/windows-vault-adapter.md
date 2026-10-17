@@ -36,12 +36,16 @@ Run on Windows build 26300, Node 24.19.0 and PowerShell 7.6.5 with the fixed fic
 | Read-only, delete and expiry | Mutations were denied by the service; subsequent reads confirmed the intended values remained. |
 | Separate disclosure | A simulated assistant connection could not read without disclosure; approved disclosure returned only Alex's selected value. No live model call occurred. |
 | Fresh Node process | Reopened the protected store and read both records with a fresh approval. The old process's grant was rejected. This is not a machine reboot or OS unlock test. |
+| Failure before a write | An injected adapter failure left the ciphertext byte-for-byte unchanged. The service reported `WRITE_UNKNOWN`, invalidated the connection and denied a queued retry without a second adapter call. A newly approved read and fresh Node process recovered the original value. |
+| Lost write confirmation | After the real encrypted edit completed, an injected adapter error suppressed its receipt. The service reported `WRITE_UNKNOWN`, invalidated the connection and denied a queued overwrite. Both a newly approved read and a fresh Node process recovered the changed value and the untouched second member's record; the old grant stayed invalid. |
 | Duplicate create / edit missing record | Both failed; the original ciphertext remained byte-for-byte unchanged. |
 | Corruption | Altered ciphertext caused read and edit to fail without overwriting it. Restoring the saved original test bytes restored readability. This does not prove replay/rollback protection. |
 | Concurrent writer | A held lock caused edit to fail; the encrypted file remained unchanged. |
 | Output inspection / cleanup | Only `records.bin` remained after operations; the specified UTF-8/UTF-16 fixture markers were absent. The unique run directory was removed. This is not an inspection of OS paging, crash dumps, backups or all logs. |
 
 The current-user DPAPI limitations still apply: another process under the same Windows user can decrypt, and Windows profile/recovery arrangements matter. No Home unlock prompt, hardware-bound key guarantee, backup exclusion or device-exclusive custody is established. Production typed Sign-ins and secret classification are not implemented by the profile-detail schema.
+
+The uncertain-write checks inject an error in the local adapter wrapper before a write or after a successful encrypted commit. They prove that a generic failure does not imply rollback and that this service does not automatically replay the write. They do not terminate a worker, interrupt filesystem replacement or simulate power loss. Fresh-process recovery is a test-controlled read with new permission, not a finished recovery screen or durable operation-ID protocol.
 
 ## Remaining Session 2 work
 

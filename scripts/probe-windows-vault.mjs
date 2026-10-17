@@ -11,8 +11,9 @@ const alex = { memberId: 'alex-example', label: 'Workplace', value: 'Willow Stud
 const sam = { memberId: 'sam-example', label: 'School', value: 'Meadow School' };
 const scope = { recordIds: ['alex-work', 'sam-school'], lifetimeMs: 60000 };
 const isCode = code => error => error.code === code;
+const changedWorkplace = 'Willow Annex';
 
-async function freshReader(probeId, oldGrant) {
+async function freshReader(probeId, oldGrant, committedWithoutReceipt = false) {
   const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--read'], {
     windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -35,21 +36,78 @@ async function freshReader(probeId, oldGrant) {
     });
   });
   child.stdin.on('error', () => {});
-  child.stdin.end(JSON.stringify({ probeId, oldGrant }));
+  child.stdin.end(JSON.stringify({ probeId, oldGrant, committedWithoutReceipt }));
   await result;
+}
+
+async function uncertainWriteChecks(store) {
+  // Inject only at the adapter boundary. These are not process-kill tests.
+  for (const commit of [false, true]) {
+    const baseline = await readFile(join(store.directory, 'records.bin'));
+    const entered = Promise.withResolvers();
+    const release = Promise.withResolvers();
+    let writes = 0;
+    const service = createVaultSessionService({ store: {
+      read: id => store.read(id),
+      create: (id, data) => store.create(id, data),
+      async edit(id, data) {
+        writes++;
+        entered.resolve();
+        if (commit) await store.edit(id, data);
+        await release.promise;
+        throw Error('Synthetic private adapter diagnostic');
+      },
+    } });
+    try {
+      service.admitDevice('windows-example');
+      const connection = service.openConnection({ deviceId: 'windows-example' });
+      const grant = service.approveSetup(connection, scope);
+      const request = { action: 'edit', recordId: 'alex-work', data: { ...alex, value: changedWorkplace } };
+      const first = assert.rejects(connection.execute(grant, request), error => {
+        assert.equal(error.code, 'WRITE_UNKNOWN');
+        assert.doesNotMatch(error.message, /Synthetic private|Willow/);
+        return true;
+      });
+      await entered.promise;
+      const retry = assert.rejects(connection.execute(grant, {
+        ...request, data: { ...alex, value: 'Must not be saved' },
+      }), isCode('DENIED'));
+      release.resolve();
+      await Promise.all([first, retry]);
+      assert.equal(writes, 1);
+      await assert.rejects(connection.execute(grant, { action: 'read', recordId: 'alex-work' }), isCode('DENIED'));
+      const reconnected = service.openConnection({ deviceId: 'windows-example' });
+      await assert.rejects(reconnected.execute(grant, { action: 'read', recordId: 'alex-work' }), isCode('DENIED'));
+      const freshGrant = service.approveReadOnly(reconnected, scope);
+      const expected = { ...alex, value: commit ? changedWorkplace : 'Willow Workshop' };
+      assert.deepEqual(await reconnected.execute(freshGrant, { action: 'read', recordId: 'alex-work' }), expected);
+      const after = await readFile(join(store.directory, 'records.bin'));
+      if (commit) assert.notDeepEqual(after, baseline);
+      else assert.deepEqual(after, baseline);
+      service.shutdown();
+      await freshReader(store.probeId, grant, commit);
+    } finally {
+      release.resolve();
+      service.shutdown();
+    }
+  }
+  // Return the isolated fixture to the baseline for the remaining corruption checks.
+  await store.edit('alex-work', { ...alex, value: 'Willow Workshop' });
 }
 
 if (process.argv[2] === '--read') {
   let input = '';
   for await (const chunk of process.stdin) { input += chunk; if (input.length > 4096) throw Error('Invalid probe input.'); }
-  const { probeId, oldGrant } = JSON.parse(input);
+  const { probeId, oldGrant, committedWithoutReceipt } = JSON.parse(input);
   const store = await openWindowsProbeStore({ powershell, probeId });
   const service = createVaultSessionService({ store });
   service.admitDevice('windows-example');
   const connection = service.openConnection({ deviceId: 'windows-example' });
   await assert.rejects(connection.execute(oldGrant, { action: 'read', recordId: 'alex-work' }), isCode('DENIED'));
   const grant = service.approveReadOnly(connection, scope);
-  assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'alex-work' }), { ...alex, value: 'Willow Workshop' });
+  assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'alex-work' }), {
+    ...alex, value: committedWithoutReceipt ? changedWorkplace : 'Willow Workshop',
+  });
   assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'sam-school' }), sam);
   service.shutdown();
   console.log(JSON.stringify({ passed: true, processId: process.pid }));
@@ -82,6 +140,7 @@ if (process.argv[2] === '--read') {
     await assert.rejects(local.execute(setup, { action: 'edit', recordId: 'alex-work', data: alex }), isCode('DENIED'));
     service.shutdown();
     await freshReader(store.probeId, setup);
+    await uncertainWriteChecks(store);
 
     const original = await readFile(file);
     const altered = Buffer.from(original);
@@ -113,6 +172,8 @@ if (process.argv[2] === '--read') {
   console.log(JSON.stringify({
     passed: true, encryptedCreateEditRead: true, freshProcessRead: true,
     oldGrantRejectedAfterRestart: true, readOnlyAndExpiredWritesDenied: true,
+    preCommitFailurePreservedCiphertext: true, lostReceiptRecoveredAfterRestart: true,
+    uncertainWritesInvalidatedConnectionAndDeniedRetry: true,
     separateFieldDisclosureEnforced: true, corruptStoreRejectedWithoutOverwrite: true,
     duplicateCreateAndMissingEditRejected: true,
     concurrentWriterDeniedWithoutChange: true, ciphertextMarkersAbsent: true,
