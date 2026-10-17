@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { createDraftStore, exampleProposal, DraftError } from './lib/drafts.js';
+import { VaultAccessError } from './lib/vault-sessions.js';
 
 const routes = new Map([
   ['/', ['index.html', 'text/html']],
@@ -13,7 +14,7 @@ const routes = new Map([
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
 ]);
 
-export function createAppServer({ drafts = createDraftStore() } = {}) {
+export function createAppServer({ drafts = createDraftStore(), windowsPreview } = {}) {
   return createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -36,6 +37,27 @@ export function createAppServer({ drafts = createDraftStore() } = {}) {
         return;
       }
       try {
+        if (['/api/windows-preview', '/api/windows-assistant'].includes(request.url) && windowsPreview) {
+          const assistantRequest = request.url === '/api/windows-assistant';
+          const accepted = assistantRequest ? windowsPreview.acceptsAssistantKey(request.headers['x-home-assistant-key'])
+            : windowsPreview.acceptsKey(request.headers['x-home-windows-key']);
+          if (!accepted) {
+            send(403, { error: 'Open the link from this Windows preview to continue.' }); return;
+          }
+          if (request.method !== 'POST') { send(405, { error: 'Use a preview action.' }); return; }
+          if (request.headers['content-type'] !== 'application/json') { send(415, { error: 'Unsupported request.' }); return; }
+          const chunks = [];
+          let bytes = 0;
+          for await (const chunk of request) {
+            bytes += chunk.length;
+            if (bytes > 2048) { send(413, { error: 'That request is too large.' }); return; }
+            chunks.push(chunk);
+          }
+          const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const result = await (assistantRequest ? windowsPreview.assistantRequest(input) : windowsPreview.request(input));
+          send(200, result);
+          return;
+        }
         if (request.url === '/api/draft' && request.method === 'GET') {
           send(200, { draft: drafts.read() });
           return;
@@ -58,8 +80,9 @@ export function createAppServer({ drafts = createDraftStore() } = {}) {
           : request.url === '/api/review' ? drafts.review(input) : drafts.discard(input);
         send(200, { draft });
       } catch (error) {
-        send(error instanceof DraftError ? error.status : 400, {
-          error: error instanceof DraftError ? error.message : 'That change could not be read. Refresh and try again.',
+        send(error instanceof VaultAccessError ? 409 : error instanceof DraftError ? error.status : 400, {
+          ...(error instanceof VaultAccessError ? { code: error.code } : {}),
+          error: error instanceof DraftError || error instanceof VaultAccessError ? error.message : 'That change could not be read. Refresh and try again.',
         });
       }
       return;
@@ -68,13 +91,21 @@ export function createAppServer({ drafts = createDraftStore() } = {}) {
       response.writeHead(405, { Allow: 'GET, HEAD' }).end();
       return;
     }
-    const route = routes.get(request.url);
+    const previewRoute = windowsPreview && ({
+      '/windows-vault': ['windows-vault.html', 'text/html'],
+      '/windows-vault.js': ['windows-vault.js', 'text/javascript'],
+    })[request.url];
+    const route = previewRoute || routes.get(request.url);
     if (!route) {
       response.writeHead(404).end();
       return;
     }
     try {
-      const content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
+      let content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
+      if (route[0] === 'windows-vault.html' && windowsPreview.nativeVerification) {
+        content = content.toString('utf8').replace('It does not unlock a vault or connect your phone.',
+          'Windows verification is required for this visit. Closing the app or reaching five minutes ends all access. This test does not connect your phone.');
+      }
       response.writeHead(200, { 'Content-Type': `${route[1]}; charset=utf-8` });
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch {

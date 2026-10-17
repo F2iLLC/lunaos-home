@@ -40,6 +40,10 @@ The MPL-2.0 crates are `cssparser` 0.37.0, `cssparser-macros` 0.7.1, `dtoa-short
 
 The bundled JavaScript uses only Home and Zod; the build rejects accidental MCP SDK/server inclusion and preserves Zod's MIT license in the frontend notices page. The Tauri CLI and esbuild are build tools; their runtime dependencies have their own terms. The moon icon is original SVG artwork authored for this project and rendered with the Tauri CLI, not copied from the user's inspiration images.
 
+## Windows native verification
+
+The opt-in Windows native verification experiment directly references the already locked Microsoft `windows` 0.62.2 and `windows-future` 0.3.2 crates (MIT OR Apache-2.0, [windows-rs](https://github.com/microsoft/windows-rs)). Their installed manifests and license files were inspected by the native inventory. Only direct dependency edges/features changed; no new crate versions or copied implementation were introduced. The four-target inventory remains 286 distinct packages with the same 11 license/source-review gaps. Microsoft desktop API documentation informed original Home integration code. Existing notice, source-availability and binary-distribution gates remain.
+
 ## Android build probe
 
 The Android build uses the same pinned Tauri packages and Cargo lockfile. Android x86_64 and ARM64 target-filtered metadata each resolve 258 third-party Cargo packages plus Home, using the same declared license families listed above. This inventory includes build dependencies and does not replace a complete APK notice review.

@@ -1,6 +1,6 @@
 # Session permission service experiment
 
-This bounded [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) increment implements a process-local enforcement contract in `lib/vault-sessions.js`. It is exercised with a synthetic in-memory storage adapter. It is not connected to the current GUI, MCP server, DPAPI probe or Android app, and it is not a usable vault.
+This bounded [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) increment implements a process-local enforcement contract in `lib/vault-sessions.js`. Its unit tests use a synthetic in-memory adapter; the subsequent [Windows encrypted adapter experiment](windows-vault-adapter.md) exercises the same service with actual protected files. It is not connected to the current GUI, MCP server or Android app, and it is not a usable vault.
 
 ## Controller and connection boundary
 
@@ -41,4 +41,4 @@ The synthetic tests exercise denied unadmitted connections, grant theft across c
 
 Disclosure tests distinguish write permission from read/export permission, destination and record scope, selected fields, caller mutation of approval objects and expiry during a read. Mutation tests preserve an enqueued request despite later caller changes, report a confirmed in-flight write truthfully, and simulate an applied write whose acknowledgement is lost: one write occurs, the queued retry is denied and no private adapter message is exposed.
 
-This adds no dependencies, listeners, tool registrations, OS permissions or data files. Actual GUI/MCP integration, encrypted storage, OS unlock, authenticated device transport, Android lifecycle, production audit/recovery and independent security acceptance remain open. The [Windows DPAPI experiment](windows-storage.md) is separate evidence, not an adapter integrated by these tests. Actions remains disabled.
+This module and its unit tests add no dependencies, listeners, tool registrations, OS permissions or data files. Actual GUI/MCP integration, production encrypted storage, OS unlock, authenticated device transport, Android lifecycle, audit/recovery and independent security acceptance remain open. The [standalone DPAPI experiment](windows-storage.md) and later [adapter/service check](windows-vault-adapter.md) record their own runtime evidence and limits. Actions remains disabled.

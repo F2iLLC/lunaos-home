@@ -18,6 +18,7 @@ let html = await readFile(resolve(root, 'src/index.html'), 'utf8');
 html = html.replace('href="/styles.css"', 'href="./styles.css"').replace('src="/app.js"', 'src="./app.js"');
 await writeFile(resolve(output, 'index.html'), html);
 await copyFile(resolve(root, 'src/styles.css'), resolve(output, 'styles.css'));
+await copyFile(resolve(root, 'src/windows-unlock.html'), resolve(output, 'windows-unlock.html'));
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const license = await readFile(resolve(root, 'LICENSE'), 'utf8');
 const zodLicense = await readFile(resolve(root, 'node_modules/zod/LICENSE'), 'utf8');
