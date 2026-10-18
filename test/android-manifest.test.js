@@ -48,6 +48,7 @@ test('generated components from another feature cannot silently enter the offlin
     '<service android:name=".RestingDreamService" android:permission="android.permission.BIND_DREAM_SERVICE" />',
     '<receiver android:name=".OtherFeatureReceiver" />',
     '<activity-alias android:name=".OtherLauncher" android:targetActivity=".MainActivity" />',
+    '<activity android:name=".OtherActivity" android:exported="false" />',
   ]) {
     const contaminated = template.replace('</application>', `${component}</application>`);
     assert.throws(() => offlineManifest(contaminated), /Unexpected Android component/);
@@ -57,10 +58,8 @@ test('generated components from another feature cannot silently enter the offlin
 });
 
 test('software rendering is activity-scoped, preserves offline policy and resets on a normal build', () => {
-  const withOtherActivity = template.replace('</application>', '<activity android:name=".OtherActivity" android:hardwareAccelerated="true" /></application>');
-  const software = offlineManifest(withOtherActivity, { softwareRendering: true });
+  const software = offlineManifest(template, { softwareRendering: true });
   assert.match(software, /<activity android:hardwareAccelerated="false" android:name="\.MainActivity" android:exported="true"/);
-  assert.match(software, /<activity android:name="\.OtherActivity" android:hardwareAccelerated="true"/);
   assert.doesNotMatch(software, /<application[^>]*hardwareAccelerated|uses-permission/);
   assert.match(software, /android:allowBackup="false"/);
   assert.match(software, /android:usesCleartextTraffic="false"/);

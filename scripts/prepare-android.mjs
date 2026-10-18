@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -15,6 +15,14 @@ class MainActivity : TauriActivity() {
   }
 }`;
 const normalized = text => text.replace(/\r\n/g, '\n').trim();
+export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+  <application>
+    <activity android:name=".VaultActivity" android:exported="false" />
+    <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" />
+  </application>
+</manifest>
+`;
 
 export function insetActivity(source) {
   if (![generatedActivity, activityTemplate].some(expected => normalized(expected) === normalized(source))) {
@@ -38,6 +46,9 @@ export function offlineManifest(xml, { softwareRendering = false } = {}) {
     throw new Error('Unexpected Android template. Review it before building.');
   }
   const activity = activities[0];
+  if ((xml.match(/<activity(?=\s|>)/g) || []).length !== 1) {
+    throw new Error('Unexpected Android component: extra activity.');
+  }
   const rendering = `android:hardwareAccelerated="${!softwareRendering}"`;
   const existingRendering = activity.match(/\bandroid:hardwareAccelerated="[^"]*"/g) || [];
   if (existingRendering.length > 1 || (activity.includes('android:hardwareAccelerated') &&
@@ -83,7 +94,34 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // another feature's custom activity just because its directory is ignored.
   const activity = insetActivity(await readFile(activityPath, 'utf8'));
   const preparedManifest = offlineManifest(manifest, { softwareRendering });
+  const debugRoot = new URL('../src-tauri/gen/android/app/src/debug/', import.meta.url);
+  const javaRoot = new URL('java/io/github/f2illc/lunaos/home/preview/', debugRoot);
+  const sourceRoot = new URL('./android/vault/', import.meta.url);
+  const sources = ['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
+  const generatedSources = ['Ipc.kt', 'Logger.kt', 'PermissionHelper.kt', 'Rust.kt', 'RustWebChromeClient.kt',
+    'RustWebView.kt', 'RustWebViewClient.kt', 'TauriActivity.kt', 'WryActivity.kt'];
+  for (const variant of ['main', 'debug', 'release']) {
+    const root = new URL(`../src-tauri/gen/android/app/src/${variant}/`, import.meta.url);
+    let files = [];
+    try { files = await readdir(root, { recursive: true }); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    for (const relative of files) {
+      const file = relative.replaceAll('\\', '/');
+      const mainSource = variant === 'main' && (file === 'java/io/github/f2illc/lunaos/home/preview/MainActivity.kt' ||
+        generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
+      if (/\.(?:java|kt)$/.test(file) && !mainSource &&
+          !(variant === 'debug' && sources.includes(file.split('/').at(-1)) && file === `java/io/github/f2illc/lunaos/home/preview/${file.split('/').at(-1)}`)) {
+        throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
+      }
+      if (file === 'AndroidManifest.xml' && variant !== 'main') {
+        if (variant !== 'debug' || await readFile(new URL(file, root), 'utf8') !== vaultDebugManifest)
+          throw new Error('Unexpected variant manifest; preserve and regenerate before building.');
+      }
+    }
+  }
+  await mkdir(javaRoot, { recursive: true });
+  for (const source of sources) await copyFile(new URL(source, sourceRoot), new URL(source, javaRoot));
+  await writeFile(new URL('AndroidManifest.xml', debugRoot), vaultDebugManifest);
   await writeFile(path, preparedManifest);
   await writeFile(activityPath, activity);
-  console.log(`Prepared offline Android source manifest: no requested permissions, cleartext disabled, backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
+  console.log(`Prepared Android main manifest without permissions; debug adds only USE_BIOMETRIC and the non-exported fictional Activity. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }

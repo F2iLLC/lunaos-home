@@ -1,3 +1,5 @@
+#[cfg(all(target_os = "android", debug_assertions))]
+mod android_vault;
 #[cfg(all(target_os = "windows", debug_assertions))]
 mod desktop_review;
 #[cfg(all(target_os = "windows", debug_assertions))]
@@ -52,7 +54,11 @@ pub fn run() {
         (builder, context)
     };
 
-    // No application commands, plugins or native capability grants.
+    #[cfg(all(target_os = "android", debug_assertions))]
+    let builder = builder
+        .plugin(android_vault::plugin())
+        .invoke_handler(tauri::generate_handler![android_vault::open_fictional_vault]);
+
     builder
         .run(context)
         .expect("Could not start the fictional Home preview");

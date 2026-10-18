@@ -1,5 +1,7 @@
 # Android Keystore storage experiment
 
+The separate [Home-native integration](android-home-vault.md) now implements an authentication-bound, debug-only phone flow. This page still describes the earlier standalone probe; its evidence and pending outsider assertion do not establish integration acceptance.
+
 This developer-only [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) experiment protects a fixed fictional Alex/Sam record using Android's own cryptographic provider. It is a separate instrumentation package, `io.github.f2illc.lunaos.vaultprobe`, with no activity, network permission, arbitrary-record input or connection to the Home preview. It does not implement the phone vault GUI, session service, assistant tools or pairing.
 
 A second package, `io.github.f2illc.lunaos.vaultprobe.outsider`, uses the same original test class and disposable signing certificate but a different Android UID. It accepts only an isolation-check operation, with no record/key creation. Its manifest allows metadata lookup of only the primary probe. The check requires distinct UIDs, attempts lookup of the known run's key in the outsider's Keystore namespace, and attempts read/write opens of the primary probe's fixed synthetic file. File opens must fail specifically with `EACCES`; a missing path or unrelated failure cannot count as a pass. It neither requests shared-UID access nor uses privileged shell identity for those attempts. The primary probe reads its fixture successfully before and after the outsider check.

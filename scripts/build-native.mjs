@@ -10,6 +10,10 @@ const built = await build({
   absWorkingDir: root, entryPoints: ['src/native.js'], outfile: 'native-dist/app.js',
   bundle: true, format: 'esm', platform: 'browser', target: 'es2022',
   legalComments: 'external', metafile: true,
+  define: {
+    __ANDROID_VAULT_DEBUG__: JSON.stringify(process.env.TAURI_ENV_DEBUG === 'true' &&
+      ['android', 'androideabi'].includes(process.env.TAURI_ENV_PLATFORM)),
+  },
 });
 if (Object.keys(built.metafile.inputs).some(path => path.includes('@modelcontextprotocol') || path === 'server.js')) {
   throw new Error('The offline package must not include the desktop MCP/HTTP service.');

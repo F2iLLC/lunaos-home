@@ -1,5 +1,7 @@
 # Session permission service experiment
 
+The [Android Home integration](android-home-vault.md) implements the bounded phone-only counterpart with one native Java policy/storage path and explicit OS verification/native approval. It does not expose this JavaScript controller to the web view or integrate assistants/pairing; its compiler/unit evidence is separate from device acceptance.
+
 This bounded [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) increment implements a process-local enforcement contract in `lib/vault-sessions.js`. Its unit tests use a synthetic in-memory adapter; the subsequent [Windows encrypted adapter experiment](windows-vault-adapter.md) exercises the same service with actual protected files. It is not connected to the current GUI, MCP server or Android app, and it is not a usable vault.
 
 ## Controller and connection boundary

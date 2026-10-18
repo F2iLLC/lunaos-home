@@ -1,6 +1,6 @@
 # Android offline preview
 
-This is the Android build path for the [native shell probe](native-shell.md). It uses only the example family and in-memory draft rules. It has no assistant connection, vault storage or phone/computer bridge. Android 16 / API 36 on an x86_64 Pixel 7 emulator is the initial test target; a physical phone is a separate acceptance check.
+This is the Android build path for the [native shell probe](native-shell.md). Its default flow uses only the example family and in-memory draft rules, with no assistant connection or phone/computer bridge. Android debug builds also expose a separate [fictional native vault experiment](android-home-vault.md), requiring API30+ device credentials and explicit native approval. Android 16 / API 36 on an x86_64 Pixel 7 emulator was the initial shell target; that evidence is not acceptance of the new vault flow.
 
 ## Prerequisites
 
