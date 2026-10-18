@@ -23,7 +23,8 @@ this helper. Supply:
 - An operator-prepared, isolated Linux x86_64 toolchain directory, consisting
   only of `jdk/`, `rust/`, and `sdk/` as described below. No developer home,
   credentials, `.env`, signing material, source checkout, emulator, system image,
-  or platform-tools. The first native target is **x86_64-linux-android only**.
+  or platform-tools. The supported native Rust targets are **x86_64-linux-android**
+  and **aarch64-linux-android** (HOME14-ARM64); no other Android target is accepted.
 - A separate JSON SHA256 inventory/provenance manifest. Authenticate each
   original vendor archive/checksum before extraction, and independently review
   the resulting inventory. A manifest supplied alongside malicious files is not
@@ -73,11 +74,15 @@ build, compilation and APK validation remain pending.
 
 `rust/` is a complete relocatable, standalone installed Rust toolchain prefix,
 not rustup shims or a developer `.cargo`/`.rustup` directory. Include
-`bin/rustc`, `bin/cargo`, host libraries for `x86_64-unknown-linux-gnu`,
-`lib/rustlib/x86_64-linux-android/lib/libstd-<hash>.rlib` and its complete target
-libraries, plus root `LICENSE-APACHE`, `LICENSE-MIT` and all other notices.
-The exact stable `1.x.y` toolchain version is supervisor-selected and recorded;
-compatibility with this repository's Cargo.lock is not yet established.
+`bin/rustc`, `bin/cargo`, host libraries for `x86_64-unknown-linux-gnu`, both
+`lib/rustlib/x86_64-linux-android/lib/libstd-<hash>.rlib` and
+`lib/rustlib/aarch64-linux-android/lib/libstd-<hash>.rlib` with their complete
+target libraries, plus root `LICENSE-APACHE`, `LICENSE-MIT` and all other
+notices. The exact stable `1.x.y` toolchain version is supervisor-selected and
+recorded; compatibility with this repository's Cargo.lock is not yet
+established. Staging requires the complete inventory to contain a `libstd`
+rlib for each supported target; a manifest or disk inventory missing either
+target's library is rejected before any output is written.
 
 `sdk/` contains only these complete, operator-prepared Linux packages:
 
@@ -86,7 +91,7 @@ compatibility with this repository's Cargo.lock is not yet established.
 | `cmdline-tools/pinned/` | Exact numeric `Pkg.Revision` in manifest; `bin/sdkmanager`, `NOTICE.txt`, libraries |
 | `platforms/android-37.0/` | Platform 37.0, `android.jar`, `source.properties` with exactly `AndroidVersion.ApiLevel=37.0` (supervisor-observed `platform-37.0_r02.zip`, `Pkg.Revision=2`) |
 | `build-tools/37.0.0/` | Revision 37.0.0; Linux aapt2, d8, apksigner, zipalign and supporting files |
-| `ndk/29.0.14206865/` | Revision 29.0.14206865; Linux x86_64 LLVM, sysroot, `NOTICE` |
+| `ndk/29.0.14206865/` | Revision 29.0.14206865; Linux x86_64 LLVM, sysroot, `NOTICE`, both the `x86_64-linux-android24-clang` and `aarch64-linux-android24-clang` API-24 wrapper scripts |
 | `licenses/` | Existing **operator-accepted** SDK licenses, including nonempty `android-sdk-license` |
 
 Command-line tools are normalized to the fixed directory `pinned`, never
@@ -170,7 +175,7 @@ output leaf; disposal of old external output belongs to the operator.
 
 ### Rust target validation correction (#38)
 
-The image now compiles and links a fixed, synthetic Rust program using `std`,
+The image compiles and links a fixed, synthetic Rust program using `std`,
 `String` and `Vec` for `x86_64-linux-android` with the configured NDK API-24
 linker. A successful exit must also produce an ELF64 x86_64 executable/PIE.
 The temporary output is removed on success or failure and is never executed.
@@ -178,18 +183,49 @@ The staging inventory's single `libstd` check remains only a preliminary file
 check; the image build must pass compilation. Printing `target-libdir` alone
 does not prove that the target libraries are usable.
 
+### ARM64 toolchain support (HOME14-ARM64)
+
+The image build and `scripts/android-container/verify-rust-target.mjs` now also
+compile and link the same synthetic `std`-using program for
+`aarch64-linux-android` with the `aarch64-linux-android24-clang` NDK API-24
+linker, alongside the existing `x86_64-linux-android` check. Each target's
+output is independently verified as an ELF64 executable/PIE with the little-
+endian class/encoding and the target's expected `e_machine`: 62 (`EM_X86_64`)
+for `x86_64-linux-android`, 183 (`EM_AARCH64`) for `aarch64-linux-android`.
+Either temporary output is removed on every outcome and neither Android binary
+is ever executed. Staging (`prepare.mjs`) now requires the complete manifest
+and disk inventory to contain a `libstd` rlib for both targets and both NDK
+API-24 clang linker wrappers (`sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/
+linux-x86_64/bin/{x86_64,aarch64}-linux-android24-clang`); a manifest or input
+directory missing either target's library or linker is rejected before any
+output is written, with all prior path, credential, provenance, hash,
+accepted-license and offline restrictions unchanged.
+
+This still does not build an APK, link the Tauri Android library, warm Gradle/
+Cargo dependencies for either ABI, or run/accept anything on the physical
+Samsung SM-S938U (arm64-v8a, Android 17/API 37) or any emulator/device. It
+only proves that an operator-supplied, authenticated toolchain input can
+compile and correctly link minimal Rust programs for both the historical
+x86_64 target and the phone's actual arm64-v8a ABI.
+
 Run `node scripts/android-container/probe-rust-target.mjs` in a disposable Linux
 toolchain container with networking disabled. It first checks the complete
-toolchain, then copies target libraries into three temporary sysroots: only
-`libstd`, missing `core`, and missing `compiler_builtins`. Each must pass the
-old path-print check but fail the new compile/link check. Installed libraries
-are never changed; only those temporary copies are removed.
+toolchain for both targets, then copies each target's libraries into three
+temporary sysroots per target: only `libstd`, missing `core`, and missing
+`compiler_builtins`. Each must pass the old path-print check but fail the new
+compile/link check. Installed libraries are never changed; only those
+temporary copies are removed.
 
-On 2026-10-17, this regression passed with the configured Linux Rust 1.99.0
-and NDK 29.0.14206865 toolchain. This establishes a minimal target compile/link
-and rejects the reproduced incomplete-library cases. It does not establish a
-fresh image build, full APK build, runtime compatibility or device acceptance.
-The earlier preparation-only evidence below remains historical.
+On 2026-10-17, the x86_64-only regression passed with the configured Linux
+Rust 1.99.0 and NDK 29.0.14206865 toolchain. The aarch64-linux-android checks
+added for HOME14-ARM64 have only run against Node's inert synthetic fixtures
+in this dispatch (`test/android-container.test.js`,
+`test/android-rust-target.test.js`); no real Rust/NDK toolchain exercised the
+new ARM64 compile/link path here. This establishes a minimal target
+compile/link contract and rejects the reproduced incomplete-library and
+incorrect-ELF cases for both targets. It does not establish a fresh image
+build, full APK build, runtime compatibility or device acceptance for either
+ABI. The earlier preparation-only evidence below remains historical.
 
 ### Earlier preparation-only evidence
 
@@ -229,9 +265,15 @@ The supervisor must distinguish these subsequent steps:
    Any disposable signing material belongs only in the assigned build workspace,
    never the toolchain input/image or repository history.
 
-Preparation validation on Node 24.19.0 passed: all six tests in
-`node --test test/android-container.test.js`, all 70 tests in `npm test`, and
-`npm run build:native` (frontend bundling only). These were run with temporary
-fixtures under `/dispatch-tmp`; no real vendor toolchain was used. No product
-acceptance, Android GUI/storage change, device test, deployment, workflow change
-or merge follows from this preparation.
+Preparation validation on Node 24.19.0 passed: all eleven tests in
+`node --test test/android-container.test.js`, all seven tests in
+`node --test test/android-rust-target.test.js` (covering both
+`x86_64-linux-android` and `aarch64-linux-android`), all 93 tests in
+`npm test`, and `npm run build:native` (frontend bundling only). These were run
+with synthetic Node fixtures only, under a disposable temporary directory; no
+real vendor toolchain, JDK, Rust, NDK, SDK license acceptance or network access
+was used. No product acceptance, Android GUI/storage change, device test,
+deployment, workflow change or merge follows from this preparation. The
+operator must still run `probe-rust-target.mjs` and a real image build/APK
+build against actual authenticated toolchain inputs, and the Samsung
+SM-S938U/arm64-v8a device acceptance for issue #14 remains entirely open.

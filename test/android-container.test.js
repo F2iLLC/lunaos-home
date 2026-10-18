@@ -41,10 +41,11 @@ async function fixture(context, extraContents = {}) {
   for (const path of [
     'jdk/bin/java', 'jdk/bin/javac', 'jdk/LICENSE', 'rust/bin/rustc', 'rust/bin/cargo',
     'rust/LICENSE-APACHE', 'rust/LICENSE-MIT', 'rust/lib/rustlib/x86_64-linux-android/lib/libstd-abc123.rlib',
+    'rust/lib/rustlib/aarch64-linux-android/lib/libstd-abc123.rlib',
     'sdk/cmdline-tools/pinned/bin/sdkmanager', 'sdk/cmdline-tools/pinned/NOTICE.txt',
     'sdk/platforms/android-37.0/android.jar', 'sdk/ndk/29.0.14206865/NOTICE',
     ...['aapt2', 'd8', 'apksigner', 'zipalign'].map(name => `sdk/build-tools/37.0.0/${name}`),
-    ...['clang', 'x86_64-linux-android24-clang'].map(name => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/${name}`),
+    ...['clang', 'x86_64-linux-android24-clang', 'aarch64-linux-android24-clang'].map(name => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/${name}`),
   ]) contents[path] = 'synthetic fixture, not a compiler\n';
   Object.assign(contents, extraContents);
   const manifest = {
@@ -138,6 +139,22 @@ test('NDK exceptions still require complete inventory, matching hashes and regul
       unlisted: /exactly match SHA256 inventory/, checksum: /SHA256 mismatch/,
       symlink: /regular files/, hardlink: /Hardlinked/, directory: /unsafe filename/,
     }[failure]);
+    await assert.rejects(lstat(options.output), { code: 'ENOENT' });
+  }
+});
+
+test('rejects a missing ARM64 target library or NDK linker, keeping x86_64-only staging refused too', async context => {
+  for (const missing of [
+    'rust/lib/rustlib/aarch64-linux-android/lib/libstd-abc123.rlib',
+    'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang',
+    'rust/lib/rustlib/x86_64-linux-android/lib/libstd-abc123.rlib',
+    'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang',
+  ]) {
+    const options = await fixture(context);
+    delete options.manifest.files[missing];
+    await options.save();
+    await rm(join(options.input, missing));
+    await assert.rejects(prepare(options), /missing/i, missing);
     await assert.rejects(lstat(options.output), { code: 'ENOENT' });
   }
 });
