@@ -13,8 +13,13 @@ ENV JAVA_HOME=/opt/home-android/jdk \
 ENV PATH="/opt/home-android/jdk/bin:/opt/home-android/rust/bin:/opt/home-android/sdk/cmdline-tools/pinned/bin:${PATH}"
 ARG RUST_VERSION
 ARG JDK_VERSION
+# verify-rust-target.mjs compiles and links synthetic std-using programs for
+# both x86_64-linux-android and aarch64-linux-android with their matching NDK
+# API-24 linkers and checks each resulting ELF machine; neither binary runs.
 RUN test "$(rustc --version | cut -d ' ' -f 2)" = "$RUST_VERSION" && \
     test "$(javac -version 2>&1)" = "javac $JDK_VERSION" && \
     node /opt/home-android/provenance/verify-rust-target.mjs && \
     java -version && cargo --version && \
-    "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version
+    "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version && \
+    "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang" --version && \
+    "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" --version
