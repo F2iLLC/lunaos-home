@@ -38,6 +38,10 @@ The actual offline Tauri x86_64 debug APK build also passes. Final inspection wi
 
 The packaged native library matches the final Rust output byte-for-byte. The final bundled JavaScript matches an independent in-memory build of the current source, including the launcher under `#home-actions`; copied debug native sources match their maintained originals. Eight focused manifest/launcher tests pass. Scratch preparation repeated without changing file hashes and refused an unexpected Java source without overwriting reviewed files. No device was installed or exercised.
 
+## Development hook
+
+Android's dev and build hooks both build the offline frontend and run `prepare-android.mjs` before native compilation. A clean initialized project therefore receives the debug plugin, Activity, service, store and manifest without needing an earlier APK build. Both hooks propagate preparation failures. The hook regression executes both configured commands against disposable synthetic generated trees and checks copied source bytes and refusal of an unexpected Java source; it does not launch Tauri, compile an APK or establish device acceptance. The desktop dev hook remains unchanged.
+
 ## Remaining device gates
 
 No emulator/device/authentication test is available in this implementation environment. Human checks must record exact source/package hash, device/API/WebView and observed results: credential success/cancel/failure/no-credential cases; prompt lifecycle and stale callback cancellation; explicit read-only/setup approval; initialization of each member; restart and fresh verification with ciphertext retained; tamper/missing-key refusal; expiry, End, screen lock, Home/app switch, rotation, Back and duplicate launch during held work; uncertain saves without automatic retry; touch targets, system insets, accessibility and no late content. A device whose credential UI backgrounds this Activity will fail closed and needs a separately reviewed lifecycle fix, not relaxed callback guards.
