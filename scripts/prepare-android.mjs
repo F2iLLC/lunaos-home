@@ -127,7 +127,7 @@ export async function prepareAndroid({
   const debugRoot = join(sourceTree, 'debug');
   const javaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/preview');
   const sourceRoot = new URL('./android/vault/', import.meta.url);
-  const sources = ['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
+  const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   // Inventory traverses directories; planned file destinations need an explicit
   // type check so a later copy cannot fail after earlier files were replaced.
   for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),

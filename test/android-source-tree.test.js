@@ -112,7 +112,7 @@ test('case variants of main, debug and flavor manifests are refused without writ
 
 test('directories at any planned generated file destination are rejected before writes', async context => {
   for (const relative of ['main/AndroidManifest.xml', `main/${pkg}/MainActivity.kt`,
-    'debug/AndroidManifest.xml', ...['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'].map(name => `debug/${pkg}/${name}`)]) {
+    'debug/AndroidManifest.xml', ...['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'].map(name => `debug/${pkg}/${name}`)]) {
     const f = await fixture(context);
     const path = join(f.src, relative);
     if (relative.startsWith('main/')) await rm(path);
