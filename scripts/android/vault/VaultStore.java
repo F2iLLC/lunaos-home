@@ -67,6 +67,7 @@ final class VaultStore implements VaultService.Store {
     }
     public void write(VaultService.Member member, int variant, Runnable beforeCommit) throws Exception {
         boolean existing = exists(member);
+        byte[] previous = existing ? envelope(member) : null;
         if (existing) read(member);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE, key(member, !existing));
@@ -91,9 +92,22 @@ final class VaultStore implements VaultService.Store {
             if (!Arrays.equals(expected, envelope(member)) || read(member) != variant)
                 throw new IllegalStateException("Unconfirmed write");
         } catch (Exception failure) {
-            if (output != null && !committing) atomic.failWrite(output);
+            if (output != null && !committing) {
+                FileOutputStream failedOutput = output;
+                Exception outcome = VaultRollback.resolve(failure,
+                    () -> atomic.failWrite(failedOutput),
+                    () -> restored(member, previous));
+                if (outcome != failure) throw outcome;
+            }
             if (committing) throw new java.io.IOException("Write outcome unknown", failure);
             throw failure;
         }
+    }
+    private boolean restored(VaultService.Member member, byte[] previous) throws Exception {
+        File base = file(member).getBaseFile();
+        File backup = new File(base + ".bak");
+        File fresh = new File(base + ".new");
+        if (previous == null) return !base.exists() && !backup.exists() && !fresh.exists();
+        return Arrays.equals(previous, envelope(member)) && !backup.exists() && !fresh.exists();
     }
 }

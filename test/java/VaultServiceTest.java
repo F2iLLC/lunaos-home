@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
 
 public final class VaultServiceTest {
     private static final VaultService.Member ALEX = VaultService.Member.ALEX;
@@ -31,6 +32,39 @@ public final class VaultServiceTest {
         public void write(VaultService.Member member, int variant, Runnable check) throws Exception {
             hold(); check.run(); value = variant; writes++; afterCommit.run();
             if (unknown) throw new java.io.IOException("Acknowledgement lost");
+        }
+    }
+    private static final class RollbackStore implements VaultService.Store {
+        final AtomicBoolean available;
+        final boolean failBaseDelete;
+        final boolean failBackupRename;
+        byte[] base = { 0 };
+        byte[] backup;
+        RollbackStore(AtomicBoolean available, boolean failBaseDelete, boolean failBackupRename) {
+            this.available = available;
+            this.failBaseDelete = failBaseDelete;
+            this.failBackupRename = failBackupRename;
+        }
+        public int read(VaultService.Member member) { return base == null ? -1 : base[0]; }
+        public void write(VaultService.Member member, int variant, Runnable beforeCommit) throws Exception {
+            byte[] previous = base.clone();
+            backup = previous.clone();
+            base = new byte[] { (byte) variant };
+            available.set(false);
+            try { beforeCommit.run(); }
+            catch (SecurityException denied) {
+                Exception outcome = VaultRollback.resolve(denied, () -> {
+                    if (!failBaseDelete) base = null;
+                    if (base == null && !failBackupRename) { base = backup; backup = null; }
+                }, () -> {
+                    if (base == null && backup != null && !failBackupRename) { base = backup; backup = null; }
+                    return Arrays.equals(previous, base);
+                });
+                available.set(true);
+                throw outcome;
+            }
+            available.set(true);
+            backup = null;
         }
     }
     public static void main(String[] args) throws Exception {
@@ -62,6 +96,24 @@ public final class VaultServiceTest {
         VaultService restarted = new VaultService(store, time::get);
         denied(() -> restarted.check(uncertain, ALEX, VaultService.Action.READ));
         require(restarted.read(restarted.approve(ALEX, VaultService.Mode.READ_ONLY), ALEX) == 1);
+        for (boolean failBaseDelete : new boolean[] { false, true }) {
+            for (boolean failBackupRename : new boolean[] { false, true }) {
+                if (!failBaseDelete && !failBackupRename) continue;
+                AtomicBoolean rollbackAvailable = new AtomicBoolean(true);
+                RollbackStore rollbackStore = new RollbackStore(rollbackAvailable, failBaseDelete, failBackupRename);
+                VaultService rollbackService = new VaultService(rollbackStore, time::get, rollbackAvailable::get);
+                VaultService.Grant rollbackGrant = rollbackService.approve(ALEX, SETUP);
+                require(rollbackService.save(rollbackGrant, ALEX, 1, 10 + (failBaseDelete ? 1 : 0) + (failBackupRename ? 2 : 0))
+                    == VaultService.Result.UNKNOWN);
+                denied(() -> rollbackService.approve(ALEX, SETUP));
+            }
+        }
+        AtomicBoolean restoredAvailable = new AtomicBoolean(true);
+        RollbackStore restoredStore = new RollbackStore(restoredAvailable, false, false);
+        VaultService restoredService = new VaultService(restoredStore, time::get, restoredAvailable::get);
+        VaultService.Grant restoredGrant = restoredService.approve(ALEX, SETUP);
+        denied(() -> restoredService.save(restoredGrant, ALEX, 1, 20));
+        require(restoredService.approve(ALEX, SETUP) != null);
         for (boolean writing : new boolean[] { false, true }) {
             for (int closure = 0; closure < 3; closure++) {
                 Store held = new Store(); held.entered = new CountDownLatch(1); held.release = new CountDownLatch(1);
@@ -100,6 +152,6 @@ public final class VaultServiceTest {
         VaultService.Grant backwards = restarted.approve(ALEX, SETUP);
         time.set(0);
         denied(() -> restarted.check(backwards, ALEX, VaultService.Action.READ));
-        System.out.println("PASS native policy: scope, read-only, delete, expiry, replacement, held reads/writes, queued writes, restart, duplicate and uncertain outcomes");
+        System.out.println("PASS native policy: scope, read-only, expiry, races, verified rollback, base-delete/backup-rename failures report UNKNOWN, uncertain state blocks grants");
     }
 }
