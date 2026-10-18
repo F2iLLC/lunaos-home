@@ -107,8 +107,10 @@ authorized SDK preparation process, not through this image build.
 The manifest has exactly `schema` (integer 1), `jdk`, `rust`,
 `commandLineTools`, `archives`, and `files`. The three version fields are exact
 numeric version strings, not ranges. `archives` contains exactly one entry per
-component: `jdk`, `rust`, `rust-android-std`, `command-line-tools`, `platform`,
-`build-tools`, `ndk`. Each entry has exactly:
+component: `jdk`, `rust`, `rust-android-std-x86_64`,
+`rust-android-std-aarch64`, `command-line-tools`, `platform`, `build-tools`,
+`ndk`. Each Rust target component records the distinct vendor archive used for
+that target. Each entry has exactly:
 
 - `component`: one name from that list;
 - `filename`: original vendor basename ending `.tar.gz`, `.tar.xz`, or `.zip`,
