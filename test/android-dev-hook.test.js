@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,10 @@ const defaults = JSON.parse(await readFile(join(root, 'src-tauri/tauri.conf.json
 const android = JSON.parse(await readFile(join(root, 'src-tauri/tauri.android.conf.json'), 'utf8'));
 const hooks = { ...defaults.build, ...android.build };
 const pkg = 'java/io/github/f2illc/lunaos/home/preview';
-const sources = ['VaultService.java', 'VaultStore.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
+// Discover maintained sources independently of the preparation allowlist so a
+// new helper cannot be omitted from both the implementation and its test.
+const sources = (await readdir(join(root, 'scripts/android/vault')))
+  .filter(name => /\.(java|kt)$/.test(name));
 const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET" /><application android:usesCleartextTraffic="false"><activity android:name=".MainActivity" /></application></manifest>';
 
 async function fixture(context) {
