@@ -100,6 +100,8 @@ export function validateManifest(manifest) {
       digest.test(archive.sha256) && /^[A-Za-z0-9][A-Za-z0-9 .+-]{0,79}$/.test(archive.vendor), 'Invalid archive provenance.');
   }
   assert(new Set(manifest.archives.map(archive => archive.component)).size === components.length, 'Duplicate archive component.');
+  const rustTargetArchives = manifest.archives.filter(({ component }) => component.startsWith('rust-android-std-'));
+  assert(new Set(rustTargetArchives.map(({ sha256 }) => sha256)).size === 2, 'Rust target archives must have distinct SHA256 digests.');
   assert(manifest.files && typeof manifest.files === 'object' && !Array.isArray(manifest.files) &&
     Object.keys(manifest.files).length > 0, 'File SHA256 inventory required.');
   for (const [path, hash] of Object.entries(manifest.files)) {

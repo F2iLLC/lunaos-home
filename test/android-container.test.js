@@ -50,7 +50,7 @@ async function fixture(context, extraContents = {}) {
   Object.assign(contents, extraContents);
   const manifest = {
     schema: 1, jdk: '21.0.1', rust: '1.80.0', commandLineTools: '1.0.0',
-    archives: components.map(component => ({ component, filename: `${component}.tar.xz`, sha256: 'c'.repeat(64), vendor: 'Fictional test vendor' })),
+    archives: components.map(component => ({ component, filename: `${component}.tar.xz`, sha256: component === 'rust-android-std-aarch64' ? 'd'.repeat(64) : 'c'.repeat(64), vendor: 'Fictional test vendor' })),
     files: {},
   };
   for (const [path, content] of Object.entries(contents)) {
