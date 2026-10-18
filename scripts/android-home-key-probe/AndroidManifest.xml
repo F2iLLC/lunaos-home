@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.f2illc.lunaos.homekeyprobe" android:versionCode="1" android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="37" />
+  <application android:label="Synthetic emulator key-loss test" android:testOnly="true"
+      android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="false" />
+  <instrumentation android:name=".HomeKeyProbe"
+      android:targetPackage="io.github.f2illc.lunaos.home.preview.debug" android:functionalTest="true" />
+  <instrumentation android:name=".HomeQueueProbe"
+      android:targetPackage="io.github.f2illc.lunaos.home.preview.debug" android:functionalTest="true" />
+  <instrumentation android:name=".HomeStoreProbe"
+      android:targetPackage="io.github.f2illc.lunaos.home.preview.debug" android:functionalTest="true" />
+</manifest>
