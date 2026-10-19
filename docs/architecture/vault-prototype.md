@@ -72,3 +72,9 @@ Windows DPAPI adapter through the scoped TLS service. The Android screen renders
 the actual committed value. Debug certificate/offer provisioning, emulator-loopback
 transport and synthetic control driving are explicit limitations; this does not
 establish production enrollment, physical LAN or OS user-presence unlocking.
+
+The [Windows verified transport follow-up](../prototypes/windows-verified-transport.md)
+connects the existing owned-child verification/session gate to grant issuance,
+queued execution and post-read checks. Controlled child/event tests exercise real
+TLS and DPAPI; the new attended native-to-Android chain remains unverified. This
+application gate does not change DPAPI's key-release properties.

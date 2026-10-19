@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
 import { PassThrough } from 'node:stream';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { createLocalEnrollment } from '../lib/local-enrollment.js';
@@ -14,10 +15,11 @@ import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities
 import { startDirectVaultExperiment, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { checkDirectTlsGui } from './test-fixtures/direct-tls-gui.mjs';
 
-const [outputDirectory, debugKeystore, mode = '--transport', interactiveHost] = process.argv.slice(2);
+const [outputDirectory, debugKeystore, mode = '--transport', interactiveHost, nativeVerification] = process.argv.slice(2);
 assert.ok(['--transport', '--gui', '--race', '--identity', '--protected-gui'].includes(mode), 'Unsupported test mode.');
 const protectedMode = mode === '--protected-gui';
 assert.ok(!interactiveHost || (protectedMode && interactiveHost === '--interactive-host'), 'Interactive host is only supported for the protected GUI.');
+assert.ok(!nativeVerification || (interactiveHost === '--interactive-host' && nativeVerification === '--native-verification'), 'Native verification requires the attended host mode.');
 const guiMode = protectedMode || mode === '--gui', raceMode = mode === '--race', identityMode = mode === '--identity';
 if (!outputDirectory || !debugKeystore || !process.env.ANDROID_HOME || !process.env.JAVA_HOME) throw Error('Output directory, disposable debug keystore, SDK and JDK required.');
 const repo = fileURLToPath(new URL('..', import.meta.url));
@@ -35,7 +37,7 @@ assert.ok(/Started users state: \[0=RUNNING_UNLOCKED\]/.test(adbSync(['shell', '
 assert.equal(adbSync(['shell', 'pm', 'list', 'packages', packageName]).trim(), '', 'Do not overwrite an existing test install.');
 assert.equal(existsSync(outputDirectory), false, 'Choose a new build directory.');
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
-let protectedStore, protectedBytes, controller, hostConsole, host, poll, revokeTimer, installed = false, approvalPaused = false, revoked = false;
+let nativeVisit, protectedStore, protectedBytes, controller, hostConsole, host, poll, revokeTimer, installed = false, approvalPaused = false, revoked = false;
 let reads = 0, phaseReads = 0, writes = 0;
 const approved = new Set(), enrollments = [];
 let hostTranscript = '';
@@ -75,7 +77,7 @@ function publicIdentity(output) {
 async function enroll(peer) {
   clearInterval(poll); clearTimeout(revokeTimer); await host?.close();
   phaseReads = 0; approved.clear(); revoked = false;
-  host = await startDirectVaultExperiment({ identity: fixtures.hostIdentity, ca: peer.certificate, idleMs: 30_000, store: {
+  const hostOptions = { identity: fixtures.hostIdentity, ca: peer.certificate, idleMs: 30_000, store: {
     read: async id => {
       assert.equal(id, 'alex-library'); reads++; phaseReads++;
       if (!guiMode && !raceMode && phaseReads === 2) revokeTimer = setTimeout(() => { host.revokePeer(peer.fingerprint); revoked = true; }, 1500);
@@ -83,12 +85,15 @@ async function enroll(peer) {
     },
     create: async () => { writes++; throw Error('Unexpected write'); },
     edit: async () => { writes++; throw Error('Unexpected write'); },
-  } });
+  } };
+  if (nativeVerification) {
+    nativeVisit = await launchNativeDirectHost(hostOptions); host = nativeVisit.host;
+  } else host = await startDirectVaultExperiment(hostOptions);
   // Explicit fixture decision on the public certificate obtained from this exact app/device.
   // A self-signed peer certificate is an exact trust anchor, not an arbitrary public CA.
   let pairing;
   if (protectedMode) {
-    controller = createLocalEnrollment(host);
+    controller = nativeVisit?.enrollment || createLocalEnrollment(host);
     hostConsole = openHostApprovalConsole(interactiveHost ? {} : { input: hostInput, output: hostOutput, synthetic: true });
     const review = controller.review(peer.fingerprint);
     // Before approval, show both identities with a deliberately invalid offer.
@@ -178,7 +183,8 @@ try {
   const evidence = { result: 'PASS', mode, apkSha256, androidApi: '36',
     transport: 'AndroidKeyStore native TLS1.3 via emulator host-loopback alias', readAttempts: reads, authoritativeReads: protectedMode ? reads - 1 : reads, writes,
     enrollments, finalPhaseApprovals: approved.size, revoked, guiChecks,
-    protectedStore: protectedMode ? 'Windows CurrentUser DPAPI; reopened after committed value change; four GUI readbacks and one tamper refusal; no OS presence gate' : null,
+    nativeVerification: nativeVerification ? 'Owned Windows native verification and session-event gate connected; operator must complete the trusted prompt' : 'Not connected in this run',
+    protectedStore: protectedMode ? 'Windows CurrentUser DPAPI; reopened after committed value change; four GUI readbacks and one tamper refusal; see separate nativeVerification field' : null,
     approvalEvidence: interactiveHost ? 'Interactive host terminal decisions; Android controls driven by the synthetic test' : protectedMode ? 'Synthetic input driving local host terminal controls plus Android screen controls; no automatic grant polling' : 'Legacy fixture controller',
     hardwareClaim: 'Emulator API reports only; no physical hardware-backed custody claim' };
   writeFileSync(path.join(outputDirectory, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
@@ -186,7 +192,7 @@ try {
 } finally {
   clearInterval(poll); clearTimeout(revokeTimer); controller?.close(); hostConsole?.close();
   const cleanupErrors = [];
-  try { await host?.close(); } catch (error) { cleanupErrors.push(error); }
+  try { if (nativeVisit) await nativeVisit.close(); else await host?.close(); } catch (error) { cleanupErrors.push(error); }
   try {
     if (protectedStore) {
       if (protectedBytes) writeFileSync(path.join(protectedStore.directory, 'records.bin'), protectedBytes);
