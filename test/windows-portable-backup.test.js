@@ -42,6 +42,44 @@ async function restoreInFreshProcess(probeId, archive, recoveryKey) {
   assert.equal(output, 'restored');
 }
 
+async function withFreshProcessSession(probeId, action) {
+  const code = `
+    import { openWindowsProbeStore } from './lib/windows-probe-store.js';
+    import { createVaultSessionService } from './lib/vault-sessions.js';
+    const store = await openWindowsProbeStore({ probeId });
+    const service = createVaultSessionService({ store });
+    process.stdout.write('ready');
+    process.stdin.resume();
+    process.stdin.on('end', () => { service.shutdown(); process.stdout.write('stopped'); });
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', code], {
+    cwd: fileURLToPath(new URL('../', import.meta.url)),
+    windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', chunk => { output += chunk; });
+  child.stderr.on('data', () => {});
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => { child.kill(); reject(Error('fresh session timed out')); }, 60000);
+    child.once('error', error => { clearTimeout(timeout); reject(error); });
+    child.stdout.once('data', chunk => {
+      if (chunk.includes('ready')) { clearTimeout(timeout); resolve(); }
+    });
+  });
+  try { await action(); }
+  finally {
+    child.stdin.end();
+    const codeResult = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => { child.kill(); reject(Error('fresh session shutdown timed out')); }, 60000);
+      child.once('error', error => { clearTimeout(timeout); reject(error); });
+      child.once('close', result => { clearTimeout(timeout); resolve(result); });
+    });
+    assert.equal(codeResult, 0);
+    assert.ok(output.includes('stopped'));
+  }
+}
+
 test('fictional backup imports into an empty independent Windows store without carrying old grants',
   { skip: process.platform !== 'win32' }, async t => {
     const source = await openWindowsProbeStore({ create: true, recovery: true });
@@ -92,6 +130,10 @@ test('fictional backup imports into an empty independent Windows store without c
       await assert.rejects(liveConnection.execute(liveGrant, { action: 'read', recordId: 'alex-library' }),
         error => error.code === 'NOT_FOUND');
       await liveService.shutdown();
+      await withFreshProcessSession(destination.probeId, async () => {
+        await assert.rejects(restoreWindowsSyntheticBackup(destination, archive, recoveryKey), /active or its recovery lock/);
+        assert.deepEqual(await readFile(path.join(destination.directory, 'records.bin')), originalDestination);
+      });
       await restoreInFreshProcess(destination.probeId, archive, recoveryKey);
       const reopened = await openWindowsProbeStore({ probeId: destination.probeId });
       assert.equal(reopened.exportSnapshot, undefined);
