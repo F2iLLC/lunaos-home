@@ -16,7 +16,8 @@ import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'network', 'background', 'revoke', 'client-end', 'restore'].includes(event));
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore'].includes(event),
+  'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(i => i?.address === address && !i.internal), 'Bind only an assigned private address');
@@ -175,7 +176,7 @@ try {
     assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Android background cleared content and scope during an active grant; reconnect awaited fresh host approval with no second store read');
-  } else if (event !== 'network') {
+  } else {
     evidence.actionRequested = new Date().toISOString();
     if (event === 'expiry') {
       console.log('WAIT_FOR_VISIT_EXPIRY; leave Windows and the phone test app awake');

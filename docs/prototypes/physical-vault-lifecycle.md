@@ -16,6 +16,12 @@ opt-in must match the physical model/API before the UI or non-destructive identi
 instrumentation can run. Destructive identity/race instrumentation retains its
 emulator restriction. No household record or Home package/file is accessed.
 
+The runner rejects an unsupported `network` event before device setup. A prior
+argument list accepted that name but skipped the interruption checks, so such a
+run could have reported a false pass after an ordinary read. No network-loss or
+roaming result is counted from that path; a dedicated physical scenario must
+observe the disconnection and recovery before this acceptance check can pass.
+
 ```powershell
 node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> lock
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
