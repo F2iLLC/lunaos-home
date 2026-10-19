@@ -67,7 +67,7 @@ Observed checks include:
   show the informational page, refuse a fabricated HTTP verification request,
   close HTTP/TLS on pipe end, and refuse a child that exits during startup.
 
-## Attended native path — not executed in this increment
+## Attended native path
 
 Build this checkout's native Windows debug target using the repository's native
 build/toolchain instructions. Retain the dedicated emulator/debug-keystore
@@ -85,13 +85,47 @@ or password is requested by the script. Native verification alone grants no
 record access. Closing the window, cancelling verification or an ended visit
 fails closed; no automatic retry or alternate verification signal is used.
 
-The recorded validation does **not** include this attended native-child → Windows
-prompt → Android GUI chain. The original native prompt acceptance remains
-evidence for its tested revision only. Current live OS cancellation, lock, sleep,
-resume and five-minute expiry with Android need attended acceptance. New Android
-device compatibility is not claimed: this increment changes the Node supervisor
-and service, not the Android APK or Rust monitor. A frontend bundle build is not
-a new native binary or OS acceptance result.
+The attended native-child → Windows prompt → Android GUI chain passed on
+2026-10-19 UTC with source `e8d267cd985438541c50f429a61f87fe21043dea`.
+The Windows native binary was freshly built from that checkout. The user completed
+the trusted Windows prompt; the assistant compared both displayed test identities
+and answered the local terminal's fixed fictional scope prompts. The runner drove
+the Android controls. This is actual OS verification plus agent-operated test
+approval, not evidence of a user manually comparing identities or approving scopes.
+
+Artifacts (SHA-256):
+
+- Windows debug binary: `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
+- Android probe APK: `dc09e324ffd22f9f9d0dcea0ef164a459d6c342ea96369ce9da13b46220e5142`.
+
+On the dedicated Android16/API36 x86_64 emulator, the real native visit gate
+authorized four separate read-only grants and four successful readbacks of
+`Library visit: Thursday from protected storage` from the reopened Windows DPAPI
+store. There were five read attempts and zero remote writes. Checks covered:
+
+- Initial identity/scope controls closed; interrupted pairing before a grant
+  reconnects without replaying the one-use offer.
+- End clears the displayed record; reconnect requires fresh selected-read approval.
+- Home/background clears content and authority; return requires identity and read
+  approval again.
+- Force-stop/relaunch preserves the native connection identity but requires fresh
+  identity and read approval; the consumed offer is not replayed.
+- Damaged encrypted bytes cause the fifth read to fail and clear displayed content.
+  The original bytes were restored and a local read confirmed the committed value.
+
+The final run exited successfully, including cleanup of the owned native child,
+listeners, synthetic store and probe package. Package absence was checked before
+stopping the dedicated emulator. Evidence is retained outside Git in the
+`attended-protected-v3` run directory. Two earlier attended attempts ended when
+the ten-second local read-approval prompt expired; neither is counted as a pass.
+The final run continuously handled those synthetic prompts without changing the
+approval deadline, authentication gate or assertions.
+
+Current live OS cancellation, lock, sleep, resume and five-minute expiry with
+Android still need attended acceptance. This run used emulator host-loopback,
+not a physical Android network. Its Keystore provider reports software security
+level 0; no hardware-backed custody claim is made. No personal-phone action was
+performed. The Android APK and Rust monitor source are unchanged by this increment.
 
 Production enrollment/durable trust, physical networking, recovery and independent
 security review remain open. This is an application access gate around CurrentUser
@@ -102,7 +136,8 @@ the offline Home networking boundary and personal phone are unchanged.
 
 All 108 Windows-compatible Node tests passed, including the eight new real-socket
 composition/launcher cases and the existing native-gate cases. The offline
-frontend bundle built successfully. Linux-only container checks remain
-platform-limited. No native authentication prompt, Windows lock/sleep action,
-Android launch or personal-phone action was performed. This is controlled-event
-and actual TLS/DPAPI evidence, not a live OS acceptance result.
+frontend bundle and subsequent full Windows native debug build passed. The
+attended chain above adds real Windows verification and Android emulator evidence
+to those controlled-event/TLS/DPAPI checks. Linux-only container checks remain
+platform-limited. Live Windows lock/sleep acceptance and physical-device network
+acceptance are not inferred from this result. Session 2 remains open.
