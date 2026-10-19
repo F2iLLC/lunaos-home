@@ -5,6 +5,8 @@ import { promisify } from 'node:util';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash, X509Certificate } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
+import { createServer, connect as connectTcp } from 'node:net';
+import { once } from 'node:events';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +18,7 @@ import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore'].includes(event),
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss', 'link-reset'].includes(event),
   'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -38,10 +40,44 @@ assert.equal(sync(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never o
 const configBase = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText), transportAddress: address };
 function config(value) { sync(['shell', '-T', 'run-as', pkg, 'sh', '-c', "'cat > no_backup/config.json'"], JSON.stringify({ ...configBase, ...value })); }
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
-let installed = false, sourceStore, store, visit, recoveryKey, reads = 0, writes = 0;
+let installed = false, sourceStore, store, visit, relay, recoveryKey, reads = 0, writes = 0;
 const evidence = { result: 'INCOMPLETE', event, model, api: Number(apiText), started: new Date().toISOString(), checks: [] };
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function beforeDeadline(promise, deadline, message) {
+  const remaining = deadline - performance.now();
+  assert.ok(remaining > 0, message);
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), remaining); })]);
+  } finally { clearTimeout(timer); }
+}
+async function startDisposableRelay(address, hostPort) {
+  const pairs = new Set();
+  let failure;
+  const server = createServer(phone => {
+    const host = connectTcp({ host: address, port: hostPort });
+    const pair = { phone, host }; pairs.add(pair);
+    const end = () => { phone.destroy(); host.destroy(); pairs.delete(pair); };
+    for (const socket of [phone, host]) { socket.on('error', end); socket.on('close', end); }
+    phone.pipe(host); host.pipe(phone); // TLS remains end-to-end; this fixture only forwards bytes.
+  });
+  server.maxConnections = 8;
+  server.listen(0, address);
+  await once(server, 'listening');
+  server.on('error', error => { failure = error; for (const pair of pairs) { pair.phone.destroy(); pair.host.destroy(); } });
+  return {
+    port: server.address().port,
+    activeCount: () => pairs.size,
+    check: () => assert.equal(failure, undefined),
+    drop() { for (const pair of pairs) { pair.phone.destroy(); pair.host.destroy(); } },
+    async close() {
+      this.drop();
+      if (server.listening) await new Promise(resolve => server.close(resolve));
+      this.check();
+    },
+  };
+}
 async function nodes() {
   const focus = await adb(['shell', 'dumpsys', 'window']);
   assert.ok(focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes(pkg)), 'Bring the fictional test app to the foreground');
@@ -104,7 +140,9 @@ try {
   for (;;) { try { visit.gate.requireVerified(); break; } catch { if (Date.now() >= deadline) throw Error('Windows verification not completed'); await pause(250); } }
   const verifiedTick = performance.now();
   const peer = certificateFingerprint(cert), review = visit.enrollment.review(peer);
-  config({ port: visit.host.port, hostFingerprint: review.hostFingerprint, offer: 'not-approved' });
+  if (event === 'link-reset') relay = await startDisposableRelay(address, visit.host.port);
+  const port = relay?.port ?? visit.host.port;
+  config({ port, hostFingerprint: review.hostFingerprint, offer: 'not-approved' });
   const rejectionOutput = await adb(['shell', 'am', 'instrument', '-w', '-e', 'action', 'host-rejection', `${pkg}/.DirectTlsProbe`]);
   assert.match(rejectionOutput, /INSTRUMENTATION_RESULT: result=PASS: selected physical Android rejected wrong TLS host name and host fingerprint\./);
   assert.match(rejectionOutput, /INSTRUMENTATION_CODE: -1/);
@@ -115,7 +153,7 @@ try {
   assert.ok(screen.some(n => n.text === `Android identity: ${peer}`));
   // Owner delegated the fixed fictional test scope. This is agent approval, not human UI acceptance.
   const offer = visit.enrollment.decide({ ...review, allow: true });
-  config({ ...offer, port: visit.host.port });
+  config({ ...offer, port });
   await tap('Approve fictional computer'); await tap('Connect to test computer');
   await waitText('Computer connected. Waiting for host approval...');
   const connections = visit.host.listConnections();
@@ -155,6 +193,50 @@ try {
     await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read`);
+  } else if (event === 'host-loss') {
+    assert.ok(performance.now() - grantTick < 60_000, 'Host-loss check missed the active read grant');
+    const disconnectedBy = performance.now() + 5_000;
+    await beforeDeadline(visit.host.close(), disconnectedBy, 'Owned host closure exceeded five seconds');
+    visit.gate.requireVerified(); // Only the owned transport stopped; Windows verification did not stand in for a network event.
+    while (visit.host.listConnections().length && performance.now() < disconnectedBy) await pause(20);
+    assert.deepEqual(visit.host.listConnections(), []);
+    const beforeRetry = await nodes();
+    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+    const denied = await nodes();
+    assert.ok(denied.some(n => n.text === 'No record shown.'));
+    assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Connection or approval unavailable. No access remains.');
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Owned host transport stopped after one read; physical client denied old read and reconnect, then cleared displayed content without another store access');
+  } else if (event === 'link-reset') {
+    assert.ok(performance.now() - grantTick < 60_000, 'Link-reset check missed the active read grant');
+    assert.equal(relay.activeCount(), 1);
+    relay.drop();
+    const disconnectedBy = performance.now() + 5_000;
+    while ((relay.activeCount() || visit.host.listConnections().length) && performance.now() < disconnectedBy) await pause(20);
+    relay.check();
+    assert.equal(relay.activeCount(), 0);
+    assert.deepEqual(visit.host.listConnections(), []);
+    visit.gate.requireVerified(); // A transport reset is not a Windows lifecycle event.
+    assert.deepEqual(visit.nativeEvents, []);
+    const beforeRetry = await nodes();
+    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+    const denied = await nodes();
+    assert.ok(denied.some(n => n.text === 'No record shown.'));
+    assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Computer connected. Waiting for host approval...');
+    const awaiting = await nodes();
+    assert.ok(awaiting.some(n => n.text === 'No record shown.'));
+    assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Disposable TCP relay reset the physical client link while Windows and the host remained verified; old read failed, display cleared on attempt, and reconnect awaited fresh host approval without a second store read');
   } else if (event === 'background') {
     await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
     await pause(300);
@@ -245,7 +327,8 @@ finally {
   const failures = [];
   recoveryKey?.fill(0);
   evidence.nativeEvents ??= [...(visit?.nativeEvents || [])];
-  try { await visit?.close(); } catch (e) { failures.push(e); }
+  try { await relay?.close(); } catch (e) { failures.push(e); }
+  try { if (visit) await beforeDeadline(visit.close(), performance.now() + 5_000, 'Owned visit cleanup exceeded five seconds'); } catch (e) { failures.push(e); }
   try { await store?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { await sourceStore?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { if (installed) {

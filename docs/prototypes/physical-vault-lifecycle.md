@@ -27,11 +27,15 @@ node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-k
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
 node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> expiry
 node scripts/test-attended-physical-vault.mjs <new-restore-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> restore
+node scripts/test-attended-physical-vault.mjs <new-host-loss-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> host-loss
+node scripts/test-attended-physical-vault.mjs <new-link-reset-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> link-reset
 node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
-Only the separate TLS listener binds to the explicitly supplied private address;
-its default remains loopback. Public/wildcard addresses and hostnames are refused.
+Only the separate TLS listener and, for `link-reset`, a disposable byte-forwarding
+TCP relay bind to the explicitly supplied private address; the TLS listener's
+default remains loopback. The relay does not terminate TLS. Public/wildcard
+addresses and hostnames are refused.
 The native informational HTTP page stays loopback-only. There was no adb port
 forward/reverse, public tunnel, cloud relay, firewall-rule change or network-profile
 change. Wireless adb only controlled the test phone; record traffic used the
@@ -83,6 +87,8 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Physical device removal | After the Echo Show 8 read once, the host removed its paired identity. Its old read failed and cleared the display when attempted; reconnect was denied without another store read. Previously displayed information cannot be recalled from an already admitted device. |
 | Physical client ends connection | On the Samsung, tapping the disposable client's End connection control after one read cleared the displayed content and old scope. Its reconnect waited for fresh host approval and made no second store read; Windows remained verified. |
 | Restored Windows store and physical client | On October 19 UTC, the Samsung read one fictional record from a newly created Windows encrypted store after the source store was removed and its portable archive imported with an in-memory recovery key. The phone rejected a wrong host name and fingerprint before pairing. After host removal of that client, its old read and reconnect failed without another store read. The run recorded one read, zero writes, unchanged restored ciphertext, and passing cleanup. This used the same Windows user and PC, not a clean second device or a user-held key. |
+| Owned host becomes unavailable | On October 19 UTC, the Samsung read one fictional record, then the runner confirmed the read grant remained active and stopped only its owned TLS host while Windows verification remained active. The five-second limit includes host closure and socket teardown. The phone's old read failed and cleared the displayed content when attempted; reconnect failed. The encrypted bytes stayed unchanged, with one store read, zero writes and passing cleanup. This tests host unavailability, not physical Wi-Fi interruption or roaming, and does not show immediate display clearing without another phone action. |
+| Client link reset while host stays up | On October 19 UTC, the Samsung read one fictional record through a disposable private-address TCP relay. With the read grant still active, the runner dropped the phone-host socket pair while the verified Windows gate and TLS host remained active. After bounded teardown, the old read failed and cleared the displayed content when attempted; reconnect waited for fresh host approval with the read control disabled. One store read, zero writes and cleanup passed. This controlled link reset is not a physical Wi-Fi interruption or roaming test, and does not show immediate display clearing before a phone action. |
 
 The Echo's first attempt crashed in the test identity reporter before pairing: the
 reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
@@ -115,6 +121,29 @@ client access after a same-PC import, not proof of portable recovery-key custody
 or recovery onto a clean device. Raw evidence remains outside Git in
 `physical-restore-v2`; the earlier `physical-restore-v1` stopped before pairing
 because this checkout lacked its native preview binary and is not a pass.
+
+The final host-unavailable run used disposable APK SHA-256
+`c21c9a32b58c714a3cd0449a9447837580b0d540d579ca2688d71058bb74aeec`.
+The successful `physical-host-loss-v3` evidence remains outside Git. It asserts
+the read grant is still active before shutdown and starts the five-second limit
+before awaiting host closure. The earlier `physical-host-loss-v2` passed the
+original assertions but did not prove those two narrower conditions. The first
+attempt (`physical-host-loss-v1`) performed the fictional read but inspected the
+connection list before asynchronous socket teardown completed, so it is
+incomplete rather than a pass. The revised runner waits up to five seconds for
+the owned connection to disappear and still fails if it remains. The final
+run reported cleanup passing; the disposable package and final listener were
+independently absent afterward.
+
+The final controlled link-reset run used disposable APK SHA-256
+`02a54be5cb4afdbe813d02df3a91926ce6002c2ee764b9df4b3ff370af3a20c5`.
+`physical-link-reset-v2` passed with cleanup passing and asserted the read grant
+was active before disruption. The earlier `physical-link-reset-v1` passed the
+original assertions but did not include that grant-age check. The relay forwarded TLS
+bytes without terminating the connection or changing the phone's network
+settings. The Windows gate stayed verified and the host remained available.
+Raw evidence stays outside Git. Actual Wi-Fi interruption and roaming remain
+unverified.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -150,7 +179,7 @@ sleep retry lost its phone connection before approval. Neither is counted as a p
 
 ## Validation and remaining work
 
-All 110 Windows-compatible Node tests passed, including refusal of public/wildcard
+All 132 Windows-compatible Node tests passed, including refusal of public/wildcard
 test bindings and bounded lifecycle-event collection that cannot verify the gate.
 Both actual phone APK builds and successful runs exercised the modified Java
 sources. Existing TLS negative tests still require certificate, hostname, pin,
