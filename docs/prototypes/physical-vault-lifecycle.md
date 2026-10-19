@@ -67,7 +67,7 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Identity | The phone reported generated, non-exportable EC identity, null key encoding/format and security level 1. This is provider-reported custody, not independent hardware attestation. Transport identity is separate from vault unlock and is not itself user-authentication-bound. |
 | Cleanup | Both successful runners exited zero with cleanup passing. The temporary test APK, owned host/native child and synthetic store were removed. Package absence and absence of the final test listeners were independently checked. |
 | Verification cancellation | A separate attended Windows run received the native `canceled` status at 03:11:47.717 UTC. The gate stayed closed, the listener refused a connection, and no record was read or written. This did not use the physical Android client. |
-| Five-minute visit expiry | A new Windows-verified visit served one fictional read over physical Wi-Fi. The Windows gate remained verified after the phone's 60-second grant expired, then closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
+| Five-minute visit expiry | **Inconclusive as deadline evidence.** A new Windows-verified visit served one fictional read over physical Wi-Fi. The gate remained verified after the phone's 60-second grant expired and the visit closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. That runner did not record a trusted reason for closure, so a child or pipe failure near the deadline could have produced the same result. The revised runner now requires the gate's explicit `visit-deadline` reason; an attended rerun is needed to accept this check. |
 | Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
 | Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
 | Second physical Android device | A user-selected Echo Show 8 with a custom `lineage_crown` Android 11/API30 build read the same kind of fictional Windows record over direct Wi-Fi in a separate disposable run. This does not establish support for stock Echo Show software or make it a phone-only vault host. |
@@ -110,8 +110,8 @@ Final sleep APK SHA-256:
 APKs include per-run disposable public CA material, so hashes differ. Local raw
 evidence remains outside Git in `physical-lock-v3` and `physical-sleep-v4`; only
 synthetic summarized results are published.
-The cancellation and expiry results remain outside Git in `windows-cancel-v2`
-and `physical-expiry-v1` respectively. The expiry APK SHA-256 is
+The cancellation result and inconclusive expiry attempt remain outside Git in
+`windows-cancel-v2` and `physical-expiry-v1` respectively. The expiry APK SHA-256 is
 `b32db919fe4058ecef3b1e6a5f6dd50371febb901924e9e313dcb90f56e19f99`.
 Timed lock and sleep evidence remains outside Git in `physical-lock-timed-v2`
 and `physical-sleep-timed-v2`. Their APK SHA-256 values are respectively

@@ -9,7 +9,7 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
-import { launchNativeDirectHost, requireLifecycleDuringGrant } from './test-fixtures/native-direct-host.mjs';
+import { launchNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline } from './test-fixtures/native-direct-host.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 
@@ -169,16 +169,17 @@ try {
       const remaining = 315_000 - (performance.now() - verifiedTick);
       assert.ok(remaining > 0, 'Visit-expiry observation started too late');
       let expiryTimer;
+      let end;
       try {
-        await Promise.race([visit.ended, new Promise((_, reject) => {
+        end = await Promise.race([visit.ended, new Promise((_, reject) => {
           expiryTimer = setTimeout(() => reject(Error('Native visit did not expire within 315 seconds')), remaining);
         })]);
       } finally { clearTimeout(expiryTimer); }
       await pause(250); // Let the owned native diagnostic pipe deliver any competing lifecycle event.
       const elapsed = performance.now() - verifiedTick;
-      assert.ok(elapsed >= 295_000 && elapsed <= 315_000, 'Visit ended outside its five-minute expiry window');
-      assert.deepEqual(visit.nativeEvents, [], 'A native lifecycle event ended the visit instead of its deadline');
+      requireVisitDeadline(end, visit.nativeEvents, elapsed);
       evidence.elapsedFromVerificationToVisitEndMs = Math.round(elapsed);
+      evidence.visitEndReason = end.reason;
       evidence.checks.push('Native Windows visit expired after five minutes without a lifecycle event');
     } else {
       console.log(`READY_FOR_EVENT:${event}; keep phone test app visible; perform Windows action now`);

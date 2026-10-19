@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
@@ -71,4 +72,21 @@ export function requireLifecycleDuringGrant(events, reason, grantTick, lifetimeM
     throw Error(`Native ${reason} event did not arrive during the active read grant`);
   }
   return event;
+}
+
+// stderr and stdout are separate pipes. A visit can end before its native
+// cancellation diagnostic is delivered, so allow a short bounded drain.
+export async function waitForNativeEvent(events, reason, timeoutMs = 1000) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    if (events.some(item => item.reason === reason)) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.ok(events.some(item => item.reason === reason), `Require actual Windows ${reason} status`);
+}
+
+export function requireVisitDeadline(end, events, elapsedMs) {
+  assert.equal(end?.reason, 'visit-deadline', 'A different event ended the visit; expiry is unproven');
+  assert.ok(elapsedMs >= 295_000 && elapsedMs <= 315_000, 'Visit ended outside its five-minute expiry window');
+  assert.deepEqual(events, [], 'A native lifecycle event ended the visit instead of its deadline');
 }

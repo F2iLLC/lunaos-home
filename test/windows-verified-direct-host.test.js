@@ -2,7 +2,7 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { superviseNativeDirectHost, requireLifecycleDuringGrant } from '../scripts/test-fixtures/native-direct-host.mjs';
+import { superviseNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline, waitForNativeEvent } from '../scripts/test-fixtures/native-direct-host.mjs';
 import { startWindowsVerifiedDirectHost } from '../lib/windows-verified-direct-host.js';
 import { connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
@@ -23,6 +23,20 @@ test('lifecycle evidence rejects events after the read grant deadline', () => {
   assert.throws(() => requireLifecycleDuringGrant(event(75_000), 'lock', 0, 60_000));
   assert.throws(() => requireLifecycleDuringGrant(event(-1), 'lock', 0, 60_000));
   assert.throws(() => requireLifecycleDuringGrant(event(100), 'suspend', 0, 60_000));
+});
+test('native diagnostic on a separate pipe may arrive after the visit ends', async () => {
+  const events = [];
+  setTimeout(() => events.push({ reason: 'canceled' }), 20);
+  await waitForNativeEvent(events, 'canceled', 200);
+  await assert.rejects(waitForNativeEvent([], 'canceled', 30), /Require actual Windows canceled status/);
+});
+test('a child or pipe failure inside the deadline window cannot count as visit expiry', () => {
+  assert.doesNotThrow(() => requireVisitDeadline({ reason: 'visit-deadline' }, [], 299_755));
+  for (const reason of ['child-exit', 'pipe-end', 'session-ended', 'operator-close']) {
+    assert.throws(() => requireVisitDeadline({ reason }, [], 299_755), /expiry is unproven/);
+  }
+  assert.throws(() => requireVisitDeadline({ reason: 'visit-deadline' }, [{ reason: 'lock' }], 299_755));
+  assert.throws(() => requireVisitDeadline({ reason: 'visit-deadline' }, [], 280_000));
 });
 // Controlled child receipts only. These tests never invoke Windows authentication.
 async function fixture(t, store) {
@@ -91,6 +105,19 @@ test('cancel, unavailable monitor, malformed receipt, pipe/child failure and bot
     await assert.rejects(client.execute(crypto.randomUUID(), edit), error => ['DENIED', 'UNAVAILABLE', 'WRITE_UNKNOWN'].includes(error.code));
     await assert.rejects(f.connect(), unavailable);
     await f.close();
+  }
+});
+test('trusted visit deadline is distinguishable from child and pipe termination', async t => {
+  for (const [endVisit, expected] of [
+    [f => { f.verify(); f.timers[1].fn(); }, 'visit-deadline'],
+    [f => { f.verify(); f.child.emit('exit', 2); }, 'child-exit'],
+    [f => { f.verify(); f.child.stdout.emit('end'); }, 'pipe-end'],
+    [f => { f.verify(); f.end(); }, 'session-ended'],
+  ]) {
+    const f = await fixture(t, emptyStore());
+    endVisit(f);
+    assert.equal((await f.ended).reason, expected);
+    assert.throws(() => f.gate.requireVerified(), denied);
   }
 });
 

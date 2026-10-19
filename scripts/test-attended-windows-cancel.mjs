@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createConnection } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
-import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
+import { launchNativeDirectHost, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
+import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 
-const output = process.argv[2];
+const checkout = fileURLToPath(new URL('..', import.meta.url));
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
-assert.ok(output && !existsSync(output), 'Choose a new output directory outside the checkout');
+const output = newExternalEvidencePath(process.argv[2], checkout);
 mkdirSync(output, { recursive: false });
 const fixture = createDirectTlsIdentities({ hostOnly: true });
 let visit, reads = 0, writes = 0;
@@ -36,7 +38,7 @@ try {
       timer = setTimeout(() => reject(Error('No cancellation result within 120 seconds')), 120000);
     })]);
   } finally { clearTimeout(timer); }
-  assert.ok(visit.nativeEvents.some(item => item.reason === 'canceled'), 'Require actual Windows canceled status');
+  await waitForNativeEvent(visit.nativeEvents, 'canceled');
   assert.throws(() => visit.gate.requireVerified());
   await visit.close();
   await refuseTcp(port);
