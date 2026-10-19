@@ -48,6 +48,7 @@ async function uncertainWriteChecks(store) {
     const release = Promise.withResolvers();
     let writes = 0;
     const service = createVaultSessionService({ store: {
+      lifecycleStore: store,
       read: id => store.read(id),
       create: (id, data) => store.create(id, data),
       async edit(id, data) {

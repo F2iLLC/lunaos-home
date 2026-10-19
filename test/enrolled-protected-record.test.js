@@ -107,7 +107,7 @@ test('lost acknowledgement of a real encrypted commit is unknown and never repla
   const store = await openWindowsProbeStore({ create: true });
   await store.create('alex-library', record); let writes = 0;
   const { host, connect, approve } = await setup(t, {
-    read: id => store.read(id), create: (id, data) => store.create(id, data),
+    lifecycleStore: store, read: id => store.read(id), create: (id, data) => store.create(id, data),
     edit: async (id, data) => { writes++; await store.edit(id, data); throw Error('Synthetic lost acknowledgement'); },
   });
   t.after(() => store.removeSyntheticStore());

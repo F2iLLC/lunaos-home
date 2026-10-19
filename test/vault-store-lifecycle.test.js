@@ -5,7 +5,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { withExclusiveVaultRecovery } from '../lib/vault-store-lifecycle.js';
+import { registerVaultStoreSession, withExclusiveVaultRecovery } from '../lib/vault-store-lifecycle.js';
+
+test('wrapped sessions retain the underlying store lifecycle identity', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'lunaos-vault-wrapper-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = { probeId: crypto.randomUUID(), directory };
+  const release = registerVaultStoreSession({ lifecycleStore: store });
+  await assert.rejects(withExclusiveVaultRecovery(store, async () => {}), /Close active synthetic vault sessions/);
+  release();
+  let recovered = false;
+  await withExclusiveVaultRecovery(store, async () => { recovered = true; });
+  assert.equal(recovered, true);
+});
 
 test('a session in another process excludes recovery until shutdown releases its lock', async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'lunaos-vault-lock-'));

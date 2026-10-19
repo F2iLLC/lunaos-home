@@ -152,7 +152,7 @@ test('session-ended receipt withholds a real decrypted read and cancels an accep
   const store = await openWindowsProbeStore({ create: true });
   await store.create('alex-library', example);
   const entered = Promise.withResolvers(), release = Promise.withResolvers(); let writes = 0;
-  const f = await fixture(t, { read: async id => { const value = await store.read(id); entered.resolve(); await release.promise; return value; }, create: store.create,
+  const f = await fixture(t, { lifecycleStore: store, read: async id => { const value = await store.read(id); entered.resolve(); await release.promise; return value; }, create: store.create,
     edit: async (...args) => { writes++; return store.edit(...args); } });
   t.after(() => store.removeSyntheticStore());
   f.verify(); const client = await f.pair(); const grant = f.host.approveAccess(client.connectionId, 'setup', scope);
@@ -176,7 +176,7 @@ test('session end during a real encrypted commit yields UNKNOWN, never replay, t
   const store = await openWindowsProbeStore({ create: true });
   await store.create('alex-library', example);
   const committed = Promise.withResolvers(), release = Promise.withResolvers(); let writes = 0;
-  const f = await fixture(t, { read: store.read, create: store.create,
+  const f = await fixture(t, { lifecycleStore: store, read: store.read, create: store.create,
     edit: async (...args) => { writes++; await store.edit(...args); committed.resolve(); await release.promise; } });
   f.verify(); const client = await f.pair(); const grant = f.host.approveAccess(client.connectionId, 'setup', scope);
   const result = assert.rejects(client.execute(grant, edit), error => error.code === 'WRITE_UNKNOWN');

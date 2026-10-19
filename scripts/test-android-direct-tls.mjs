@@ -78,6 +78,7 @@ async function enroll(peer) {
   clearInterval(poll); clearTimeout(revokeTimer); await host?.close();
   phaseReads = 0; approved.clear(); revoked = false;
   const hostOptions = { identity: fixtures.hostIdentity, ca: peer.certificate, idleMs: 30_000, store: {
+    ...(protectedMode ? { lifecycleStore: protectedStore } : {}),
     read: async id => {
       assert.equal(id, 'alex-library'); reads++; phaseReads++;
       if (!guiMode && !raceMode && phaseReads === 2) revokeTimer = setTimeout(() => { host.revokePeer(peer.fingerprint); revoked = true; }, 1500);
