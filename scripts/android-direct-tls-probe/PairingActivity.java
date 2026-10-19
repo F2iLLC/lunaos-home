@@ -23,7 +23,9 @@ public final class PairingActivity extends Activity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        if (!"ranchu".equals(Build.HARDWARE)) { finish(); return; }
+        try { if (!"ranchu".equals(Build.HARDWARE) && !FixtureConfig.approvedPhysicalTarget(this)) { finish(); return; } }
+        catch (Exception error) { finish(); return; }
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         try { config = FixtureConfig.read(this); displayedHost = config.getString("hostFingerprint"); displayedPeer = NativeIdentity.fingerprint(); } catch (Exception error) { finish(); return; }
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(24, 24, 24, 24);

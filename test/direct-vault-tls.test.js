@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 import tls from 'node:tls';
 import { once } from 'node:events';
-import { certificateFingerprint, startDirectVaultExperiment, connectDirectVaultExperiment, DirectVaultError } from '../lib/direct-vault-tls.js';
+import { certificateFingerprint, startDirectVaultExperiment, connectDirectVaultExperiment, DirectVaultError, privateTestAddress } from '../lib/direct-vault-tls.js';
 
 const fixtures = createDirectTlsIdentities();
 const { ca, hostIdentity, phoneIdentity, outsiderIdentity, untrustedIdentity } = fixtures;
@@ -14,6 +14,13 @@ const scope = { recordIds: ['alex-library', 'sam-library'], lifetimeMs: 60_000 }
 const readAlex = { action: 'read', recordId: 'alex-library' };
 const editAlex = { action: 'edit', recordId: 'alex-library', data: { ...alex, value: 'Wednesday' } };
 const isCode = code => error => error instanceof DirectVaultError && error.code === code;
+test('LAN test binding rejects wildcard, public, hostnames and malformed addresses before listening', async () => {
+  for (const address of ['0.0.0.0', '::', 'localhost', '8.8.8.8', '169.254.1.2', '192.168.1.999', '172.32.0.1', '10.01.2.3']) {
+    assert.throws(() => privateTestAddress(address));
+    await assert.rejects(startDirectVaultExperiment({ bindAddress: address }), /private IPv4/);
+  }
+  for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2']) assert.equal(privateTestAddress(address), address);
+});
 async function waitForQueue(host, expected) {
   const deadline = performance.now() + 1500;
   while (host.pendingRequestCount() !== expected && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));

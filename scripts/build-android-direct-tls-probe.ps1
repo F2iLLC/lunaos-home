@@ -59,5 +59,5 @@ try {
     # Standard Android debug keystore only; never accept release signing credentials.
     Invoke-DirectTlsTool "$buildTools/apksigner.bat" @('sign','--ks',$DebugKeystore,'--ks-key-alias','androiddebugkey','--ks-pass','pass:android','--key-pass','pass:android','--out',"$output/direct-tls-probe.apk","$output/aligned.apk")
     Invoke-DirectTlsTool "$buildTools/apksigner.bat" @('verify',"$output/direct-tls-probe.apk")
-    Write-Output 'Built separate emulator-only TLS test package; Home unchanged.'
+    Write-Output 'Built separate fictional TLS test package; Home unchanged.'
 } finally { $env:JAVA_HOME = $savedJava }
