@@ -41,7 +41,7 @@ foreach ($name in @('phone.p12', 'ca.pem', 'config.json')) {
 $savedJava = $env:JAVA_HOME
 try {
     $env:JAVA_HOME = $Jdk
-    Invoke-DirectTlsTool "$Jdk/bin/javac.exe" @('-encoding','UTF-8','-source','8','-target','8','-classpath',$androidJar,'-d',$classes,"$source/DirectTlsProbe.java")
+    Invoke-DirectTlsTool "$Jdk/bin/javac.exe" @('-encoding','UTF-8','-source','8','-target','8','-classpath',$androidJar,'-d',$classes,"$source/DirectTlsProbe.java","$source/SyntheticTlsClient.java","$source/PairingActivity.java","$source/DirectTlsRaceProbe.java")
     Invoke-DirectTlsTool "$Jdk/bin/jar.exe" @('--create','--file',"$output/classes.jar",'-C',$classes,'.')
     Invoke-DirectTlsTool "$buildTools/d8.bat" @('--min-api','30','--lib',$androidJar,'--output',$dex,"$output/classes.jar")
     Invoke-DirectTlsTool "$buildTools/aapt2.exe" @('link','-A',$assets,'-I',$androidJar,'--manifest',"$source/AndroidManifest.xml",'-o',"$output/unsigned.apk")

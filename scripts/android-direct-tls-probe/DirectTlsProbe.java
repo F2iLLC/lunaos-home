@@ -30,15 +30,15 @@ public final class DirectTlsProbe extends Instrumentation {
             }
             phase = "host-identity-rejection";
             boolean rejected = false;
-            try (Client wrongHost = new Client("wrong-host.invalid", config.getString("hostFingerprint"))) { }
+            try (SyntheticTlsClient wrongHost = new SyntheticTlsClient(getContext(), config, "wrong-host.invalid", config.getString("hostFingerprint"))) { }
             catch (SSLHandshakeException expected) { rejected = true; }
             require(rejected); rejected = false;
-            try (Client wrongPin = new Client("localhost", "0000000000000000000000000000000000000000000000000000000000000000")) { }
+            try (SyntheticTlsClient wrongPin = new SyntheticTlsClient(getContext(), config, "localhost", "0000000000000000000000000000000000000000000000000000000000000000")) { }
             catch (SSLPeerUnverifiedException expected) { rejected = true; }
             require(rejected);
             String oldGrant, firstConnection;
             phase = "pair-and-read";
-            try (Client first = new Client()) {
+            try (SyntheticTlsClient first = new SyntheticTlsClient(getContext(), config)) {
                 JSONObject paired = first.call(new JSONObject().put("op", "pair").put("offer", config.getString("offer")));
                 require(paired.getBoolean("ok"));
                 firstConnection = paired.getJSONObject("value").getString("connectionId");
@@ -46,7 +46,7 @@ public final class DirectTlsProbe extends Instrumentation {
                 first.readMonday(oldGrant);
             }
             phase = "reconnect-and-stale-grant";
-            try (Client second = new Client()) {
+            try (SyntheticTlsClient second = new SyntheticTlsClient(getContext(), config)) {
                 JSONObject resumed = second.call(new JSONObject().put("op", "resume"));
                 require(resumed.getBoolean("ok"));
                 require(!firstConnection.equals(resumed.getJSONObject("value").getString("connectionId")));
@@ -60,7 +60,7 @@ public final class DirectTlsProbe extends Instrumentation {
                 require(second.input.read() == -1);
             }
             phase = "revoked-reconnect";
-            try (Client third = new Client()) { third.denied(third.call(new JSONObject().put("op", "resume"))); }
+            try (SyntheticTlsClient third = new SyntheticTlsClient(getContext(), config)) { third.denied(third.call(new JSONObject().put("op", "resume"))); }
             result.putString("result", "PASS: Android TLS1.3; wrong host name and pin rejected; paired read; fresh reconnect approval; stale grant denied; read-only edit denied; peer revocation closes connection and denies reconnect.");
             finish(-1, result);
         } catch (Exception error) {
@@ -70,62 +70,4 @@ public final class DirectTlsProbe extends Instrumentation {
         }
     }
 
-    private final class Client implements AutoCloseable {
-        private SSLSocket socket;
-        private InputStream input;
-        private OutputStream output;
-        private int sequence;
-        private final ArrayDeque<String> approvals = new ArrayDeque<>();
-        Client() throws Exception { this("localhost", config.getString("hostFingerprint")); }
-        Client(String expectedName, String approvedPin) throws Exception {
-            KeyStore keys = KeyStore.getInstance("PKCS12");
-            try (InputStream in = asset("phone.p12")) { keys.load(in, "fictional-only".toCharArray()); }
-            KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            km.init(keys, "fictional-only".toCharArray());
-            KeyStore trust = KeyStore.getInstance(KeyStore.getDefaultType()); trust.load(null);
-            try (InputStream in = asset("ca.pem")) { trust.setCertificateEntry("fixture-ca", CertificateFactory.getInstance("X.509").generateCertificate(in)); }
-            TrustManagerFactory tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); tm.init(trust);
-            SSLContext tls = SSLContext.getInstance("TLSv1.3"); tls.init(km.getKeyManagers(), tm.getTrustManagers(), new SecureRandom());
-            Socket tcp = new Socket();
-            try {
-                tcp.connect(new InetSocketAddress("10.0.2.2", config.getInt("port")), 5000);
-                socket = (SSLSocket) tls.getSocketFactory().createSocket(tcp, expectedName, config.getInt("port"), true);
-                socket.setSoTimeout(15000); socket.setEnabledProtocols(new String[]{"TLSv1.3"});
-                SSLParameters parameters = socket.getSSLParameters(); parameters.setEndpointIdentificationAlgorithm("HTTPS"); socket.setSSLParameters(parameters);
-                socket.startHandshake(); require("TLSv1.3".equals(socket.getSession().getProtocol()));
-                byte[] digest = MessageDigest.getInstance("SHA-256").digest(socket.getSession().getPeerCertificates()[0].getEncoded());
-                StringBuilder hex = new StringBuilder(); for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
-                if (!hex.toString().equals(approvedPin)) throw new SSLPeerUnverifiedException("Approved host differs");
-                input = socket.getInputStream(); output = socket.getOutputStream();
-            } catch (Exception failure) { if (socket != null) socket.close(); else tcp.close(); throw failure; }
-        }
-        private JSONObject receive() throws Exception {
-            ByteArrayOutputStream line = new ByteArrayOutputStream(); int b;
-            while ((b = input.read()) != '\n') { if (b == -1) throw new EOFException(); require(line.size() < 8192); line.write(b); }
-            return new JSONObject(line.toString("UTF-8"));
-        }
-        private boolean receiveApproval(JSONObject message) throws Exception {
-            if (!"approval".equals(message.optString("event"))) return false;
-            require(approvals.size() < 8 && "read-only".equals(message.getString("mode")));
-            require(message.getJSONArray("recordIds").length() == 1 && "alex-library".equals(message.getJSONArray("recordIds").getString(0)));
-            approvals.add(message.getString("grantId")); return true;
-        }
-        JSONObject call(JSONObject body) throws Exception {
-            require(sequence < 20); int expected = ++sequence; body.put("seq", expected);
-            byte[] bytes = (body.toString() + "\n").getBytes(StandardCharsets.UTF_8); require(bytes.length <= 8192); output.write(bytes); output.flush();
-            for (;;) { JSONObject message = receive(); if (receiveApproval(message)) continue; require(message.getInt("seq") == expected); return message; }
-        }
-        String approval() throws Exception {
-            while (approvals.isEmpty()) require(receiveApproval(receive()));
-            return approvals.remove();
-        }
-        JSONObject execute(String grant, JSONObject request) throws Exception { return call(new JSONObject().put("op", "execute").put("grant", grant).put("request", request)); }
-        void denied(JSONObject result) throws Exception { require(!result.getBoolean("ok") && "DENIED".equals(result.getString("code"))); }
-        void readMonday(String grant) throws Exception {
-            JSONObject result = execute(grant, new JSONObject().put("action", "read").put("recordId", "alex-library"));
-            require(result.getBoolean("ok")); JSONObject record = result.getJSONObject("value");
-            require("alex-example".equals(record.getString("memberId")) && "Library visit".equals(record.getString("label")) && "Monday".equals(record.getString("value")));
-        }
-        @Override public void close() throws IOException { approvals.clear(); if (socket != null) socket.close(); }
-    }
 }

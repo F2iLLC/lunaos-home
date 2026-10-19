@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.github.f2illc.lunaos.directtlsprobe">
   <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />
   <uses-permission android:name="android.permission.INTERNET" />
-  <application android:label="Fictional direct TLS test" android:testOnly="true" android:allowBackup="false" android:usesCleartextTraffic="false" />
+  <application android:label="Fictional direct TLS test" android:testOnly="true" android:allowBackup="false" android:usesCleartextTraffic="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <activity android:name=".PairingActivity" android:exported="true" android:launchMode="singleTask" />
+  </application>
   <instrumentation android:name=".DirectTlsProbe" android:targetPackage="io.github.f2illc.lunaos.directtlsprobe" />
+  <instrumentation android:name=".DirectTlsRaceProbe" android:targetPackage="io.github.f2illc.lunaos.directtlsprobe" />
 </manifest>
