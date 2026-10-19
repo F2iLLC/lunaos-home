@@ -63,3 +63,22 @@ The key experiment should inspect `KeyInfo.getSecurityLevel()` and the actual ke
 ## Consequences
 
 This proves one real model/client can review through Home while keeping production records out of scope. It also exposes remaining work: automatic review-event delivery, native packaging, phone host lifecycle, source discovery limits, scoped disclosure, family admission, key custody and recovery. The preview's local-origin checks do not authenticate local processes. Do not put real records behind these endpoints or upgrade them into a vault without the later shared authorization contract and security review.
+
+## Enrollment and protected-record follow-up
+
+The [developer enrollment slice](../prototypes/enrolled-protected-record.md) connects
+explicit local host controls and Android identity/read confirmations to the existing
+Windows DPAPI adapter through the scoped TLS service. The Android screen renders
+the actual committed value. Debug certificate/offer provisioning, emulator-loopback
+transport and synthetic control driving are explicit limitations; this does not
+establish production enrollment, physical LAN or OS user-presence unlocking.
+
+The [Windows verified transport follow-up](../prototypes/windows-verified-transport.md)
+connects the existing owned-child verification/session gate to grant issuance,
+queued execution and post-read checks. Controlled child/event tests exercise real
+TLS and DPAPI. The attended native-to-Android emulator chain passed with a freshly
+built native binary, four read-only grants and readbacks, and a damaged-data refusal.
+Live Windows cancellation/lock/sleep/resume/expiry and physical-device networking
+remain unverified; the Android emulator used host-loopback, and the runner handled
+the synthetic local approval prompts. This application gate does not change DPAPI's
+key-release properties.

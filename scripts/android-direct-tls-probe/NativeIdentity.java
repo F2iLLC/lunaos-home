@@ -58,5 +58,11 @@ final class NativeIdentity {
             .put("userAuthenticationRequired", info.isUserAuthenticationRequired()).put("algorithm", key.getAlgorithm())
             .put("authorizedDigests", new org.json.JSONArray(info.getDigests()));
     }
+    static String fingerprint() throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(requireIdentity().getCertificate(ALIAS).getEncoded());
+        StringBuilder hex = new StringBuilder();
+        for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
+        return hex.toString();
+    }
     static void remove() throws Exception { store().deleteEntry(ALIAS); }
 }
