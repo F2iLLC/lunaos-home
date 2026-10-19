@@ -66,10 +66,17 @@ final class SyntheticTlsClient implements AutoCloseable {
         }
         JSONObject execute(String grant, JSONObject request) throws Exception { return call(new JSONObject().put("op", "execute").put("grant", grant).put("request", request)); }
         void denied(JSONObject result) throws Exception { require(!result.getBoolean("ok") && "DENIED".equals(result.getString("code"))); }
-        void readMonday(String grant) throws Exception {
+        JSONObject readRecord(String grant) throws Exception {
             JSONObject result = execute(grant, new JSONObject().put("action", "read").put("recordId", "alex-library"));
             require(result.getBoolean("ok")); JSONObject record = result.getJSONObject("value");
-            require("alex-example".equals(record.getString("memberId")) && "Library visit".equals(record.getString("label")) && "Monday".equals(record.getString("value")));
+            require(record.length() == 3 && "alex-example".equals(record.getString("memberId")));
+            require(record.getString("label").length() > 0 && record.getString("label").length() <= 80);
+            require(record.getString("value").length() > 0 && record.getString("value").length() <= 240);
+            return record;
+        }
+        void readMonday(String grant) throws Exception {
+            JSONObject record = readRecord(grant);
+            require("Library visit".equals(record.getString("label")) && "Monday".equals(record.getString("value")));
         }
         @Override public void close() throws IOException { approvals.clear(); if (socket != null) socket.close(); }
     }

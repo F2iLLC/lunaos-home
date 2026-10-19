@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 // Operates only through the runner's exact-AVD-checked adb function.
-export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApprovals }) {
+export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApprovals, approveHostRead, expectedRecord = "Library visit: Monday", storeFailure = false, alreadyOpen = false }) {
   const activity = 'io.github.f2illc.lunaos.directtlsprobe/.PairingActivity';
   const checks = [];
   const decode = value => value.replaceAll('&apos;', "'").replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
@@ -36,13 +36,17 @@ export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApp
   }
   async function connectAndRead() {
     await tap('Connect to test computer');
+    if (approveHostRead) {
+      await waitText('Computer connected. Waiting for host approval...');
+      await approveHostRead();
+    }
     await waitText('Connected. Review and allow the selected read.');
     await button("Read Alex's record", false);
     await tap('Allow selected read');
     await waitText('Selected read allowed. Nothing read yet.');
-    await tap("Read Alex's record"); await waitText('Library visit: Monday');
+    await tap("Read Alex's record"); await waitText(expectedRecord);
   }
-  await adb(['shell', 'am', 'start', '-W', '-n', activity]);
+  if (!alreadyOpen) await adb(['shell', 'am', 'start', '-W', '-n', activity]);
   await waitText('Review the test computer identity.');
   await button('Connect to test computer', false); await button('Allow selected read', false); await button("Read Alex's record", false);
   checks.push('Initial identity and scope gates closed');
@@ -52,7 +56,7 @@ export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApp
   await tap('End connection'); await waitText('No record shown.'); pauseApprovals(false);
   await connectAndRead();
   checks.push('End after pairing but before grant receipt reconnects without replaying the one-use offer');
-  checks.push('Explicit computer approval, separate selected-read approval, authoritative Monday read');
+  checks.push('Explicit computer approval, separate selected-read approval, authoritative protected-record read');
   await tap('End connection'); await waitText('No record shown.');
   await button("Read Alex's record", false); await button('Allow selected read', false);
   await connectAndRead(); checks.push('End clears content; reconnect requires fresh selected-read approval');
@@ -74,11 +78,11 @@ export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApp
   await button('Connect to test computer', false); await button("Read Alex's record", false);
   await tap('Approve fictional computer'); await connectAndRead();
   checks.push('Cold process restart resumes certificate admission with fresh identity and read approval; consumed offer is not replayed');
-  revoke(); await tap("Read Alex's record");
+  await revoke(); await tap("Read Alex's record");
   await waitText('Read unavailable. No access remains.');
   await button("Read Alex's record", false); await button('Allow selected read', false);
   assert.ok((await snapshot()).some(node => node.text === 'No record shown.'));
-  checks.push('Read after host revocation fails closed and clears displayed content');
+  checks.push(storeFailure ? 'Damaged encrypted store refuses read and clears displayed content' : 'Read after host revocation fails closed and clears displayed content');
   writeFileSync(path.join(outputDirectory, 'gui-checks.json'), JSON.stringify({ result: 'PASS', checks }, null, 2) + '\n');
   return checks;
 }

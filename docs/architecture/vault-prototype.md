@@ -63,3 +63,12 @@ The key experiment should inspect `KeyInfo.getSecurityLevel()` and the actual ke
 ## Consequences
 
 This proves one real model/client can review through Home while keeping production records out of scope. It also exposes remaining work: automatic review-event delivery, native packaging, phone host lifecycle, source discovery limits, scoped disclosure, family admission, key custody and recovery. The preview's local-origin checks do not authenticate local processes. Do not put real records behind these endpoints or upgrade them into a vault without the later shared authorization contract and security review.
+
+## Enrollment and protected-record follow-up
+
+The [developer enrollment slice](../prototypes/enrolled-protected-record.md) connects
+explicit local host controls and Android identity/read confirmations to the existing
+Windows DPAPI adapter through the scoped TLS service. The Android screen renders
+the actual committed value. Debug certificate/offer provisioning, emulator-loopback
+transport and synthetic control driving are explicit limitations; this does not
+establish production enrollment, physical LAN or OS user-presence unlocking.

@@ -13,7 +13,7 @@ public final class PairingActivity extends Activity {
     private TextView status, contents;
     private Button approveHost, connect, approveRead, read, end;
     private boolean identityApproved, scopeApproved, busy;
-    private String pendingGrant;
+    private String pendingGrant, displayedHost, displayedPeer;
     private volatile long generation;
     private volatile SyntheticTlsClient activeClient;
     private final Object clientLock = new Object();
@@ -24,13 +24,14 @@ public final class PairingActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         if (!"ranchu".equals(Build.HARDWARE)) { finish(); return; }
-        try { config = FixtureConfig.read(this); } catch (Exception error) { finish(); return; }
+        try { config = FixtureConfig.read(this); displayedHost = config.getString("hostFingerprint"); displayedPeer = NativeIdentity.fingerprint(); } catch (Exception error) { finish(); return; }
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(24, 24, 24, 24);
         scroll.addView(layout); setContentView(scroll);
         label(layout, "Fictional device connection");
         label(layout, "Test only. No family data. This device keeps its connection key in Android Keystore. This does not unlock a vault or replace Android verification.");
         label(layout, "Test computer identity: " + config.optString("hostFingerprint"));
+        label(layout, "Android identity: " + displayedPeer);
         label(layout, "Selected information: Alex / Library visit. Read only, up to 60 seconds. The host separately approves this fixed test scope.");
         status = label(layout, "Review the test computer identity."); contents = label(layout, "No record shown.");
         approveHost = button(layout, "Approve fictional computer", () -> { identityApproved = true; status.setText("Computer approved for this screen. Connect when ready."); render(); });
@@ -76,6 +77,8 @@ public final class PairingActivity extends Activity {
             SyntheticTlsClient client = null;
             try {
                 if (generation != token) return;
+                config = FixtureConfig.read(this);
+                if (!displayedHost.equals(config.getString("hostFingerprint")) || !displayedPeer.equals(NativeIdentity.fingerprint())) throw new IOException("Identity changed; review again");
                 client = new SyntheticTlsClient(this, config);
                 synchronized (clientLock) {
                     if (generation != token) { client.close(); return; }
@@ -116,10 +119,11 @@ public final class PairingActivity extends Activity {
         schedule(() -> {
             try {
                 if (generation != token) return;
-                client.readMonday(grant);
+                JSONObject record = client.readRecord(grant);
+                final String display = record.getString("label") + ": " + record.getString("value");
                 runOnUiThread(() -> {
                     if (generation != token) return;
-                    busy = false; contents.setText("Library visit: Monday"); status.setText("Fictional record read. No changes allowed."); render();
+                    busy = false; contents.setText(display); status.setText("Fictional record read. No changes allowed."); render();
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> { if (generation == token) closeAccess("Read unavailable. No access remains."); });
