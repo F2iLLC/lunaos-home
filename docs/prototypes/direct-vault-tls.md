@@ -1,6 +1,6 @@
 # Synthetic direct TLS and reconnect experiment
 
-Session 2 / issue #14. This module is deliberately separate from Home's HTTP preview, MCP tools, native shell and Android manifests. It binds only to `127.0.0.1`, uses an in-memory synthetic store in tests and is not a production bridge or encrypted-at-rest vault. No public listener, relay, discovery, firewall change or real record is introduced.
+Session 2 / issue #14. This module is deliberately separate from Home's HTTP preview, MCP tools, native shell and Android manifests. The host binds only to `127.0.0.1`, uses an in-memory synthetic store in tests and is not a production bridge or encrypted-at-rest vault. A separate disposable Android instrumentation package exercises the same host through the emulator's host-loopback alias. No public listener, relay, discovery, firewall change or real record is introduced.
 
 ## Transport and approval boundary
 
@@ -28,8 +28,37 @@ Observed on Windows with Node24.19.0 and OpenSSL3.5.5: fourteen real TLS socket 
 
 The Windows-compatible suite passes (96 tests at this increment). An unrestricted `npm test` additionally runs Linux-only Android-container preparation tests; eight failed on this Windows host because that unchanged preparation entry point explicitly requires Linux. Those are not reported as passed or disabled to make this change green.
 
-## Next native integration
+## Native Android evidence
 
-This is real TLS over loopback between Node peers, not an Android GUI or phone/computer round trip. The concrete next adapter must use Android's maintained TLS provider, keep identity keys out of the WebView, implement local host/peer identity approval and selected-scope delivery, then read the same authoritative synthetic record on a disposable Android target. It must be an explicitly separate network-enabled experiment; the existing offline Home variant must retain its no-network boundary.
+`scripts/android-direct-tls-probe` is a separate self-targeted instrumentation APK with `INTERNET`, `testOnly`, no backup, no cleartext and no activity/service/provider. It does not modify or instrument Home. Native Java uses Android's standard `SSLContext`, `KeyManagerFactory` and `TrustManagerFactory`, requires TLS1.3, enables HTTPS endpoint identification and checks the separately approved host certificate fingerprint. There is no permissive trust manager or WebView key path. See [Android endpoint identification](https://developer.android.com/reference/javax/net/ssl/SSLParameters#setEndpointIdentificationAlgorithm(java.lang.String)).
 
-After that adapter, prove physical private-network reachability, sleep/suspension, reconnect/revocation, and truthful unknown-write UI. Pairing enrollment, native storage/key custody, OS unlock and grants are distinct acceptance boundaries. Recovery, production PKI and independent sensitive-use review remain open. No Session 2 completion, merge, deployment or Actions enablement follows from this evidence.
+The APK connects only to `10.0.2.2`, the documented [Android emulator alias for host loopback](https://developer.android.com/studio/run/emulator-networking), with the TLS host name `localhost`. It uses no ADB reverse, external relay or physical network configuration. This demonstrates an actual Android-native socket to the Node host, **not physical phone/LAN reachability or a Home GUI integration**.
+
+`scripts/test-android-direct-tls.mjs` checks the exact `HomeVaultAcceptance_API36` AVD on `emulator-5556`, `ranchu` hardware and unlocked user state. It refuses an existing probe install. The native probe independently requires `ranchu`. The harness generates a new private test CA and disposable PKCS12 client identity, builds into a new directory outside the checkout, approves only that exact fictional identity and one fixed read-only scope, executes the probe, checks host-side counts, removes its package and closes the listener. Temporary CA/leaf source files are removed. The retained build APK/assets contain disposable one-day test identity material and must never be used as production keys or distributed as a product.
+
+With the dedicated emulator running and unlocked, configure `ANDROID_HOME` and `JAVA_HOME` (tested SDK platform/build-tools37.0.0, JDK21) and use PowerShell7/Node24:
+
+```powershell
+node scripts/test-android-direct-tls.mjs 'C:\scratch\new-direct-tls-run' 'C:\scratch\disposable-debug.keystore'
+```
+
+The debug keystore must use the standard disposable Android debug alias/password; never pass release credentials. No personal device or credential prompt is used. Host identity and scope decisions here are explicit fixture approvals by the local harness, not completed user-facing consent screens. The local `listConnections()` inspection API exists only on the controller object; it adds no remote discovery/approval operation.
+
+Observed 2026-10-19 UTC on the dedicated Android16/API36 emulator:
+
+| Check | Result |
+| --- | --- |
+| Android rejects wrong TLS host name | PASS: `SSLHandshakeException` before pairing |
+| Android rejects mismatched approved host fingerprint | PASS: `SSLPeerUnverifiedException` before pairing |
+| Pair and read Alex's authoritative Monday record | PASS over native TLS1.3 |
+| Disconnect and resume | PASS: new connection ID; old grant denied |
+| Receive fresh read-only approval and reread same record | PASS; two host reads and two distinct approvals total |
+| Edit with read-only grant | DENIED; zero storage writes |
+| Host revokes peer | Socket EOF before client timeout; subsequent resume denied |
+| Cleanup | Probe uninstalled; listener closed |
+
+Test APK SHA256: `143303c8d265f90cac97f2c9e0a15af520eb03b2a9edfafdb834fd04ec200511`. The bounded host fixture revokes 1.5 seconds after observing the second read; the native client must finish the read-only denial and observe EOF, not a timeout. The host independently requires two reads, zero writes, two approvals and actual revocation. A preliminary locked-at-boot run timed out before instrumentation started; it is not counted as passing, and the runner now checks unlocked state before installation.
+
+## Remaining integration
+
+The next implementation is native identity custody and enrollment/selected-scope screens in an explicit network-enabled prototype, followed by connection to the encrypted storage adapter. These are implementation work, not a request for the owner to build adapters. Physical private-network reachability, sleep/suspension and truthful unknown-write UI still need their own checks. Pairing enrollment, native storage/key custody, OS unlock and grants are distinct acceptance boundaries. Recovery, production PKI and independent sensitive-use review remain open. No Session 2 completion, merge, deployment or Actions enablement follows from this evidence.

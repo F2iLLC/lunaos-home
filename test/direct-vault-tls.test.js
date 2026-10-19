@@ -1,38 +1,13 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 import tls from 'node:tls';
 import { once } from 'node:events';
 import { certificateFingerprint, startDirectVaultExperiment, connectDirectVaultExperiment, DirectVaultError } from '../lib/direct-vault-tls.js';
 
-// Fresh disposable PKI per run, never checked-in keys or host/user trust stores.
-const scratch = mkdtempSync(path.join(tmpdir(), 'home-direct-tls-'));
-after(() => {
-  assert.equal(path.dirname(scratch), path.resolve(tmpdir()));
-  assert.ok(path.basename(scratch).startsWith('home-direct-tls-'));
-  rmSync(scratch, { recursive: true, force: true });
-});
-const gitOpenSSL = 'C:/Program Files/Git/usr/bin/openssl.exe';
-const openssl = process.env.HOME_TEST_OPENSSL || (existsSync(gitOpenSSL) ? gitOpenSSL : 'openssl');
-function run(args) { execFileSync(openssl, args, { cwd: scratch, stdio: 'pipe', windowsHide: true, timeout: 15_000 }); }
-const keyArgs = ['-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-noenc'];
-run(['req', '-x509', ...keyArgs, '-keyout', 'ca.key', '-out', 'ca.pem', '-subj', '/CN=Home Disposable Test CA', '-days', '1', '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign']);
-const ca = readFileSync(path.join(scratch, 'ca.pem'));
-function identity(name, server = false) {
-  run(['req', '-new', ...keyArgs, '-keyout', `${name}.key`, '-out', `${name}.csr`, '-subj', `/CN=${name}`]);
-  writeFileSync(path.join(scratch, `${name}.ext`), `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=${server ? 'serverAuth' : 'clientAuth'}\n${server ? 'subjectAltName=DNS:localhost,IP:127.0.0.1\n' : ''}`);
-  run(['x509', '-req', '-in', `${name}.csr`, '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', `${name}.pem`, '-days', '1', '-extfile', `${name}.ext`]);
-  const result = { key: readFileSync(path.join(scratch, `${name}.key`)), cert: readFileSync(path.join(scratch, `${name}.pem`)) };
-  result.fingerprint = certificateFingerprint(result.cert); return result;
-}
-const hostIdentity = identity('Fictional-Host', true);
-const phoneIdentity = identity('Fictional-Phone');
-const outsiderIdentity = identity('Fictional-Unapproved-Peer');
-run(['req', '-x509', ...keyArgs, '-keyout', 'untrusted.key', '-out', 'untrusted.pem', '-subj', '/CN=Fictional-Untrusted-Issuer', '-days', '1', '-addext', 'basicConstraints=critical,CA:FALSE', '-addext', 'extendedKeyUsage=clientAuth']);
-const untrustedIdentity = { key: readFileSync(path.join(scratch, 'untrusted.key')), cert: readFileSync(path.join(scratch, 'untrusted.pem')) };
+const fixtures = createDirectTlsIdentities();
+const { ca, hostIdentity, phoneIdentity, outsiderIdentity, untrustedIdentity } = fixtures;
+after(fixtures.cleanup);
 const alex = { memberId: 'alex-example', label: 'Library visit', value: 'Monday' };
 const sam = { memberId: 'sam-example', label: 'Library visit', value: 'Tuesday' };
 const scope = { recordIds: ['alex-library', 'sam-library'], lifetimeMs: 60_000 };
@@ -62,6 +37,7 @@ test('TLS1.3 pairing authenticates identities but grants no record access', asyn
   const client = await pair();
   assert.equal(client.protocol, 'TLSv1.3');
   assert.equal(client.hostFingerprint, hostIdentity.fingerprint);
+  assert.deepEqual(host.listConnections(), [{ connectionId: client.connectionId, peerFingerprint: phoneIdentity.fingerprint }]);
   await assert.rejects(client.execute(crypto.randomUUID(), readAlex), isCode('DENIED'));
   const received = client.nextApproval();
   host.approveAccess(client.connectionId, 'read-only', scope);
