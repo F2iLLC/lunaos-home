@@ -121,16 +121,19 @@ the ten-second local read-approval prompt expired; neither is counted as a pass.
 The final run continuously handled those synthetic prompts without changing the
 approval deadline, authentication gate or assertions.
 
-Current live OS cancellation, lock, sleep, resume and five-minute expiry with
-Android still need attended acceptance. This run used emulator host-loopback,
+This emulator run did not exercise live OS cancellation, lock, sleep, resume or
+five-minute expiry. A subsequent [physical-phone test](physical-vault-lifecycle.md)
+verified Windows lock and brief S3 sleep/wake; cancellation and five-minute expiry
+still need attended acceptance. This run used emulator host-loopback,
 not a physical Android network. Its Keystore provider reports software security
 level 0; no hardware-backed custody claim is made. No personal-phone action was
 performed. The Android APK and Rust monitor source are unchanged by this increment.
 
-Production enrollment/durable trust, physical networking, recovery and independent
-security review remain open. This is an application access gate around CurrentUser
+Production enrollment/durable trust, broader network/host-direction testing,
+recovery and independent security review remain open. This is an application access gate around CurrentUser
 DPAPI, not authentication-bound cryptographic key release. Actions stays disabled;
-the offline Home networking boundary and personal phone are unchanged.
+the offline Home networking boundary is unchanged. The later phone check uses a
+separate disposable test package.
 
 ## Validation for this increment
 
@@ -139,5 +142,5 @@ composition/launcher cases and the existing native-gate cases. The offline
 frontend bundle and subsequent full Windows native debug build passed. The
 attended chain above adds real Windows verification and Android emulator evidence
 to those controlled-event/TLS/DPAPI checks. Linux-only container checks remain
-platform-limited. Live Windows lock/sleep acceptance and physical-device network
-acceptance are not inferred from this result. Session 2 remains open.
+platform-limited. Live Windows lock/sleep and physical-device network results are
+recorded separately, not inferred from this emulator result. Session 2 remains open.
