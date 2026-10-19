@@ -49,6 +49,10 @@ test('largest well-formed snapshot fits the authenticated archive', () => {
     { memberId: 'm'.repeat(80), label: '漢'.repeat(80), value: '漢'.repeat(240) },
   ]);
   const maximal = { schema: 1, records: Object.fromEntries(entries) };
+  const restoreRequest = JSON.stringify({
+    operation: 'restore', probeId: '00000000-0000-4000-8000-000000000000', snapshot: maximal,
+  });
+  assert.ok(Buffer.byteLength(restoreRequest) < 262144);
   const { archive, recoveryKey } = createPortableBackup(maximal);
   try {
     assert.ok(archive.length > 65536);

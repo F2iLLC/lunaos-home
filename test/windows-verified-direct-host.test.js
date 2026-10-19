@@ -2,6 +2,10 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { superviseNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline, waitForNativeEvent } from '../scripts/test-fixtures/native-direct-host.mjs';
 import { startWindowsVerifiedDirectHost } from '../lib/windows-verified-direct-host.js';
 import { connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
@@ -16,6 +20,20 @@ const edit = { action: 'edit', recordId: 'alex-library', data: { ...example, val
 const scope = { recordIds: ['alex-library'], lifetimeMs: 60_000 };
 const denied = error => error.code === 'DENIED';
 const unavailable = error => ['DENIED', 'UNAVAILABLE'].includes(error.code);
+test('failed native gate setup releases the preview store session lock', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'lunaos-gate-startup-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = {
+    probeId: crypto.randomUUID(), directory,
+    read: async () => example, create: async () => {}, edit: async () => {},
+  };
+  const child = new EventEmitter(); child.stdout = new EventEmitter(); child.kill = () => {};
+  await assert.rejects(startWindowsVerifiedDirectHost({
+    child, store, identity: identities.hostIdentity, ca: identities.ca,
+    gateOptions: { schedule() { throw new Error('synthetic scheduler failure'); } },
+  }), /synthetic scheduler failure/);
+  assert.equal(existsSync(path.join(directory, '.vault-session-or-recovery.lock')), false);
+});
 test('lifecycle evidence rejects events after the read grant deadline', () => {
   const event = tick => [{ reason: 'lock', tick }];
   assert.equal(requireLifecycleDuringGrant(event(59_999), 'lock', 0, 60_000).tick, 59_999);
