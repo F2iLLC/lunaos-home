@@ -16,10 +16,17 @@ opt-in must match the physical model/API before the UI or non-destructive identi
 instrumentation can run. Destructive identity/race instrumentation retains its
 emulator restriction. No household record or Home package/file is accessed.
 
+The runner rejects an unsupported `network` event before device setup. A prior
+argument list accepted that name but skipped the interruption checks, so such a
+run could have reported a false pass after an ordinary read. No network-loss or
+roaming result is counted from that path; a dedicated physical scenario must
+observe the disconnection and recovery before this acceptance check can pass.
+
 ```powershell
 node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> lock
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
 node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> expiry
+node scripts/test-attended-physical-vault.mjs <new-restore-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> restore
 node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
@@ -75,6 +82,7 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Android background on two devices | During an active 60-second read grant, moving each test client Home cleared its displayed content and local scope. On return, the read and connect controls were disabled until identity review. A new connection waited for fresh host approval and made no second store read. The Windows visit stayed verified. |
 | Physical device removal | After the Echo Show 8 read once, the host removed its paired identity. Its old read failed and cleared the display when attempted; reconnect was denied without another store read. Previously displayed information cannot be recalled from an already admitted device. |
 | Physical client ends connection | On the Samsung, tapping the disposable client's End connection control after one read cleared the displayed content and old scope. Its reconnect waited for fresh host approval and made no second store read; Windows remained verified. |
+| Restored Windows store and physical client | On October 19 UTC, the Samsung read one fictional record from a newly created Windows encrypted store after the source store was removed and its portable archive imported with an in-memory recovery key. The phone rejected a wrong host name and fingerprint before pairing. After host removal of that client, its old read and reconnect failed without another store read. The run recorded one read, zero writes, unchanged restored ciphertext, and passing cleanup. This used the same Windows user and PC, not a clean second device or a user-held key. |
 
 The Echo's first attempt crashed in the test identity reporter before pairing: the
 reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
@@ -97,6 +105,16 @@ The additional successful APK SHA-256 values were
 (Samsung client end). All four runs reported cleanup passing. The disposable test
 package was independently absent from both devices afterward; no test listener
 remained listening. Raw output stays outside Git.
+
+The restored-store run used disposable APK SHA-256
+`fd15562dca17e435f4b92726b791e86f88112ec57535912221f02236f560a557`.
+The archive and key stayed in process memory, the source synthetic store was
+removed before import, and the destination synthetic store and test package
+were removed afterward. The key was zeroed in the runner. This is physical
+client access after a same-PC import, not proof of portable recovery-key custody
+or recovery onto a clean device. Raw evidence remains outside Git in
+`physical-restore-v2`; the earlier `physical-restore-v1` stopped before pairing
+because this checkout lacked its native preview binary and is not a pass.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.

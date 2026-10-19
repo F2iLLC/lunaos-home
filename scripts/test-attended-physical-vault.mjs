@@ -12,10 +12,12 @@ import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities
 import { launchNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline } from './test-fixtures/native-direct-host.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../lib/windows-portable-backup.js';
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'network', 'background', 'revoke', 'client-end'].includes(event));
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore'].includes(event),
+  'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(i => i?.address === address && !i.internal), 'Bind only an assigned private address');
@@ -36,7 +38,7 @@ assert.equal(sync(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never o
 const configBase = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText), transportAddress: address };
 function config(value) { sync(['shell', '-T', 'run-as', pkg, 'sh', '-c', "'cat > no_backup/config.json'"], JSON.stringify({ ...configBase, ...value })); }
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
-let installed = false, store, visit, reads = 0, writes = 0;
+let installed = false, sourceStore, store, visit, recoveryKey, reads = 0, writes = 0;
 const evidence = { result: 'INCOMPLETE', event, model, api: Number(apiText), started: new Date().toISOString(), checks: [] };
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -75,7 +77,22 @@ try {
   const cert = sync(['exec-out', 'run-as', pkg, 'cat', 'no_backup/client-public.pem']);
   const certificate = new X509Certificate(cert); assert.ok(certificate.verify(certificate.publicKey));
   evidence.identity = identity;
-  store = await openWindowsProbeStore({ create: true }); await store.create('alex-library', record);
+  if (event === 'restore') {
+    sourceStore = await openWindowsProbeStore({ create: true, recovery: true });
+    await sourceStore.create('alex-library', record);
+    const backup = await exportWindowsSyntheticBackup(sourceStore);
+    recoveryKey = backup.recoveryKey;
+    await sourceStore.removeSyntheticStore();
+    sourceStore = undefined;
+    store = await openWindowsProbeStore({ create: true, recovery: true });
+    await restoreWindowsSyntheticBackup(store, backup.archive, recoveryKey);
+    recoveryKey.fill(0);
+    recoveryKey = undefined;
+    evidence.checks.push('Fictional archive imported into an empty independent Windows encrypted store after source removal; key stayed in process memory');
+  } else {
+    store = await openWindowsProbeStore({ create: true });
+    await store.create('alex-library', record);
+  }
   const ciphertext = readFileSync(path.join(store.directory, 'records.bin'));
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
   store = await openWindowsProbeStore({ probeId: store.probeId });
@@ -110,7 +127,7 @@ try {
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.'); await tap('Allow selected read');
   await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
-  evidence.checks.push('Physical Android read of reopened Windows encrypted store over native mutually authenticated TLS1.3 on LAN');
+  evidence.checks.push(`Physical Android read of ${event === 'restore' ? 'restored' : 'reopened'} Windows encrypted store over native mutually authenticated TLS1.3 on LAN`);
   assert.equal(reads, 1); assert.equal(writes, 0);
   if (event === 'client-end') {
     await tap('End connection');
@@ -125,7 +142,7 @@ try {
     assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Physical Android End connection cleared content and access; reconnect awaited fresh host approval without a second store read');
-  } else if (event === 'revoke') {
+  } else if (event === 'revoke' || event === 'restore') {
     visit.host.revokePeer(peer);
     const beforeRetry = await nodes();
     assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
@@ -137,7 +154,7 @@ try {
     await tap('Connect to test computer');
     await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push('Removing the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read');
+    evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read`);
   } else if (event === 'background') {
     await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
     await pause(300);
@@ -159,7 +176,7 @@ try {
     assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Android background cleared content and scope during an active grant; reconnect awaited fresh host approval with no second store read');
-  } else if (event !== 'network') {
+  } else {
     evidence.actionRequested = new Date().toISOString();
     if (event === 'expiry') {
       console.log('WAIT_FOR_VISIT_EXPIRY; leave Windows and the phone test app awake');
@@ -226,9 +243,11 @@ try {
 } catch (error) { evidence.error = error.message; throw error; }
 finally {
   const failures = [];
+  recoveryKey?.fill(0);
   evidence.nativeEvents ??= [...(visit?.nativeEvents || [])];
   try { await visit?.close(); } catch (e) { failures.push(e); }
   try { await store?.removeSyntheticStore(); } catch (e) { failures.push(e); }
+  try { await sourceStore?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { if (installed) {
     verifyTarget();
     sync(['shell', 'rm', '-f', '/data/local/tmp/fictional-physical-ui.xml']);
