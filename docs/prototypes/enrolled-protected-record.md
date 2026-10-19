@@ -16,6 +16,8 @@ single-use offer. A denied, mismatched, cancelled, consumed or expired review
 cannot issue an offer. The review expires after 60 seconds; the resulting offer
 cannot extend that deadline. Existing TLS certificate and hostname validation
 remain mandatory. Importing a certificate as a trust anchor alone grants nothing.
+Removing a device also invalidates every pairing review still awaiting a local
+decision. The operator must start a fresh review before pairing again.
 
 On Android, approving the displayed computer is separate from connecting and
 allowing the selected read. A changed host configuration or changed native peer

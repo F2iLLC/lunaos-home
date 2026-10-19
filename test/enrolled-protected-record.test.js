@@ -54,6 +54,18 @@ test('local review is separate from TLS trust and refuses denied, mismatched, ca
   assert.throws(() => control.review(fixtures.phoneIdentity.fingerprint), code('DENIED'));
 });
 
+test('removing a device invalidates its pending pairing review', async t => {
+  const { host, control, connect, approve } = await setup(t, { read: async () => record, create() {}, edit() {} });
+  const first = await connect(approve().offer);
+  const stale = control.review(fixtures.phoneIdentity.fingerprint);
+  host.revokePeer(fixtures.phoneIdentity.fingerprint);
+  await assert.rejects(first.execute(crypto.randomUUID(), read), code('UNAVAILABLE'));
+  assert.throws(() => control.decide({ ...stale, allow: true }), code('DENIED'));
+  assert.throws(() => control.decide({ ...stale, allow: true }), code('DENIED'));
+  const fresh = control.review(fixtures.phoneIdentity.fingerprint);
+  await connect(control.decide({ ...fresh, allow: true }).offer);
+});
+
 test('local terminal displays exact identities and scope, with deny as the default', async () => {
   const input = new PassThrough(), output = new PassThrough(); let display = '';
   output.on('data', chunk => { display += chunk; });
