@@ -18,7 +18,7 @@ import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss', 'link-reset'].includes(event),
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss', 'link-reset', 'wifi-cycle'].includes(event),
   'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -27,6 +27,11 @@ assert.equal(existsSync(output), false, 'Choose a new output directory');
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.directtlsprobe';
+if (event === 'wifi-cycle') {
+  const selected = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+    .split(/\r?\n/).find(line => line.startsWith(`${serial} `));
+  assert.ok(selected && /\busb:\S+/.test(selected), 'Wi-Fi cycle requires the selected physical phone over USB adb');
+}
 const adb = async args => (await promisify(execFile)(adbPath, ['-s', serial, ...args], { encoding: 'utf8', timeout: 20000, windowsHide: true })).stdout;
 const sync = (args, input) => execFileSync(adbPath, ['-s', serial, ...args], { input, encoding: 'utf8', timeout: 20000, windowsHide: true });
 function verifyTarget() {
@@ -40,10 +45,14 @@ assert.equal(sync(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never o
 const configBase = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText), transportAddress: address };
 function config(value) { sync(['shell', '-T', 'run-as', pkg, 'sh', '-c', "'cat > no_backup/config.json'"], JSON.stringify({ ...configBase, ...value })); }
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
-let installed = false, sourceStore, store, visit, relay, recoveryKey, reads = 0, writes = 0;
+let installed = false, wifiChanged = false, sourceStore, store, visit, relay, recoveryKey, reads = 0, writes = 0;
 const evidence = { result: 'INCOMPLETE', event, model, api: Number(apiText), started: new Date().toISOString(), checks: [] };
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function wifiRouteAvailable() {
+  try { return /\bdev wlan0\b/.test(await adb(['shell', 'ip', '-4', 'route', 'get', address])); }
+  catch { return false; }
+}
 async function beforeDeadline(promise, deadline, message) {
   const remaining = deadline - performance.now();
   assert.ok(remaining > 0, message);
@@ -237,6 +246,44 @@ try {
     assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Disposable TCP relay reset the physical client link while Windows and the host remained verified; old read failed, display cleared on attempt, and reconnect awaited fresh host approval without a second store read');
+  } else if (event === 'wifi-cycle') {
+    assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
+    assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');
+    assert.ok(performance.now() - grantTick < 60_000, 'Wi-Fi cycle missed the active read grant');
+    wifiChanged = true;
+    sync(['shell', 'svc', 'wifi', 'disable']);
+    const disabledBy = performance.now() + 10_000;
+    while ((sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim() !== '0' || await wifiRouteAvailable()) && performance.now() < disabledBy) await pause(100);
+    assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '0', 'Physical Wi-Fi did not switch off');
+    assert.equal(await wifiRouteAvailable(), false, 'Physical Wi-Fi route to the host did not disappear');
+    assert.ok(performance.now() - grantTick < 60_000, 'Wi-Fi did not switch off during the active read grant');
+    visit.gate.requireVerified();
+    assert.deepEqual(visit.nativeEvents, []);
+    const beforeRetry = await nodes();
+    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
+    assert.ok(performance.now() - grantTick < 60_000, 'Old read was not attempted during the active grant');
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+    const denied = await nodes();
+    assert.ok(denied.some(n => n.text === 'No record shown.'));
+    assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Connection or approval unavailable. No access remains.');
+    sync(['shell', 'svc', 'wifi', 'enable']);
+    const enabledBy = performance.now() + 30_000;
+    while ((sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim() !== '1' || !(await wifiRouteAvailable())) && performance.now() < enabledBy) await pause(250);
+    assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi did not switch back on');
+    assert.ok(await wifiRouteAvailable(), 'Physical Wi-Fi route to the host did not return');
+    await tap('Connect to test computer');
+    await waitText('Computer connected. Waiting for host approval...');
+    const awaiting = await nodes();
+    assert.ok(awaiting.some(n => n.text === 'No record shown.'));
+    assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
+    visit.gate.requireVerified();
+    assert.deepEqual(visit.nativeEvents, []);
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Physical Wi-Fi was disabled and restored over USB adb while Windows and its TLS host stayed verified; old read and offline reconnect failed, and reconnect after Wi-Fi returned awaited fresh host approval without another store read');
   } else if (event === 'background') {
     await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
     await pause(300);
@@ -327,6 +374,13 @@ finally {
   const failures = [];
   recoveryKey?.fill(0);
   evidence.nativeEvents ??= [...(visit?.nativeEvents || [])];
+  try { if (wifiChanged) {
+    sync(['shell', 'svc', 'wifi', 'enable']);
+    const restoredBy = performance.now() + 30_000;
+    while ((sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim() !== '1' || !(await wifiRouteAvailable())) && performance.now() < restoredBy) await pause(250);
+    assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi cleanup did not restore enabled state');
+    assert.ok(await wifiRouteAvailable(), 'Physical Wi-Fi cleanup did not restore the private host route');
+  } } catch (e) { failures.push(e); }
   try { await relay?.close(); } catch (e) { failures.push(e); }
   try { if (visit) await beforeDeadline(visit.close(), performance.now() + 5_000, 'Owned visit cleanup exceeded five seconds'); } catch (e) { failures.push(e); }
   try { await store?.removeSyntheticStore(); } catch (e) { failures.push(e); }

@@ -29,6 +29,7 @@ node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore
 node scripts/test-attended-physical-vault.mjs <new-restore-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> restore
 node scripts/test-attended-physical-vault.mjs <new-host-loss-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> host-loss
 node scripts/test-attended-physical-vault.mjs <new-link-reset-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> link-reset
+node scripts/test-attended-physical-vault.mjs <new-wifi-cycle-output> <debug-keystore> <explicit-usb-adb-target> <exact-model> <api> <host-private-ipv4> wifi-cycle
 node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
@@ -44,6 +45,17 @@ name, not route); CA validation, hostname validation and exact host fingerprint
 remain enforced, and the client authenticates with its Android Keystore identity.
 The fixture certificate and short-lived offer are provisioned through debug tools,
 so this is not production pairing or durable trust establishment.
+
+The `wifi-cycle` scenario is **prepared but not yet physically run**. It refuses
+wireless adb and requires the explicitly selected phone to appear as a USB adb
+device before APK setup. After a fictional LAN read during an active grant, it
+checks a `wlan0` route to the private host, disables Wi-Fi only on that phone,
+requires the route to disappear, tests old read and offline reconnect denial,
+then re-enables Wi-Fi and requires the route to return before checking that a
+new connection awaits fresh host approval. Its cleanup also re-enables Wi-Fi
+and checks the route; a failure must be reported rather than counted as a pass.
+This will test a real radio interruption on the selected device, not roaming
+between access points. No phone network setting was changed to prepare it.
 
 The user completes verification only in the trusted Windows prompt. The assistant
 compares the exact on-screen synthetic identities and approves the fixed
