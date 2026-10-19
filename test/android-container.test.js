@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { buildCommand, parseArgs, prepare, validateBase, validateManifest } from '../scripts/android-container/prepare.mjs';
 
 const base = `localhost/approved-runner@sha256:${'a'.repeat(64)}`;
-const components = ['jdk', 'rust', 'rust-android-std', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
+const components = ['jdk', 'rust', 'rust-android-std-x86_64', 'rust-android-std-aarch64', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
 const ndkPrefix = 'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/';
 const vendorPaths = [
   'python3/include/python3.11/token.h',
@@ -41,15 +41,16 @@ async function fixture(context, extraContents = {}) {
   for (const path of [
     'jdk/bin/java', 'jdk/bin/javac', 'jdk/LICENSE', 'rust/bin/rustc', 'rust/bin/cargo',
     'rust/LICENSE-APACHE', 'rust/LICENSE-MIT', 'rust/lib/rustlib/x86_64-linux-android/lib/libstd-abc123.rlib',
+    'rust/lib/rustlib/aarch64-linux-android/lib/libstd-abc123.rlib',
     'sdk/cmdline-tools/pinned/bin/sdkmanager', 'sdk/cmdline-tools/pinned/NOTICE.txt',
     'sdk/platforms/android-37.0/android.jar', 'sdk/ndk/29.0.14206865/NOTICE',
     ...['aapt2', 'd8', 'apksigner', 'zipalign'].map(name => `sdk/build-tools/37.0.0/${name}`),
-    ...['clang', 'x86_64-linux-android24-clang'].map(name => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/${name}`),
+    ...['clang', 'x86_64-linux-android24-clang', 'aarch64-linux-android24-clang'].map(name => `sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/${name}`),
   ]) contents[path] = 'synthetic fixture, not a compiler\n';
   Object.assign(contents, extraContents);
   const manifest = {
     schema: 1, jdk: '21.0.1', rust: '1.80.0', commandLineTools: '1.0.0',
-    archives: components.map(component => ({ component, filename: `${component}.tar.xz`, sha256: 'c'.repeat(64), vendor: 'Fictional test vendor' })),
+    archives: components.map(component => ({ component, filename: `${component}.tar.xz`, sha256: component === 'rust-android-std-aarch64' ? 'd'.repeat(64) : 'c'.repeat(64), vendor: 'Fictional test vendor' })),
     files: {},
   };
   for (const [path, content] of Object.entries(contents)) {
@@ -142,6 +143,22 @@ test('NDK exceptions still require complete inventory, matching hashes and regul
   }
 });
 
+test('rejects a missing ARM64 target library or NDK linker, keeping x86_64-only staging refused too', async context => {
+  for (const missing of [
+    'rust/lib/rustlib/aarch64-linux-android/lib/libstd-abc123.rlib',
+    'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang',
+    'rust/lib/rustlib/x86_64-linux-android/lib/libstd-abc123.rlib',
+    'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang',
+  ]) {
+    const options = await fixture(context);
+    delete options.manifest.files[missing];
+    await options.save();
+    await rm(join(options.input, missing));
+    await assert.rejects(prepare(options), /missing/i, missing);
+    await assert.rejects(lstat(options.output), { code: 'ENOENT' });
+  }
+});
+
 test('staging preserves checksums/licenses and generates only an offline build argv', async context => {
   const options = await fixture(context);
   const command = await prepare(options);
@@ -206,11 +223,22 @@ test('rejects linked ancestors, source symlinks and hardlinks', async context =>
 
 test('rejects unsafe inventory/provenance, credentials, additional packages and version injection', async context => {
   const options = await fixture(context);
+  assert.equal(validateManifest(options.manifest), options.manifest);
+  assert.deepEqual(options.manifest.archives.filter(({ component }) => component.startsWith('rust-android-std-')).map(({ component }) => component), [
+    'rust-android-std-x86_64', 'rust-android-std-aarch64',
+  ]);
   for (const path of ['jdk/../escape', 'jdk/.env', 'jdk/key.pem', 'jdk/release.jks', 'jdk/credentials/token', 'jdk/credentials.json', 'jdk/auth.json', 'sdk/platform-tools/adb', 'sdk/cmdline-tools/latest/bin/sdkmanager']) {
     assert.throws(() => validateManifest({ ...options.manifest, files: { ...options.manifest.files, [path]: 'a'.repeat(64) } }));
   }
   for (const value of ['latest', '1.2.3;id', '$(id)', ['1.2.3']]) assert.throws(() => validateManifest({ ...options.manifest, rust: value }));
   assert.throws(() => validateManifest({ ...options.manifest, archives: [] }));
+  for (const missing of ['rust-android-std-x86_64', 'rust-android-std-aarch64']) {
+    const archives = options.manifest.archives.filter(({ component }) => component !== missing);
+    assert.throws(() => validateManifest({ ...options.manifest, archives }), /Archive provenance required/);
+  }
+  const duplicateTarget = options.manifest.archives.map(archive => ({ ...archive }));
+  duplicateTarget.find(({ component }) => component === 'rust-android-std-aarch64').component = 'rust-android-std-x86_64';
+  assert.throws(() => validateManifest({ ...options.manifest, archives: duplicateTarget }), /Duplicate archive component/);
   assert.doesNotThrow(() => validateManifest({ ...options.manifest, commandLineTools: '1.0' }));
   assert.throws(() => validateManifest({ ...options.manifest, command: 'id' }));
   assert.throws(() => validateManifest({ ...options.manifest, files: { ...options.manifest.files,

@@ -35,6 +35,7 @@ const required = [
   'sdk/ndk/29.0.14206865/source.properties', 'sdk/ndk/29.0.14206865/NOTICE',
   'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/clang',
   'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang',
+  'sdk/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang',
   'sdk/licenses/android-sdk-license',
 ];
 
@@ -90,7 +91,7 @@ export function validateManifest(manifest) {
   keys(manifest, ['schema', 'jdk', 'rust', 'commandLineTools', 'archives', 'files']);
   assert(manifest.schema === 1 && [manifest.jdk, manifest.rust, manifest.commandLineTools].every(value => typeof value === 'string') && /^21\.\d+\.\d+(?:\.\d+)?$/.test(manifest.jdk) &&
     /^1\.\d+\.\d+$/.test(manifest.rust) && version.test(manifest.commandLineTools), 'Explicit tool versions required.');
-  const components = ['jdk', 'rust', 'rust-android-std', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
+  const components = ['jdk', 'rust', 'rust-android-std-x86_64', 'rust-android-std-aarch64', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
   assert(Array.isArray(manifest.archives) && manifest.archives.length === components.length, 'Archive provenance required.');
   for (const archive of manifest.archives) {
     keys(archive, ['component', 'filename', 'sha256', 'vendor']);
@@ -99,6 +100,8 @@ export function validateManifest(manifest) {
       digest.test(archive.sha256) && /^[A-Za-z0-9][A-Za-z0-9 .+-]{0,79}$/.test(archive.vendor), 'Invalid archive provenance.');
   }
   assert(new Set(manifest.archives.map(archive => archive.component)).size === components.length, 'Duplicate archive component.');
+  const rustTargetArchives = manifest.archives.filter(({ component }) => component.startsWith('rust-android-std-'));
+  assert(new Set(rustTargetArchives.map(({ sha256 }) => sha256)).size === 2, 'Rust target archives must have distinct SHA256 digests.');
   assert(manifest.files && typeof manifest.files === 'object' && !Array.isArray(manifest.files) &&
     Object.keys(manifest.files).length > 0, 'File SHA256 inventory required.');
   for (const [path, hash] of Object.entries(manifest.files)) {
@@ -106,7 +109,7 @@ export function validateManifest(manifest) {
     'Unsafe inventory filename or checksum.');
     if (path.startsWith('sdk/')) assert(/^sdk\/(?:cmdline-tools\/pinned|platforms\/android-37\.0|build-tools\/37\.0\.0|ndk\/29\.0\.14206865|licenses)\//.test(path), 'Unexpected SDK package.');
     const rustDirectory = path.match(/^rust\/lib\/rustlib\/([^/]+)\//)?.[1];
-    if (rustDirectory) assert(['x86_64-unknown-linux-gnu', 'x86_64-linux-android', 'etc'].includes(rustDirectory), 'Only the Linux x86_64 host and Android target are supported.');
+    if (rustDirectory) assert(['x86_64-unknown-linux-gnu', 'x86_64-linux-android', 'aarch64-linux-android', 'etc'].includes(rustDirectory), 'Only the Linux x86_64 host and Android targets are supported.');
   }
   return manifest;
 }
@@ -175,7 +178,10 @@ export async function prepare({ base, input, manifestPath, output }) {
   const files = await inventory(input);
   assert(JSON.stringify(files) === JSON.stringify(Object.keys(manifest.files).sort()), 'Input must exactly match SHA256 inventory.');
   for (const path of required) assert(files.includes(path), 'Required tool or license input missing.');
-  assert(files.some(path => /^rust\/lib\/rustlib\/x86_64-linux-android\/lib\/libstd-[a-f0-9]+\.rlib$/.test(path)), 'Android Rust standard library missing.');
+  for (const androidTarget of ['x86_64-linux-android', 'aarch64-linux-android']) {
+    const expected = new RegExp(`^rust/lib/rustlib/${androidTarget}/lib/libstd-[a-f0-9]+\\.rlib$`);
+    assert(files.some(path => expected.test(path)), `Android Rust standard library missing for ${androidTarget}.`);
+  }
   for (const path of files) assert(await hashFile(join(input, path)) === manifest.files[path], 'Input SHA256 mismatch.');
   assert((await readFile(join(input, 'sdk/licenses/android-sdk-license'), 'utf8')).trim().split(/\s+/).every(line => /^[a-f0-9]{40}$/.test(line)), 'Supply existing operator-accepted SDK licenses.');
   await property(input, 'jdk/release', 'JAVA_VERSION', manifest.jdk);

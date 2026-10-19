@@ -6,6 +6,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'android-isolation-evidence.ps1')
 $adb = Join-Path $Sdk 'platform-tools/adb.exe'
 $aapt = Join-Path $Sdk 'build-tools/37.0.0/aapt2.exe'
 $package = 'io.github.f2illc.lunaos.vaultprobe'
@@ -13,6 +14,7 @@ $outsider = "$package.outsider"
 $run = [Guid]::NewGuid().ToString('D')
 $installed = [Collections.Generic.List[string]]::new()
 $isolationFailure = $null
+$isolationEvidence = $null
 function Invoke-ProbeAdb([string[]] $AdbArgs) {
     $response = & $adb -s $Serial @AdbArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'Android probe command failed.' }
@@ -37,6 +39,10 @@ function Invoke-ProbeStep([string] $Operation, [string] $Expected = 'PASS', [str
     if ($Expected -eq 'PASS') {
         if ($response -notmatch '(?m)^INSTRUMENTATION_RESULT: processId=(\d+)\r?$') { throw 'Missing process evidence.' }
         $evidence = @{ ProcessId = [int] $Matches[1] }
+        if ($Operation -eq 'isolation') {
+            $verified = Get-ValidatedProbeIsolationEvidence $response
+            foreach ($field in $verified.Keys) { $evidence[$field] = $verified[$field] }
+        }
         if ($Target -eq $package -and $Operation -in @('create', 'read')) {
             foreach ($field in @('locationProof', 'ciphertextProof')) {
                 if ($response -notmatch ("(?m)^INSTRUMENTATION_RESULT: ${field}=([a-f0-9]{64})\r?$")) { throw 'Missing synthetic owner control.' }
@@ -76,7 +82,7 @@ try {
     if ($firstProcess.locationProof -ne $secondProcess.locationProof -or $firstProcess.ciphertextProof -ne $secondProcess.ciphertextProof) { throw 'Owner file changed across restart.' }
     Invoke-ProbeStep 'isolation' 'FAIL' $outsider ('0' * 64)
     # Preserve a failed isolation result while still running independent storage checks.
-    try { Invoke-ProbeStep 'isolation' 'PASS' $outsider $secondProcess.locationProof | Out-Null }
+    try { $isolationEvidence = Invoke-ProbeStep 'isolation' 'PASS' $outsider $secondProcess.locationProof }
     catch { $isolationFailure = $_ }
     Invoke-ProbeStep 'create' 'FAIL' $outsider
     $after = Invoke-ProbeStep 'read'
@@ -104,4 +110,5 @@ if ($isolationFailure) {
     Write-Output 'Storage/restart/tamper/missing-key checks and cleanup passed. File-isolation acceptance did not pass.'
     throw $isolationFailure
 }
-Write-Output 'PASS: encrypted round trip, duplicate-create denial, fresh process, separate-UID key/file isolation, tamper/truncation/purpose rejection, missing-key denial after restart, fixture cleanup and removal of both packages.'
+foreach ($field in @('sameLocationVerified', 'readOpen', 'writeOpen')) { Write-Output "$field=$($isolationEvidence[$field])" }
+Write-Output 'PASS: encrypted round trip, duplicate-create denial, fresh process, separate-UID key denial and observed file inaccessibility, tamper/truncation/purpose rejection, missing-key denial after restart, fixture cleanup and removal of both packages.'

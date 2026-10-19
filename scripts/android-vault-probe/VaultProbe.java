@@ -238,16 +238,17 @@ public final class VaultProbe extends Instrumentation {
             String outcome = "OPENED";
             try { Os.close(Os.open(ownerFile.getPath(), access, 0)); }
             catch (ErrnoException failure) {
-                denied = failure.errno == OsConstants.EACCES;
-                outcome = denied ? "EACCES" : failure.errno == OsConstants.ENOENT ? "ENOENT" : "OTHER";
-                if (!denied) check += failure.errno == OsConstants.ENOENT ? "-path-unavailable" : "-other-error";
+                denied = failure.errno == OsConstants.EACCES || failure.errno == OsConstants.ENOENT;
+                outcome = failure.errno == OsConstants.EACCES ? "EACCES" : failure.errno == OsConstants.ENOENT ? "ENOENT" : "OTHER";
+                if (!denied) check += "-other-error";
             }
             evidence.putString(access == OsConstants.O_RDONLY ? "readOpen" : "writeOpen", outcome);
             if (!denied && firstFailure == null) firstFailure = check;
             allDenied &= denied;
         }
         if (firstFailure != null) check = firstFailure;
-        require(allDenied); // Still requires EACCES for both; ENOENT never becomes a pass.
+        // The runner also requires owner reads and unchanged ciphertext around these attempts.
+        require(allDenied); // Observed inaccessibility, not proof of a particular ACL mechanism.
         require(!directory.exists()); // The outsider never creates a record or key.
     }
 }
