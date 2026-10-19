@@ -13,7 +13,10 @@ public final class IdentityProbe extends Instrumentation {
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
-            if (!"ranchu".equals(Build.HARDWARE) || Build.VERSION.SDK_INT != 36) throw new IllegalStateException("Dedicated API36 emulator required");
+            boolean emulator = "ranchu".equals(Build.HARDWARE) && Build.VERSION.SDK_INT == 36;
+            if (!emulator && !(FixtureConfig.approvedPhysicalTarget(getContext()) &&
+                ("create".equals(action) || "inspect".equals(action) || "reject-replace".equals(action))))
+                throw new IllegalStateException("Explicit matching physical target or dedicated emulator required");
             if ("create".equals(action)) NativeIdentity.create();
             else if ("reject-replace".equals(action)) {
                 boolean rejected = false;

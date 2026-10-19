@@ -151,6 +151,10 @@ test('supervisor serves only a neutral status page and closes HTTP and TLS on pi
   const invalid = await fetch(new URL('/api/windows-preview', url), { method: 'POST', body: JSON.stringify({ verified: true }) });
   assert.equal(invalid.status, 404);
   assert.throws(() => f.gate.requireVerified(), denied);
+  child.stderr.write('unrelated diagnostic\nHOME_WINDOWS_EVENT:lo');
+  child.stderr.write('ck\nHOME_WINDOWS_EVENT:unexpected\n');
+  assert.deepEqual(f.nativeEvents.map(item => item.reason), ['lock']);
+  assert.throws(() => f.gate.requireVerified(), denied); // Observations never open the gate.
   child.stdout.end(); await f.ended; await f.close();
   await assert.rejects(fetch(url));
   await assert.rejects(connectDirectVaultExperiment({ port: f.host.port, identity: identities.phoneIdentity, ca: identities.ca, approvedHostFingerprint: f.host.hostFingerprint }), unavailable);

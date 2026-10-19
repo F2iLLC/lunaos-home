@@ -76,9 +76,13 @@ establish production enrollment, physical LAN or OS user-presence unlocking.
 The [Windows verified transport follow-up](../prototypes/windows-verified-transport.md)
 connects the existing owned-child verification/session gate to grant issuance,
 queued execution and post-read checks. Controlled child/event tests exercise real
-TLS and DPAPI. The attended native-to-Android emulator chain passed with a freshly
-built native binary, four read-only grants and readbacks, and a damaged-data refusal.
-Live Windows cancellation/lock/sleep/resume/expiry and physical-device networking
-remain unverified; the Android emulator used host-loopback, and the runner handled
-the synthetic local approval prompts. This application gate does not change DPAPI's
-key-release properties.
+TLS and DPAPI. The attended native-to-Android emulator chain passed with real
+user-completed Windows verification, a freshly built native binary,
+agent-operated fictional approvals and four
+protected readbacks, including reconnect/background/restart and damaged-data
+refusal. A [separate attended physical-phone run](../prototypes/physical-vault-lifecycle.md)
+also demonstrated a direct Wi-Fi read, real Windows lock and brief S3 sleep/wake,
+ended host access and denied reconnect. It does not prove extended sleep, other
+networks or phone-hosted operation. This application gate does not change DPAPI's
+key-release properties. See the linked evidence for exact tested artifacts and
+the current acceptance boundary.

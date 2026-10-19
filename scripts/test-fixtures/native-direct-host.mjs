@@ -15,7 +15,19 @@ export async function launchNativeDirectHost(options) {
 
 // Same supervision path, with a controlled child supplied by lifecycle tests.
 export async function superviseNativeDirectHost(child, options, { announce = console.log } = {}) {
-  child.stderr.resume(); // No passwords or native diagnostic output are collected.
+  const nativeEvents = [];
+  let eventBuffer = '';
+  child.stderr.on('data', chunk => {
+    eventBuffer += chunk.toString();
+    if (eventBuffer.length > 1024) { eventBuffer = ''; return; }
+    while (eventBuffer.includes('\n')) {
+      const end = eventBuffer.indexOf('\n'), line = eventBuffer.slice(0, end).trim();
+      eventBuffer = eventBuffer.slice(end + 1);
+      const match = /^HOME_WINDOWS_EVENT:(lock|suspend|resume|session-change|window-close)$/.exec(line);
+      if (match && nativeEvents.length < 16) nativeEvents.push({ reason: match[1], at: new Date().toISOString() });
+    }
+  });
+  child.stderr.resume(); // Retain only bounded lifecycle labels; discard other diagnostics.
   let verified, server;
   try {
     verified = await startWindowsVerifiedDirectHost({ ...options, child });
@@ -42,7 +54,7 @@ export async function superviseNativeDirectHost(child, options, { announce = con
     if (ended) throw Error('Native visit ended during launcher startup.');
     child.stdin.end(`http://127.0.0.1:${server.address().port}/windows-vault#${verified.previewKey}\n`);
     announce('Complete verification only in the Windows prompt. Pairing and each read still need separate approval.');
-    return { ...verified, async close() { stop(); await Promise.all([verified.close(), httpClosed]); } };
+    return { ...verified, nativeEvents, async close() { stop(); await Promise.all([verified.close(), httpClosed]); } };
   } catch (error) {
     child.kill(); await verified?.close(); server?.close(); server?.closeAllConnections(); throw error;
   }
