@@ -91,7 +91,7 @@ export function validateManifest(manifest) {
   keys(manifest, ['schema', 'jdk', 'rust', 'commandLineTools', 'archives', 'files']);
   assert(manifest.schema === 1 && [manifest.jdk, manifest.rust, manifest.commandLineTools].every(value => typeof value === 'string') && /^21\.\d+\.\d+(?:\.\d+)?$/.test(manifest.jdk) &&
     /^1\.\d+\.\d+$/.test(manifest.rust) && version.test(manifest.commandLineTools), 'Explicit tool versions required.');
-  const components = ['jdk', 'rust', 'rust-android-std', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
+  const components = ['jdk', 'rust', 'rust-android-std-x86_64', 'rust-android-std-aarch64', 'command-line-tools', 'platform', 'build-tools', 'ndk'];
   assert(Array.isArray(manifest.archives) && manifest.archives.length === components.length, 'Archive provenance required.');
   for (const archive of manifest.archives) {
     keys(archive, ['component', 'filename', 'sha256', 'vendor']);
@@ -100,6 +100,8 @@ export function validateManifest(manifest) {
       digest.test(archive.sha256) && /^[A-Za-z0-9][A-Za-z0-9 .+-]{0,79}$/.test(archive.vendor), 'Invalid archive provenance.');
   }
   assert(new Set(manifest.archives.map(archive => archive.component)).size === components.length, 'Duplicate archive component.');
+  const rustTargetArchives = manifest.archives.filter(({ component }) => component.startsWith('rust-android-std-'));
+  assert(new Set(rustTargetArchives.map(({ sha256 }) => sha256)).size === 2, 'Rust target archives must have distinct SHA256 digests.');
   assert(manifest.files && typeof manifest.files === 'object' && !Array.isArray(manifest.files) &&
     Object.keys(manifest.files).length > 0, 'File SHA256 inventory required.');
   for (const [path, hash] of Object.entries(manifest.files)) {
