@@ -14,6 +14,11 @@ const scope = { recordIds: ['alex-library', 'sam-library'], lifetimeMs: 60_000 }
 const readAlex = { action: 'read', recordId: 'alex-library' };
 const editAlex = { action: 'edit', recordId: 'alex-library', data: { ...alex, value: 'Wednesday' } };
 const isCode = code => error => error instanceof DirectVaultError && error.code === code;
+async function waitForQueue(host, expected) {
+  const deadline = performance.now() + 1500;
+  while (host.pendingRequestCount() !== expected && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(host.pendingRequestCount(), expected);
+}
 async function setup(t, options = {}) {
   const rows = new Map([['alex-library', alex], ['sam-library', sam]]);
   const writes = [];
@@ -140,9 +145,16 @@ test('disconnect during a held read drops late content and blocks queued edits',
   const reading = assert.rejects(client.execute(grant, readAlex), isCode('UNAVAILABLE'));
   await entered.promise;
   const writing = assert.rejects(client.execute(grant, editAlex), isCode('WRITE_UNKNOWN'));
+  await waitForQueue(host, 2); // Host accepted the edit behind the held read.
   client.close();
   await Promise.all([reading, writing]);
+  // Local closure is not instantaneous peer observation. Hold work until the
+  // host has processed the disconnect; before that a sent write stays unknown.
+  const disconnectedBy = performance.now() + 1500;
+  while (host.listConnections().some(item => item.connectionId === client.connectionId) && performance.now() < disconnectedBy) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.ok(!host.listConnections().some(item => item.connectionId === client.connectionId));
   release.resolve();
+  await waitForQueue(host, 0);
   const next = await connect();
   await assert.rejects(next.execute(grant, readAlex), isCode('DENIED'));
   const fresh = host.approveAccess(next.connectionId, 'read-only', scope);
@@ -186,8 +198,10 @@ test('peer revocation while a read is held suppresses its response and queued wr
   const reading = assert.rejects(client.execute(grant, readAlex), isCode('UNAVAILABLE'));
   await entered.promise;
   const writing = assert.rejects(client.execute(grant, editAlex), isCode('WRITE_UNKNOWN'));
+  await waitForQueue(host, 2); // A socket.write alone does not establish server queuing.
   host.revokePeer(phoneIdentity.fingerprint);
   await Promise.all([reading, writing]); release.resolve();
+  await waitForQueue(host, 0);
   await assert.rejects(connect(), isCode('DENIED'));
   assert.equal(writes.length, 0);
 });
@@ -206,7 +220,7 @@ test('idle disconnect and unavailable host do not report successful access', asy
 
 test('wire protocol has no approval/device-ID methods and rejects oversized or replayed frames', async t => {
   const { host } = await setup(t);
-  async function raw(payload) {
+  async function raw(payload, replayAfterResponse = false) {
     const socket = tls.connect({ host: '127.0.0.1', port: host.port, servername: 'localhost', key: phoneIdentity.key, cert: phoneIdentity.cert, ca, minVersion: 'TLSv1.3', maxVersion: 'TLSv1.3' });
     socket.on('error', () => {});
     t.after(() => socket.destroy());
@@ -214,7 +228,11 @@ test('wire protocol has no approval/device-ID methods and rejects oversized or r
     const closed = new Promise(resolve => socket.once('close', resolve));
     let timedOut = false;
     const timeout = setTimeout(() => { timedOut = true; socket.destroy(); }, 2000);
-    let response = ''; socket.on('data', data => { response += data; });
+    let response = '', replayed = false;
+    socket.on('data', data => {
+      response += data;
+      if (replayAfterResponse && !replayed && response.includes('\n')) { replayed = true; socket.write(payload); }
+    });
     socket.write(payload);
     await closed; clearTimeout(timeout); assert.equal(timedOut, false); return response;
   }
@@ -223,5 +241,10 @@ test('wire protocol has no approval/device-ID methods and rejects oversized or r
   assert.equal(await raw('x'.repeat(8193)), '');
   const offer = host.approvePairing(phoneIdentity.fingerprint).offer;
   const frame = JSON.stringify({ seq: 1, op: 'pair', offer }) + '\n';
-  assert.equal(await raw(frame + frame), ''); // duplicate rejected before pending work executes
+  const coalesced = (await raw(frame + frame)).trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+  assert.ok(coalesced.length <= 1); // TCP may split the writes; at most the original request succeeds.
+  if (coalesced.length) assert.equal(coalesced[0].ok, true);
+  const freshOffer = host.approvePairing(phoneIdentity.fingerprint).offer;
+  const separated = (await raw(JSON.stringify({ seq: 1, op: 'pair', offer: freshOffer }) + '\n', true)).trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(separated.length, 1); assert.equal(separated[0].seq, 1); assert.equal(separated[0].ok, true);
 });

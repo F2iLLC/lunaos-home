@@ -22,9 +22,10 @@ const adbSync = args => execFileSync(adb, ['-s', serial, ...args], { encoding: '
 function verifyTarget() {
   assert.equal(adbSync(['emu', 'avd', 'name']).split(/\r?\n/)[0].trim(), 'HomeVaultAcceptance_API36');
   assert.equal(adbSync(['shell', 'getprop', 'ro.hardware']).trim(), 'ranchu');
+  assert.equal(adbSync(['shell', 'getprop', 'ro.build.version.sdk']).trim(), '36', 'This evidence requires the actual API36 image.');
 }
 verifyTarget();
-assert.match(adbSync(['shell', 'dumpsys', 'user']), /Started users state: \[0=RUNNING_UNLOCKED\]/, 'Unlock the dedicated disposable emulator before running.');
+assert.ok(/Started users state: \[0=RUNNING_UNLOCKED\]/.test(adbSync(['shell', 'dumpsys', 'user'])), 'Unlock the dedicated disposable emulator before running.');
 assert.equal(adbSync(['shell', 'pm', 'list', 'packages', packageName]).trim(), '', 'Do not overwrite an existing test install.');
 assert.equal(existsSync(outputDirectory), false, 'Build requires a new output directory.');
 const fixtures = createDirectTlsIdentities();
@@ -43,8 +44,6 @@ try {
     create: async () => { writes++; throw Error('Unexpected write'); },
     edit: async () => { writes++; throw Error('Unexpected write'); },
   } });
-  const pairing = host.approvePairing(fixtures.phoneIdentity.fingerprint, 120_000);
-  writeFileSync(path.join(fixtures.scratch, 'config.json'), JSON.stringify({ ...pairing, port: host.port }));
   // This local controller approves only the disposable certificate and fixed read-only record.
   poll = setInterval(() => {
     if (approvalPaused) return;
@@ -54,11 +53,16 @@ try {
       host.approveAccess(item.connectionId, 'read-only', { recordIds: ['alex-library'], lifetimeMs: 60_000 });
     }
   }, 50);
-  const build = execFileSync('pwsh', ['-NoProfile', '-File', path.join(repo, 'scripts/build-android-direct-tls-probe.ps1'),
+  const buildArgs = ['-NoProfile', '-File', path.join(repo, 'scripts/build-android-direct-tls-probe.ps1'),
     '-OutputDirectory', path.resolve(outputDirectory), '-DebugKeystore', path.resolve(debugKeystore), '-FixtureDirectory', fixtures.scratch],
-  { encoding: 'utf8', timeout: 90_000, windowsHide: true });
-  writeFileSync(path.join(outputDirectory, 'build.log'), build);
+    buildOptions = { encoding: 'utf8', timeout: 90_000, windowsHide: true };
+  const compiled = execFileSync('pwsh', [...buildArgs, '-Stage', 'Compile'], buildOptions);
   verifyTarget();
+  // Compilation and full target preflight consume none of the real 120s lifetime.
+  const pairing = host.approvePairing(fixtures.phoneIdentity.fingerprint, 120_000);
+  writeFileSync(path.join(fixtures.scratch, 'config.json'), JSON.stringify({ ...pairing, port: host.port }));
+  const packaged = execFileSync('pwsh', [...buildArgs, '-Stage', 'Package'], { ...buildOptions, timeout: 45_000 });
+  writeFileSync(path.join(outputDirectory, 'build.log'), compiled + packaged);
   const apk = path.join(outputDirectory, 'direct-tls-probe.apk');
   const apkSha256 = createHash('sha256').update(readFileSync(apk)).digest('hex');
   assert.match(adbSync(['install', '-t', apk]), /Success/); installed = true;
