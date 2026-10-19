@@ -2,7 +2,7 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { superviseNativeDirectHost } from '../scripts/test-fixtures/native-direct-host.mjs';
+import { superviseNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline, waitForNativeEvent } from '../scripts/test-fixtures/native-direct-host.mjs';
 import { startWindowsVerifiedDirectHost } from '../lib/windows-verified-direct-host.js';
 import { connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
@@ -16,6 +16,28 @@ const edit = { action: 'edit', recordId: 'alex-library', data: { ...example, val
 const scope = { recordIds: ['alex-library'], lifetimeMs: 60_000 };
 const denied = error => error.code === 'DENIED';
 const unavailable = error => ['DENIED', 'UNAVAILABLE'].includes(error.code);
+test('lifecycle evidence rejects events after the read grant deadline', () => {
+  const event = tick => [{ reason: 'lock', tick }];
+  assert.equal(requireLifecycleDuringGrant(event(59_999), 'lock', 0, 60_000).tick, 59_999);
+  assert.throws(() => requireLifecycleDuringGrant(event(60_000), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(75_000), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(-1), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(100), 'suspend', 0, 60_000));
+});
+test('native diagnostic on a separate pipe may arrive after the visit ends', async () => {
+  const events = [];
+  setTimeout(() => events.push({ reason: 'canceled' }), 20);
+  await waitForNativeEvent(events, 'canceled', 200);
+  await assert.rejects(waitForNativeEvent([], 'canceled', 30), /Require actual Windows canceled status/);
+});
+test('a child or pipe failure inside the deadline window cannot count as visit expiry', () => {
+  assert.doesNotThrow(() => requireVisitDeadline({ reason: 'visit-deadline' }, [], 299_755));
+  for (const reason of ['child-exit', 'pipe-end', 'session-ended', 'operator-close']) {
+    assert.throws(() => requireVisitDeadline({ reason }, [], 299_755), /expiry is unproven/);
+  }
+  assert.throws(() => requireVisitDeadline({ reason: 'visit-deadline' }, [{ reason: 'lock' }], 299_755));
+  assert.throws(() => requireVisitDeadline({ reason: 'visit-deadline' }, [], 280_000));
+});
 // Controlled child receipts only. These tests never invoke Windows authentication.
 async function fixture(t, store) {
   const child = new EventEmitter(); child.stdout = new EventEmitter(); child.kill = () => { child.killed = true; };
@@ -85,6 +107,19 @@ test('cancel, unavailable monitor, malformed receipt, pipe/child failure and bot
     await f.close();
   }
 });
+test('trusted visit deadline is distinguishable from child and pipe termination', async t => {
+  for (const [endVisit, expected] of [
+    [f => { f.verify(); f.timers[1].fn(); }, 'visit-deadline'],
+    [f => { f.verify(); f.child.emit('exit', 2); }, 'child-exit'],
+    [f => { f.verify(); f.child.stdout.emit('end'); }, 'pipe-end'],
+    [f => { f.verify(); f.end(); }, 'session-ended'],
+  ]) {
+    const f = await fixture(t, emptyStore());
+    endVisit(f);
+    assert.equal((await f.ended).reason, expected);
+    assert.throws(() => f.gate.requireVerified(), denied);
+  }
+});
 
 test('elapsed expiry and invalid clock deny approval without waiting for the timer', async t => {
   for (const time of [300000, -1, Number.NaN]) {
@@ -152,8 +187,8 @@ test('supervisor serves only a neutral status page and closes HTTP and TLS on pi
   assert.equal(invalid.status, 404);
   assert.throws(() => f.gate.requireVerified(), denied);
   child.stderr.write('unrelated diagnostic\nHOME_WINDOWS_EVENT:lo');
-  child.stderr.write('ck\nHOME_WINDOWS_EVENT:unexpected\n');
-  assert.deepEqual(f.nativeEvents.map(item => item.reason), ['lock']);
+  child.stderr.write('ck\nHOME_WINDOWS_EVENT:unexpected\nHOME_WINDOWS_CANCELED\n');
+  assert.deepEqual(f.nativeEvents.map(item => item.reason), ['lock', 'canceled']);
   assert.throws(() => f.gate.requireVerified(), denied); // Observations never open the gate.
   child.stdout.end(); await f.ended; await f.close();
   await assert.rejects(fetch(url));

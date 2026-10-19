@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
@@ -23,8 +24,9 @@ export async function superviseNativeDirectHost(child, options, { announce = con
     while (eventBuffer.includes('\n')) {
       const end = eventBuffer.indexOf('\n'), line = eventBuffer.slice(0, end).trim();
       eventBuffer = eventBuffer.slice(end + 1);
-      const match = /^HOME_WINDOWS_EVENT:(lock|suspend|resume|session-change|window-close)$/.exec(line);
-      if (match && nativeEvents.length < 16) nativeEvents.push({ reason: match[1], at: new Date().toISOString() });
+      const event = /^HOME_WINDOWS_EVENT:(lock|suspend|resume|session-change|window-close)$/.exec(line);
+      const reason = event?.[1] || (line === 'HOME_WINDOWS_CANCELED' ? 'canceled' : null);
+      if (reason && nativeEvents.length < 16) nativeEvents.push({ reason, at: new Date().toISOString(), tick: performance.now() });
     }
   });
   child.stderr.resume(); // Retain only bounded lifecycle labels; discard other diagnostics.
@@ -58,4 +60,33 @@ export async function superviseNativeDirectHost(child, options, { announce = con
   } catch (error) {
     child.kill(); await verified?.close(); server?.close(); server?.closeAllConnections(); throw error;
   }
+}
+
+// A late OS event cannot prove it ended an active read grant. The grant clock
+// starts before approval, so this is conservative even if approval takes time.
+export function requireLifecycleDuringGrant(events, reason, grantTick, lifetimeMs) {
+  const event = events.find(item => item.reason === reason);
+  if (!event || !Number.isFinite(grantTick) || !Number.isFinite(event.tick) ||
+      !Number.isFinite(lifetimeMs) || lifetimeMs <= 0 ||
+      event.tick < grantTick || event.tick - grantTick >= lifetimeMs) {
+    throw Error(`Native ${reason} event did not arrive during the active read grant`);
+  }
+  return event;
+}
+
+// stderr and stdout are separate pipes. A visit can end before its native
+// cancellation diagnostic is delivered, so allow a short bounded drain.
+export async function waitForNativeEvent(events, reason, timeoutMs = 1000) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    if (events.some(item => item.reason === reason)) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.ok(events.some(item => item.reason === reason), `Require actual Windows ${reason} status`);
+}
+
+export function requireVisitDeadline(end, events, elapsedMs) {
+  assert.equal(end?.reason, 'visit-deadline', 'A different event ended the visit; expiry is unproven');
+  assert.ok(elapsedMs >= 295_000 && elapsedMs <= 315_000, 'Visit ended outside its five-minute expiry window');
+  assert.deepEqual(events, [], 'A native lifecycle event ended the visit instead of its deadline');
 }

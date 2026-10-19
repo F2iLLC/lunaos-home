@@ -19,6 +19,8 @@ emulator restriction. No household record or Home package/file is accessed.
 ```powershell
 node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> lock
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
+node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> expiry
+node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
 Only the separate TLS listener binds to the explicitly supplied private address;
@@ -37,7 +39,15 @@ compares the exact on-screen synthetic identities and approves the fixed
 Alex/Library visit read-only scope; it drives the Android buttons. After the first
 read, the runner requests the physical lock or sleep action. It requires the
 owned native child's exact bounded `lock` or `suspend` event and the ended gate;
-window close, an elapsed grant or a simulated event cannot satisfy that assertion.
+window close or a simulated event cannot satisfy that assertion. A follow-up
+review found that the original runner could accept a native event after the
+60-second read grant had already expired. The revised runner records monotonic
+time before issuing the grant and accepts the event only if it arrives during
+that 60-second window. A boundary test rejects the deadline and later events.
+The original lock/sleep results did not record this interval, so they show that
+the native event ended the Windows visit but do not by themselves prove that it
+ended an active read grant. Fresh attended lock and sleep runs measured and passed
+that narrower criterion, as recorded below.
 These stderr labels are evidence only and cannot authorize a record operation.
 
 For sleep, after waking/unlocking, type `back` in the test terminal. This is only
@@ -56,6 +66,37 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Persistence | Original encrypted bytes were unchanged after each event. No write or automatic replay occurred. The sleep run's new verified visit successfully read after the earlier lock run; old visits stayed unusable. |
 | Identity | The phone reported generated, non-exportable EC identity, null key encoding/format and security level 1. This is provider-reported custody, not independent hardware attestation. Transport identity is separate from vault unlock and is not itself user-authentication-bound. |
 | Cleanup | Both successful runners exited zero with cleanup passing. The temporary test APK, owned host/native child and synthetic store were removed. Package absence and absence of the final test listeners were independently checked. |
+| Verification cancellation | A separate attended Windows run received the native `canceled` status at 03:11:47.717 UTC. The gate stayed closed, the listener refused a connection, and no record was read or written. This did not use the physical Android client. |
+| Five-minute visit expiry | **Inconclusive as deadline evidence.** A new Windows-verified visit served one fictional read over physical Wi-Fi. The gate remained verified after the phone's 60-second grant expired and the visit closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. That runner did not record a trusted reason for closure, so a child or pipe failure near the deadline could have produced the same result. The revised runner now requires the gate's explicit `visit-deadline` reason; an attended rerun is needed to accept this check. |
+| Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
+| Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
+| Second physical Android device | A user-selected Echo Show 8 with a custom `lineage_crown` Android 11/API30 build read the same kind of fictional Windows record over direct Wi-Fi in a separate disposable run. This does not establish support for stock Echo Show software or make it a phone-only vault host. |
+| Host identity rejection on two devices | Both the Echo Show 8 and Samsung rejected a wrong TLS host name and a wrong pinned host fingerprint before pairing. Each then completed a separately approved fictional read: one store read, zero writes. |
+| Android background on two devices | During an active 60-second read grant, moving each test client Home cleared its displayed content and local scope. On return, the read and connect controls were disabled until identity review. A new connection waited for fresh host approval and made no second store read. The Windows visit stayed verified. |
+| Physical device removal | After the Echo Show 8 read once, the host removed its paired identity. Its old read failed and cleared the display when attempted; reconnect was denied without another store read. Previously displayed information cannot be recalled from an already admitted device. |
+| Physical client ends connection | On the Samsung, tapping the disposable client's End connection control after one read cleared the displayed content and old scope. Its reconnect waited for fresh host approval and made no second store read; Windows remained verified. |
+
+The Echo's first attempt crashed in the test identity reporter before pairing: the
+reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
+reporter uses that method only on API31+ and exposes the older
+`isInsideSecureHardware()` provider signal separately. The complete Echo run
+then passed. The Echo provider reported `insideSecureHardware=false`; the
+Samsung provider reported `securityLevel=1` and
+`insideSecureHardware=true`. These are provider reports, not independent
+attestation or a claim about protected record-key custody. Transport keys do
+not unlock the vault.
+
+The additional successful APK SHA-256 values were
+`d2dce62e5c5bc2bf8285a5b3d68edf70cb11238f0fc1a7c1d65e39f5f4eafe42`
+(Echo background),
+`1966f12b7f9721facca78182d3f0a79985c7a4207c1153f9f80fa747b74ad654`
+(Samsung background), and
+`df73d21c2da873a1b506402cb321fd93a2bee35086fb7efabd5c8b18204e529c`
+(Echo removal), and
+`f9a8b24f71510b1f43e4d60ed9b60590196ca4ad5df99643758b64e37fbe3689`
+(Samsung client end). All four runs reported cleanup passing. The disposable test
+package was independently absent from both devices afterward; no test listener
+remained listening. Raw output stays outside Git.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -69,6 +110,13 @@ Final sleep APK SHA-256:
 APKs include per-run disposable public CA material, so hashes differ. Local raw
 evidence remains outside Git in `physical-lock-v3` and `physical-sleep-v4`; only
 synthetic summarized results are published.
+The cancellation result and inconclusive expiry attempt remain outside Git in
+`windows-cancel-v2` and `physical-expiry-v1` respectively. The expiry APK SHA-256 is
+`b32db919fe4058ecef3b1e6a5f6dd50371febb901924e9e313dcb90f56e19f99`.
+Timed lock and sleep evidence remains outside Git in `physical-lock-timed-v2`
+and `physical-sleep-timed-v2`. Their APK SHA-256 values are respectively
+`567983ce3d418b5acec9664659e31fc4e37e26c42aadff3d7863c18223bddf94`
+and `00e5a75ae6604abf5b9557e167ee5da825cb3d474d25fbd1c2171a198259597a`.
 
 Earlier attempts are not counted as passes: the first preflight rejected an
 adb-formatted model alias; initial physical setup lacked the app-private config
@@ -79,19 +127,24 @@ out while the network recovered. The harness now uses Samsung's full window
 focus field (retaining only test-app UI nodes), creates its own config directory,
 and waits for post-resume acknowledgement/readiness. No authentication gate,
 grant deadline or event assertion was relaxed.
+One timed lock retry had no user action before its observation timeout; one timed
+sleep retry lost its phone connection before approval. Neither is counted as a pass.
 
 ## Validation and remaining work
 
-All 109 Windows-compatible Node tests passed, including refusal of public/wildcard
+All 110 Windows-compatible Node tests passed, including refusal of public/wildcard
 test bindings and bounded lifecycle-event collection that cannot verify the gate.
 Both actual phone APK builds and successful runs exercised the modified Java
 sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
-These results complete this attended lock/sleep/local-network check on this one
-phone and PC. They do not complete Session 2 or production acceptance. Live
-verification cancellation/visit expiry with the physical client, extended sleep,
+These results show local-network access and native visit closure on lock/sleep on
+the Samsung and PC, plus bounded read, background, host-identity and removal
+checks on the two selected Android devices.
+They do not complete Session 2 or production acceptance. Extended sleep,
 network roaming/interruption, phone-hosted operation, production enrollment,
-recovery and independent security review remain open. DPAPI remains CurrentUser
+recovery and independent security review remain open. The
+[recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
+is not a portable user-held backup. DPAPI remains CurrentUser
 encryption with an application presence gate, not authentication-bound key release.
 Actions remains disabled; no merge or deployment is implied.

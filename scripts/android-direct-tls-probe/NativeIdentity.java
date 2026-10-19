@@ -1,6 +1,7 @@
 package io.github.f2illc.lunaos.directtlsprobe;
 
 import android.content.Context;
+import android.os.Build;
 import android.security.keystore.*;
 import java.io.*;
 import java.math.BigInteger;
@@ -53,7 +54,11 @@ final class NativeIdentity {
         try (FileOutputStream out = new FileOutputStream(new File(context.getNoBackupFilesDir(), "client-public.pem"))) {
             out.write(pem.toString().getBytes(StandardCharsets.US_ASCII));
         }
-        return new JSONObject().put("nonExportable", true).put("securityLevelReported", info.getSecurityLevel())
+        // getSecurityLevel was added after API30. Report the older provider signal
+        // separately; neither value is independent hardware attestation.
+        Object level = Build.VERSION.SDK_INT >= 31 ? info.getSecurityLevel() : JSONObject.NULL;
+        return new JSONObject().put("nonExportable", true).put("securityLevelReported", level)
+            .put("insideSecureHardwareReported", info.isInsideSecureHardware())
             .put("originGenerated", info.getOrigin() == KeyProperties.ORIGIN_GENERATED)
             .put("userAuthenticationRequired", info.isUserAuthenticationRequired()).put("algorithm", key.getAlgorithm())
             .put("authorizedDigests", new org.json.JSONArray(info.getDigests()));
