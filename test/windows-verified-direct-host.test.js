@@ -2,7 +2,7 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { superviseNativeDirectHost } from '../scripts/test-fixtures/native-direct-host.mjs';
+import { superviseNativeDirectHost, requireLifecycleDuringGrant } from '../scripts/test-fixtures/native-direct-host.mjs';
 import { startWindowsVerifiedDirectHost } from '../lib/windows-verified-direct-host.js';
 import { connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
@@ -16,6 +16,14 @@ const edit = { action: 'edit', recordId: 'alex-library', data: { ...example, val
 const scope = { recordIds: ['alex-library'], lifetimeMs: 60_000 };
 const denied = error => error.code === 'DENIED';
 const unavailable = error => ['DENIED', 'UNAVAILABLE'].includes(error.code);
+test('lifecycle evidence rejects events after the read grant deadline', () => {
+  const event = tick => [{ reason: 'lock', tick }];
+  assert.equal(requireLifecycleDuringGrant(event(59_999), 'lock', 0, 60_000).tick, 59_999);
+  assert.throws(() => requireLifecycleDuringGrant(event(60_000), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(75_000), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(-1), 'lock', 0, 60_000));
+  assert.throws(() => requireLifecycleDuringGrant(event(100), 'suspend', 0, 60_000));
+});
 // Controlled child receipts only. These tests never invoke Windows authentication.
 async function fixture(t, store) {
   const child = new EventEmitter(); child.stdout = new EventEmitter(); child.kill = () => { child.killed = true; };
@@ -152,8 +160,8 @@ test('supervisor serves only a neutral status page and closes HTTP and TLS on pi
   assert.equal(invalid.status, 404);
   assert.throws(() => f.gate.requireVerified(), denied);
   child.stderr.write('unrelated diagnostic\nHOME_WINDOWS_EVENT:lo');
-  child.stderr.write('ck\nHOME_WINDOWS_EVENT:unexpected\n');
-  assert.deepEqual(f.nativeEvents.map(item => item.reason), ['lock']);
+  child.stderr.write('ck\nHOME_WINDOWS_EVENT:unexpected\nHOME_WINDOWS_CANCELED\n');
+  assert.deepEqual(f.nativeEvents.map(item => item.reason), ['lock', 'canceled']);
   assert.throws(() => f.gate.requireVerified(), denied); // Observations never open the gate.
   child.stdout.end(); await f.ended; await f.close();
   await assert.rejects(fetch(url));

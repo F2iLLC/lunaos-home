@@ -9,13 +9,13 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
-import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
+import { launchNativeDirectHost, requireLifecycleDuringGrant } from './test-fixtures/native-direct-host.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'network'].includes(event));
+assert.ok(['lock', 'sleep', 'expiry', 'network'].includes(event));
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(i => i?.address === address && !i.internal), 'Bind only an assigned private address');
@@ -85,6 +85,7 @@ try {
   console.log(`LAN_LISTENER_READY port=${visit.host.port}; waiting for real Windows verification`);
   const deadline = Date.now() + 120000;
   for (;;) { try { visit.gate.requireVerified(); break; } catch { if (Date.now() >= deadline) throw Error('Windows verification not completed'); await pause(250); } }
+  const verifiedTick = performance.now();
   const peer = certificateFingerprint(cert), review = visit.enrollment.review(peer);
   config({ port: visit.host.port, hostFingerprint: review.hostFingerprint, offer: 'not-approved' });
   await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
@@ -96,7 +97,12 @@ try {
   config({ ...offer, port: visit.host.port });
   await tap('Approve fictional computer'); await tap('Connect to test computer');
   await waitText('Computer connected. Waiting for host approval...');
-  const connections = visit.host.listConnections(); assert.equal(connections.length, 1); assert.equal(connections[0].peerFingerprint, peer);
+  const connections = visit.host.listConnections();
+  evidence.connectionCountAtApproval = connections.length;
+  try { visit.gate.requireVerified(); evidence.gateAtApproval = 'verified'; }
+  catch { evidence.gateAtApproval = 'closed'; }
+  assert.equal(connections.length, 1); assert.equal(connections[0].peerFingerprint, peer);
+  const grantTick = performance.now();
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.'); await tap('Allow selected read');
   await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
@@ -104,14 +110,36 @@ try {
   assert.equal(reads, 1); assert.equal(writes, 0);
   if (event !== 'network') {
     evidence.actionRequested = new Date().toISOString();
-    console.log(`READY_FOR_EVENT:${event}; keep phone test app visible; perform Windows action now`);
-    let eventTimer;
-    try {
-      await Promise.race([visit.ended, new Promise((_, reject) => { eventTimer = setTimeout(() => reject(Error('No native lifecycle event within 90 seconds')), 90000); })]);
-    } finally { clearTimeout(eventTimer); }
-    await pause(250);
-    const reason = event === 'lock' ? 'lock' : 'suspend';
-    assert.ok(visit.nativeEvents.some(item => item.reason === reason), `Require actual native ${reason} event, not window close/expiry`);
+    if (event === 'expiry') {
+      console.log('WAIT_FOR_VISIT_EXPIRY; leave Windows and the phone test app awake');
+      await pause(120_000);
+      visit.gate.requireVerified(); // The phone grant has expired; the Windows visit remains active.
+      evidence.checks.push('Windows visit still verified after the phone read grant expired');
+      const remaining = 315_000 - (performance.now() - verifiedTick);
+      assert.ok(remaining > 0, 'Visit-expiry observation started too late');
+      let expiryTimer;
+      try {
+        await Promise.race([visit.ended, new Promise((_, reject) => {
+          expiryTimer = setTimeout(() => reject(Error('Native visit did not expire within 315 seconds')), remaining);
+        })]);
+      } finally { clearTimeout(expiryTimer); }
+      await pause(250); // Let the owned native diagnostic pipe deliver any competing lifecycle event.
+      const elapsed = performance.now() - verifiedTick;
+      assert.ok(elapsed >= 295_000 && elapsed <= 315_000, 'Visit ended outside its five-minute expiry window');
+      assert.deepEqual(visit.nativeEvents, [], 'A native lifecycle event ended the visit instead of its deadline');
+      evidence.elapsedFromVerificationToVisitEndMs = Math.round(elapsed);
+      evidence.checks.push('Native Windows visit expired after five minutes without a lifecycle event');
+    } else {
+      console.log(`READY_FOR_EVENT:${event}; keep phone test app visible; perform Windows action now`);
+      let eventTimer;
+      try {
+        await Promise.race([visit.ended, new Promise((_, reject) => { eventTimer = setTimeout(() => reject(Error('No native lifecycle event within 90 seconds')), 90000); })]);
+      } finally { clearTimeout(eventTimer); }
+      await pause(250);
+      const reason = event === 'lock' ? 'lock' : 'suspend';
+      const receipt = requireLifecycleDuringGrant(visit.nativeEvents, reason, grantTick, 60_000);
+      evidence.elapsedFromGrantToNativeEventMs = Math.round(receipt.tick - grantTick);
+    }
     evidence.nativeEvents = [...visit.nativeEvents];
     assert.throws(() => visit.gate.requireVerified());
     if (event === 'sleep') {
@@ -138,7 +166,7 @@ try {
     const closed = await nodes(); assert.ok(closed.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     await tap('Connect to test computer'); await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push(`Native Windows ${reason} receipt ended visit; phone old read refused or expired, content cleared, reconnect denied without another store read`);
+    evidence.checks.push(`${event === 'expiry' ? 'Windows visit deadline' : `Native Windows ${event === 'lock' ? 'lock' : 'suspend'} receipt`} ended visit; phone old read refused or expired, content cleared, reconnect denied without another store read`);
   }
   assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
   evidence.nativeEvents = [...visit.nativeEvents]; evidence.reads = reads; evidence.writes = writes;
@@ -146,6 +174,7 @@ try {
 } catch (error) { evidence.error = error.message; throw error; }
 finally {
   const failures = [];
+  evidence.nativeEvents ??= [...(visit?.nativeEvents || [])];
   try { await visit?.close(); } catch (e) { failures.push(e); }
   try { await store?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { if (installed) {

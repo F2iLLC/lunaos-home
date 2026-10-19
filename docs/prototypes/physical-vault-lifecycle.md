@@ -19,6 +19,8 @@ emulator restriction. No household record or Home package/file is accessed.
 ```powershell
 node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> lock
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
+node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> expiry
+node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
 Only the separate TLS listener binds to the explicitly supplied private address;
@@ -37,7 +39,15 @@ compares the exact on-screen synthetic identities and approves the fixed
 Alex/Library visit read-only scope; it drives the Android buttons. After the first
 read, the runner requests the physical lock or sleep action. It requires the
 owned native child's exact bounded `lock` or `suspend` event and the ended gate;
-window close, an elapsed grant or a simulated event cannot satisfy that assertion.
+window close or a simulated event cannot satisfy that assertion. A follow-up
+review found that the original runner could accept a native event after the
+60-second read grant had already expired. The revised runner records monotonic
+time before issuing the grant and accepts the event only if it arrives during
+that 60-second window. A boundary test rejects the deadline and later events.
+The original lock/sleep results did not record this interval, so they show that
+the native event ended the Windows visit but do not by themselves prove that it
+ended an active read grant. Fresh attended lock and sleep runs measured and passed
+that narrower criterion, as recorded below.
 These stderr labels are evidence only and cannot authorize a record operation.
 
 For sleep, after waking/unlocking, type `back` in the test terminal. This is only
@@ -56,6 +66,10 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Persistence | Original encrypted bytes were unchanged after each event. No write or automatic replay occurred. The sleep run's new verified visit successfully read after the earlier lock run; old visits stayed unusable. |
 | Identity | The phone reported generated, non-exportable EC identity, null key encoding/format and security level 1. This is provider-reported custody, not independent hardware attestation. Transport identity is separate from vault unlock and is not itself user-authentication-bound. |
 | Cleanup | Both successful runners exited zero with cleanup passing. The temporary test APK, owned host/native child and synthetic store were removed. Package absence and absence of the final test listeners were independently checked. |
+| Verification cancellation | A separate attended Windows run received the native `canceled` status at 03:11:47.717 UTC. The gate stayed closed, the listener refused a connection, and no record was read or written. This did not use the physical Android client. |
+| Five-minute visit expiry | A new Windows-verified visit served one fictional read over physical Wi-Fi. The Windows gate remained verified after the phone's 60-second grant expired, then closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
+| Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
+| Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -69,6 +83,13 @@ Final sleep APK SHA-256:
 APKs include per-run disposable public CA material, so hashes differ. Local raw
 evidence remains outside Git in `physical-lock-v3` and `physical-sleep-v4`; only
 synthetic summarized results are published.
+The cancellation and expiry results remain outside Git in `windows-cancel-v2`
+and `physical-expiry-v1` respectively. The expiry APK SHA-256 is
+`b32db919fe4058ecef3b1e6a5f6dd50371febb901924e9e313dcb90f56e19f99`.
+Timed lock and sleep evidence remains outside Git in `physical-lock-timed-v2`
+and `physical-sleep-timed-v2`. Their APK SHA-256 values are respectively
+`567983ce3d418b5acec9664659e31fc4e37e26c42aadff3d7863c18223bddf94`
+and `00e5a75ae6604abf5b9557e167ee5da825cb3d474d25fbd1c2171a198259597a`.
 
 Earlier attempts are not counted as passes: the first preflight rejected an
 adb-formatted model alias; initial physical setup lacked the app-private config
@@ -79,18 +100,21 @@ out while the network recovered. The harness now uses Samsung's full window
 focus field (retaining only test-app UI nodes), creates its own config directory,
 and waits for post-resume acknowledgement/readiness. No authentication gate,
 grant deadline or event assertion was relaxed.
+One timed lock retry had no user action before its observation timeout; one timed
+sleep retry lost its phone connection before approval. Neither is counted as a pass.
 
 ## Validation and remaining work
 
-All 109 Windows-compatible Node tests passed, including refusal of public/wildcard
+All 110 Windows-compatible Node tests passed, including refusal of public/wildcard
 test bindings and bounded lifecycle-event collection that cannot verify the gate.
 Both actual phone APK builds and successful runs exercised the modified Java
 sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
-These results complete this attended lock/sleep/local-network check on this one
-phone and PC. They do not complete Session 2 or production acceptance. Live
-verification cancellation/visit expiry with the physical client, extended sleep,
+These results show local-network access and native visit closure on lock/sleep on
+this one phone and PC, including events during an active read grant.
+They do not complete Session 2 or production acceptance. Live cancellation with
+the physical client, extended sleep,
 network roaming/interruption, phone-hosted operation, production enrollment,
 recovery and independent security review remain open. DPAPI remains CurrentUser
 encryption with an application presence gate, not authentication-bound key release.
