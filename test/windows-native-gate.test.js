@@ -24,6 +24,16 @@ const denied = error => error.code === 'DENIED';
 const verify = child => child.stdout.emit('data', Buffer.from('HOME_WINDOWS_MONITOR_READY\nHOME_WINDOWS_VERIFIED\n'));
 const monitorEnd = child => child.stdout.emit('data', Buffer.from('HOME_WINDOWS_SESSION_ENDED\n'));
 
+test('native shutdown returns the store drain promise to its caller', async () => {
+  const drained = Promise.withResolvers();
+  const child = new EventEmitter(); child.stdout = new EventEmitter(); child.kill = () => {};
+  const gate = createNativeGate({ shutdown: () => drained.promise }, child);
+  const shutdown = gate.shutdown();
+  assert.equal(shutdown, drained.promise);
+  drained.resolve();
+  await shutdown;
+});
+
 test('unavailable monitor, reordered readiness and lock during authentication cannot open access', async () => {
   for (const lines of [
     ['HOME_WINDOWS_VERIFIED\n'],

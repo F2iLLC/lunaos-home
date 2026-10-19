@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { createInterface } from 'node:readline';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,37 +13,54 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const powershell = process.env.LUNA_HOME_PROBE_POWERSHELL || 'pwsh';
 if (process.argv[2] === '--child') {
-  let input = '';
-  for await (const chunk of process.stdin) { input += chunk; if (input.length > 2048) throw Error('Invalid fixture request.'); }
-  const store = await openWindowsProbeStore({ powershell, probeId: JSON.parse(input).probeId });
+  const commands = createInterface({ input: process.stdin });
+  const lines = commands[Symbol.asyncIterator]();
+  const first = await lines.next();
+  if (first.done || first.value.length > 2048) throw Error('Invalid fixture request.');
+  const store = await openWindowsProbeStore({ powershell, probeId: JSON.parse(first.value).probeId });
   const preview = createWindowsPreview({ store });
-  const server = createAppServer({ windowsPreview: preview });
-  server.listen(0, '127.0.0.1'); await once(server, 'listening');
-  process.stdout.write(JSON.stringify({ port: server.address().port, key: preview.key, assistantKey: preview.assistantKey, pid: process.pid }) + '\n');
+  let server;
+  try {
+    server = createAppServer({ windowsPreview: preview });
+    server.listen(0, '127.0.0.1'); await once(server, 'listening');
+    process.stdout.write(JSON.stringify({ port: server.address().port, key: preview.key, assistantKey: preview.assistantKey, pid: process.pid }) + '\n');
+    await lines.next(); // Parent sends shutdown only after its preview work is finished.
+  } finally {
+    commands.close();
+    if (server?.listening) await new Promise(resolve => server.close(resolve));
+    await preview.shutdown();
+  }
 } else {
   async function launch(probeId) {
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '--child'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stderr.on('data', () => {});
     child.stdin.on('error', () => {});
     const closed = once(child, 'close');
+    let stopTimer;
+    const requestStop = () => {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      try { child.stdin.write('shutdown\n'); } catch {}
+      stopTimer ??= setTimeout(() => child.kill(), 5000);
+    };
+    child.once('close', () => clearTimeout(stopTimer));
     let text = '';
     let started;
     try {
       started = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { child.kill(); reject(Error('Preview did not start.')); }, 30000);
+        const timer = setTimeout(() => { requestStop(); reject(Error('Preview did not start.')); }, 30000);
         child.once('error', () => { clearTimeout(timer); reject(Error('Preview could not start.')); });
         child.once('close', () => { clearTimeout(timer); reject(Error('Preview stopped early.')); });
         child.stdout.on('data', chunk => {
           text += chunk;
-          if (text.length > 4096) { child.kill(); clearTimeout(timer); reject(Error('Unexpected preview output.')); }
+          if (text.length > 4096) { requestStop(); clearTimeout(timer); reject(Error('Unexpected preview output.')); }
           else if (text.includes('\n')) {
             clearTimeout(timer);
-            try { resolve(JSON.parse(text.trim())); } catch { child.kill(); reject(Error('Invalid preview output.')); }
+            try { resolve(JSON.parse(text.trim())); } catch { requestStop(); reject(Error('Invalid preview output.')); }
           }
         });
-        child.stdin.end(JSON.stringify({ probeId }));
+        child.stdin.write(JSON.stringify({ probeId }) + '\n');
       });
-    } catch (error) { child.kill(); await closed; throw error; }
+    } catch (error) { requestStop(); await closed; throw error; }
     const base = `http://127.0.0.1:${started.port}`;
     return {
       ...started,
@@ -54,7 +72,7 @@ if (process.argv[2] === '--child') {
         });
         return { status: response.status, data: await response.json() };
       },
-      async stop() { child.kill(); await closed; },
+      async stop() { requestStop(); await closed; },
     };
   }
   const store = await openWindowsProbeStore({ powershell, create: true });

@@ -75,12 +75,12 @@ test('local terminal displays exact identities and scope, with deny as the defau
 
 test('TLS reads the reopened DPAPI record and refuses stale grants, writes, tamper and unavailable storage', { skip: process.platform !== 'win32' }, async t => {
   let store = await openWindowsProbeStore({ create: true });
-  t.after(() => store.removeSyntheticStore());
   await store.create('alex-library', record);
   const changed = { ...record, value: 'Thursday from protected storage' };
   await store.edit('alex-library', changed);
   store = await openWindowsProbeStore({ probeId: store.probeId });
   const { control, connect, approve } = await setup(t, store);
+  t.after(() => store.removeSyntheticStore());
   const client = await connect(approve().offer);
   const grant = control.approveRead({ connectionId: client.connectionId, peerFingerprint: fixtures.phoneIdentity.fingerprint });
   assert.deepEqual(await client.execute(grant, read), changed);
@@ -105,12 +105,12 @@ test('TLS reads the reopened DPAPI record and refuses stale grants, writes, tamp
 
 test('lost acknowledgement of a real encrypted commit is unknown and never replayed', { skip: process.platform !== 'win32' }, async t => {
   const store = await openWindowsProbeStore({ create: true });
-  t.after(() => store.removeSyntheticStore());
   await store.create('alex-library', record); let writes = 0;
   const { host, connect, approve } = await setup(t, {
-    read: id => store.read(id), create: (id, data) => store.create(id, data),
+    lifecycleStore: store, read: id => store.read(id), create: (id, data) => store.create(id, data),
     edit: async (id, data) => { writes++; await store.edit(id, data); throw Error('Synthetic lost acknowledgement'); },
   });
+  t.after(() => store.removeSyntheticStore());
   const client = await connect(approve().offer);
   // Privileged fault-injection test only; the enrollment controller offers read-only.
   const grant = host.approveAccess(client.connectionId, 'setup', { recordIds: ['alex-library'], lifetimeMs: 60_000 });

@@ -80,7 +80,7 @@ try {
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
   store = await openWindowsProbeStore({ probeId: store.probeId });
   visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity, ca: cert, bindAddress: address, idleMs: 60000,
-    store: { read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
+    store: { lifecycleStore: store, read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
       create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
   console.log(`LAN_LISTENER_READY port=${visit.host.port}; waiting for real Windows verification`);
   const deadline = Date.now() + 120000;

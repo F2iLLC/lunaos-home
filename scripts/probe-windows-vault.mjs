@@ -48,6 +48,7 @@ async function uncertainWriteChecks(store) {
     const release = Promise.withResolvers();
     let writes = 0;
     const service = createVaultSessionService({ store: {
+      lifecycleStore: store,
       read: id => store.read(id),
       create: (id, data) => store.create(id, data),
       async edit(id, data) {
@@ -84,11 +85,11 @@ async function uncertainWriteChecks(store) {
       const after = await readFile(join(store.directory, 'records.bin'));
       if (commit) assert.notDeepEqual(after, baseline);
       else assert.deepEqual(after, baseline);
-      service.shutdown();
+      await service.shutdown();
       await freshReader(store.probeId, grant, commit);
     } finally {
       release.resolve();
-      service.shutdown();
+      await service.shutdown();
     }
   }
   // Return the isolated fixture to the baseline for the remaining corruption checks.
@@ -101,15 +102,16 @@ if (process.argv[2] === '--read') {
   const { probeId, oldGrant, committedWithoutReceipt } = JSON.parse(input);
   const store = await openWindowsProbeStore({ powershell, probeId });
   const service = createVaultSessionService({ store });
-  service.admitDevice('windows-example');
-  const connection = service.openConnection({ deviceId: 'windows-example' });
-  await assert.rejects(connection.execute(oldGrant, { action: 'read', recordId: 'alex-work' }), isCode('DENIED'));
-  const grant = service.approveReadOnly(connection, scope);
-  assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'alex-work' }), {
-    ...alex, value: committedWithoutReceipt ? changedWorkplace : 'Willow Workshop',
-  });
-  assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'sam-school' }), sam);
-  service.shutdown();
+  try {
+    service.admitDevice('windows-example');
+    const connection = service.openConnection({ deviceId: 'windows-example' });
+    await assert.rejects(connection.execute(oldGrant, { action: 'read', recordId: 'alex-work' }), isCode('DENIED'));
+    const grant = service.approveReadOnly(connection, scope);
+    assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'alex-work' }), {
+      ...alex, value: committedWithoutReceipt ? changedWorkplace : 'Willow Workshop',
+    });
+    assert.deepEqual(await connection.execute(grant, { action: 'read', recordId: 'sam-school' }), sam);
+  } finally { await service.shutdown(); }
   console.log(JSON.stringify({ passed: true, processId: process.pid }));
 } else {
   const store = await openWindowsProbeStore({ powershell, create: true });
@@ -138,7 +140,7 @@ if (process.argv[2] === '--read') {
     // This is a simulated local assistant connection, not a live model call.
     tick = 60000;
     await assert.rejects(local.execute(setup, { action: 'edit', recordId: 'alex-work', data: alex }), isCode('DENIED'));
-    service.shutdown();
+    await service.shutdown();
     await freshReader(store.probeId, setup);
     await uncertainWriteChecks(store);
 
@@ -165,7 +167,7 @@ if (process.argv[2] === '--read') {
       for (const marker of ['alex-example', 'sam-example', 'Willow Workshop', 'Meadow School']) assert.equal(text.includes(marker), false);
     }
   } finally {
-    service.shutdown();
+    await service.shutdown();
     await store.removeSyntheticStore();
   }
   await assert.rejects(stat(store.directory), error => error.code === 'ENOENT');

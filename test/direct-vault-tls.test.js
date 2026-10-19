@@ -2,7 +2,11 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 import tls from 'node:tls';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { withExclusiveVaultRecovery } from '../lib/vault-store-lifecycle.js';
 import { certificateFingerprint, startDirectVaultExperiment, connectDirectVaultExperiment, DirectVaultError, privateTestAddress } from '../lib/direct-vault-tls.js';
 
 const fixtures = createDirectTlsIdentities();
@@ -20,6 +24,19 @@ test('LAN test binding rejects wildcard, public, hostnames and malformed address
     await assert.rejects(startDirectVaultExperiment({ bindAddress: address }), /private IPv4/);
   }
   for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2']) assert.equal(privateTestAddress(address), address);
+});
+test('failed TLS listen releases the synthetic store registration', async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'lunaos-tls-refusal-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = { probeId: crypto.randomUUID(), directory, read() {}, create() {}, edit() {} };
+  const server = new EventEmitter();
+  server.listen = () => { throw new Error('Synthetic bind refusal'); };
+  t.mock.method(tls, 'createServer', () => server);
+  await assert.rejects(startDirectVaultExperiment({ identity: hostIdentity, ca, store }),
+    /Synthetic bind refusal/);
+  let recovered = false;
+  await withExclusiveVaultRecovery(store, async () => { recovered = true; });
+  assert.equal(recovered, true);
 });
 async function waitForQueue(host, expected) {
   const deadline = performance.now() + 1500;
