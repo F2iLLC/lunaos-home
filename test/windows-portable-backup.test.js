@@ -54,9 +54,13 @@ test('fictional backup imports into an empty independent Windows store without c
     const service = createVaultSessionService({ store: source });
     service.admitDevice('windows-example');
     const connection = service.openConnection({ deviceId: 'windows-example' });
-    const oldGrant = service.approveSetup(connection, { recordIds: ['alex-library', 'sam-school'], lifetimeMs: 60000 });
+    const oldGrant = service.approveSetup(connection,
+      { recordIds: ['alex-library', 'sam-school', 'count', 'keys', '__proto__'], lifetimeMs: 60000 });
     await connection.execute(oldGrant, { action: 'create', recordId: 'alex-library', data: alex });
     await connection.execute(oldGrant, { action: 'create', recordId: 'sam-school', data: sam });
+    await connection.execute(oldGrant, { action: 'create', recordId: 'count', data: alex });
+    await connection.execute(oldGrant, { action: 'create', recordId: 'keys', data: sam });
+    await connection.execute(oldGrant, { action: 'create', recordId: '__proto__', data: alex });
     const originalDestination = await readFile(path.join(destination.directory, 'records.bin'));
     const { archive, recoveryKey } = await exportWindowsSyntheticBackup(source);
     try {
@@ -74,12 +78,29 @@ test('fictional backup imports into an empty independent Windows store without c
         await assert.rejects(restoreWindowsSyntheticBackup(destination, candidate, key));
         assert.deepEqual(await readFile(path.join(destination.directory, 'records.bin')), originalDestination);
       }
+      const liveService = createVaultSessionService({ store: destination });
+      liveService.admitDevice('windows-example');
+      const liveConnection = liveService.openConnection({ deviceId: 'windows-example' });
+      const liveGrant = liveService.approveReadOnly(liveConnection,
+        { recordIds: ['alex-library'], lifetimeMs: 60000 });
+      const secondHandle = await openWindowsProbeStore({ probeId: destination.probeId, recovery: true });
+      await assert.rejects(restoreWindowsSyntheticBackup(secondHandle, archive, recoveryKey),
+        /Close active synthetic vault sessions/);
+      await assert.rejects(secondHandle.importSnapshot({ schema: 1, records: {} }),
+        /Close active synthetic vault sessions/);
+      assert.deepEqual(await readFile(path.join(destination.directory, 'records.bin')), originalDestination);
+      await assert.rejects(liveConnection.execute(liveGrant, { action: 'read', recordId: 'alex-library' }),
+        error => error.code === 'NOT_FOUND');
+      await liveService.shutdown();
       await restoreInFreshProcess(destination.probeId, archive, recoveryKey);
       const reopened = await openWindowsProbeStore({ probeId: destination.probeId });
       assert.equal(reopened.exportSnapshot, undefined);
       assert.equal(reopened.importSnapshot, undefined);
       assert.deepEqual(await reopened.read('alex-library'), alex);
       assert.deepEqual(await reopened.read('sam-school'), sam);
+      assert.deepEqual(await reopened.read('count'), alex);
+      assert.deepEqual(await reopened.read('keys'), sam);
+      assert.deepEqual(await reopened.read('__proto__'), alex);
       const restoredService = createVaultSessionService({ store: reopened });
       restoredService.admitDevice('windows-example');
       const restoredConnection = restoredService.openConnection({ deviceId: 'windows-example' });
@@ -96,4 +117,25 @@ test('fictional backup imports into an empty independent Windows store without c
       service.shutdown();
       recoveryKey.fill(0);
     }
+  });
+
+test('Windows worker exports and restores an archive larger than the old 64 KiB limit',
+  { skip: process.platform !== 'win32' }, async t => {
+    const source = await openWindowsProbeStore({ create: true, recovery: true });
+    const destination = await openWindowsProbeStore({ create: true, recovery: true });
+    t.after(() => source.removeSyntheticStore());
+    t.after(() => destination.removeSyntheticStore());
+    const entries = Array.from({ length: 64 }, (_, index) => [
+      `record-${index.toString().padStart(2, '0')}${'a'.repeat(71)}`,
+      { memberId: 'm'.repeat(80), label: '😀'.repeat(40), value: '🔒'.repeat(120) },
+    ]);
+    const snapshot = { schema: 1, records: Object.fromEntries(entries) };
+    await source.importSnapshot(snapshot);
+    const { archive, recoveryKey } = await exportWindowsSyntheticBackup(source);
+    try {
+      assert.ok(archive.length > 65536);
+      await restoreWindowsSyntheticBackup(destination, archive, recoveryKey);
+      const recovered = await destination.exportSnapshot();
+      assert.deepEqual(recovered, snapshot);
+    } finally { recoveryKey.fill(0); }
   });

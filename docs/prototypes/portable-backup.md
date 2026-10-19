@@ -32,8 +32,13 @@ validates authentication, version, and the full record schema before asking the
 Windows worker to replace an **empty** destination store. The worker refuses
 nonempty stores, uses a same-directory encrypted temporary file and replace,
 and binds the new ciphertext to the destination's own DPAPI store ID. It does
-not import prior grants or enrollment. A failed decrypt or validation never
-starts an import. Windows process memory and pipes may briefly hold plaintext;
+not import prior grants or enrollment. A process-local guard refuses import
+while a session service for that destination store is active and blocks new
+services during import, including through another adapter object with the same
+store ID. It does **not** exclude a service in another process or establish
+clean-device enrollment; recovery must remain isolated, and session shutdown
+must finish before import. A failed decrypt or validation never starts an
+import. Windows process memory and pipes may briefly hold plaintext;
 this is not a secure-erasure claim.
 
 ## Reproducible synthetic checks

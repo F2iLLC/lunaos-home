@@ -25,9 +25,9 @@ function Assert-Detail($Value) {
 try {
     if (-not $IsWindows) { throw 'platform' }
     Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
-    $buffer = [char[]]::new(65537)
+    $buffer = [char[]]::new(131073)
     $length = [Console]::In.ReadBlock($buffer, 0, $buffer.Length)
-    if ($length -gt 65536) { throw 'input-size' }
+    if ($length -gt 131072) { throw 'input-size' }
     $request = [string]::new($buffer, 0, $length) | ConvertFrom-Json -AsHashtable -Depth 8
     if ($request -isnot [Collections.IDictionary] -or $request.probeId -cnotmatch '^[0-9a-f-]{36}$') { throw 'request' }
     $probeGuid = [Guid]::ParseExact($request.probeId, 'D')
@@ -41,8 +41,8 @@ try {
     if ($operation -eq 'restore') {
         $snapshot = $request.snapshot
         if ($snapshot -isnot [Collections.IDictionary] -or $snapshot.Count -ne 2 -or $snapshot.schema -ne 1 -or
-            $snapshot.records -isnot [Collections.IDictionary] -or $snapshot.records.Count -gt 64) { throw 'snapshot' }
-        foreach ($key in $snapshot.records.Keys) { Assert-Id $key; Assert-Detail $snapshot.records[$key] }
+            $snapshot.records -isnot [Collections.IDictionary] -or $snapshot.records.psbase.Count -gt 64) { throw 'snapshot' }
+        foreach ($key in $snapshot.records.psbase.Keys) { Assert-Id $key; Assert-Detail $snapshot.records[$key] }
     }
 
     $base = [IO.Path]::Combine([Environment]::GetFolderPath('LocalApplicationData'), 'LunaOSHome', 'FictionalVaultAdapters')
@@ -82,8 +82,8 @@ try {
             $plain = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($file), $purpose, $scope)
             try { $envelope = [Text.Encoding]::UTF8.GetString($plain) | ConvertFrom-Json -AsHashtable -Depth 8 }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
-            if ($envelope.Count -ne 2 -or $envelope.format -ne 1 -or $envelope.records -isnot [Collections.IDictionary] -or $envelope.records.Count -gt 64) { throw 'format' }
-            foreach ($key in $envelope.records.Keys) { Assert-Id $key; Assert-Detail $envelope.records[$key] }
+            if ($envelope.Count -ne 2 -or $envelope.format -ne 1 -or $envelope.records -isnot [Collections.IDictionary] -or $envelope.records.psbase.Count -gt 64) { throw 'format' }
+            foreach ($key in $envelope.records.psbase.Keys) { Assert-Id $key; Assert-Detail $envelope.records[$key] }
         }
         $result = @{ ok = $true }
         switch ($operation) {
@@ -92,15 +92,15 @@ try {
             'read' { $result.data = $envelope.records[$request.recordId] }
             'snapshot' { $result.snapshot = @{ schema = 1; records = $envelope.records } }
             'restore' {
-                if ($envelope.records.Count -ne 0) { throw 'nonempty-store' }
+                if ($envelope.records.psbase.Count -ne 0) { throw 'nonempty-store' }
                 $envelope.records = $snapshot.records
             }
             'create' {
-                if ($envelope.records.Contains($request.recordId) -or $envelope.records.Count -ge 64) { throw 'exists-or-full' }
+                if ($envelope.records.psbase.Contains($request.recordId) -or $envelope.records.psbase.Count -ge 64) { throw 'exists-or-full' }
                 $envelope.records[$request.recordId] = $request.data
             }
             'edit' {
-                if (-not $envelope.records.Contains($request.recordId)) { throw 'missing-record' }
+                if (-not $envelope.records.psbase.Contains($request.recordId)) { throw 'missing-record' }
                 $envelope.records[$request.recordId] = $request.data
             }
         }
