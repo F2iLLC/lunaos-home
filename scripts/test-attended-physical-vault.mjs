@@ -44,6 +44,14 @@ let installed = false, sourceStore, store, visit, relay, recoveryKey, reads = 0,
 const evidence = { result: 'INCOMPLETE', event, model, api: Number(apiText), started: new Date().toISOString(), checks: [] };
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function beforeDeadline(promise, deadline, message) {
+  const remaining = deadline - performance.now();
+  assert.ok(remaining > 0, message);
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), remaining); })]);
+  } finally { clearTimeout(timer); }
+}
 async function startDisposableRelay(address, hostPort) {
   const pairs = new Set();
   let failure;
@@ -186,9 +194,10 @@ try {
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read`);
   } else if (event === 'host-loss') {
-    await visit.host.close();
-    visit.gate.requireVerified(); // Only the owned transport stopped; Windows verification did not stand in for a network event.
+    assert.ok(performance.now() - grantTick < 60_000, 'Host-loss check missed the active read grant');
     const disconnectedBy = performance.now() + 5_000;
+    await beforeDeadline(visit.host.close(), disconnectedBy, 'Owned host closure exceeded five seconds');
+    visit.gate.requireVerified(); // Only the owned transport stopped; Windows verification did not stand in for a network event.
     while (visit.host.listConnections().length && performance.now() < disconnectedBy) await pause(20);
     assert.deepEqual(visit.host.listConnections(), []);
     const beforeRetry = await nodes();
@@ -203,6 +212,7 @@ try {
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Owned host transport stopped after one read; physical client denied old read and reconnect, then cleared displayed content without another store access');
   } else if (event === 'link-reset') {
+    assert.ok(performance.now() - grantTick < 60_000, 'Link-reset check missed the active read grant');
     assert.equal(relay.activeCount(), 1);
     relay.drop();
     const disconnectedBy = performance.now() + 5_000;
@@ -318,7 +328,7 @@ finally {
   recoveryKey?.fill(0);
   evidence.nativeEvents ??= [...(visit?.nativeEvents || [])];
   try { await relay?.close(); } catch (e) { failures.push(e); }
-  try { await visit?.close(); } catch (e) { failures.push(e); }
+  try { if (visit) await beforeDeadline(visit.close(), performance.now() + 5_000, 'Owned visit cleanup exceeded five seconds'); } catch (e) { failures.push(e); }
   try { await store?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { await sourceStore?.removeSyntheticStore(); } catch (e) { failures.push(e); }
   try { if (installed) {
