@@ -15,7 +15,7 @@ import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'network', 'background', 'revoke'].includes(event));
+assert.ok(['lock', 'sleep', 'expiry', 'network', 'background', 'revoke', 'client-end'].includes(event));
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(i => i?.address === address && !i.internal), 'Bind only an assigned private address');
@@ -112,7 +112,20 @@ try {
   await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
   evidence.checks.push('Physical Android read of reopened Windows encrypted store over native mutually authenticated TLS1.3 on LAN');
   assert.equal(reads, 1); assert.equal(writes, 0);
-  if (event === 'revoke') {
+  if (event === 'client-end') {
+    await tap('End connection');
+    const ended = await waitText('Connection ended. Reading needs fresh approval.');
+    assert.ok(ended.some(n => n.text === 'No record shown.'));
+    assert.ok(ended.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    visit.gate.requireVerified();
+    await tap('Connect to test computer');
+    await waitText('Computer connected. Waiting for host approval...');
+    const awaiting = await nodes();
+    assert.ok(awaiting.some(n => n.text === 'No record shown.'));
+    assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Physical Android End connection cleared content and access; reconnect awaited fresh host approval without a second store read');
+  } else if (event === 'revoke') {
     visit.host.revokePeer(peer);
     const beforeRetry = await nodes();
     assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
