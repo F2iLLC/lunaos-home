@@ -38,7 +38,7 @@ $savedJava = $env:JAVA_HOME
 try {
     $env:JAVA_HOME = $Jdk
     if ($Stage -ne 'Package') {
-    Invoke-DirectTlsTool "$Jdk/bin/javac.exe" @('-encoding','UTF-8','-source','8','-target','8','-classpath',$androidJar,'-d',$classes,"$source/DirectTlsProbe.java","$source/SyntheticTlsClient.java","$source/PairingActivity.java","$source/DirectTlsRaceProbe.java")
+    Invoke-DirectTlsTool "$Jdk/bin/javac.exe" @('-encoding','UTF-8','-source','8','-target','8','-classpath',$androidJar,'-d',$classes,"$source/DirectTlsProbe.java","$source/SyntheticTlsClient.java","$source/PairingActivity.java","$source/DirectTlsRaceProbe.java","$source/NativeIdentity.java","$source/FixtureConfig.java","$source/IdentityProbe.java")
     Invoke-DirectTlsTool "$Jdk/bin/jar.exe" @('--create','--file',"$output/classes.jar",'-C',$classes,'.')
     Invoke-DirectTlsTool "$buildTools/d8.bat" @('--min-api','30','--lib',$androidJar,'--output',$dex,"$output/classes.jar")
         [IO.File]::WriteAllText("$output/compile-complete.txt", 'Disposable direct TLS compilation complete')
@@ -46,7 +46,7 @@ try {
     if ($Stage -eq 'Compile') { Write-Output 'Compilation complete; no pairing offer packaged.'; return }
     $assets = Join-Path $output 'assets'
     [IO.Directory]::CreateDirectory($assets) | Out-Null
-    foreach ($name in @('phone.p12', 'ca.pem', 'config.json')) {
+    foreach ($name in @('ca.pem')) {
         $item = Get-Item -LiteralPath (Join-Path $FixtureDirectory $name) -Force
         if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.Length -gt 16384) {
             throw 'Expected a small regular disposable fixture file.'

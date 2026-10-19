@@ -23,10 +23,9 @@ final class SyntheticTlsClient implements AutoCloseable {
         private final ArrayDeque<String> approvals = new ArrayDeque<>();
         SyntheticTlsClient(android.content.Context context, JSONObject config) throws Exception { this(context, config, "localhost", config.getString("hostFingerprint")); }
         SyntheticTlsClient(android.content.Context context, JSONObject config, String expectedName, String approvedPin) throws Exception {
-            KeyStore keys = KeyStore.getInstance("PKCS12");
-            try (InputStream in = context.getAssets().open("phone.p12")) { keys.load(in, "fictional-only".toCharArray()); }
+            KeyStore keys = NativeIdentity.requireIdentity();
             KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            km.init(keys, "fictional-only".toCharArray());
+            km.init(keys, null);
             KeyStore trust = KeyStore.getInstance(KeyStore.getDefaultType()); trust.load(null);
             try (InputStream in = context.getAssets().open("ca.pem")) { trust.setCertificateEntry("fixture-ca", CertificateFactory.getInstance("X.509").generateCertificate(in)); }
             TrustManagerFactory tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); tm.init(trust);

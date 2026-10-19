@@ -5,7 +5,7 @@ import path from 'node:path';
 import { certificateFingerprint } from '../../lib/direct-vault-tls.js';
 
 // Disposable identities only. Never touches the OS/user trust store.
-export function createDirectTlsIdentities() {
+export function createDirectTlsIdentities({ hostOnly = false } = {}) {
   const scratch = mkdtempSync(path.join(tmpdir(), 'home-direct-tls-'));
   const gitOpenSSL = 'C:/Program Files/Git/usr/bin/openssl.exe';
   const openssl = process.env.HOME_TEST_OPENSSL || (existsSync(gitOpenSSL) ? gitOpenSSL : 'openssl');
@@ -26,6 +26,7 @@ export function createDirectTlsIdentities() {
       result.fingerprint = certificateFingerprint(result.cert); return result;
     }
     const hostIdentity = identity('Fictional-Host', true);
+    if (hostOnly) return { scratch, ca, hostIdentity, cleanup };
     const phoneIdentity = identity('Fictional-Phone');
     const outsiderIdentity = identity('Fictional-Unapproved-Peer');
     run(['req', '-x509', ...keyArgs, '-keyout', 'untrusted.key', '-out', 'untrusted.pem', '-subj', '/CN=Fictional-Untrusted-Issuer', '-days', '1', '-addext', 'basicConstraints=critical,CA:FALSE', '-addext', 'extendedKeyUsage=clientAuth']);

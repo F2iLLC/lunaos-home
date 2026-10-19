@@ -23,11 +23,7 @@ public final class DirectTlsProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             require("ranchu".equals(Build.HARDWARE));
-            try (InputStream in = asset("config.json")) {
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream(); byte[] chunk = new byte[1024]; int n;
-                while ((n = in.read(chunk)) != -1) { bytes.write(chunk, 0, n); require(bytes.size() <= 8192); }
-                config = new JSONObject(bytes.toString("UTF-8"));
-            }
+            config = FixtureConfig.read(getContext());
             phase = "host-identity-rejection";
             boolean rejected = false;
             try (SyntheticTlsClient wrongHost = new SyntheticTlsClient(getContext(), config, "wrong-host.invalid", config.getString("hostFingerprint"))) { }

@@ -7,7 +7,7 @@ import java.io.*;
 import java.util.concurrent.*;
 import org.json.JSONObject;
 
-/** Visible fictional approval flow only. Fixture keys are not production key custody. */
+/** Visible fictional approval flow only. Native transport identity is separate from OS vault unlock. */
 public final class PairingActivity extends Activity {
     private JSONObject config;
     private TextView status, contents;
@@ -24,16 +24,12 @@ public final class PairingActivity extends Activity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         if (!"ranchu".equals(Build.HARDWARE)) { finish(); return; }
-        try (InputStream in = getAssets().open("config.json")) {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream(); byte[] chunk = new byte[1024]; int n;
-            while ((n = in.read(chunk)) != -1) { bytes.write(chunk, 0, n); if (bytes.size() > 8192) throw new IOException(); }
-            config = new JSONObject(bytes.toString("UTF-8"));
-        } catch (Exception error) { finish(); return; }
+        try { config = FixtureConfig.read(this); } catch (Exception error) { finish(); return; }
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(24, 24, 24, 24);
         scroll.addView(layout); setContentView(scroll);
         label(layout, "Fictional device connection");
-        label(layout, "Test only. No family data. Test identity keys are bundled; this does not set up a real vault or replace Android verification.");
+        label(layout, "Test only. No family data. This device keeps its connection key in Android Keystore. This does not unlock a vault or replace Android verification.");
         label(layout, "Test computer identity: " + config.optString("hostFingerprint"));
         label(layout, "Selected information: Alex / Library visit. Read only, up to 60 seconds. The host separately approves this fixed test scope.");
         status = label(layout, "Review the test computer identity."); contents = label(layout, "No record shown.");
