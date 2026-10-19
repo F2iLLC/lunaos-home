@@ -70,6 +70,30 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Five-minute visit expiry | A new Windows-verified visit served one fictional read over physical Wi-Fi. The Windows gate remained verified after the phone's 60-second grant expired, then closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
 | Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
 | Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
+| Second physical Android device | A user-selected Echo Show 8 with a custom `lineage_crown` Android 11/API30 build read the same kind of fictional Windows record over direct Wi-Fi in a separate disposable run. This does not establish support for stock Echo Show software or make it a phone-only vault host. |
+| Host identity rejection on two devices | Both the Echo Show 8 and Samsung rejected a wrong TLS host name and a wrong pinned host fingerprint before pairing. Each then completed a separately approved fictional read: one store read, zero writes. |
+| Android background on two devices | During an active 60-second read grant, moving each test client Home cleared its displayed content and local scope. On return, the read and connect controls were disabled until identity review. A new connection waited for fresh host approval and made no second store read. The Windows visit stayed verified. |
+| Physical device removal | After the Echo Show 8 read once, the host removed its paired identity. Its old read failed and cleared the display when attempted; reconnect was denied without another store read. Previously displayed information cannot be recalled from an already admitted device. |
+
+The Echo's first attempt crashed in the test identity reporter before pairing: the
+reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
+reporter uses that method only on API31+ and exposes the older
+`isInsideSecureHardware()` provider signal separately. The complete Echo run
+then passed. The Echo provider reported `insideSecureHardware=false`; the
+Samsung provider reported `securityLevel=1` and
+`insideSecureHardware=true`. These are provider reports, not independent
+attestation or a claim about protected record-key custody. Transport keys do
+not unlock the vault.
+
+The additional successful APK SHA-256 values were
+`d2dce62e5c5bc2bf8285a5b3d68edf70cb11238f0fc1a7c1d65e39f5f4eafe42`
+(Echo background),
+`1966f12b7f9721facca78182d3f0a79985c7a4207c1153f9f80fa747b74ad654`
+(Samsung background), and
+`df73d21c2da873a1b506402cb321fd93a2bee35086fb7efabd5c8b18204e529c`
+(Echo removal). All three runs reported cleanup passing. The disposable test
+package was independently absent from both devices afterward; no test listener
+remained listening. Raw output stays outside Git.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -112,10 +136,13 @@ sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
 These results show local-network access and native visit closure on lock/sleep on
-this one phone and PC, including events during an active read grant.
+the Samsung and PC, plus bounded read, background, host-identity and removal
+checks on the two selected Android devices.
 They do not complete Session 2 or production acceptance. Live cancellation with
 the physical client, extended sleep,
 network roaming/interruption, phone-hosted operation, production enrollment,
-recovery and independent security review remain open. DPAPI remains CurrentUser
+recovery and independent security review remain open. The
+[recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
+is not a portable user-held backup. DPAPI remains CurrentUser
 encryption with an application presence gate, not authentication-bound key release.
 Actions remains disabled; no merge or deployment is implied.

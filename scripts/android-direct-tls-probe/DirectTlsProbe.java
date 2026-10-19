@@ -12,17 +12,21 @@ import java.util.ArrayDeque;
 import javax.net.ssl.*;
 import org.json.JSONObject;
 
-/** Disposable emulator-only interop test, never an app enrollment or unlock implementation. */
+/** Disposable interop test, never an app enrollment or unlock implementation. */
 public final class DirectTlsProbe extends Instrumentation {
     private JSONObject config;
     private String phase = "initialization";
-    @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
+    private String action;
+    @Override public void onCreate(Bundle args) { super.onCreate(args); action = args.getString("action", "full"); start(); }
     private void require(boolean value) throws IOException { if (!value) throw new IOException("Assertion failed"); }
     private InputStream asset(String name) throws IOException { return getContext().getAssets().open(name); }
     @Override public void onStart() {
         Bundle result = new Bundle();
         try {
-            require("ranchu".equals(Build.HARDWARE));
+            boolean fullEmulator = "full".equals(action) && "ranchu".equals(Build.HARDWARE);
+            boolean selectedPhysical = "host-rejection".equals(action) &&
+                FixtureConfig.approvedPhysicalTarget(getContext());
+            require(fullEmulator || selectedPhysical);
             config = FixtureConfig.read(getContext());
             phase = "host-identity-rejection";
             boolean rejected = false;
@@ -32,6 +36,10 @@ public final class DirectTlsProbe extends Instrumentation {
             try (SyntheticTlsClient wrongPin = new SyntheticTlsClient(getContext(), config, "localhost", "0000000000000000000000000000000000000000000000000000000000000000")) { }
             catch (SSLPeerUnverifiedException expected) { rejected = true; }
             require(rejected);
+            if (selectedPhysical) {
+                result.putString("result", "PASS: selected physical Android rejected wrong TLS host name and host fingerprint.");
+                finish(-1, result); return;
+            }
             String oldGrant, firstConnection;
             phase = "pair-and-read";
             try (SyntheticTlsClient first = new SyntheticTlsClient(getContext(), config)) {

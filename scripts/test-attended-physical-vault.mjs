@@ -15,7 +15,7 @@ import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'network'].includes(event));
+assert.ok(['lock', 'sleep', 'expiry', 'network', 'background', 'revoke'].includes(event));
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(i => i?.address === address && !i.internal), 'Bind only an assigned private address');
@@ -88,6 +88,10 @@ try {
   const verifiedTick = performance.now();
   const peer = certificateFingerprint(cert), review = visit.enrollment.review(peer);
   config({ port: visit.host.port, hostFingerprint: review.hostFingerprint, offer: 'not-approved' });
+  const rejectionOutput = await adb(['shell', 'am', 'instrument', '-w', '-e', 'action', 'host-rejection', `${pkg}/.DirectTlsProbe`]);
+  assert.match(rejectionOutput, /INSTRUMENTATION_RESULT: result=PASS: selected physical Android rejected wrong TLS host name and host fingerprint\./);
+  assert.match(rejectionOutput, /INSTRUMENTATION_CODE: -1/);
+  evidence.checks.push('Selected physical Android rejected wrong TLS host name and host fingerprint before pairing');
   await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
   const screen = await waitText('Review the test computer identity.');
   assert.ok(screen.some(n => n.text === `Test computer identity: ${review.hostFingerprint}`));
@@ -108,7 +112,41 @@ try {
   await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
   evidence.checks.push('Physical Android read of reopened Windows encrypted store over native mutually authenticated TLS1.3 on LAN');
   assert.equal(reads, 1); assert.equal(writes, 0);
-  if (event !== 'network') {
+  if (event === 'revoke') {
+    visit.host.revokePeer(peer);
+    const beforeRetry = await nodes();
+    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+    const denied = await nodes();
+    assert.ok(denied.some(n => n.text === 'No record shown.'));
+    assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Connection or approval unavailable. No access remains.');
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Removing the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read');
+  } else if (event === 'background') {
+    await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
+    await pause(300);
+    const focus = await adb(['shell', 'dumpsys', 'window']);
+    assert.ok(!focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes(pkg)), 'Fictional client must leave the foreground');
+    await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+    const returned = await waitText('No record shown.');
+    assert.ok(returned.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.ok(returned.some(n => n.text === 'Connect to test computer' && n.enabled === 'false'));
+    visit.gate.requireVerified();
+    assert.deepEqual(visit.nativeEvents, []);
+    assert.ok(performance.now() - grantTick < 60_000, 'Background check missed the active read grant');
+    await tap('Approve fictional computer');
+    await tap('Connect to test computer');
+    await waitText('Computer connected. Waiting for host approval...');
+    const awaiting = await nodes();
+    assert.ok(awaiting.some(n => n.text === 'No record shown.'));
+    assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Android background cleared content and scope during an active grant; reconnect awaited fresh host approval with no second store read');
+  } else if (event !== 'network') {
     evidence.actionRequested = new Date().toISOString();
     if (event === 'expiry') {
       console.log('WAIT_FOR_VISIT_EXPIRY; leave Windows and the phone test app awake');
