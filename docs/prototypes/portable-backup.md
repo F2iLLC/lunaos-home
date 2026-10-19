@@ -49,6 +49,7 @@ On Windows with Node 24+ and PowerShell 7, after installing locked dependencies:
 
 ```powershell
 node --test test/portable-vault-backup.test.js test/windows-portable-backup.test.js
+node --test test/portable-backup-enrollment.test.js
 ```
 
 The tests create two unique fictional stores outside the checkout. They encrypt
@@ -62,14 +63,22 @@ issued by the original session cannot read the new store; a fresh local grant
 can. The test removes its two owned stores and overwrites its in-memory key
 buffer without claiming secure erasure of process memory.
 
+The separate code-only enrollment check opens the fictional archive into a
+fresh in-memory store and starts a new TLS host with the same disposable test
+identities. The old phone cannot resume or use its old grant. A fresh local
+pairing review and read approval are needed to see the restored record, and
+removing that peer denies its next read and reconnect. This does not exercise
+Windows import and device enrollment together or constitute a second-device
+restore.
+
 This is a **clean-store and fresh-process** check under the same Windows user,
 not a clean-device restore. It does not validate another user or OS, Android
 import, Sign-ins re-entry, backup-file custody, real user understanding, power
-loss during replacement, or post-restore paired-device removal. The archive
-captures records at one adapter operation but does not coordinate later writes
-or tell the user whether it is the latest copy. The recovery key is a raw random
-value rather than a memorable password; safe presentation and confirmation of
-user custody are still design work. The archive
+loss during replacement, or physical post-restore paired-device removal. The
+archive captures records at one adapter operation but does not coordinate later
+writes or tell the user whether it is the latest copy. The recovery key is a
+raw random value rather than a memorable password; safe presentation and
+confirmation of user custody are still design work. The archive
 format, destination policy, unlock/enrollment flow, and recovery instructions
 must be reviewed before a genuine clean-device test. VLT-07 and the
 [independent VLT-08 review](https://github.com/F2iLLC/lunaos-home/issues/12)
