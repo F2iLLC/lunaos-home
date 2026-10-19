@@ -131,11 +131,12 @@ test('elapsed expiry and invalid clock deny approval without waiting for the tim
 });
 
 test('session-ended receipt withholds a real decrypted read and cancels an accepted queued mutation', { skip: process.platform !== 'win32' }, async t => {
-  const store = await openWindowsProbeStore({ create: true }); t.after(() => store.removeSyntheticStore());
+  const store = await openWindowsProbeStore({ create: true });
   await store.create('alex-library', example);
   const entered = Promise.withResolvers(), release = Promise.withResolvers(); let writes = 0;
   const f = await fixture(t, { read: async id => { const value = await store.read(id); entered.resolve(); await release.promise; return value; }, create: store.create,
     edit: async (...args) => { writes++; return store.edit(...args); } });
+  t.after(() => store.removeSyntheticStore());
   f.verify(); const client = await f.pair(); const grant = f.host.approveAccess(client.connectionId, 'setup', scope);
   const reading = assert.rejects(client.execute(grant, read), unavailable);
   await entered.promise;
@@ -154,7 +155,7 @@ test('deadline observed after decrypt withholds the record even if the timer has
 });
 
 test('session end during a real encrypted commit yields UNKNOWN, never replay, then fresh visit readback', { skip: process.platform !== 'win32' }, async t => {
-  const store = await openWindowsProbeStore({ create: true }); t.after(() => store.removeSyntheticStore());
+  const store = await openWindowsProbeStore({ create: true });
   await store.create('alex-library', example);
   const committed = Promise.withResolvers(), release = Promise.withResolvers(); let writes = 0;
   const f = await fixture(t, { read: store.read, create: store.create,
@@ -165,6 +166,7 @@ test('session end during a real encrypted commit yields UNKNOWN, never replay, t
   assert.equal(writes, 1);
   const reopened = await openWindowsProbeStore({ probeId: store.probeId });
   const fresh = await fixture(t, reopened); const next = await fresh.pair();
+  t.after(() => store.removeSyntheticStore());
   await assert.rejects(next.execute(grant, read), denied);
   assert.throws(() => fresh.host.approveAccess(next.connectionId, 'read-only', scope), denied);
   fresh.verify(); const readGrant = fresh.host.approveAccess(next.connectionId, 'read-only', scope);

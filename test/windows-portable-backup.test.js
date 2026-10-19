@@ -46,11 +46,11 @@ async function withFreshProcessSession(probeId, action) {
   const code = `
     import { openWindowsProbeStore } from './lib/windows-probe-store.js';
     import { createVaultSessionService } from './lib/vault-sessions.js';
-    const store = await openWindowsProbeStore({ probeId });
+    const store = await openWindowsProbeStore({ probeId: ${JSON.stringify(probeId)} });
     const service = createVaultSessionService({ store });
     process.stdout.write('ready');
     process.stdin.resume();
-    process.stdin.on('end', () => { service.shutdown(); process.stdout.write('stopped'); });
+    process.stdin.on('end', async () => { await service.shutdown(); process.stdout.write('stopped'); });
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', code], {
     cwd: fileURLToPath(new URL('../', import.meta.url)),
@@ -63,6 +63,7 @@ async function withFreshProcessSession(probeId, action) {
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => { child.kill(); reject(Error('fresh session timed out')); }, 60000);
     child.once('error', error => { clearTimeout(timeout); reject(error); });
+    child.once('close', () => { clearTimeout(timeout); reject(Error('fresh session exited before ready')); });
     child.stdout.once('data', chunk => {
       if (chunk.includes('ready')) { clearTimeout(timeout); resolve(); }
     });
