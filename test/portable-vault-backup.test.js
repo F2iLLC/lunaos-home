@@ -43,10 +43,10 @@ test('backup input cannot include device grants, credentials or unknown fields',
   } }));
 });
 
-test('largest schema-valid snapshot fits the authenticated archive', () => {
+test('largest well-formed snapshot fits the authenticated archive', () => {
   const entries = Array.from({ length: 64 }, (_, index) => [
     `record-${index.toString().padStart(2, '0')}${'a'.repeat(71)}`,
-    { memberId: 'm'.repeat(80), label: '😀'.repeat(40), value: '🔒'.repeat(120) },
+    { memberId: 'm'.repeat(80), label: '漢'.repeat(80), value: '漢'.repeat(240) },
   ]);
   const maximal = { schema: 1, records: Object.fromEntries(entries) };
   const { archive, recoveryKey } = createPortableBackup(maximal);
@@ -57,11 +57,7 @@ test('largest schema-valid snapshot fits the authenticated archive', () => {
   const escaped = { schema: 1, records: Object.fromEntries(entries.map(([key, record]) => [
     key, { ...record, label: '\ud800'.repeat(80), value: '\ud800'.repeat(240) },
   ])) };
-  const worstCase = createPortableBackup(escaped);
-  try {
-    assert.ok(worstCase.archive.length > 131072);
-    assert.deepEqual(openPortableBackup(worstCase.archive, worstCase.recoveryKey), escaped);
-  } finally { worstCase.recoveryKey.fill(0); }
+  assert.throws(() => createPortableBackup(escaped), /could not be opened/);
 });
 
 test('a valid __proto__ record survives both archive directions', () => {

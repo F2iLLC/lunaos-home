@@ -162,7 +162,7 @@ test('fictional backup imports into an empty independent Windows store without c
     }
   });
 
-test('Windows worker exports and restores an archive larger than the old 64 KiB limit',
+test('Windows worker exports and restores a maximum well-formed archive',
   { skip: process.platform !== 'win32' }, async t => {
     const source = await openWindowsProbeStore({ create: true, recovery: true });
     const destination = await openWindowsProbeStore({ create: true, recovery: true });
@@ -170,7 +170,7 @@ test('Windows worker exports and restores an archive larger than the old 64 KiB 
     t.after(() => destination.removeSyntheticStore());
     const entries = Array.from({ length: 64 }, (_, index) => [
       `record-${index.toString().padStart(2, '0')}${'a'.repeat(71)}`,
-      { memberId: 'm'.repeat(80), label: '😀'.repeat(40), value: '🔒'.repeat(120) },
+      { memberId: 'm'.repeat(80), label: '漢'.repeat(80), value: '漢'.repeat(240) },
     ]);
     const snapshot = { schema: 1, records: Object.fromEntries(entries) };
     await source.importSnapshot(snapshot);

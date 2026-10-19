@@ -20,14 +20,16 @@ function Assert-Detail($Value) {
     foreach ($key in @('label', 'value')) {
         $max = if ($key -eq 'label') { 80 } else { 240 }
         if ($Value[$key] -isnot [string] -or $Value[$key].Length -lt 1 -or $Value[$key].Length -gt $max) { throw 'detail' }
+        try { [Text.UTF8Encoding]::new($false, $true).GetBytes($Value[$key]) | Out-Null }
+        catch { throw 'detail' }
     }
 }
 try {
     if (-not $IsWindows) { throw 'platform' }
     Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
-    $buffer = [char[]]::new(131073)
+    $buffer = [char[]]::new(262145)
     $length = [Console]::In.ReadBlock($buffer, 0, $buffer.Length)
-    if ($length -gt 131072) { throw 'input-size' }
+    if ($length -gt 262144) { throw 'input-size' }
     $request = [string]::new($buffer, 0, $length) | ConvertFrom-Json -AsHashtable -Depth 8
     if ($request -isnot [Collections.IDictionary] -or $request.probeId -cnotmatch '^[0-9a-f-]{36}$') { throw 'request' }
     $probeGuid = [Guid]::ParseExact($request.probeId, 'D')
@@ -78,7 +80,7 @@ try {
         if ($operation -eq 'init') { $envelope = @{ format = 1; records = @{} } }
         else {
             $size = (Get-Item -LiteralPath $file).Length
-            if ($size -le 0 -or $size -gt 65536) { throw 'size' }
+            if ($size -le 0 -or $size -gt 262144) { throw 'size' }
             $plain = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($file), $purpose, $scope)
             try { $envelope = [Text.Encoding]::UTF8.GetString($plain) | ConvertFrom-Json -AsHashtable -Depth 8 }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
@@ -108,7 +110,7 @@ try {
             $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 8 -Compress))
             try { $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, $scope) }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
-            if ($cipher.Length -gt 65536) { throw 'size' }
+            if ($cipher.Length -gt 262144) { throw 'size' }
             $temp = Join-Path $root ('records-' + [Guid]::NewGuid().ToString('D') + '.tmp')
             $stream = [IO.FileStream]::new($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
             try { $stream.Write($cipher, 0, $cipher.Length); $stream.Flush($true) } finally { $stream.Dispose() }

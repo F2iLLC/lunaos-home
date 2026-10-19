@@ -10,7 +10,9 @@ was used.
 The candidate uses Node's maintained crypto implementation of AES-256-GCM with
 a fresh random 256-bit recovery key and 96-bit nonce for **each archive**. A
 128-bit authentication tag protects a strict, versioned snapshot containing at
-most 64 bounded profile records. This schema has no typed Sign-ins, session
+most 64 bounded profile records. Ill-formed UTF-16 strings are rejected before
+export or import; the worker and archive use bounded 256 KiB recovery paths.
+This schema has no typed Sign-ins, session
 grants, or paired-device identities; a caller could still put private content
 in a general `value` field, which is why this path is restricted to fictional
 fixtures. The archive does not contain the recovery key. The key must be
