@@ -27,6 +27,7 @@ node scripts/test-attended-physical-vault.mjs <new-output-outside-repo> <debug-k
 node scripts/test-attended-physical-vault.mjs <another-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> sleep
 node scripts/test-attended-physical-vault.mjs <third-new-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> expiry
 node scripts/test-attended-physical-vault.mjs <new-restore-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> restore
+node scripts/test-attended-physical-vault.mjs <new-host-loss-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> host-loss
 node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
@@ -83,6 +84,7 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Physical device removal | After the Echo Show 8 read once, the host removed its paired identity. Its old read failed and cleared the display when attempted; reconnect was denied without another store read. Previously displayed information cannot be recalled from an already admitted device. |
 | Physical client ends connection | On the Samsung, tapping the disposable client's End connection control after one read cleared the displayed content and old scope. Its reconnect waited for fresh host approval and made no second store read; Windows remained verified. |
 | Restored Windows store and physical client | On October 19 UTC, the Samsung read one fictional record from a newly created Windows encrypted store after the source store was removed and its portable archive imported with an in-memory recovery key. The phone rejected a wrong host name and fingerprint before pairing. After host removal of that client, its old read and reconnect failed without another store read. The run recorded one read, zero writes, unchanged restored ciphertext, and passing cleanup. This used the same Windows user and PC, not a clean second device or a user-held key. |
+| Owned host becomes unavailable | On October 19 UTC, the Samsung read one fictional record, then the runner stopped only its owned TLS host while Windows verification remained active. After bounded socket teardown, the phone's old read failed and cleared the displayed content when attempted; reconnect failed. The encrypted bytes stayed unchanged, with one store read, zero writes and passing cleanup. This tests host unavailability, not physical Wi-Fi interruption or roaming, and does not show immediate display clearing without another phone action. |
 
 The Echo's first attempt crashed in the test identity reporter before pairing: the
 reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
@@ -115,6 +117,16 @@ client access after a same-PC import, not proof of portable recovery-key custody
 or recovery onto a clean device. Raw evidence remains outside Git in
 `physical-restore-v2`; the earlier `physical-restore-v1` stopped before pairing
 because this checkout lacked its native preview binary and is not a pass.
+
+The host-unavailable run used disposable APK SHA-256
+`d0a7882ad6201025e3e58694bd7d057f71003da83a1848a04174ba38f7d9ea95`.
+The successful `physical-host-loss-v2` evidence remains outside Git. The first
+attempt (`physical-host-loss-v1`) performed the fictional read but inspected the
+connection list before asynchronous socket teardown completed, so it is
+incomplete rather than a pass. The revised runner waits up to five seconds for
+the owned connection to disappear and still fails if it remains. The successful
+run reported cleanup passing; the disposable package and final listener were
+independently absent afterward.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.

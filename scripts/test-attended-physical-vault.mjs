@@ -16,7 +16,7 @@ import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore'].includes(event),
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss'].includes(event),
   'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -155,6 +155,23 @@ try {
     await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read`);
+  } else if (event === 'host-loss') {
+    await visit.host.close();
+    visit.gate.requireVerified(); // Only the owned transport stopped; Windows verification did not stand in for a network event.
+    const disconnectedBy = performance.now() + 5_000;
+    while (visit.host.listConnections().length && performance.now() < disconnectedBy) await pause(20);
+    assert.deepEqual(visit.host.listConnections(), []);
+    const beforeRetry = await nodes();
+    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+    const denied = await nodes();
+    assert.ok(denied.some(n => n.text === 'No record shown.'));
+    assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Connection or approval unavailable. No access remains.');
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('Owned host transport stopped after one read; physical client denied old read and reconnect, then cleared displayed content without another store access');
   } else if (event === 'background') {
     await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
     await pause(300);
