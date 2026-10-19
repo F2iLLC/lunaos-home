@@ -45,6 +45,11 @@ Run on Windows build 26300, Node 24.19.0 and PowerShell 7.6.5 with the fixed fic
 
 The current-user DPAPI limitations still apply: another process under the same Windows user can decrypt, and Windows profile/recovery arrangements matter. No Home unlock prompt, hardware-bound key guarantee, backup exclusion or device-exclusive custody is established. Production typed Sign-ins and secret classification are not implemented by the profile-detail schema.
 
+A separate [synthetic portable-backup candidate](portable-backup.md) exercises
+record-only export and empty-store import using an independent recovery key.
+It is not exposed through this adapter's GUI or assistant and is not a
+clean-device recovery result.
+
 The uncertain-write checks inject an error in the local adapter wrapper before a write or after a successful encrypted commit. They prove that a generic failure does not imply rollback and that this service does not automatically replay the write. They do not terminate a worker, interrupt filesystem replacement or simulate power loss. Fresh-process recovery is a test-controlled read with new permission, not a finished recovery screen or durable operation-ID protocol.
 
 ## Remaining Session 2 work

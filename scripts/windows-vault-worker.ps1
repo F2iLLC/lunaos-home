@@ -33,11 +33,17 @@ try {
     $probeGuid = [Guid]::ParseExact($request.probeId, 'D')
     if ($probeGuid.ToString('D') -cne $request.probeId) { throw 'id' }
     $operation = $request.operation
-    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'cleanup')) { throw 'operation' }
-    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; default { 2 } }
+    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
+    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'restore' { 3 }; default { 2 } }
     if ($request.Count -ne $expected) { throw 'request' }
     if ($operation -cin @('read', 'create', 'edit')) { Assert-Id $request.recordId }
     if ($operation -cin @('create', 'edit')) { Assert-Detail $request.data }
+    if ($operation -eq 'restore') {
+        $snapshot = $request.snapshot
+        if ($snapshot -isnot [Collections.IDictionary] -or $snapshot.Count -ne 2 -or $snapshot.schema -ne 1 -or
+            $snapshot.records -isnot [Collections.IDictionary] -or $snapshot.records.Count -gt 64) { throw 'snapshot' }
+        foreach ($key in $snapshot.records.Keys) { Assert-Id $key; Assert-Detail $snapshot.records[$key] }
+    }
 
     $base = [IO.Path]::Combine([Environment]::GetFolderPath('LocalApplicationData'), 'LunaOSHome', 'FictionalVaultAdapters')
     $root = [IO.Path]::GetFullPath([IO.Path]::Combine($base, $request.probeId))
@@ -84,6 +90,11 @@ try {
             'open' { $result.directory = $root }
             'init' { $result.directory = $root }
             'read' { $result.data = $envelope.records[$request.recordId] }
+            'snapshot' { $result.snapshot = @{ schema = 1; records = $envelope.records } }
+            'restore' {
+                if ($envelope.records.Count -ne 0) { throw 'nonempty-store' }
+                $envelope.records = $snapshot.records
+            }
             'create' {
                 if ($envelope.records.Contains($request.recordId) -or $envelope.records.Count -ge 64) { throw 'exists-or-full' }
                 $envelope.records[$request.recordId] = $request.data
@@ -93,7 +104,7 @@ try {
                 $envelope.records[$request.recordId] = $request.data
             }
         }
-        if ($operation -cin @('init', 'create', 'edit')) {
+        if ($operation -cin @('init', 'create', 'edit', 'restore')) {
             $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 8 -Compress))
             try { $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, $scope) }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
