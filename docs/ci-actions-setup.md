@@ -24,33 +24,42 @@ editing the workflow and does not replace runner-group exclusion.
 
 ## Enablement and proof
 
-1. An organization runner administrator verifies that **no** organization or
+1. An organization administrator verifies that **no** organization or
    enterprise self-hosted runner group is available to the public Home
-   repository. A PR can edit its workflow and request a different `runs-on`;
-   the workflow label alone cannot enforce this boundary. Keep enterprise
-   runners restricted to trusted repositories and workflows. The observed
-   organization group query currently returns zero groups visible to Home;
-   recheck effective access immediately before enablement and after policy
-   changes.
+   repository. The organization's repository-level self-hosted runner policy
+   must also be `Disabled` or `Selected repositories` with Home excluded;
+   zero registered Home runners alone does not prevent a new one. Preserve
+   other repositories' existing runner access. A PR can edit its workflow and
+   request a different `runs-on`; the workflow label alone cannot enforce this
+   boundary. Recheck effective group and repository-level policy immediately
+   before enablement and after policy changes.
 2. Review and merge the hosted workflow and this policy change. Verify the
    exact `main` commit and that the normal job has read-only permissions, no
    secrets or shared cache, and no self-hosted target. Confirm the organization
    allows standard hosted runners. Enable Actions for Home only; leave other
    repository Actions settings unchanged.
-3. Open a harmless synthetic PR **from a fork**. Verify the job ran on the
-   GitHub-hosted Linux VM, not the Hetzner fleet; the token is read-only; no
-   secrets are passed; and an approved private enterprise-network probe is denied.
-   Run a second job and verify a fresh VM. Keep raw logs and any probe values
-   outside this repository. If the job routes to enterprise infrastructure or
-   fails the boundary check, disable Home Actions and investigate.
+3. Open a harmless synthetic PR **from a fork**. Verify the normal job ran on
+   the GitHub-hosted Linux VM, not the Hetzner fleet; the token is read-only;
+   no secrets are passed; and an approved private enterprise-network probe is
+   denied. Run a second job and verify a fresh VM. In a separate temporary
+   canary workflow in that fork PR, request `runs-on: self-hosted` with only a
+   harmless command. Confirm the run is eligible to start (not awaiting fork
+   approval), remains unassigned with no runner ID despite an idle matching
+   organization runner, and matches the administrator's zero-access policy
+   query. Cancel the queued canary and remove its workflow after the check.
+   A normal `ubuntu-24.04` run alone does not test the denied self-hosted
+   route. Keep raw logs and any probe values outside this repository. If a
+   self-hosted job is assigned or another boundary fails, disable Home Actions
+   and investigate.
 4. Run the normal workflow on a trusted `main` push and verify the check on
    that exact commit. Keep this hosted CI result separate from native builds,
    attended device tests, security review, merge and product acceptance.
 
 At this review, the only listed organization runner group was Default,
 which disallows public repositories; a query scoped to Home returned zero
-visible groups. The repository reports zero registered repository runners.
-The available administrator account cannot read organization Actions policy;
+visible groups. The repository reports zero registered repository runners;
+the organization policy for creating new repository-level runners is still
+unverified. The available administrator account cannot read organization Actions policy;
 the repository administrator can read Home's Actions setting. These
 observations do not prove future group settings or a completed hosted run.
 
