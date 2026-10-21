@@ -48,6 +48,6 @@ Tracking: [Session 1: Prove the app and assistant review flow](https://github.co
 
 ## Session evidence and boundaries
 
-Each session ends with source/prototype changes published to a PR, actual remote-head verification, concise synthetic results, and explicit unsupported/unverified items. Do not mark the epic complete or use real family records. Tests must run locally or on approved isolated infrastructure; the existing disabled public workflow is not a source of CI evidence. A session can establish that a proposed approach does not work; that evidence still informs the decision, but it is not a successful capability demonstration.
+Each session ends with source/prototype changes published to a PR, actual remote-head verification, concise synthetic results, and explicit unsupported/unverified items. Do not mark the epic complete or use real family records. The reviewed public PR workflow provides hosted CI evidence for its Node suite; native builds and physical-device checks require separate local or approved infrastructure evidence. The [CI handoff](../ci-actions-setup.md) records the remaining private enterprise-network isolation probe before CI acceptance. A session can establish that a proposed approach does not work; that evidence still informs the decision, but it is not a successful capability demonstration.
 
 The first two sessions establish feasibility. They do not promise production-ready security, all mobile platforms, every assistant version, app-store distribution, cloud synchronization, or a complete appointment/form system.
