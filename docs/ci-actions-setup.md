@@ -48,17 +48,19 @@ exercised the default-branch test workflow twice:
   with the same token and secret-source restrictions. The self-hosted job
   again remained unassigned and was canceled.
 
-The temporary denial job is removed in the reviewed follow-up to those runs.
+The temporary denial job was removed in
+[PR #76](https://github.com/F2iLLC/lunaos-home/pull/76). Its exact-head PR
+check passed. The [trusted `main` push run](https://github.com/F2iLLC/lunaos-home/actions/runs/39552428200)
+also passed on merge commit `72a6e73fdb9af6193c2b08b09f5e01d0947acc18`,
+using GitHub Actions runner `1000006243`.
 Raw logs and any probe values stay outside this repository. If a future
 self-hosted job is assigned or another isolation boundary fails, disable Home
 Actions and investigate.
 
 **Still required before calling CI accepted:** run an approved private
 enterprise-network probe from a hosted fork job without publishing sensitive
-targets or credentials, and verify a normal workflow on the exact trusted
-`main` commit after this follow-up merges. Keep hosted CI results separate
-from native builds, attended device tests, security review, merge and product
-acceptance.
+targets or credentials. Keep hosted CI results separate from native builds,
+attended device tests, security review, merge and product acceptance.
 
 GitHub documents [standard hosted runner isolation and public-repository
 pricing](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
