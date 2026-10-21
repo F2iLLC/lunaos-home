@@ -63,7 +63,7 @@ Dependabot is configured for weekly npm, Cargo and GitHub Actions version-update
 - [ROADMAP.md](ROADMAP.md): planned V1 and distinct public-source/V1 release gates; not a claim of implementation.
 - [User-controlled shared vault epic](docs/epics/user-controlled-vault.md): onboarding, device pairing, configurable unlocking, recovery, delivery stories, and acceptance criteria.
 
-GitHub Actions is currently **disabled for this repository**. The proposed public PR workflow uses a fresh standard GitHub-hosted `ubuntu-24.04` virtual machine. Home must be excluded from organization and enterprise self-hosted runner groups and repository-level runner creation, and the reviewed workflow and synthetic fork checks in the [CI setup and acceptance handoff](docs/ci-actions-setup.md) must pass before CI is accepted. This does not change other F2iLLC repositories' runner choices. Follow the [repository rules](REPOSITORY_RULES.md#ci-and-untrusted-contributions) and run `npm test` locally in the meantime. Report vulnerabilities through the [private reporting route](REPOSITORY_RULES.md#vulnerability-reports).
+GitHub Actions is enabled for this repository. Public PR tests use fresh standard GitHub-hosted `ubuntu-24.04` virtual machines. Home is excluded from organization and enterprise self-hosted runner groups and repository-level runner creation; the [CI setup and acceptance handoff](docs/ci-actions-setup.md) records the two successful synthetic fork runs and remaining acceptance evidence. This does not change other F2iLLC repositories' runner choices. Follow the [repository rules](REPOSITORY_RULES.md#ci-and-untrusted-contributions) and report vulnerabilities through the [private reporting route](REPOSITORY_RULES.md#vulnerability-reports).
 
 ## License
 
