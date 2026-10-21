@@ -19,7 +19,7 @@ import { exportWindowsSyntheticBackup, restoreWindowsSyntheticBackup } from '../
 
 const [output, keystore, serial, model, apiText, address, event] = process.argv.slice(2);
 assert.ok(process.stdin.isTTY && process.platform === 'win32', 'Attended Windows terminal required');
-assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss', 'link-reset', 'wifi-cycle'].includes(event),
+assert.ok(['lock', 'sleep', 'expiry', 'background', 'revoke', 'client-end', 'restore', 'host-loss', 'link-reset', 'wifi-cycle', 'wifi-roam'].includes(event),
   'Unsupported attended event; no physical evidence was recorded');
 assert.ok(serial && !serial.startsWith('emulator-') && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -28,7 +28,7 @@ assert.equal(existsSync(output), false, 'Choose a new output directory');
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.directtlsprobe';
-if (event === 'wifi-cycle') {
+if (event === 'wifi-cycle' || event === 'wifi-roam') {
   const listed = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
   let presentDevices = [];
   if (!selectedUsbAdb(listed, serial)) {
@@ -38,7 +38,7 @@ if (event === 'wifi-cycle') {
     const parsed = JSON.parse(present);
     presentDevices = Array.isArray(parsed) ? parsed : [parsed];
   }
-  assert.ok(selectedUsbAdb(listed, serial, presentDevices), 'Wi-Fi cycle requires the selected physical phone over USB adb');
+  assert.ok(selectedUsbAdb(listed, serial, presentDevices), 'Physical Wi-Fi checks require the selected phone over USB adb');
 }
 const adb = async args => (await promisify(execFile)(adbPath, ['-s', serial, ...args], { encoding: 'utf8', timeout: 20000, windowsHide: true })).stdout;
 const sync = (args, input) => execFileSync(adbPath, ['-s', serial, ...args], { input, encoding: 'utf8', timeout: 20000, windowsHide: true });
@@ -60,6 +60,15 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function wifiRouteAvailable() {
   try { return /\bdev wlan0\b/.test(await adb(['shell', 'ip', '-4', 'route', 'get', address])); }
   catch { return false; }
+}
+async function connectedAccessPoint() {
+  // Hash the AP identifier on Android. Neither WifiInfo nor the identifier crosses adb.
+  const command = 'ap=$(cmd wifi status | grep -oE "BSSID:[[:space:]]*([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}" | head -n 1 | sed -E "s/^BSSID:[[:space:]]*//"); [ -n "$ap" ] || exit 1; printf %s "$ap" | sha256sum | cut -d " " -f1';
+  try {
+    const digest = (await adb(['shell', command])).trim();
+    if (/^[\da-f]{64}$/.test(digest)) return digest;
+  } catch { /* Sanitize tool errors; never include Wi-Fi command output. */ }
+  throw Error('Connected access-point identity unavailable');
 }
 async function beforeDeadline(promise, deadline, message) {
   const remaining = deadline - performance.now();
@@ -103,6 +112,15 @@ async function nodes() {
   assert.ok(xml.includes(`package="${pkg}"`));
   // Keep only synthetic app nodes; never retain keyboard, notification or other-app nodes.
   return [...xml.matchAll(/<node\b[^>]*>/g)].map(([tag]) => Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [k, v.replaceAll('&apos;', "'").replaceAll('&amp;', '&')]))).filter(n => n.package === pkg);
+}
+async function waitAppForeground() {
+  const deadline = Date.now() + 20_000;
+  do {
+    const focus = await adb(['shell', 'dumpsys', 'window']);
+    if (focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes(pkg))) return;
+    await pause(300);
+  } while (Date.now() < deadline);
+  throw Error('Fictional test app did not return to the foreground after the AP switch');
 }
 async function waitText(text) {
   const end = Date.now() + 20000;
@@ -242,6 +260,51 @@ try {
     assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
     assert.equal(reads, 1); assert.equal(writes, 0);
     evidence.checks.push('Disposable TCP relay reset the physical client link while Windows and the host remained verified; displayed content cleared automatically and reconnect awaited fresh host approval without a second store read');
+  } else if (event === 'wifi-roam') {
+    assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
+    assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');
+    const firstAccessPoint = await connectedAccessPoint();
+    console.log('READY_FOR_ROAM: switch the selected phone to the second Wi-Fi access point in Android Settings, then leave Settings; no network name or password is recorded');
+    const changedBy = grantTick + 60_000;
+    let secondAccessPoint;
+    while (performance.now() < changedBy) {
+      try {
+        const candidate = await connectedAccessPoint();
+        if (candidate !== firstAccessPoint && await wifiRouteAvailable()) secondAccessPoint = candidate;
+      }
+      catch { /* The phone may temporarily have no association during the switch. */ }
+      if (secondAccessPoint) break;
+      await pause(500);
+    }
+    assert.ok(secondAccessPoint && performance.now() < changedBy,
+      'A second access point with a host route was not observed during the active read grant');
+    evidence.elapsedFromGrantToAccessPointChangeMs = Math.round(performance.now() - grantTick);
+    console.log('SECOND_ACCESS_POINT_OBSERVED');
+    visit.gate.requireVerified();
+    assert.deepEqual(visit.nativeEvents, []);
+    await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+    await waitAppForeground();
+    const returned = await waitText('No record shown.');
+    assert.ok(returned.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
+    assert.ok(returned.some(n => n.text === 'Connect to test computer' && n.enabled === 'false'));
+    await tap('Approve fictional computer');
+    await tap('Connect to test computer');
+    await waitText('Computer connected. Waiting for host approval...');
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point before the new connection');
+    const reconnected = visit.host.listConnections().find(c => c.peerFingerprint === peer && c.connectionId !== connections[0].connectionId);
+    assert.ok(reconnected, 'A new connection must wait for fresh host approval after the AP change');
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    visit.enrollment.approveRead(reconnected);
+    await waitText('Connected. Review and allow the selected read.'); await tap('Allow selected read');
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point before the second read');
+    await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point by the end of the second read');
+    assert.equal(reads, 2); assert.equal(writes, 0);
+    evidence.checks.push('The selected phone changed Wi-Fi access point during the active read grant; the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
+    evidence.checks.push('The manual Android Settings switch can background the client, so this run does not isolate seamless foreground roaming or attribute display clearing solely to the radio handoff');
   } else if (event === 'wifi-cycle') {
     assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
     assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');
