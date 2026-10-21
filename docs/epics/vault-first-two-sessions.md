@@ -1,6 +1,6 @@
 # Family vault: first two build sessions
 
-These sessions implement the feasibility portion of the [user-controlled vault epic](user-controlled-vault.md), primarily VLT-01 with thin experimental slices of VLT-02/03/05/06/09. They do not finish those later stories or authorize real-record use. Use original or authorized components, synthetic fixtures, and reviewable PRs. [Repository rules](../../REPOSITORY_RULES.md) apply; public Actions remains disabled.
+These sessions implement the feasibility portion of the [user-controlled vault epic](user-controlled-vault.md), primarily VLT-01 with thin experimental slices of VLT-02/03/05/06/09. They do not finish those later stories or authorize real-record use. Use original or authorized components, synthetic fixtures, and reviewable PRs. [Repository rules](../../REPOSITORY_RULES.md) apply. Public PR tests now run on hosted GitHub Actions; see the [CI handoff](../ci-actions-setup.md) for the verified boundary and remaining acceptance check.
 
 Tracking: [Session 1: Prove the app and assistant review flow](https://github.com/F2iLLC/lunaos-home/issues/13) → [Session 2: Prove encrypted storage, device connection, and session permissions](https://github.com/F2iLLC/lunaos-home/issues/14). Both are native sub-issues of [VLT-01](https://github.com/F2iLLC/lunaos-home/issues/4); session 2 is blocked by session 1. Follow progress in the [vault project](https://github.com/orgs/F2iLLC/projects/4).
 
@@ -48,6 +48,6 @@ Tracking: [Session 1: Prove the app and assistant review flow](https://github.co
 
 ## Session evidence and boundaries
 
-Each session ends with source/prototype changes published to a PR, actual remote-head verification, concise synthetic results, and explicit unsupported/unverified items. Do not mark the epic complete or use real family records. Tests must run locally or on approved isolated infrastructure; the existing disabled public workflow is not a source of CI evidence. A session can establish that a proposed approach does not work; that evidence still informs the decision, but it is not a successful capability demonstration.
+Each session ends with source/prototype changes published to a PR, actual remote-head verification, concise synthetic results, and explicit unsupported/unverified items. Do not mark the epic complete or use real family records. The reviewed public PR workflow provides hosted CI evidence for its Node suite; native builds and physical-device checks require separate local or approved infrastructure evidence. The [CI handoff](../ci-actions-setup.md) records the remaining private enterprise-network isolation probe before CI acceptance. A session can establish that a proposed approach does not work; that evidence still informs the decision, but it is not a successful capability demonstration.
 
 The first two sessions establish feasibility. They do not promise production-ready security, all mobile platforms, every assistant version, app-store distribution, cloud synchronization, or a complete appointment/form system.

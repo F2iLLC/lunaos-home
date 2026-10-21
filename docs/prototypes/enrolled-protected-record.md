@@ -94,7 +94,7 @@ the Windows password or claims to unlock the vault through Windows Hello.
   and proves one write plus fresh-grant readback without replay. It is not power
   loss, production recovery, or a phone write-flow acceptance result.
 - Session 2, backup/transfer/recovery, phone-hosted direction and independent
-  security acceptance remain open. Actions stays disabled.
+  security acceptance remain open. Public PR tests now run on hosted GitHub Actions; see the [CI handoff](../ci-actions-setup.md).
 
 ## Recorded validation
 

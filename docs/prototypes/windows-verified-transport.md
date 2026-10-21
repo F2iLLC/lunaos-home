@@ -134,7 +134,7 @@ performed. The Android APK and Rust monitor source are unchanged by this increme
 
 Production enrollment/durable trust, broader network/host-direction testing,
 recovery and independent security review remain open. This is an application access gate around CurrentUser
-DPAPI, not authentication-bound cryptographic key release. Actions stays disabled;
+DPAPI, not authentication-bound cryptographic key release. Public PR tests now run on hosted GitHub Actions under the [CI handoff](../ci-actions-setup.md);
 the offline Home networking boundary is unchanged. The later phone check uses a
 separate disposable test package.
 

@@ -257,4 +257,4 @@ recovery and independent security review remain open. The
 [recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
 is not a portable user-held backup. DPAPI remains CurrentUser
 encryption with an application presence gate, not authentication-bound key release.
-Actions remains disabled; no merge or deployment is implied.
+Public PR tests now run on hosted GitHub Actions; see the [CI handoff](../ci-actions-setup.md). These physical checks imply no merge or deployment.

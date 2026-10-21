@@ -45,4 +45,4 @@ For each run, the person completes the trusted Windows verification prompt. The 
 
 For retained-record restart coverage, separately run the interactive launcher, add both examples, note its resume command locally, then manually lock/unlock or sleep/resume. Resume that same synthetic example using the printed ID. Confirm a new Windows prompt is required before new approvals, then read both records. Keep any old capabilities out of assistant messages and public artifacts. Verify that old connections/grants never regain access. The human must operate Windows verification; the assistant must not substitute credentials or claim an injected test passed this step.
 
-Session 2, Android approval, pairing/recovery and independent native acceptance remain open. Actions stays disabled; no merge, deployment or binary distribution.
+Session 2, Android approval, pairing/recovery and independent native acceptance remain open. Public PR tests now run on hosted GitHub Actions under the [CI handoff](../ci-actions-setup.md); this check implies no merge, deployment or binary distribution.
