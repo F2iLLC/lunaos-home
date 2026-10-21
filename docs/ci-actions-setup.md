@@ -41,12 +41,15 @@ editing the workflow and does not replace runner-group exclusion.
 3. Open a harmless synthetic PR **from a fork**. Verify the normal job ran on
    the GitHub-hosted Linux VM, not the Hetzner fleet; the token is read-only;
    no secrets are passed; and an approved private enterprise-network probe is
-   denied. Run a second job and verify a fresh VM. In a separate temporary
-   canary workflow in that fork PR, request `runs-on: self-hosted` with only a
-   harmless command. Confirm the run is eligible to start (not awaiting fork
-   approval), remains unassigned with no runner ID despite an idle matching
-   organization runner, and matches the administrator's zero-access policy
-   query. Cancel the queued canary and remove its workflow after the check.
+   denied. Run a second job and verify a fresh VM. The temporary
+   `self_hosted_denial_canary` job is already in the default-branch workflow;
+   it requests `runs-on: self-hosted` only for the named `ci-deny-self-hosted`
+   branch of the designated canary fork, has no checkout or token permissions,
+   and executes only a harmless command if misrouted. Confirm the run is
+   eligible to start (not awaiting fork approval), remains unassigned with no
+   runner ID despite an idle matching organization runner, and matches the
+   administrator's zero-access policy query. Cancel the queued canary, then
+   remove the temporary job in a reviewed follow-up change.
    A normal `ubuntu-24.04` run alone does not test the denied self-hosted
    route. Keep raw logs and any probe values outside this repository. If a
    self-hosted job is assigned or another boundary fails, disable Home Actions
