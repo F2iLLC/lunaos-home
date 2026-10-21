@@ -1,8 +1,8 @@
 # GitHub Actions setup and acceptance
 
-Home is public, and repository Actions is currently **disabled**. The reviewed
-test workflow must be on `main` before enablement. Its public PR job uses the
-standard GitHub-hosted `ubuntu-24.04` virtual machine. No new server or
+Home is public, and repository Actions is **enabled**. The reviewed test
+workflow landed on `main` in [PR #74](https://github.com/F2iLLC/lunaos-home/pull/74).
+Its public PR job uses the standard GitHub-hosted `ubuntu-24.04` virtual machine. No new server or
 Hetzner runner is needed. GitHub says standard hosted runners are free for
 public repositories; this does not change other F2iLLC repositories or their
 runner choices. The [repository rules](../REPOSITORY_RULES.md#ci-and-untrusted-contributions)
@@ -22,51 +22,43 @@ self-hosted runner to this untrusted job. The environment check detects an
 unexpected runner in this reviewed workflow; it cannot stop a PR author from
 editing the workflow and does not replace runner-group exclusion.
 
-## Enablement and proof
+## Live proof and remaining checks
 
-1. An organization administrator verifies that **no** organization or
-   enterprise self-hosted runner group is available to the public Home
-   repository. The organization's repository-level self-hosted runner policy
-   must also be `Disabled` or `Selected repositories` with Home excluded;
-   zero registered Home runners alone does not prevent a new one. Preserve
-   other repositories' existing runner access. A PR can edit its workflow and
-   request a different `runs-on`; the workflow label alone cannot enforce this
-   boundary. Recheck effective group and repository-level policy immediately
-   before enablement and after policy changes.
-2. Review and merge the hosted workflow and this policy change. Verify the
-   exact `main` commit and that the normal job has read-only permissions, no
-   secrets or shared cache, and no self-hosted target. Confirm the organization
-   allows standard hosted runners. Enable Actions for Home only; leave other
-   repository Actions settings unchanged.
-3. Open a harmless synthetic PR **from a fork**. Verify the normal job ran on
-   the GitHub-hosted Linux VM, not the Hetzner fleet; the token is read-only;
-   no secrets are passed; and an approved private enterprise-network probe is
-   denied. Run a second job and verify a fresh VM. The temporary
-   `self_hosted_denial_canary` job is already in the default-branch workflow;
-   it requests `runs-on: self-hosted` only for the named `ci-deny-self-hosted`
-   branch of the designated canary fork, has no checkout or token permissions,
-   and executes only a harmless command if misrouted. Confirm the run is
-   eligible to start (not awaiting fork approval), remains unassigned with no
-   runner ID despite an idle matching organization runner, and matches the
-   administrator's zero-access policy query. Cancel the queued canary, then
-   remove the temporary job in a reviewed follow-up change.
-   A normal `ubuntu-24.04` run alone does not test the denied self-hosted
-   route. Keep raw logs and any probe values outside this repository. If a
-   self-hosted job is assigned or another boundary fails, disable Home Actions
-   and investigate.
-4. Run the normal workflow on a trusted `main` push and verify the check on
-   that exact commit. Keep this hosted CI result separate from native builds,
-   attended device tests, security review, merge and product acceptance.
+On 2026-10-21, an organization administrator verified that the only listed
+organization runner group was Default, which disallows public repositories.
+A Home-scoped runner-group query returned zero visible groups, and Home had
+zero registered repository runners. The administrator set repository-level
+self-hosted runner creation to `Selected repositories`, selected the other 11
+current F2iLLC repositories, and verified after a reload that Home remained
+excluded. Standard hosted runner labels were enabled. These settings were
+rechecked immediately before Home Actions was enabled. A PR can edit its
+workflow and request a different `runs-on`; the label in this file is not a
+security boundary. Recheck group and repository-level policy after changes.
 
-At this review, the only listed organization runner group was Default,
-which disallows public repositories; a query scoped to Home returned zero
-visible groups. The repository reports zero registered repository runners.
-On 2026-10-21, an organization administrator set repository-level self-hosted
-runner creation to `Selected repositories`, selected the other 11 current
-F2iLLC repositories, and verified after a reload that Home remains excluded.
-The organization also allows standard hosted runner labels. Recheck these
-settings immediately before enablement; these observations do not prove
-future group settings or a completed hosted run.
+[Synthetic fork PR #75](https://github.com/F2iLLC/lunaos-home/pull/75)
+exercised the default-branch test workflow twice:
+
+- [First run](https://github.com/F2iLLC/lunaos-home/actions/runs/39551574609):
+  the normal job passed on GitHub Actions runner `1000006239`; logs showed
+  `Contents: read`, `Metadata: read`, and `Secret source: None`. The deliberate
+  `self-hosted` job remained queued with no runner ID while matching
+  organization runners were online and idle. It was canceled.
+- [Second run](https://github.com/F2iLLC/lunaos-home/actions/runs/39551657190):
+  the normal job passed on a different GitHub Actions runner, `1000006240`,
+  with the same token and secret-source restrictions. The self-hosted job
+  again remained unassigned and was canceled.
+
+The temporary denial job is removed in the reviewed follow-up to those runs.
+Raw logs and any probe values stay outside this repository. If a future
+self-hosted job is assigned or another isolation boundary fails, disable Home
+Actions and investigate.
+
+**Still required before calling CI accepted:** run an approved private
+enterprise-network probe from a hosted fork job without publishing sensitive
+targets or credentials, and verify a normal workflow on the exact trusted
+`main` commit after this follow-up merges. Keep hosted CI results separate
+from native builds, attended device tests, security review, merge and product
+acceptance.
 
 GitHub documents [standard hosted runner isolation and public-repository
 pricing](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
