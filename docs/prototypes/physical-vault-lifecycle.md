@@ -46,16 +46,40 @@ remain enforced, and the client authenticates with its Android Keystore identity
 The fixture certificate and short-lived offer are provisioned through debug tools,
 so this is not production pairing or durable trust establishment.
 
-The `wifi-cycle` scenario is **prepared but not yet physically run**. It refuses
-wireless adb and requires the explicitly selected phone to appear as a USB adb
-device before APK setup. After a fictional LAN read during an active grant, it
-checks a `wlan0` route to the private host, disables Wi-Fi only on that phone,
+The `wifi-cycle` scenario refuses wireless adb and requires the explicitly
+selected phone to have a USB adb control path before APK setup. Windows adb may
+omit its `usb:` listing field, so the runner also accepts an exact match between
+the selected adb serial, a present USB composite device, and its child Android
+ADB interface as reported by Windows Plug and Play. After a fictional LAN read
+during an active grant, it checks a `wlan0` route to the private host, disables
+Wi-Fi only on that phone,
 requires the route to disappear, tests old read and offline reconnect denial,
 then re-enables Wi-Fi and requires the route to return before checking that a
 new connection awaits fresh host approval. Its cleanup also re-enables Wi-Fi
 and checks the route; a failure must be reported rather than counted as a pass.
-This will test a real radio interruption on the selected device, not roaming
-between access points. No phone network setting was changed to prepare it.
+
+On October 20, 2026 (America/Chicago; October 21 UTC), the selected Samsung
+SM-S938U (API 37) passed the attended `wifi-cycle` run. The user completed the
+trusted Windows verification prompt. The disposable Android client rejected the
+wrong TLS host identity, then read one fictional record from reopened encrypted
+Windows storage over mutually authenticated TLS 1.3. During the active read
+grant, the runner disabled Wi-Fi over USB adb and verified that the `wlan0`
+route to the selected private host disappeared. The foreground phone client
+cleared the displayed record without another phone action; the old read was
+disabled and reconnect while offline failed. After Wi-Fi and the route returned,
+a new connection still awaited fresh host approval. Windows verification and
+the TLS host stayed active throughout the radio interruption. The run recorded
+one store read, zero writes, no native lifecycle event, and cleanup passing.
+
+The disposable APK SHA-256 was
+`cd61410d339236c52b57d7ca54d6e9fc39a8d563e52ec62d20426b1395b853e3`.
+An independent post-run check found Wi-Fi enabled, the private host route on
+`wlan0`, no installed test package, and no listener on the run's former port.
+Raw evidence remains outside Git. This is one radio-off/recovery check on one
+phone, not roaming between access points or production enrollment. The client
+checks presence once per second with a two-second receive limit, so this does
+not prove instant display clearing. Later recovery and independent security
+acceptance remain separate.
 
 The user completes verification only in the trusted Windows prompt. The assistant
 compares the exact on-screen synthetic identities and approves the fixed
@@ -90,9 +114,12 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Identity | The phone reported generated, non-exportable EC identity, null key encoding/format and security level 1. This is provider-reported custody, not independent hardware attestation. Transport identity is separate from vault unlock and is not itself user-authentication-bound. |
 | Cleanup | Both successful runners exited zero with cleanup passing. The temporary test APK, owned host/native child and synthetic store were removed. Package absence and absence of the final test listeners were independently checked. |
 | Verification cancellation | A separate attended Windows run received the native `canceled` status at 03:11:47.717 UTC. The gate stayed closed, the listener refused a connection, and no record was read or written. This did not use the physical Android client. |
-| Five-minute visit expiry | **Inconclusive as deadline evidence.** A new Windows-verified visit served one fictional read over physical Wi-Fi. The gate remained verified after the phone's 60-second grant expired and the visit closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. That runner did not record a trusted reason for closure, so a child or pipe failure near the deadline could have produced the same result. The revised runner now requires the gate's explicit `visit-deadline` reason; an attended rerun is needed to accept this check. |
+| Earlier five-minute visit expiry attempt | **Inconclusive as deadline evidence.** A Windows-verified visit served one fictional read over physical Wi-Fi. The gate remained verified after the phone's 60-second grant expired and the visit closed 299,755 ms after verification was observed. No native lifecycle event was collected; the old read was closed, no content appeared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. That runner did not record a trusted reason for closure, so a child or pipe failure near the deadline could have produced the same result. |
+| Five-minute visit expiry rerun | **Passed on October 21 UTC.** A new attended Samsung run recorded the trusted `visit-deadline` reason 300,066 ms after Windows verification, with no native lifecycle event. The Windows gate remained verified after the phone's 60-second read grant expired; at the visit deadline the phone read control was already closed, no content remained, and reconnect was denied without another store read. One read, zero writes, unchanged ciphertext and cleanup passed. An independent check found the disposable package and former listener absent. This establishes visit expiry, not immediate clearing at the native deadline. |
 | Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
 | Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
+| Earlier extended-sleep attempt | **Inconclusive after wake.** The native `suspend` receipt arrived 29,184 ms into the active grant and cleanup passed, but the runner's three-minute terminal acknowledgement timeout elapsed while Windows remained asleep for about eight minutes. It could not check the phone's post-wake read and reconnect state. |
+| Extended sleep/wake rerun | **Passed on October 21 UTC.** Windows Power-Troubleshooter recorded sleep from 04:09:40.909 to 04:14:11.692 UTC (4 minutes 31 seconds). The native `suspend` receipt ended the verified visit 48,867 ms after grant issuance, before the 60-second grant deadline. After wake, the phone's old read was closed, no content remained, and reconnect was denied. One store read, zero writes, unchanged ciphertext and cleanup passed. An independent check found Wi-Fi and its private route restored, the disposable package absent and the former listener closed. The phone's own read timer may have cleared the display while the PC slept; this does not prove immediate display clearing on suspend. |
 | Second physical Android device | A user-selected Echo Show 8 with a custom `lineage_crown` Android 11/API30 build read the same kind of fictional Windows record over direct Wi-Fi in a separate disposable run. This does not establish support for stock Echo Show software or make it a phone-only vault host. |
 | Host identity rejection on two devices | Both the Echo Show 8 and Samsung rejected a wrong TLS host name and a wrong pinned host fingerprint before pairing. Each then completed a separately approved fictional read: one store read, zero writes. |
 | Android background on two devices | During an active 60-second read grant, moving each test client Home cleared its displayed content and local scope. On return, the read and connect controls were disabled until identity review. A new connection waited for fresh host approval and made no second store read. The Windows visit stayed verified. |
@@ -101,6 +128,15 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Restored Windows store and physical client | On October 19 UTC, the Samsung read one fictional record from a newly created Windows encrypted store after the source store was removed and its portable archive imported with an in-memory recovery key. The phone rejected a wrong host name and fingerprint before pairing. After host removal of that client, its old read and reconnect failed without another store read. The run recorded one read, zero writes, unchanged restored ciphertext, and passing cleanup. This used the same Windows user and PC, not a clean second device or a user-held key. |
 | Owned host becomes unavailable | On October 19 UTC, the Samsung read one fictional record, then the runner confirmed the read grant remained active and stopped only its owned TLS host while Windows verification remained active. The five-second limit includes host closure and socket teardown. The phone's old read failed and cleared the displayed content when attempted; reconnect failed. The encrypted bytes stayed unchanged, with one store read, zero writes and passing cleanup. This tests host unavailability, not physical Wi-Fi interruption or roaming, and does not show immediate display clearing without another phone action. |
 | Client link reset while host stays up | On October 19 UTC, the Samsung read one fictional record through a disposable private-address TCP relay. With the read grant still active, the runner dropped the phone-host socket pair while the verified Windows gate and TLS host remained active. After bounded teardown, the old read failed and cleared the displayed content when attempted; reconnect waited for fresh host approval with the read control disabled. One store read, zero writes and cleanup passed. This controlled link reset is not a physical Wi-Fi interruption or roaming test, and does not show immediate display clearing before a phone action. |
+
+The five-minute expiry rerun used a disposable APK with SHA-256
+`012ebf8e3203c37c09e37fa55c37fb7ac042c19390f4514db07b50fc6bde198f`.
+The extended-sleep rerun used a disposable APK with SHA-256
+`401f592d2ed1326d2e7317409cee4b390e5004b4c021ed13c48694e9ee39d28e`.
+Raw run output remains outside Git. The runner's earlier inconclusive attempt is
+retained above so its narrower evidence is not silently promoted. The attended
+sleep runner now allows a 20-minute acknowledgement window so its prompt remains
+available after a longer sleep and unlock.
 
 The Echo's first attempt crashed in the test identity reporter before pairing: the
 reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
@@ -154,8 +190,9 @@ was active before disruption. The earlier `physical-link-reset-v1` passed the
 original assertions but did not include that grant-age check. The relay forwarded TLS
 bytes without terminating the connection or changing the phone's network
 settings. The Windows gate stayed verified and the host remained available.
-Raw evidence stays outside Git. Actual Wi-Fi interruption and roaming remain
-unverified.
+Raw evidence stays outside Git. At that stage, actual Wi-Fi interruption and
+roaming were still unverified; the later `wifi-cycle` result above covers one
+physical radio interruption.
 
 The disposable Android TLS client now checks connection presence once per second
 while a fictional record is displayed. Each check names the displayed record and
@@ -165,10 +202,9 @@ if the connection or that record's read permission is unavailable. This bounds
 detection of a silent connection loss while the app remains foregrounded; it is
 not an instant transport event notification. The host-side selected-record
 presence contract is covered by synthetic Node tests (19/19 focused transport
-tests pass). The changed Android client has not been built or exercised on a
-phone here because no Android device is connected and the Android build tools
-are unavailable; the broader Windows storage suite also cannot run here
-because `pwsh` is unavailable. Physical Wi-Fi loss and roaming remain unverified.
+tests pass). The earlier code-only review had no Android build or phone run;
+the attended `wifi-cycle` run above built and exercised this changed client on
+the selected Samsung. Roaming remains unverified.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -204,17 +240,19 @@ sleep retry lost its phone connection before approval. Neither is counted as a p
 
 ## Validation and remaining work
 
-All 132 Windows-compatible Node tests passed, including refusal of public/wildcard
-test bindings and bounded lifecycle-event collection that cannot verify the gate.
-Both actual phone APK builds and successful runs exercised the modified Java
+All 137 Windows-compatible Node tests passed in the current checkout, including
+the USB adb preflight checks, refusal of public/wildcard test bindings, and
+bounded lifecycle-event collection that cannot verify the gate.
+The attended phone APK builds and successful runs exercised the modified Java
 sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
-These results show local-network access and native visit closure on lock/sleep on
-the Samsung and PC, plus bounded read, background, host-identity and removal
-checks on the two selected Android devices.
-They do not complete Session 2 or production acceptance. Extended sleep,
-network roaming/interruption, phone-hosted operation, production enrollment,
+These results show local-network access, one physical Wi-Fi interruption and
+recovery, and native visit closure on lock/sleep on the Samsung and PC, plus
+bounded read, background, host-identity and removal checks on the two selected
+Android devices.
+They do not complete Session 2 or production acceptance. Network roaming,
+phone-hosted operation, production enrollment,
 recovery and independent security review remain open. The
 [recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
 is not a portable user-held backup. DPAPI remains CurrentUser

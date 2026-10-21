@@ -123,8 +123,11 @@ approval deadline, authentication gate or assertions.
 
 This emulator run did not exercise live OS cancellation, lock, sleep, resume or
 five-minute expiry. A subsequent [physical-phone test](physical-vault-lifecycle.md)
-verified Windows lock, brief S3 sleep/wake and cancellation. Five-minute expiry
-still needs an attended rerun with a trusted deadline reason. This run used emulator host-loopback,
+verified Windows lock, brief S3 sleep/wake and cancellation. A later attended
+physical-phone rerun recorded the trusted `visit-deadline` reason at 300,066 ms
+after Windows verification, and a separate extended sleep/wake run passed after
+4 minutes 31 seconds asleep. These later results are recorded in the linked
+physical-phone handoff. This emulator run used emulator host-loopback,
 not a physical Android network. Its Keystore provider reports software security
 level 0; no hardware-backed custody claim is made. No personal-phone action was
 performed. The Android APK and Rust monitor source are unchanged by this increment.

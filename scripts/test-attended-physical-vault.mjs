@@ -11,6 +11,7 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
+import { selectedUsbAdb } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost, requireLifecycleDuringGrant, requireVisitDeadline } from './test-fixtures/native-direct-host.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
@@ -28,9 +29,16 @@ const repo = fileURLToPath(new URL('..', import.meta.url));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.directtlsprobe';
 if (event === 'wifi-cycle') {
-  const selected = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
-    .split(/\r?\n/).find(line => line.startsWith(`${serial} `));
-  assert.ok(selected && /\busb:\S+/.test(selected), 'Wi-Fi cycle requires the selected physical phone over USB adb');
+  const listed = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
+  let presentDevices = [];
+  if (!selectedUsbAdb(listed, serial)) {
+    const present = execFileSync('powershell.exe', ['-NoProfile', '-Command',
+      "Get-PnpDevice -PresentOnly | Where-Object { $_.Class -eq 'USB' -or $_.Class -like 'Android*' } | ForEach-Object { $parent = if ($_.Class -like 'Android*') { (Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName 'DEVPKEY_Device_Parent').Data } else { $null }; [pscustomobject]@{ Class = $_.Class; InstanceId = $_.InstanceId; Parent = $parent } } | ConvertTo-Json -Compress"],
+      { encoding: 'utf8', timeout: 20_000, windowsHide: true, maxBuffer: 128 * 1024 });
+    const parsed = JSON.parse(present);
+    presentDevices = Array.isArray(parsed) ? parsed : [parsed];
+  }
+  assert.ok(selectedUsbAdb(listed, serial, presentDevices), 'Wi-Fi cycle requires the selected physical phone over USB adb');
 }
 const adb = async args => (await promisify(execFile)(adbPath, ['-s', serial, ...args], { encoding: 'utf8', timeout: 20000, windowsHide: true })).stdout;
 const sync = (args, input) => execFileSync(adbPath, ['-s', serial, ...args], { input, encoding: 'utf8', timeout: 20000, windowsHide: true });
@@ -326,7 +334,9 @@ try {
     assert.throws(() => visit.gate.requireVerified());
     if (event === 'sleep') {
       const terminal = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
-      try { assert.equal(await terminal.question('WAIT_FOR_RESUME: after waking and unlocking Windows, type back: ', { signal: AbortSignal.timeout(180000) }), 'back'); }
+      // The clock behind AbortSignal.timeout can advance during Windows sleep.
+      // Allow an attended longer sleep and a normal unlock before resuming checks.
+      try { assert.equal(await terminal.question('WAIT_FOR_RESUME: after waking and unlocking Windows, type back: ', { signal: AbortSignal.timeout(1_200_000) }), 'back'); }
       finally { terminal.close(); }
       // Read-only readiness polling: Windows Wi-Fi/ADB can recover after the native
       // session already ended. Never retry a record operation or open a fresh grant.
