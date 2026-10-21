@@ -81,6 +81,21 @@ test('TLS1.3 pairing authenticates identities but grants no record access', asyn
   assert.equal(writes.length, 0);
 });
 
+test('presence checks an admitted connection without reading the store', async t => {
+  let reads = 0;
+  const { host, pair } = await setup(t, { store: {
+    read: () => { reads++; return alex; },
+    create: () => { throw Error('unexpected write'); },
+    edit: () => { throw Error('unexpected write'); },
+  } });
+  const client = await pair();
+  assert.equal(await client.presence(), true);
+  assert.equal(reads, 0);
+  host.revokePeer(phoneIdentity.fingerprint);
+  await assert.rejects(client.presence(), isCode('UNAVAILABLE'));
+  assert.equal(reads, 0);
+});
+
 test('trusted CA does not admit an unapproved certificate or permit a stolen offer', async t => {
   const { host, connect } = await setup(t);
   await assert.rejects(connect({ identity: outsiderIdentity }), isCode('DENIED'));

@@ -71,6 +71,24 @@ public final class PairingActivity extends Activity {
     private void schedule(Runnable task) {
         try { worker.execute(task); } catch (RejectedExecutionException full) { closeAccess("Previous work is ending. Try connecting again shortly."); }
     }
+    private void watchDisplayedRecord(long token, SyntheticTlsClient client) {
+        ui.postDelayed(() -> {
+            if (generation != token || activeClient != client || busy) return;
+            schedule(() -> {
+                try {
+                    if (generation != token) return;
+                    client.requirePresence();
+                    runOnUiThread(() -> {
+                        if (generation == token && activeClient == client && !busy) watchDisplayedRecord(token, client);
+                    });
+                } catch (Exception lost) {
+                    runOnUiThread(() -> {
+                        if (generation == token) closeAccess("Connection lost. Record hidden; fresh approval required.");
+                    });
+                }
+            });
+        }, 1000);
+    }
     private void connect() {
         if (!identityApproved || busy || activeClient != null) return;
         busy = true; contents.setText("No record shown."); status.setText("Connecting to the approved test computer..."); render();
@@ -126,6 +144,7 @@ public final class PairingActivity extends Activity {
                 runOnUiThread(() -> {
                     if (generation != token) return;
                     busy = false; contents.setText(display); status.setText("Fictional record read. No changes allowed."); render();
+                    watchDisplayedRecord(token, client);
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> { if (generation == token) closeAccess("Read unavailable. No access remains."); });

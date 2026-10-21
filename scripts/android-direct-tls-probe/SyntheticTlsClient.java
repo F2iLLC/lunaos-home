@@ -65,6 +65,12 @@ final class SyntheticTlsClient implements AutoCloseable {
             return approvals.remove();
         }
         JSONObject execute(String grant, JSONObject request) throws Exception { return call(new JSONObject().put("op", "execute").put("grant", grant).put("request", request)); }
+        void requirePresence() throws Exception {
+            if (socket == null) throw new IOException("Connection closed");
+            socket.setSoTimeout(2000);
+            try { require(call(new JSONObject().put("op", "presence")).getBoolean("ok")); }
+            finally { socket.setSoTimeout(15000); }
+        }
         void denied(JSONObject result) throws Exception { require(!result.getBoolean("ok") && "DENIED".equals(result.getString("code"))); }
         JSONObject readRecord(String grant) throws Exception {
             JSONObject result = execute(grant, new JSONObject().put("action", "read").put("recordId", "alex-library"));
