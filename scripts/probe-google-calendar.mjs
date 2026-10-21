@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createCalendarProbe, SCOPES, newEventId, requireGrantedScopes, primaryCalendarId, verifyReadOnlyWriteDenied } from '../lib/google-calendar-probe.js';
+import { verifyEventLifecycle } from '../lib/google-calendar-probe-run.js';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const configuredDir = process.env.LUNA_HOME_PROBE_DIR;
@@ -197,22 +198,7 @@ async function liveRun({ writer, calendar, readOnly }) {
 
   try {
     await check('lists calendars with access roles', async () => writeCalendars.map(c => c.accessRole).join(','));
-    await check('create (no attendees, sendUpdates=none)', () => write.createEvent(calendar, event, id).then(e => e.eventId));
-    await check('read back created event', async () => {
-      const found = await write.findEvent(calendar, id);
-      if (found?.summary !== event.summary) throw new Error('Created event was not observed');
-      return found.summary;
-    });
-    await check('retry with same id creates no duplicate', () => expectCode('HTTP_409', 'duplicate', () => write.createEvent(calendar, event, id)));
-    await check('update', () => write.updateEvent(calendar, id, { summary: 'Fictional Home probe event (edited)' }).then(e => e.summary));
-    await check('unapproved calendar rejects write', () => expectCode('CALENDAR_NOT_APPROVED', null, () => write.createEvent('primary-not-approved', event)));
-    await check('attendees refused', () => expectCode('ATTENDEES_NOT_ALLOWED', null, () => write.createEvent(calendar, { ...event, attendees: [{ email: 'x@example.test' }] })));
-    await check('delete', () => write.deleteEvent(calendar, id));
-    await check('deleted event is gone or cancelled', async () => {
-      const e = await write.findEvent(calendar, id);
-      if (e && e.status !== 'cancelled') throw new Error(`still ${e.status}`);
-      return e ? 'cancelled' : 'absent';
-    });
+    await verifyEventLifecycle({ write, calendar, event, id, check, expectCode });
 
     // The read token belongs to the writable principal, so CalendarList reports
     // the same role and the provider must refuse the actual event insertion.
