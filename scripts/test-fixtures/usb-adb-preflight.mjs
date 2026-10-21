@@ -16,7 +16,7 @@ export function selectedUsbAdb(adbList, serial, presentDevices = []) {
   }));
   return presentDevices.some(device => {
     return /^Android/i.test(device.Class || '') &&
-      typeof device.InstanceId === 'string' && /^USB\\VID_[0-9A-F]{4}&PID_[0-9A-F]{4}&ADB\\/i.test(device.InstanceId) &&
+      typeof device.InstanceId === 'string' && device.InstanceId.toUpperCase().startsWith('USB\\') &&
       typeof device.Parent === 'string' && compositeIds.has(device.Parent.toUpperCase());
   });
 }
