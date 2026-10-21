@@ -15,7 +15,7 @@ The preview and tests were authored with AI assistance and reviewed against the 
 
 ## Reproducible native inventory
 
-Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and Android x86_64, ARM64 and ARM32 without fetching packages or executing build scripts. The current combined scope contains 286 distinct third-party package/version entries (242 Windows, 258 Android x86_64/ARM64, 257 Android ARM32), with 11 requiring candidate license-file review: the six Windows gaps described below plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
+Run the [native license audit](docs/prototypes/native-license-audit.md) against the committed Cargo lockfile before assembling the native notice bundle. It inventories Windows x64 and Android x86_64, ARM64 and ARM32 without fetching packages or executing build scripts. The current combined scope contains 287 distinct third-party package/version entries (243 Windows, 259 Android x86_64/ARM64, 258 Android ARM32), with 11 requiring candidate license-file review: the six Windows gaps described below plus Android's `cesu8`, `jni-sys-macros`, `ndk`, `ndk-context` and `ndk-sys`. It records file hashes and exact-version source archive links without publishing local paths. A completed or zero-gap inventory is not license clearance; the complete native/Java notice and source-availability review remains required before binary distribution.
 
 ## Native shell development dependencies
 
@@ -28,11 +28,11 @@ The separate [Android runtime notice inventory](docs/prototypes/android-notice-a
 | `@tauri-apps/cli` | 2.12.2 | [Tauri](https://github.com/tauri-apps/tauri) | Apache-2.0 OR MIT | Development/build CLI and icon generation. |
 | `esbuild` | 0.28.2 | [esbuild](https://github.com/evanw/esbuild) | MIT | Bundle the offline frontend. |
 | `tauri` | 2.12.3 | [Tauri](https://github.com/tauri-apps/tauri) | Apache-2.0 OR MIT | Native WebView shell. |
-| `tauri-build` | 2.7.2 | [Tauri](https://github.com/tauri-apps/tauri) | Apache-2.0 OR MIT | Native build support. |
+| `tauri-build` | 2.7.3 | [Tauri](https://github.com/tauri-apps/tauri) | Apache-2.0 OR MIT | Native build support. |
 
 Direct versions are pinned; `package-lock.json` and `src-tauri/Cargo.lock` retain registry sources and integrity/checksum values. The direct npm license texts and registry/crate license metadata were inspected. npm installation used `--ignore-scripts`; the new npm audit reported no known vulnerabilities. Cargo build scripts necessarily execute during a native build. No Cargo vulnerability-audit result is claimed.
 
-Windows-filtered Cargo metadata resolved 242 third-party packages, including build dependencies, plus Home. Their declared license expressions use MIT, Apache-2.0, BSD-3-Clause, 0BSD, Unicode-3.0, Unlicense, Zlib, CC0-1.0, MIT-0 and MPL-2.0, including dual/combined expressions. This replaces the original npm-only inventory as the relevant native-build scope; other target trees need their own review.
+Windows-filtered Cargo metadata resolved 243 third-party packages, including build dependencies, plus Home. Their declared license expressions use MIT, Apache-2.0, BSD-3-Clause, 0BSD, Unicode-3.0, Unlicense, Zlib, CC0-1.0, MIT-0 and MPL-2.0, including dual/combined expressions. The new `static_vcruntime` 3.0.0 crate declares MIT OR Apache-2.0 OR Zlib and has candidate license files in its published archive; `tauri-utils` also moved to 2.10.2. This replaces the original npm-only inventory as the relevant native-build scope; other target trees need their own review.
 
 The MPL-2.0 crates are `cssparser` 0.37.0, `cssparser-macros` 0.7.1, `dtoa-short` 0.3.5, `option-ext` 0.2.0 and `selectors` 0.38.0. They retain their own licensing and source-availability requirements; none is modified or vendored here. Source distributions are available by exact package/version from crates.io and their upstream repositories. Home's Apache license does not replace those terms.
 
@@ -42,13 +42,13 @@ The bundled JavaScript uses only Home and Zod; the build rejects accidental MCP 
 
 ## Windows native verification
 
-The opt-in Windows native verification experiment directly references the already locked Microsoft `windows` 0.62.2 and `windows-future` 0.3.2 crates (MIT OR Apache-2.0, [windows-rs](https://github.com/microsoft/windows-rs)). Their installed manifests and license files were inspected by the native inventory. Only direct dependency edges/features changed; no new crate versions or copied implementation were introduced. The four-target inventory remains 286 distinct packages with the same 11 license/source-review gaps. Microsoft desktop API documentation informed original Home integration code. Existing notice, source-availability and binary-distribution gates remain.
+The opt-in Windows native verification experiment directly references the already locked Microsoft `windows` 0.62.2 and `windows-future` 0.3.2 crates (MIT OR Apache-2.0, [windows-rs](https://github.com/microsoft/windows-rs)). Their installed manifests and license files were inspected by the native inventory. That experiment changed only direct dependency edges/features; it introduced no new crate versions or copied implementation. Following the later `tauri-build` update, the four-target inventory contains 287 distinct packages with the same 11 license/source-review gaps. Microsoft desktop API documentation informed original Home integration code. Existing notice, source-availability and binary-distribution gates remain.
 
 ## Android build probe
 
 The separate [Android storage experiment](docs/prototypes/android-storage.md) compiles original Java instrumentation source directly with the installed JDK and Android SDK tools. It calls platform Keystore, Cipher and AtomicFile APIs; it adds no runtime dependency, copied SDK example or vendored source. Android's SDK/platform and JDK distributions retain their existing terms and are not included in the repository. Its disposable signed APK is for local synthetic testing only, not public binary distribution or clearance of the Home native notice gates below.
 
-The Android build uses the same pinned Tauri packages and Cargo lockfile. Android x86_64 and ARM64 target-filtered metadata each resolve 258 third-party Cargo packages plus Home, using the same declared license families listed above. This inventory includes build dependencies and does not replace a complete APK notice review.
+The Android build uses the same pinned Tauri packages and Cargo lockfile. Android x86_64 and ARM64 target-filtered metadata each resolve 259 third-party Cargo packages plus Home, using the same declared license families listed above. This inventory includes build dependencies and does not replace a complete APK notice review.
 
 The Android project and its Gradle wrapper are generated locally by the pinned CLI and remain excluded from Git. The generated project selects Gradle 9.6.1, Android Gradle Plugin 9.3.1 and Kotlin Gradle Plugin 2.2.10; AndroidX/Material/runtime dependencies also need to be included in the eventual APK dependency and notice inventory. No generated third-party source or wrapper JAR is newly vendored by this change. The manifest preparation script and Android configuration are original project code.
 
