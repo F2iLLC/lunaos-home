@@ -89,7 +89,7 @@ test('presence checks an admitted connection without reading the store', async t
     edit: () => { throw Error('unexpected write'); },
   } });
   const client = await pair();
-  assert.equal(await client.presence(), true);
+  for (let index = 0; index < 65; index++) assert.equal(await client.presence(), true);
   assert.equal(reads, 0);
   host.revokePeer(phoneIdentity.fingerprint);
   await assert.rejects(client.presence(), isCode('UNAVAILABLE'));

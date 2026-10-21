@@ -191,17 +191,13 @@ try {
     evidence.checks.push('Physical Android End connection cleared content and access; reconnect awaited fresh host approval without a second store read');
   } else if (event === 'revoke' || event === 'restore') {
     visit.host.revokePeer(peer);
-    const beforeRetry = await nodes();
-    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
-    await tap("Read Alex's record");
-    await waitText('Read unavailable. No access remains.');
-    const denied = await nodes();
+    const denied = await waitText('Connection lost. Record hidden; fresh approval required.');
     assert.ok(denied.some(n => n.text === 'No record shown.'));
     assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     await tap('Connect to test computer');
     await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client denied its old read and reconnect without another store access; previously displayed content cleared when the client attempted the read`);
+    evidence.checks.push(`${event === 'restore' ? 'After restore, removing' : 'Removing'} the physical client automatically cleared its displayed record and old access; reconnect was denied without another store read`);
   } else if (event === 'host-loss') {
     assert.ok(performance.now() - grantTick < 60_000, 'Host-loss check missed the active read grant');
     const disconnectedBy = performance.now() + 5_000;
@@ -209,17 +205,13 @@ try {
     visit.gate.requireVerified(); // Only the owned transport stopped; Windows verification did not stand in for a network event.
     while (visit.host.listConnections().length && performance.now() < disconnectedBy) await pause(20);
     assert.deepEqual(visit.host.listConnections(), []);
-    const beforeRetry = await nodes();
-    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
-    await tap("Read Alex's record");
-    await waitText('Read unavailable. No access remains.');
-    const denied = await nodes();
+    const denied = await waitText('Connection lost. Record hidden; fresh approval required.');
     assert.ok(denied.some(n => n.text === 'No record shown.'));
     assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     await tap('Connect to test computer');
     await waitText('Connection or approval unavailable. No access remains.');
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push('Owned host transport stopped after one read; physical client denied old read and reconnect, then cleared displayed content without another store access');
+    evidence.checks.push('Owned host transport stopped after one read; physical client automatically cleared displayed content and old access, then denied reconnect without another store read');
   } else if (event === 'link-reset') {
     assert.ok(performance.now() - grantTick < 60_000, 'Link-reset check missed the active read grant');
     assert.equal(relay.activeCount(), 1);
@@ -231,11 +223,7 @@ try {
     assert.deepEqual(visit.host.listConnections(), []);
     visit.gate.requireVerified(); // A transport reset is not a Windows lifecycle event.
     assert.deepEqual(visit.nativeEvents, []);
-    const beforeRetry = await nodes();
-    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
-    await tap("Read Alex's record");
-    await waitText('Read unavailable. No access remains.');
-    const denied = await nodes();
+    const denied = await waitText('Connection lost. Record hidden; fresh approval required.');
     assert.ok(denied.some(n => n.text === 'No record shown.'));
     assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     await tap('Connect to test computer');
@@ -245,7 +233,7 @@ try {
     assert.ok(awaiting.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     assert.ok(visit.host.listConnections().some(c => c.peerFingerprint === peer));
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push('Disposable TCP relay reset the physical client link while Windows and the host remained verified; old read failed, display cleared on attempt, and reconnect awaited fresh host approval without a second store read');
+    evidence.checks.push('Disposable TCP relay reset the physical client link while Windows and the host remained verified; displayed content cleared automatically and reconnect awaited fresh host approval without a second store read');
   } else if (event === 'wifi-cycle') {
     assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
     assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');
@@ -259,12 +247,8 @@ try {
     assert.ok(performance.now() - grantTick < 60_000, 'Wi-Fi did not switch off during the active read grant');
     visit.gate.requireVerified();
     assert.deepEqual(visit.nativeEvents, []);
-    const beforeRetry = await nodes();
-    assert.ok(beforeRetry.some(n => n.text === "Read Alex's record" && n.enabled === 'true'));
-    assert.ok(performance.now() - grantTick < 60_000, 'Old read was not attempted during the active grant');
-    await tap("Read Alex's record");
-    await waitText('Read unavailable. No access remains.');
-    const denied = await nodes();
+    const denied = await waitText('Connection lost. Record hidden; fresh approval required.');
+    assert.ok(performance.now() - grantTick < 60_000, 'Automatic clearing missed the active read grant');
     assert.ok(denied.some(n => n.text === 'No record shown.'));
     assert.ok(denied.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     await tap('Connect to test computer');
@@ -283,7 +267,7 @@ try {
     visit.gate.requireVerified();
     assert.deepEqual(visit.nativeEvents, []);
     assert.equal(reads, 1); assert.equal(writes, 0);
-    evidence.checks.push('Physical Wi-Fi was disabled and restored over USB adb while Windows and its TLS host stayed verified; old read and offline reconnect failed, and reconnect after Wi-Fi returned awaited fresh host approval without another store read');
+    evidence.checks.push('Physical Wi-Fi was disabled and restored over USB adb while Windows and its TLS host stayed verified; displayed content cleared automatically, offline reconnect failed, and reconnect after Wi-Fi returned awaited fresh host approval without another store read');
   } else if (event === 'background') {
     await adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
     await pause(300);

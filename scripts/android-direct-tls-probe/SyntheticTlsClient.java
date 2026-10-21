@@ -56,7 +56,7 @@ final class SyntheticTlsClient implements AutoCloseable {
             approvals.add(message.getString("grantId")); return true;
         }
         JSONObject call(JSONObject body) throws Exception {
-            require(sequence < 20); int expected = ++sequence; body.put("seq", expected);
+            require(sequence < 128); int expected = ++sequence; body.put("seq", expected);
             byte[] bytes = (body.toString() + "\n").getBytes(StandardCharsets.UTF_8); require(bytes.length <= 8192); output.write(bytes); output.flush();
             for (;;) { JSONObject message = receive(); if (receiveApproval(message)) continue; require(message.getInt("seq") == expected); return message; }
         }
