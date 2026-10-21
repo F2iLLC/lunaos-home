@@ -1,6 +1,6 @@
 # Google Calendar feasibility check (milestone 1)
 
-This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-useful-supported-combination) calendar criteria for Google Calendar, the proposed first provider. It uses synthetic Google test accounts and fictional events. It is not the production calendar service: nothing is stored, and it is not connected to the GUI or MCP tools. A live result below counts only after someone runs it and records the outcome; **no result has been recorded yet**.
+This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-useful-supported-combination) calendar criteria for Google Calendar, the proposed first provider. It uses synthetic Google test accounts and fictional events. It is not the production calendar service: calendar content is not stored locally, and it is not connected to the GUI or MCP tools. OAuth refresh tokens are saved locally during `auth`. A live result below counts only after someone runs it and records the outcome; **no result has been recorded yet**.
 
 ## Setup
 
@@ -29,6 +29,8 @@ This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-
 
 The write authorization requests `calendar.events` plus `calendar.calendarlist.readonly` so the role preflight can read the calendar list; the read authorization requests `calendar.readonly`. The script checks the granted scopes before saving a token and when it is used. The read-only negative check uses the same synthetic principal that owns or can write the calendar; the script verifies the two tokens resolve to that same Google principal before any write. The combined check compares each account's primary Google calendar ID, includes hidden calendars, and fails if any calendar read fails. `npm test` covers request rules offline with a fake HTTP layer. It does not contact Google.
 
+After testing, revoke the probe's access in each synthetic Google account's third-party connections, then delete the dedicated `LUNA_HOME_PROBE_DIR` and its saved `<account>.<read|write>.json` refresh-token files and `client.json`. Keep this directory outside the checkout and cloud sync throughout the run. If any write has an unknown outcome or cleanup cannot be confirmed, stop and reconcile its recorded calendar and event ID in Google Calendar before another run.
+
 ## Criteria and how each is checked
 
 | Roadmap criterion | Check | Live result |
@@ -40,7 +42,7 @@ The write authorization requests `calendar.events` plus `calendar.calendarlist.r
 | Scoped create, update, delete without attendee notifications | Requests send `sendUpdates=none`; attendees and conference data are refused before any request | Offline pass; live untested |
 | Read access alone does not grant write authority | A token with only the `calendar.readonly` scope, for the same writable principal, attempts a create; the provider must answer 403 with `insufficientPermissions` | Untested |
 | Read-only calendars and unapproved calendars reject writes | Home-side approval list plus the calendar's `accessRole` are checked before the write request | Offline pass; live untested |
-| Retries without duplicates; ambiguous timeout or server failure | The caller-chosen event ID makes a repeated create fail with 409 `duplicate`; started writes with a timeout, 5xx response, or unreadable success body are marked unknown, then the event is read back before any retry. A calendar access check precedes treating 404 as absence. | Offline pass; live untested |
+| Retries without duplicates; ambiguous timeout or server failure | The caller-chosen event ID makes a repeated create fail with 409 `duplicate`; started writes with a timeout, 5xx response, or unreadable success body are marked unknown and the live run stops before another mutation. Reconcile the recorded event ID before retrying. A calendar access check precedes treating 404 as absence. | Offline pass; live untested |
 | Minimal local audit | Entries hold time, action, account, calendar, event ID, scope and outcome, never titles or descriptions | Offline pass |
 
 ## Not yet covered

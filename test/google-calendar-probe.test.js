@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError, SCOPES, requireGrantedScopes, primaryCalendarId } from '../lib/google-calendar-probe.js';
+import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError, SCOPES, requireGrantedScopes, primaryCalendarId, verifyReadOnlyWriteDenied } from '../lib/google-calendar-probe.js';
 
 const json = (status, body) => new Response(status === 204 ? null : JSON.stringify(body), { status });
 function harness(routes, options = {}) {
@@ -173,6 +173,38 @@ test('calendar listing requests hidden calendars', async () => {
   const { probe, requests } = harness({ 'GET /users/me/calendarList': json(200, { items: [{ id: 'hidden@example.test' }] }) });
   assert.equal((await probe.listCalendars()).length, 1);
   assert.equal(requests[0].query.showHidden, 'true');
+});
+
+test('primary alias uses the canonical calendar ID for reads, writes and audit', async () => {
+  const { probe, requests, audit } = harness({
+    'GET /users/me/calendarList/primary': json(200, { id: 'owner@example.test', primary: true, accessRole: 'owner' }),
+    'GET /calendars/owner%40example.test/events': json(200, { items: [{ id: 'abc12' }] }),
+    'POST /calendars/owner%40example.test/events': created,
+  }, { writableCalendars: ['primary'] });
+  const listed = await probe.listEvents('primary', { timeMin: 'a', timeMax: 'b' });
+  const written = await probe.createEvent('primary', { summary: 'Fictional event' }, 'abc12');
+  assert.equal(listed[0].calendarId, 'owner@example.test');
+  assert.equal(written.calendarId, 'owner@example.test');
+  assert.equal(audit[0].calendarId, 'owner@example.test');
+  assert.equal(requests.some(request => request.path === '/calendars/primary/events'), false);
+});
+
+test('an unexpectedly successful read-token write is deleted and checked', async () => {
+  const actions = [];
+  const eventId = 'abc12';
+  const writer = {
+    async findEvent(_calendar, id) { actions.push(`find:${id}`); return null; },
+    async deleteEvent(_calendar, id) { actions.push(`delete:${id}`); },
+  };
+  const reader = { async createEvent(_calendar, _event, id) { actions.push(`create:${id}`); return { eventId: id }; } };
+  await assert.rejects(verifyReadOnlyWriteDenied({ reader, writer, calendarId: 'work@example.test', event: {}, eventId }), { code: 'READ_ONLY_WRITE_NOT_DENIED' });
+  assert.deepEqual(actions, ['create:abc12', 'delete:abc12', 'find:abc12']);
+});
+
+test('failed cleanup leaves an explicit unresolved result', async () => {
+  const reader = { async createEvent() { return { eventId: 'abc12' }; } };
+  const writer = { async findEvent() { return { status: 'confirmed' }; }, async deleteEvent() { throw new Error('offline'); } };
+  await assert.rejects(verifyReadOnlyWriteDenied({ reader, writer, calendarId: 'work@example.test', event: {}, eventId: 'abc12' }), { code: 'READ_ONLY_CLEANUP_UNCONFIRMED' });
 });
 
 test('event 404 is absent only while its calendar remains accessible', async () => {

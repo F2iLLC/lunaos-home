@@ -16,7 +16,7 @@ import { dirname, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { createCalendarProbe, SCOPES, newEventId, requireGrantedScopes, primaryCalendarId } from '../lib/google-calendar-probe.js';
+import { createCalendarProbe, SCOPES, newEventId, requireGrantedScopes, primaryCalendarId, verifyReadOnlyWriteDenied } from '../lib/google-calendar-probe.js';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const configuredDir = process.env.LUNA_HOME_PROBE_DIR;
@@ -169,6 +169,7 @@ async function check(name, run) {
     results.push({ name, result: 'PASS', detail });
   } catch (error) {
     results.push({ name, result: 'FAIL', detail: error.code ?? error.message });
+    throw error;
   }
 }
 const expectCode = async (code, reason, run) => {
@@ -194,29 +195,35 @@ async function liveRun({ writer, calendar, readOnly }) {
   const event = { summary: 'Fictional Home probe event', start: { dateTime: slot(0) }, end: { dateTime: slot(1) } };
   const id = newEventId();
 
-  await check('lists calendars with access roles', async () => writeCalendars.map(c => c.accessRole).join(','));
-  await check('create (no attendees, sendUpdates=none)', () => write.createEvent(calendar, event, id).then(e => e.eventId));
-  await check('read back created event', async () => {
-    const found = await write.findEvent(calendar, id);
-    if (found?.summary !== event.summary) throw new Error('Created event was not observed');
-    return found.summary;
-  });
-  await check('retry with same id creates no duplicate', () => expectCode('HTTP_409', 'duplicate', () => write.createEvent(calendar, event, id)));
-  await check('update', () => write.updateEvent(calendar, id, { summary: 'Fictional Home probe event (edited)' }).then(e => e.summary));
-  await check('unapproved calendar rejects write', () => expectCode('CALENDAR_NOT_APPROVED', null, () => write.createEvent('primary-not-approved', event)));
-  await check('attendees refused', () => expectCode('ATTENDEES_NOT_ALLOWED', null, () => write.createEvent(calendar, { ...event, attendees: [{ email: 'x@example.test' }] })));
-  await check('delete', () => write.deleteEvent(calendar, id));
-  await check('deleted event is gone or cancelled', async () => {
-    const e = await write.findEvent(calendar, id);
-    if (e && e.status !== 'cancelled') throw new Error(`still ${e.status}`);
-    return e ? 'cancelled' : 'absent';
-  });
+  try {
+    await check('lists calendars with access roles', async () => writeCalendars.map(c => c.accessRole).join(','));
+    await check('create (no attendees, sendUpdates=none)', () => write.createEvent(calendar, event, id).then(e => e.eventId));
+    await check('read back created event', async () => {
+      const found = await write.findEvent(calendar, id);
+      if (found?.summary !== event.summary) throw new Error('Created event was not observed');
+      return found.summary;
+    });
+    await check('retry with same id creates no duplicate', () => expectCode('HTTP_409', 'duplicate', () => write.createEvent(calendar, event, id)));
+    await check('update', () => write.updateEvent(calendar, id, { summary: 'Fictional Home probe event (edited)' }).then(e => e.summary));
+    await check('unapproved calendar rejects write', () => expectCode('CALENDAR_NOT_APPROVED', null, () => write.createEvent('primary-not-approved', event)));
+    await check('attendees refused', () => expectCode('ATTENDEES_NOT_ALLOWED', null, () => write.createEvent(calendar, { ...event, attendees: [{ email: 'x@example.test' }] })));
+    await check('delete', () => write.deleteEvent(calendar, id));
+    await check('deleted event is gone or cancelled', async () => {
+      const e = await write.findEvent(calendar, id);
+      if (e && e.status !== 'cancelled') throw new Error(`still ${e.status}`);
+      return e ? 'cancelled' : 'absent';
+    });
 
-  // The read token belongs to the writable principal, so CalendarList reports
-  // the same role and the provider must refuse the actual event insertion.
-  await check('read-only token can list events', async () => (await reader.listEvents(calendar, { timeMin: slot(-24), timeMax: slot(24) })).length + ' events');
-  await check('read-only token cannot create', () => expectCode('HTTP_403', 'insufficientPermissions', () => reader.createEvent(calendar, event)));
-  report(audit);
+    // The read token belongs to the writable principal, so CalendarList reports
+    // the same role and the provider must refuse the actual event insertion.
+    await check('read-only token can list events', async () => (await reader.listEvents(calendar, { timeMin: slot(-24), timeMax: slot(24) })).length + ' events');
+    await check('read-only token cannot create', () => verifyReadOnlyWriteDenied({
+      reader, writer: write, calendarId: calendar, event, eventId: newEventId(),
+    }));
+  } finally {
+    // Any failed check halts this run before subsequent mutations.
+    report(audit);
+  }
 }
 
 async function combined(accounts) {
