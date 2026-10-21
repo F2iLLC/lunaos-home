@@ -10,4 +10,28 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    uses: F2iLLC/lunaos-home/.github/workflows/test-runner.yml@main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require GitHub-hosted runner
+        run: test "$RUNNER_ENVIRONMENT" = github-hosted
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Check OpenSSL CLI
+        run: |
+          command -v openssl
+          openssl version
+      - run: npm ci --ignore-scripts
+      - run: npm test
+  self_hosted_denial_canary:
+    # Temporary: remove after the synthetic fork proves Home cannot obtain a self-hosted runner.
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'LunaOS-Dev/lunaos-home' && github.head_ref == 'ci-deny-self-hosted' }}
+    runs-on: self-hosted
+    permissions: {}
+    timeout-minutes: 1
+    steps:
+      - run: echo 'Synthetic runner-denial canary; no checkout or secrets'
