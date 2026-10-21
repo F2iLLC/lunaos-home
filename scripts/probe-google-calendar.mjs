@@ -8,13 +8,15 @@
 //
 // $LUNA_HOME_PROBE_DIR must hold client.json ({"client_id","client_secret"}) for
 // an OAuth "Desktop app" client in a test Google Cloud project. Tokens are
-// written there as <account>.<read|write>.json (mode 0600).
+// written there as <account>.<read|write>.json with private file access.
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile, writeFile, realpath, rename, unlink } from 'node:fs/promises';
+import { readFile, writeFile, realpath, rename, unlink, lstat } from 'node:fs/promises';
 import { dirname, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCalendarProbe, SCOPES, newEventId } from '../lib/google-calendar-probe.js';
+import { homedir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { createCalendarProbe, SCOPES, newEventId, requireGrantedScopes, primaryCalendarId } from '../lib/google-calendar-probe.js';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const configuredDir = process.env.LUNA_HOME_PROBE_DIR;
@@ -24,12 +26,60 @@ const canonicalRepo = await realpath(repo);
 const rel = relative(canonicalRepo, dir);
 if (!rel.startsWith('..') && !isAbsolute(rel)) fail('LUNA_HOME_PROBE_DIR must be outside the checkout.');
 
+// The local application-data root is not a cloud-sync folder by default.
+// Require this dedicated location instead of accepting any external path.
+const privateRoot = process.platform === 'win32' ? process.env.LOCALAPPDATA
+  : process.platform === 'darwin' ? join(homedir(), 'Library', 'Application Support')
+    : join(homedir(), '.local', 'state');
+if (!privateRoot) fail('A local application-data directory is required.');
+const canonicalRoot = await realpath(privateRoot).catch(() => fail('The local application-data directory must exist.'));
+const privateRel = relative(canonicalRoot, dir);
+if (!privateRel || privateRel.startsWith('..') || isAbsolute(privateRel)) {
+  fail('LUNA_HOME_PROBE_DIR must be a dedicated directory under local application data.');
+}
+
+function secureWindowsAcl(path, directory) {
+  const script = `
+$ErrorActionPreference = 'Stop'
+$path = $env:LUNA_PROBE_SECURE_PATH
+$directory = $env:LUNA_PROBE_IS_DIR -eq '1'
+$acl = if ($directory) { [System.IO.Directory]::GetAccessControl($path) } else { [System.IO.File]::GetAccessControl($path) }
+$acl.SetAccessRuleProtection($true, $false)
+foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($rule) }
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl.SetOwner($sid)
+$inherit = if ($directory) { 'ContainerInherit,ObjectInherit' } else { 'None' }
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', $inherit, 'None', 'Allow')
+$acl.AddAccessRule($rule)
+if ($directory) { [System.IO.Directory]::SetAccessControl($path, $acl) } else { [System.IO.File]::SetAccessControl($path, $acl) }
+`;
+  try {
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+      env: { ...process.env, LUNA_PROBE_SECURE_PATH: path, LUNA_PROBE_IS_DIR: directory ? '1' : '0' },
+      stdio: 'pipe',
+    });
+  } catch {
+    fail('Could not establish private Windows access to the credential path.');
+  }
+}
+
+async function secureCredentialPath(path, directory = false) {
+  const info = await lstat(path);
+  if (info.isSymbolicLink() || (directory ? !info.isDirectory() : !info.isFile())) {
+    fail('Credential paths must be ordinary files in a dedicated directory.');
+  }
+  if (process.platform === 'win32') secureWindowsAcl(path, directory);
+  else if (info.mode & 0o077) fail('Credential paths must deny group and other access (mode 0700/0600).');
+}
+await secureCredentialPath(dir, true);
+
 function fail(message) { console.error(message); process.exit(2); }
 const b64url = buf => buf.toString('base64url');
 const tokenFile = (account, kind) => join(dir, `${account}.${kind}.json`);
 const accountName = value => (/^[a-z0-9-]{1,40}$/.test(value ?? '') ? value : fail('Account labels are lowercase letters, digits and hyphens.'));
 // Accepts the file as Google downloads it ({"installed": {...}}) or flattened.
 const clientConfig = async () => {
+  await secureCredentialPath(join(dir, 'client.json'));
   const file = JSON.parse(await readFile(join(dir, 'client.json'), 'utf8'));
   const { client_id, client_secret } = file.installed ?? file;
   if (!client_id || !client_secret) fail('client.json needs client_id and client_secret.');
@@ -72,10 +122,13 @@ async function auth(account, kind) {
     });
   }).finally(() => server.close());
   const tokens = await tokenRequest({ code, code_verifier: verifier, grant_type: 'authorization_code', redirect_uri: redirect });
+  requireGrantedScopes(kind, tokens.scope);
+  if (!tokens.refresh_token) throw new Error('Google did not return a refresh token; existing authorization was retained.');
   // A new file followed by rename replaces a symlink rather than following it.
   const temp = join(dir, `.token-${b64url(randomBytes(16))}.tmp`);
   try {
     await writeFile(temp, JSON.stringify({ refresh_token: tokens.refresh_token, scope: tokens.scope }), { mode: 0o600, flag: 'wx' });
+    await secureCredentialPath(temp);
     await rename(temp, tokenFile(account, kind));
   } finally {
     await unlink(temp).catch(() => {});
@@ -87,8 +140,12 @@ function probeFor(account, kind, writableCalendars, audit) {
   let cached;
   const getToken = async () => {
     if (cached && cached.expires > Date.now() + 30_000) return cached.value;
-    const { refresh_token } = JSON.parse(await readFile(tokenFile(account, kind), 'utf8'));
+    await secureCredentialPath(tokenFile(account, kind));
+    const { refresh_token, scope } = JSON.parse(await readFile(tokenFile(account, kind), 'utf8'));
+    requireGrantedScopes(kind, scope);
+    if (!refresh_token) throw new Error('The saved authorization has no refresh token.');
     const fresh = await tokenRequest({ refresh_token, grant_type: 'refresh_token' });
+    if (fresh.scope) requireGrantedScopes(kind, fresh.scope);
     cached = { value: fresh.access_token, expires: Date.now() + fresh.expires_in * 1000 };
     return cached.value;
   };
@@ -116,13 +173,18 @@ async function liveRun({ writer, calendar, readOnly }) {
   const audit = [];
   const log = entry => audit.push(entry);
   const write = probeFor(writer, 'write', [calendar], log);
+  const reader = probeFor(readOnly, 'read', [calendar], log);
+  const writeCalendars = await write.listCalendars();
+  if (primaryCalendarId(writeCalendars) !== primaryCalendarId(await reader.listCalendars())) {
+    throw new Error('Read and write tokens resolved to different Google principals.');
+  }
   const stamp = new Date(Date.now() + 7 * 864e5);
   stamp.setUTCHours(15, 0, 0, 0);
   const slot = hours => new Date(stamp.getTime() + hours * 36e5).toISOString();
   const event = { summary: 'Fictional Home probe event', start: { dateTime: slot(0) }, end: { dateTime: slot(1) } };
   const id = newEventId();
 
-  await check('lists calendars with access roles', async () => (await write.listCalendars()).map(c => c.accessRole).join(','));
+  await check('lists calendars with access roles', async () => writeCalendars.map(c => c.accessRole).join(','));
   await check('create (no attendees, sendUpdates=none)', () => write.createEvent(calendar, event, id).then(e => e.eventId));
   await check('read back created event', async () => {
     const found = await write.findEvent(calendar, id);
@@ -142,7 +204,6 @@ async function liveRun({ writer, calendar, readOnly }) {
 
   // The read token belongs to the writable principal, so CalendarList reports
   // the same role and the provider must refuse the actual event insertion.
-  const reader = probeFor(readOnly, 'read', [calendar], log);
   await check('read-only token can list events', async () => (await reader.listEvents(calendar, { timeMin: slot(-24), timeMax: slot(24) })).length + ' events');
   await check('read-only token cannot create', () => expectCode('HTTP_403', 'insufficientPermissions', () => reader.createEvent(calendar, event)));
   report(audit);
@@ -153,9 +214,14 @@ async function combined(accounts) {
   const from = new Date().toISOString();
   const to = new Date(Date.now() + 14 * 864e5).toISOString();
   const all = [];
+  const principals = new Set();
   for (const account of accounts) {
     const probe = probeFor(account, 'read', [], () => {});
-    for (const cal of await probe.listCalendars()) {
+    const calendars = await probe.listCalendars();
+    const principal = primaryCalendarId(calendars);
+    if (principals.has(principal)) throw new Error('Two account labels resolved to the same Google principal.');
+    principals.add(principal);
+    for (const cal of calendars) {
       all.push(...await probe.listEvents(cal.id, { timeMin: from, timeMax: to }));
     }
   }

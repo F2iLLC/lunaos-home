@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError, SCOPES } from '../lib/google-calendar-probe.js';
+import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError, SCOPES, requireGrantedScopes, primaryCalendarId } from '../lib/google-calendar-probe.js';
 
 const json = (status, body) => new Response(status === 204 ? null : JSON.stringify(body), { status });
 function harness(routes, options = {}) {
@@ -30,6 +30,17 @@ test('event ids are valid base32hex and unique', () => {
 test('write authorization includes calendar-list access for the role preflight', () => {
   assert.match(SCOPES.write, /calendar\.events/);
   assert.match(SCOPES.write, /calendar\.calendarlist\.readonly/);
+});
+
+test('partial or missing OAuth grants cannot replace a usable token', () => {
+  assert.doesNotThrow(() => requireGrantedScopes('write', SCOPES.write));
+  assert.throws(() => requireGrantedScopes('write', SCOPES.read), { code: 'INCOMPLETE_OAUTH_GRANT' });
+  assert.throws(() => requireGrantedScopes('write', undefined), { code: 'INCOMPLETE_OAUTH_GRANT' });
+});
+
+test('combined checks identify the Google principal from its primary calendar', () => {
+  assert.equal(primaryCalendarId([{ id: 'synthetic@example.test', primary: true }]), 'synthetic@example.test');
+  assert.throws(() => primaryCalendarId([]), { code: 'PRIMARY_CALENDAR_UNAVAILABLE' });
 });
 
 test('writes never request attendee notifications and carry the caller event id', async () => {
@@ -97,6 +108,20 @@ test('preflight network failure cannot suggest an ambiguous mutation', async () 
   assert.equal(audit[0].outcome, 'failed:preflight');
 });
 
+test('started server failures and unreadable success bodies are unknown writes', async () => {
+  for (const response of [
+    json(500, { error: { errors: [{ reason: 'backendError' }] } }),
+    new Response('not-json', { status: 200 }),
+  ]) {
+    const { probe, audit } = harness({
+      'GET /users/me/calendarList/work%40example.test': listEntry('owner'),
+      'POST /calendars/work%40example.test/events': response,
+    });
+    await assert.rejects(probe.createEvent('work@example.test', { summary: 'x' }));
+    assert.equal(audit[0].outcome, 'unknown');
+  }
+});
+
 test('mutation token failure before fetch is not an unknown write', async () => {
   let tokens = 0;
   const { probe, requests, audit } = harness({
@@ -130,6 +155,12 @@ test('missing event collection is empty, while failed reads propagate', async ()
     'GET /calendars/work%40example.test/events': json(403, { error: { errors: [{ reason: 'rateLimitExceeded' }] } }),
   });
   await assert.rejects(denied.probe.listEvents('work@example.test', { timeMin: 'a', timeMax: 'b' }), { code: 'HTTP_403', reason: 'rateLimitExceeded' });
+});
+
+test('calendar listing requests hidden calendars', async () => {
+  const { probe, requests } = harness({ 'GET /users/me/calendarList': json(200, { items: [{ id: 'hidden@example.test' }] }) });
+  assert.equal((await probe.listCalendars()).length, 1);
+  assert.equal(requests[0].query.showHidden, 'true');
 });
 
 test('event 404 is absent only while its calendar remains accessible', async () => {

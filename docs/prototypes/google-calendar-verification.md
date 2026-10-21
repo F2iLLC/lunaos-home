@@ -5,11 +5,13 @@ This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-
 ## Setup
 
 1. In a test Google Cloud project, create an OAuth client of type **Desktop app** and enable the Google Calendar API. Use only synthetic accounts (at least two, each with one writable test calendar).
-2. Keep state outside this checkout. Create the directory before running the script. It resolves symlinks and refuses a directory inside the checkout:
+2. Keep state in a dedicated directory under the machine's local application-data directory, outside this checkout and outside cloud sync. On Windows, use a subdirectory of `%LOCALAPPDATA%`; on macOS use `~/Library/Application Support`, and on Linux use `~/.local/state`. Create it before running the script. The script resolves symlinks, restricts Windows access to the current user, and requires mode 0700 for the directory and 0600 for files on Unix:
 
    ```bash
-   export LUNA_HOME_PROBE_DIR=/absolute/path/outside/the/checkout
-   # client.json: the OAuth client file exactly as Google downloads it
+   export LUNA_HOME_PROBE_DIR="$HOME/.local/state/luna-home-calendar-probe"
+   mkdir -p "$LUNA_HOME_PROBE_DIR" && chmod 700 "$LUNA_HOME_PROBE_DIR"
+   # Place Google's downloaded OAuth client.json in this directory.
+   chmod 600 "$LUNA_HOME_PROBE_DIR/client.json"
    ```
 3. Sign each account in once per scope. The sign-in uses a loopback redirect with PKCE and prints a URL to open:
 
@@ -25,20 +27,20 @@ This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-
    node scripts/probe-google-calendar.mjs combined alex-test sam-test
    ```
 
-The write authorization requests `calendar.events` plus `calendar.calendarlist.readonly` so the role preflight can read the calendar list; the read authorization requests `calendar.readonly`. The read-only negative check must use the same synthetic principal that owns or can write the calendar. The combined check requires two distinct read-authorized accounts and fails if any calendar read fails. `npm test` covers request rules offline with a fake HTTP layer. It does not contact Google.
+The write authorization requests `calendar.events` plus `calendar.calendarlist.readonly` so the role preflight can read the calendar list; the read authorization requests `calendar.readonly`. The script checks the granted scopes before saving a token and when it is used. The read-only negative check uses the same synthetic principal that owns or can write the calendar; the script verifies the two tokens resolve to that same Google principal before any write. The combined check compares each account's primary Google calendar ID, includes hidden calendars, and fails if any calendar read fails. `npm test` covers request rules offline with a fake HTTP layer. It does not contact Google.
 
 ## Criteria and how each is checked
 
 | Roadmap criterion | Check | Live result |
 | --- | --- | --- |
-| Read multiple authorized test accounts | `combined` lists every calendar of each account and counts unique identities | Untested |
+| Read multiple authorized test accounts | `combined` verifies distinct Google principals, lists visible and hidden calendars of each account, and counts unique identities | Untested |
 | Preserve provider, account, calendar, event ID and recurrence-instance identity | `normalizeEvent` keeps all of them; unit-tested | Offline pass; live untested |
 | Repeated refresh does not duplicate; invitations not merged across owners | Identity key includes account and calendar; unit-tested | Offline pass; live untested |
 | Pagination | Listing follows `nextPageToken`; unit-tested | Offline pass; live untested |
 | Scoped create, update, delete without attendee notifications | Requests send `sendUpdates=none`; attendees and conference data are refused before any request | Offline pass; live untested |
 | Read access alone does not grant write authority | A token with only the `calendar.readonly` scope, for the same writable principal, attempts a create; the provider must answer 403 with `insufficientPermissions` | Untested |
 | Read-only calendars and unapproved calendars reject writes | Home-side approval list plus the calendar's `accessRole` are checked before the write request | Offline pass; live untested |
-| Retries without duplicates; ambiguous timeout | The caller-chosen event ID makes a repeated create fail with 409 `duplicate`; after an unknown outcome the event is read back before any retry. A calendar access check precedes treating 404 as absence. | Offline pass; live untested |
+| Retries without duplicates; ambiguous timeout or server failure | The caller-chosen event ID makes a repeated create fail with 409 `duplicate`; started writes with a timeout, 5xx response, or unreadable success body are marked unknown, then the event is read back before any retry. A calendar access check precedes treating 404 as absence. | Offline pass; live untested |
 | Minimal local audit | Entries hold time, action, account, calendar, event ID, scope and outcome, never titles or descriptions | Offline pass |
 
 ## Not yet covered
