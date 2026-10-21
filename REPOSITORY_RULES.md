@@ -35,7 +35,7 @@ Prefer suitable existing contracts/libraries to duplicate implementations, but s
 
 ## CI and untrusted contributions
 
-**Current state:** the repository is public, and GitHub Actions is disabled at the repository level. The workflow still references shared F2iLLC self-hosted `ci-general` infrastructure. Read-only job token permissions and nonpersisted checkout credentials do not isolate arbitrary contributor code. A safe public-contribution runner/trust policy is not established by this starter; do not re-enable the existing workflow as-is.
+**Current state:** the repository is public, and GitHub Actions is disabled at the repository level. The proposed test workflow calls a main-pinned reusable workflow that requests the `home-public-untrusted` runner group. That group, its one-job runner, and its isolation policy have not been provisioned or tested. Read-only job token permissions and nonpersisted checkout credentials do not isolate arbitrary contributor code. Do not enable Actions until the runner policy and synthetic fork checks in [the Actions setup handoff](docs/ci-actions-setup.md) pass.
 
 **Before re-enabling CI or accepting untrusted code for execution:** establish a tested, isolated self-hosted runner/trust policy. Do not route untrusted forks or PR code onto enterprise runners, even after a human clicks an approval button. Use a separate appropriate runner pool with no enterprise network/data/credential access, no secrets for untrusted jobs, minimal token permissions, and disposable clean execution state. Keep trusted release jobs separately controlled. Labels alone are not proof of isolation.
 

@@ -10,14 +10,4 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    runs-on: [self-hosted, linux, x64, ci-general]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-      - run: npm ci --ignore-scripts
-      - run: npm test
+    uses: F2iLLC/lunaos-home/.github/workflows/test-runner.yml@main
