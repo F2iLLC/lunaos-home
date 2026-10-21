@@ -334,7 +334,9 @@ try {
     assert.throws(() => visit.gate.requireVerified());
     if (event === 'sleep') {
       const terminal = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
-      try { assert.equal(await terminal.question('WAIT_FOR_RESUME: after waking and unlocking Windows, type back: ', { signal: AbortSignal.timeout(180000) }), 'back'); }
+      // The clock behind AbortSignal.timeout can advance during Windows sleep.
+      // Allow an attended longer sleep and a normal unlock before resuming checks.
+      try { assert.equal(await terminal.question('WAIT_FOR_RESUME: after waking and unlocking Windows, type back: ', { signal: AbortSignal.timeout(1_200_000) }), 'back'); }
       finally { terminal.close(); }
       // Read-only readiness polling: Windows Wi-Fi/ADB can recover after the native
       // session already ended. Never retry a record operation or open a fresh grant.

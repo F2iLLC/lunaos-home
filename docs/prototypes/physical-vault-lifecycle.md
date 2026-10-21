@@ -118,6 +118,8 @@ reconnect. It never retries a record write or issues a new grant after resume.
 | Five-minute visit expiry rerun | **Passed on October 21 UTC.** A new attended Samsung run recorded the trusted `visit-deadline` reason 300,066 ms after Windows verification, with no native lifecycle event. The Windows gate remained verified after the phone's 60-second read grant expired; at the visit deadline the phone read control was already closed, no content remained, and reconnect was denied without another store read. One read, zero writes, unchanged ciphertext and cleanup passed. An independent check found the disposable package and former listener absent. This establishes visit expiry, not immediate clearing at the native deadline. |
 | Timed lock during active grant | A fresh `lock` receipt arrived 36,302 ms after grant issuance, before its 60-second deadline. The phone's still-enabled old read was attempted and denied, content cleared, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. |
 | Timed sleep during active grant | A fresh `suspend` receipt arrived 26,504 ms after grant issuance, before its 60-second deadline. After wake, the phone's old read was closed, content remained clear, reconnect was denied, and reads/writes remained 1/0. Cleanup passed. This was another brief sleep, not extended-sleep evidence. |
+| Earlier extended-sleep attempt | **Inconclusive after wake.** The native `suspend` receipt arrived 29,184 ms into the active grant and cleanup passed, but the runner's three-minute terminal acknowledgement timeout elapsed while Windows remained asleep for about eight minutes. It could not check the phone's post-wake read and reconnect state. |
+| Extended sleep/wake rerun | **Passed on October 21 UTC.** Windows Power-Troubleshooter recorded sleep from 04:09:40.909 to 04:14:11.692 UTC (4 minutes 31 seconds). The native `suspend` receipt ended the verified visit 48,867 ms after grant issuance, before the 60-second grant deadline. After wake, the phone's old read was closed, no content remained, and reconnect was denied. One store read, zero writes, unchanged ciphertext and cleanup passed. An independent check found Wi-Fi and its private route restored, the disposable package absent and the former listener closed. The phone's own read timer may have cleared the display while the PC slept; this does not prove immediate display clearing on suspend. |
 | Second physical Android device | A user-selected Echo Show 8 with a custom `lineage_crown` Android 11/API30 build read the same kind of fictional Windows record over direct Wi-Fi in a separate disposable run. This does not establish support for stock Echo Show software or make it a phone-only vault host. |
 | Host identity rejection on two devices | Both the Echo Show 8 and Samsung rejected a wrong TLS host name and a wrong pinned host fingerprint before pairing. Each then completed a separately approved fictional read: one store read, zero writes. |
 | Android background on two devices | During an active 60-second read grant, moving each test client Home cleared its displayed content and local scope. On return, the read and connect controls were disabled until identity review. A new connection waited for fresh host approval and made no second store read. The Windows visit stayed verified. |
@@ -129,8 +131,12 @@ reconnect. It never retries a record write or issues a new grant after resume.
 
 The five-minute expiry rerun used a disposable APK with SHA-256
 `012ebf8e3203c37c09e37fa55c37fb7ac042c19390f4514db07b50fc6bde198f`.
+The extended-sleep rerun used a disposable APK with SHA-256
+`401f592d2ed1326d2e7317409cee4b390e5004b4c021ed13c48694e9ee39d28e`.
 Raw run output remains outside Git. The runner's earlier inconclusive attempt is
-retained above so its narrower evidence is not silently promoted.
+retained above so its narrower evidence is not silently promoted. The attended
+sleep runner now allows a 20-minute acknowledgement window so its prompt remains
+available after a longer sleep and unlock.
 
 The Echo's first attempt crashed in the test identity reporter before pairing: the
 reporter called `KeyInfo.getSecurityLevel()`, unavailable on API30. The corrected
@@ -245,8 +251,8 @@ These results show local-network access, one physical Wi-Fi interruption and
 recovery, and native visit closure on lock/sleep on the Samsung and PC, plus
 bounded read, background, host-identity and removal checks on the two selected
 Android devices.
-They do not complete Session 2 or production acceptance. Extended sleep,
-network roaming, phone-hosted operation, production enrollment,
+They do not complete Session 2 or production acceptance. Network roaming,
+phone-hosted operation, production enrollment,
 recovery and independent security review remain open. The
 [recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
 is not a portable user-held backup. DPAPI remains CurrentUser
