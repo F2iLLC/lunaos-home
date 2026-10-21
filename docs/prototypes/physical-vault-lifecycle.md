@@ -30,6 +30,7 @@ node scripts/test-attended-physical-vault.mjs <new-restore-output> <debug-keysto
 node scripts/test-attended-physical-vault.mjs <new-host-loss-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> host-loss
 node scripts/test-attended-physical-vault.mjs <new-link-reset-output> <debug-keystore> <explicit-adb-target> <exact-model> <api> <host-private-ipv4> link-reset
 node scripts/test-attended-physical-vault.mjs <new-wifi-cycle-output> <debug-keystore> <explicit-usb-adb-target> <exact-model> <api> <host-private-ipv4> wifi-cycle
+node scripts/test-attended-physical-vault.mjs <new-roam-output> <debug-keystore> <explicit-usb-adb-target> <exact-model> <api> <host-private-ipv4> wifi-roam
 node scripts/test-attended-windows-cancel.mjs <fourth-new-output-outside-repo>
 ```
 
@@ -38,9 +39,12 @@ TCP relay bind to the explicitly supplied private address; the TLS listener's
 default remains loopback. The relay does not terminate TLS. Public/wildcard
 addresses and hostnames are refused.
 The native informational HTTP page stays loopback-only. There was no adb port
-forward/reverse, public tunnel, cloud relay, firewall-rule change or network-profile
-change. Wireless adb only controlled the test phone; record traffic used the
-explicit LAN endpoint. The fixture TLS server name remains `localhost` (certificate
+forward/reverse, public tunnel, cloud relay or firewall-rule change. The
+`wifi-roam` user manually changed the phone's access point in Android Settings;
+the runner did not alter a network profile or collect its name or password.
+USB adb controlled the Wi-Fi scenarios; earlier wireless adb controlled only
+the test phone. Record traffic used the explicit LAN endpoint. The fixture TLS
+server name remains `localhost` (certificate
 name, not route); CA validation, hostname validation and exact host fingerprint
 remain enforced, and the client authenticates with its Android Keystore identity.
 The fixture certificate and short-lived offer are provisioned through debug tools,
@@ -57,6 +61,16 @@ requires the route to disappear, tests old read and offline reconnect denial,
 then re-enables Wi-Fi and requires the route to return before checking that a
 new connection awaits fresh host approval. Its cleanup also re-enables Wi-Fi
 and checks the route; a failure must be reported rather than counted as a pass.
+
+The `wifi-roam` scenario exercises an attended switch between two access
+points that both reach the same private Windows host. It requires USB adb, a
+fictional read, and a user switch in Android Settings. It compares the connected
+access-point identifiers in memory without printing or retaining them, checks
+the Wi-Fi route after the switch, then requires fresh approval before reading
+again. A Settings switch can background the app, so a passing run establishes
+an access-point change and protected reconnect, not seamless foreground roaming
+or display clearing caused specifically by the radio handoff. No network name or
+password belongs in the test output or repository.
 
 On October 20, 2026 (America/Chicago; October 21 UTC), the selected Samsung
 SM-S938U (API 37) passed the attended `wifi-cycle` run. The user completed the
@@ -80,6 +94,30 @@ phone, not roaming between access points or production enrollment. The client
 checks presence once per second with a two-second receive limit, so this does
 not prove instant display clearing. Later recovery and independent security
 acceptance remain separate.
+
+On October 21, 2026 UTC, an attended `wifi-roam` run on the same Samsung
+completed a manual access-point change in each direction while both access
+points could reach the same Windows host. The passing return-direction run
+observed a different connected access point and a `wlan0` route to the host,
+then reopened the disposable fictional client. The old displayed record and
+read control were closed; a new connection waited for fresh host approval.
+After that approval, the phone read the same fictional record a second time.
+The run recorded two store reads, zero writes, no native lifecycle event, and
+cleanup passing. The disposable APK SHA-256 was
+`655e367ce9072227d25a1299e02079e749bcbe8a2491d55de043ab9461370eef`.
+An independent check found Wi-Fi enabled, a private host route over `wlan0`,
+the disposable package absent, and the former listener closed. The retained
+synthetic result contains no network names or access-point identifiers; raw
+output remains outside Git in `physical-roam-v2`.
+
+The first-direction `physical-roam-v1` observed an access-point change but
+stopped when the harness checked the test app before Android Settings had left
+the foreground. It is **incomplete**, with cleanup passing, not a reconnect
+pass. The revised harness waits for the fictional app to return to the
+foreground. Because the user switched networks in Settings, the passing run
+does not isolate seamless foreground radio roaming or prove that the AP change
+alone cleared displayed content. Production enrollment and independent
+security acceptance remain open.
 
 The user completes verification only in the trusted Windows prompt. The assistant
 compares the exact on-screen synthetic identities and approves the fixed
@@ -191,8 +229,8 @@ original assertions but did not include that grant-age check. The relay forwarde
 bytes without terminating the connection or changing the phone's network
 settings. The Windows gate stayed verified and the host remained available.
 Raw evidence stays outside Git. At that stage, actual Wi-Fi interruption and
-roaming were still unverified; the later `wifi-cycle` result above covers one
-physical radio interruption.
+roaming were still unverified; the later `wifi-cycle` and `wifi-roam` results
+above cover a radio interruption and a manual access-point change separately.
 
 The disposable Android TLS client now checks connection presence once per second
 while a fictional record is displayed. Each check names the displayed record and
@@ -204,7 +242,8 @@ not an instant transport event notification. The host-side selected-record
 presence contract is covered by synthetic Node tests (19/19 focused transport
 tests pass). The earlier code-only review had no Android build or phone run;
 the attended `wifi-cycle` run above built and exercised this changed client on
-the selected Samsung. Roaming remains unverified.
+the selected Samsung. A later manual access-point change is recorded above;
+seamless foreground roaming remains unverified.
 
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
@@ -240,7 +279,7 @@ sleep retry lost its phone connection before approval. Neither is counted as a p
 
 ## Validation and remaining work
 
-All 137 Windows-compatible Node tests passed in the current checkout, including
+All 167 Windows-compatible Node tests passed in the current checkout, including
 the USB adb preflight checks, refusal of public/wildcard test bindings, and
 bounded lifecycle-event collection that cannot verify the gate.
 The attended phone APK builds and successful runs exercised the modified Java
@@ -248,10 +287,11 @@ sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
 These results show local-network access, one physical Wi-Fi interruption and
-recovery, and native visit closure on lock/sleep on the Samsung and PC, plus
+recovery, one manual access-point change with protected reconnect, and native
+visit closure on lock/sleep on the Samsung and PC, plus
 bounded read, background, host-identity and removal checks on the two selected
 Android devices.
-They do not complete Session 2 or production acceptance. Network roaming,
+They do not complete Session 2 or production acceptance. Seamless foreground roaming,
 phone-hosted operation, production enrollment,
 recovery and independent security review remain open. The
 [recovery handoff](session-2-recovery-handoff.md) records why current ciphertext
