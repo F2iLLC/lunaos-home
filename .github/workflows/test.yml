@@ -10,7 +10,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    runs-on: [self-hosted, linux, x64, ci-general]
+    runs-on:
+      group: home-public-untrusted
+      labels: [self-hosted, linux, x64, home-pr-isolated]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
