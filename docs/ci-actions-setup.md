@@ -11,13 +11,16 @@ are authoritative.
 ## Test workflow
 
 `.github/workflows/test.yml` runs on pushes to `main` and `pull_request`. Its
-job requests `ubuntu-24.04`, has `contents: read`, a ten-minute limit, no job
-secrets or cache, and nonpersisted checkout credentials. It verifies the
+job requests `ubuntu-24.04`, checks GitHub's `RUNNER_ENVIRONMENT` before
+checkout, and has `contents: read`, a ten-minute limit, no job secrets or
+cache, and nonpersisted checkout credentials. It verifies the
 OpenSSL CLI, installs locked npm dependencies without lifecycle scripts, and
 runs `npm test`. The test launcher selects `test/*.test.js`; Linux includes the
 Android container test. This workflow does not build native binaries or run
 physical-device acceptance checks. Do not add `pull_request_target` or a
-self-hosted runner to this untrusted job.
+self-hosted runner to this untrusted job. The environment check detects an
+unexpected runner in this reviewed workflow; it cannot stop a PR author from
+editing the workflow and does not replace runner-group exclusion.
 
 ## Enablement and proof
 
