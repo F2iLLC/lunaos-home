@@ -90,10 +90,23 @@ test('presence checks the selected grant without reading the store', async t => 
   } });
   const client = await pair();
   const grant = host.approveAccess(client.connectionId, 'read-only', scope);
-  for (let index = 0; index < 65; index++) assert.equal(await client.presence(grant), true);
+  for (let index = 0; index < 65; index++) assert.equal(await client.presence(grant, 'alex-library'), true);
   assert.equal(reads, 0);
   host.revokeGrant(grant);
-  await assert.rejects(client.presence(grant), isCode('DENIED'));
+  await assert.rejects(client.presence(grant, 'alex-library'), isCode('DENIED'));
+  assert.equal(reads, 0);
+});
+
+test('presence requires read scope for the displayed record', async t => {
+  let reads = 0;
+  const { host, pair } = await setup(t, { store: {
+    read: () => { reads++; return alex; },
+    create: () => { throw Error('unexpected write'); },
+    edit: () => { throw Error('unexpected write'); },
+  } });
+  const client = await pair();
+  const grant = host.approveAccess(client.connectionId, 'read-only', { recordIds: ['sam-library'], lifetimeMs: 60_000 });
+  await assert.rejects(client.presence(grant, 'alex-library'), isCode('DENIED'));
   assert.equal(reads, 0);
 });
 
@@ -105,7 +118,7 @@ test('presence rejects a stopped vault session even while TLS remains open', asy
   tick = 99;
   assert.throws(() => host.approveAccess(client.connectionId, 'read-only', scope), error => error.code === 'DENIED');
   assert.equal(host.listConnections().length, 1);
-  await assert.rejects(client.presence(grant), isCode('DENIED'));
+  await assert.rejects(client.presence(grant, 'alex-library'), isCode('DENIED'));
 });
 
 test('trusted CA does not admit an unapproved certificate or permit a stolen offer', async t => {

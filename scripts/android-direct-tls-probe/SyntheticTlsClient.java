@@ -68,7 +68,7 @@ final class SyntheticTlsClient implements AutoCloseable {
         void requirePresence(String grant) throws Exception {
             if (socket == null) throw new IOException("Connection closed");
             socket.setSoTimeout(2000);
-            try { require(call(new JSONObject().put("op", "presence").put("grant", grant)).getBoolean("ok")); }
+            try { require(call(new JSONObject().put("op", "presence").put("grant", grant).put("recordId", "alex-library")).getBoolean("ok")); }
             finally { socket.setSoTimeout(15000); }
         }
         void denied(JSONObject result) throws Exception { require(!result.getBoolean("ok") && "DENIED".equals(result.getString("code"))); }
