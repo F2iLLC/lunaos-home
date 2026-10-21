@@ -97,6 +97,19 @@ test('preflight network failure cannot suggest an ambiguous mutation', async () 
   assert.equal(audit[0].outcome, 'failed:preflight');
 });
 
+test('mutation token failure before fetch is not an unknown write', async () => {
+  let tokens = 0;
+  const { probe, requests, audit } = harness({
+    'GET /users/me/calendarList/work%40example.test': listEntry('owner'),
+  }, { getToken: async () => {
+    if (++tokens === 2) throw new Error('synthetic refresh failed');
+    return 'synthetic-token';
+  } });
+  await assert.rejects(probe.createEvent('work@example.test', { summary: 'x' }), /synthetic refresh failed/);
+  assert.deepEqual(requests.map(r => r.method), ['GET']);
+  assert.equal(audit[0].outcome, 'failed:preflight');
+});
+
 test('restricted writer can write a non-private synthetic event', async () => {
   const { probe, requests } = harness({
     'GET /users/me/calendarList/work%40example.test': listEntry('writerWithoutPrivateAccess'),
