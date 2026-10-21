@@ -60,11 +60,13 @@ editing the workflow and does not replace runner-group exclusion.
 
 At this review, the only listed organization runner group was Default,
 which disallows public repositories; a query scoped to Home returned zero
-visible groups. The repository reports zero registered repository runners;
-the organization policy for creating new repository-level runners is still
-unverified. The available administrator account cannot read organization Actions policy;
-the repository administrator can read Home's Actions setting. These
-observations do not prove future group settings or a completed hosted run.
+visible groups. The repository reports zero registered repository runners.
+On 2026-10-21, an organization administrator set repository-level self-hosted
+runner creation to `Selected repositories`, selected the other 11 current
+F2iLLC repositories, and verified after a reload that Home remains excluded.
+The organization also allows standard hosted runner labels. Recheck these
+settings immediately before enablement; these observations do not prove
+future group settings or a completed hosted run.
 
 GitHub documents [standard hosted runner isolation and public-repository
 pricing](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
