@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError } from '../lib/google-calendar-probe.js';
+import { createCalendarProbe, normalizeEvent, dedupe, newEventId, CalendarProbeError, SCOPES } from '../lib/google-calendar-probe.js';
 
 const json = (status, body) => new Response(status === 204 ? null : JSON.stringify(body), { status });
 function harness(routes, options = {}) {
@@ -27,6 +27,11 @@ test('event ids are valid base32hex and unique', () => {
   assert.notEqual(a, newEventId());
 });
 
+test('write authorization includes calendar-list access for the role preflight', () => {
+  assert.match(SCOPES.write, /calendar\.events/);
+  assert.match(SCOPES.write, /calendar\.calendarlist\.readonly/);
+});
+
 test('writes never request attendee notifications and carry the caller event id', async () => {
   const { probe, requests } = harness({
     'GET /users/me/calendarList/work%40example.test': listEntry('owner'),
@@ -38,11 +43,12 @@ test('writes never request attendee notifications and carry the caller event id'
   assert.equal(post.body.id, 'abc12');
 });
 
-test('attendees and conference data are refused before any request', async () => {
-  const { probe, requests } = harness({});
+test('attendees and conference data are refused and audited before any request', async () => {
+  const { probe, requests, audit } = harness({});
   await assert.rejects(probe.createEvent('work@example.test', { attendees: [{ email: 'sam@example.test' }] }), { code: 'ATTENDEES_NOT_ALLOWED' });
   await assert.rejects(probe.updateEvent('work@example.test', 'abc12', { conferenceData: {} }), { code: 'ATTENDEES_NOT_ALLOWED' });
   assert.equal(requests.length, 0);
+  assert.deepEqual(audit.map(a => a.outcome), ['denied:ATTENDEES_NOT_ALLOWED', 'denied:ATTENDEES_NOT_ALLOWED']);
 });
 
 test('unapproved and read-only calendars reject writes without a write request', async () => {
@@ -80,6 +86,54 @@ test('a network failure is an unknown outcome and a retry with the same id hits 
   assert.equal((await probe.findEvent('work@example.test', 'abc12')).eventId, 'abc12');
   await assert.rejects(probe.createEvent('work@example.test', { summary: 'x' }, 'abc12'), { code: 'HTTP_409' });
   assert.deepEqual(audit.map(a => a.outcome), ['unknown', 'already-exists']);
+});
+
+test('preflight network failure cannot suggest an ambiguous mutation', async () => {
+  const { probe, requests, audit } = harness({
+    'GET /users/me/calendarList/work%40example.test': () => { throw new TypeError('socket closed'); },
+  });
+  await assert.rejects(probe.createEvent('work@example.test', { summary: 'x' }), { code: 'UNKNOWN_OUTCOME' });
+  assert.deepEqual(requests.map(r => r.method), ['GET']);
+  assert.equal(audit[0].outcome, 'failed:preflight');
+});
+
+test('restricted writer can write a non-private synthetic event', async () => {
+  const { probe, requests } = harness({
+    'GET /users/me/calendarList/work%40example.test': listEntry('writerWithoutPrivateAccess'),
+    'POST /calendars/work%40example.test/events': created,
+  });
+  await probe.createEvent('work@example.test', { summary: 'Fictional event' });
+  assert.equal(requests.at(-1).method, 'POST');
+});
+
+test('missing event collection is empty, while failed reads propagate', async () => {
+  const { probe } = harness({
+    'GET /users/me/calendarList': json(200, {}),
+    'GET /calendars/work%40example.test/events': json(200, {}),
+  });
+  assert.deepEqual(await probe.listCalendars(), []);
+  assert.deepEqual(await probe.listEvents('work@example.test', { timeMin: 'a', timeMax: 'b' }), []);
+  const denied = harness({
+    'GET /calendars/work%40example.test/events': json(403, { error: { errors: [{ reason: 'rateLimitExceeded' }] } }),
+  });
+  await assert.rejects(denied.probe.listEvents('work@example.test', { timeMin: 'a', timeMax: 'b' }), { code: 'HTTP_403', reason: 'rateLimitExceeded' });
+});
+
+test('event 404 is absent only while its calendar remains accessible', async () => {
+  const accessible = harness({
+    'GET /calendars/work%40example.test/events/abc12': json(404, { error: { errors: [{ reason: 'notFound' }] } }),
+    'GET /users/me/calendarList/work%40example.test': listEntry('owner'),
+  });
+  assert.equal(await accessible.probe.findEvent('work@example.test', 'abc12'), null);
+  const inaccessible = harness({
+    'GET /calendars/work%40example.test/events/abc12': json(404, { error: { errors: [{ reason: 'notFound' }] } }),
+  });
+  await assert.rejects(inaccessible.probe.findEvent('work@example.test', 'abc12'), { code: 'HTTP_404' });
+  const downgraded = harness({
+    'GET /calendars/work%40example.test/events/abc12': json(404, { error: { errors: [{ reason: 'notFound' }] } }),
+    'GET /users/me/calendarList/work%40example.test': listEntry('reader'),
+  });
+  await assert.rejects(downgraded.probe.findEvent('work@example.test', 'abc12'), { code: 'CALENDAR_READ_ONLY' });
 });
 
 test('audit entries hold targets and outcomes, never event content', async () => {

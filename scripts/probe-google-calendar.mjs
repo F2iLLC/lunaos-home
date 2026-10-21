@@ -3,23 +3,25 @@
 // Synthetic test accounts only. State lives outside the checkout.
 //
 //   node scripts/probe-google-calendar.mjs auth <account> <read|write>
-//   node scripts/probe-google-calendar.mjs run --write <account> --calendar <id> [--read-only <account>]
-//   node scripts/probe-google-calendar.mjs combined <account> [<account> ...]
+//   node scripts/probe-google-calendar.mjs run --write <account> --calendar <id> --read-only <same-account>
+//   node scripts/probe-google-calendar.mjs combined <account> <different-account> [...]
 //
 // $LUNA_HOME_PROBE_DIR must hold client.json ({"client_id","client_secret"}) for
 // an OAuth "Desktop app" client in a test Google Cloud project. Tokens are
 // written there as <account>.<read|write>.json (mode 0600).
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
+import { readFile, writeFile, realpath, rename, unlink } from 'node:fs/promises';
+import { dirname, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCalendarProbe, SCOPES, newEventId } from '../lib/google-calendar-probe.js';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
-const dir = process.env.LUNA_HOME_PROBE_DIR;
-if (!dir || !isAbsolute(dir)) fail('Set LUNA_HOME_PROBE_DIR to an absolute directory outside the checkout.');
-const rel = relative(repo, resolve(dir));
+const configuredDir = process.env.LUNA_HOME_PROBE_DIR;
+if (!configuredDir || !isAbsolute(configuredDir)) fail('Set LUNA_HOME_PROBE_DIR to an existing absolute directory outside the checkout.');
+const dir = await realpath(configuredDir).catch(() => fail('LUNA_HOME_PROBE_DIR must already exist.'));
+const canonicalRepo = await realpath(repo);
+const rel = relative(canonicalRepo, dir);
 if (!rel.startsWith('..') && !isAbsolute(rel)) fail('LUNA_HOME_PROBE_DIR must be outside the checkout.');
 
 function fail(message) { console.error(message); process.exit(2); }
@@ -70,8 +72,14 @@ async function auth(account, kind) {
     });
   }).finally(() => server.close());
   const tokens = await tokenRequest({ code, code_verifier: verifier, grant_type: 'authorization_code', redirect_uri: redirect });
-  await mkdir(dir, { recursive: true });
-  await writeFile(tokenFile(account, kind), JSON.stringify({ refresh_token: tokens.refresh_token, scope: tokens.scope }), { mode: 0o600 });
+  // A new file followed by rename replaces a symlink rather than following it.
+  const temp = join(dir, `.token-${b64url(randomBytes(16))}.tmp`);
+  try {
+    await writeFile(temp, JSON.stringify({ refresh_token: tokens.refresh_token, scope: tokens.scope }), { mode: 0o600, flag: 'wx' });
+    await rename(temp, tokenFile(account, kind));
+  } finally {
+    await unlink(temp).catch(() => {});
+  }
   console.log(`Saved ${kind} token for ${account} (granted: ${tokens.scope}).`);
 }
 
@@ -96,9 +104,12 @@ async function check(name, run) {
     results.push({ name, result: 'FAIL', detail: error.code ?? error.message });
   }
 }
-const expectCode = async (code, run) => {
-  try { await run(); } catch (error) { if (error.code === code) return code; throw error; }
-  throw new Error(`Expected ${code} but the call succeeded`);
+const expectCode = async (code, reason, run) => {
+  try { await run(); } catch (error) {
+    if (error.code === code && (reason === null || error.reason === reason)) return `${code}:${reason ?? 'local'}`;
+    throw new Error(`Expected ${code}:${reason ?? 'local'}, got ${error.code ?? 'ERROR'}:${error.reason ?? 'none'}`);
+  }
+  throw new Error(`Expected ${code}:${reason ?? 'local'} but the call succeeded`);
 };
 
 async function liveRun({ writer, calendar, readOnly }) {
@@ -113,11 +124,15 @@ async function liveRun({ writer, calendar, readOnly }) {
 
   await check('lists calendars with access roles', async () => (await write.listCalendars()).map(c => c.accessRole).join(','));
   await check('create (no attendees, sendUpdates=none)', () => write.createEvent(calendar, event, id).then(e => e.eventId));
-  await check('read back created event', async () => (await write.findEvent(calendar, id))?.summary);
-  await check('retry with same id creates no duplicate', () => expectCode('HTTP_409', () => write.createEvent(calendar, event, id)));
+  await check('read back created event', async () => {
+    const found = await write.findEvent(calendar, id);
+    if (found?.summary !== event.summary) throw new Error('Created event was not observed');
+    return found.summary;
+  });
+  await check('retry with same id creates no duplicate', () => expectCode('HTTP_409', 'duplicate', () => write.createEvent(calendar, event, id)));
   await check('update', () => write.updateEvent(calendar, id, { summary: 'Fictional Home probe event (edited)' }).then(e => e.summary));
-  await check('unapproved calendar rejects write', () => expectCode('CALENDAR_NOT_APPROVED', () => write.createEvent('primary-not-approved', event)));
-  await check('attendees refused', () => expectCode('ATTENDEES_NOT_ALLOWED', () => write.createEvent(calendar, { ...event, attendees: [{ email: 'x@example.test' }] })));
+  await check('unapproved calendar rejects write', () => expectCode('CALENDAR_NOT_APPROVED', null, () => write.createEvent('primary-not-approved', event)));
+  await check('attendees refused', () => expectCode('ATTENDEES_NOT_ALLOWED', null, () => write.createEvent(calendar, { ...event, attendees: [{ email: 'x@example.test' }] })));
   await check('delete', () => write.deleteEvent(calendar, id));
   await check('deleted event is gone or cancelled', async () => {
     const e = await write.findEvent(calendar, id);
@@ -125,24 +140,23 @@ async function liveRun({ writer, calendar, readOnly }) {
     return e ? 'cancelled' : 'absent';
   });
 
-  if (readOnly) {
-    // Read-only token on the same calendar: provider must refuse, and Home's own
-    // approval list does not substitute for the OAuth scope.
-    const reader = probeFor(readOnly, 'read', [calendar], log);
-    await check('read-only token can list events', async () => (await reader.listEvents(calendar, { timeMin: slot(-24), timeMax: slot(24) })).length + ' events');
-    await check('read-only token cannot create', () => expectCode('HTTP_403', () => reader.createEvent(calendar, event)));
-  }
+  // The read token belongs to the writable principal, so CalendarList reports
+  // the same role and the provider must refuse the actual event insertion.
+  const reader = probeFor(readOnly, 'read', [calendar], log);
+  await check('read-only token can list events', async () => (await reader.listEvents(calendar, { timeMin: slot(-24), timeMax: slot(24) })).length + ' events');
+  await check('read-only token cannot create', () => expectCode('HTTP_403', 'insufficientPermissions', () => reader.createEvent(calendar, event)));
   report(audit);
 }
 
 async function combined(accounts) {
+  if (new Set(accounts).size < 2 || new Set(accounts).size !== accounts.length) fail('combined needs at least two distinct account labels.');
   const from = new Date().toISOString();
   const to = new Date(Date.now() + 14 * 864e5).toISOString();
   const all = [];
   for (const account of accounts) {
     const probe = probeFor(account, 'read', [], () => {});
     for (const cal of await probe.listCalendars()) {
-      all.push(...(await probe.listEvents(cal.id, { timeMin: from, timeMax: to }).catch(() => [])));
+      all.push(...await probe.listEvents(cal.id, { timeMin: from, timeMax: to }));
     }
   }
   const keys = new Set(all.map(e => `${e.account}/${e.calendarId}/${e.eventId}`));
@@ -159,6 +173,11 @@ function report(audit) {
 const [command, ...rest] = process.argv.slice(2);
 const flag = name => { const i = rest.indexOf(name); return i === -1 ? undefined : rest[i + 1]; };
 if (command === 'auth') await auth(accountName(rest[0]), rest[1]);
-else if (command === 'run') await liveRun({ writer: accountName(flag('--write')), calendar: flag('--calendar') ?? fail('--calendar is required'), readOnly: flag('--read-only') && accountName(flag('--read-only')) });
+else if (command === 'run') {
+  const writer = accountName(flag('--write'));
+  const readOnly = accountName(flag('--read-only'));
+  if (writer !== readOnly) fail('--read-only must name the same synthetic principal as --write.');
+  await liveRun({ writer, calendar: flag('--calendar') ?? fail('--calendar is required'), readOnly });
+}
 else if (command === 'combined') await combined(rest.map(accountName));
-else fail('Usage: auth <account> <read|write> | run --write <account> --calendar <id> [--read-only <account>] | combined <account>...');
+else fail('Usage: auth <account> <read|write> | run --write <account> --calendar <id> --read-only <same-account> | combined <account> <different-account>...');
