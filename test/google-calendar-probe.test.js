@@ -108,6 +108,18 @@ test('preflight network failure cannot suggest an ambiguous mutation', async () 
   assert.equal(audit[0].outcome, 'failed:preflight');
 });
 
+test('serialization failure is a preflight failure before any mutation request', async () => {
+  const { probe, requests, audit } = harness({
+    'GET /users/me/calendarList/work%40example.test': listEntry('owner'),
+  });
+  await assert.rejects(probe.createEvent('work@example.test', { summary: 1n }));
+  const circular = {};
+  circular.self = circular;
+  await assert.rejects(probe.updateEvent('work@example.test', 'abc12', circular));
+  assert.deepEqual(requests.map(request => request.method), ['GET', 'GET']);
+  assert.deepEqual(audit.map(entry => entry.outcome), ['failed:preflight', 'failed:preflight']);
+});
+
 test('started server failures and unreadable success bodies are unknown writes', async () => {
   for (const response of [
     json(500, { error: { errors: [{ reason: 'backendError' }] } }),

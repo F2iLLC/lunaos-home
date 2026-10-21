@@ -69,7 +69,17 @@ async function secureCredentialPath(path, directory = false) {
     fail('Credential paths must be ordinary files in a dedicated directory.');
   }
   if (process.platform === 'win32') secureWindowsAcl(path, directory);
-  else if (info.mode & 0o077) fail('Credential paths must deny group and other access (mode 0700/0600).');
+  else {
+    if (info.mode & 0o077) fail('Credential paths must deny group and other access (mode 0700/0600).');
+    if (process.platform === 'darwin') {
+      try {
+        // macOS ACL entries can override BSD mode bits and are inherited by new files.
+        execFileSync('chmod', ['-N', path], { stdio: 'pipe' });
+      } catch {
+        fail('Could not remove the macOS credential path ACL.');
+      }
+    }
+  }
 }
 await secureCredentialPath(dir, true);
 

@@ -5,7 +5,7 @@ This is a developer-only probe of the [milestone 1](../../ROADMAP.md#1-verify-a-
 ## Setup
 
 1. In a test Google Cloud project, create an OAuth client of type **Desktop app** and enable the Google Calendar API. Use only synthetic accounts (at least two, each with one writable test calendar).
-2. Keep state in a dedicated directory under the machine's local application-data directory, outside this checkout and outside cloud sync. On Windows, use a subdirectory of `%LOCALAPPDATA%`; on macOS use `~/Library/Application Support`, and on Linux use `~/.local/state`. Create it before running the script. The script resolves symlinks, restricts Windows access to the current user, and requires mode 0700 for the directory and 0600 for files on Unix:
+2. Keep state in a dedicated directory under the machine's local application-data directory, outside this checkout and outside cloud sync. On Windows, use a subdirectory of `%LOCALAPPDATA%`; on macOS use `~/Library/Application Support`, and on Linux use `~/.local/state`. Create it before running the script. The script resolves symlinks, restricts Windows access to the current user, removes macOS ACL entries from the credential directory and files, and requires mode 0700 for the directory and 0600 for files on Unix:
 
    ```bash
    export LUNA_HOME_PROBE_DIR="$HOME/.local/state/luna-home-calendar-probe"
