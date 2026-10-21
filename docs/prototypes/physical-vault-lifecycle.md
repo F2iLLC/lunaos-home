@@ -157,6 +157,17 @@ settings. The Windows gate stayed verified and the host remained available.
 Raw evidence stays outside Git. Actual Wi-Fi interruption and roaming remain
 unverified.
 
+The disposable Android TLS client now checks connection presence once per second
+while a fictional record is displayed. Each check has a two-second receive
+limit, touches no vault record, and clears the displayed record and local scope
+if the connection is unavailable. This bounds detection of a silent connection
+loss while the app remains foregrounded; it is not an instant transport event
+notification. The host-side selected-grant presence contract is covered by
+synthetic Node tests (18/18 focused transport tests pass). The changed Android
+client has not been built or exercised on a phone here because the Android SDK/JDK and `adb`
+are unavailable; the broader Windows storage suite also cannot run here
+because `pwsh` is unavailable. Physical Wi-Fi loss and roaming remain unverified.
+
 Windows binary SHA-256:
 `1be4ce154ed76ba63d8728535d502975bf58986d20ad1fa006fdecc752fa0972`.
 It is the freshly built binary from the preceding attended run; Rust/native monitor

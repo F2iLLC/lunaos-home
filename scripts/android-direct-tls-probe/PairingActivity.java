@@ -15,7 +15,9 @@ public final class PairingActivity extends Activity {
     private boolean identityApproved, scopeApproved, busy;
     private String pendingGrant, displayedHost, displayedPeer;
     private volatile long generation;
+    private volatile long displayGeneration;
     private volatile SyntheticTlsClient activeClient;
+    private Runnable queuedPresence;
     private final Object clientLock = new Object();
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
@@ -59,7 +61,8 @@ public final class PairingActivity extends Activity {
         end.setEnabled(busy || activeClient != null || pendingGrant != null);
     }
     private void closeAccess(String message) {
-        generation++; ui.removeCallbacksAndMessages(null);
+        generation++; displayGeneration++; ui.removeCallbacksAndMessages(null);
+        cancelQueuedPresence();
         SyntheticTlsClient old;
         synchronized (clientLock) { old = activeClient; activeClient = null; }
         // Conscrypt close can write a TLS close-notify. Keep that off the UI thread,
@@ -70,6 +73,31 @@ public final class PairingActivity extends Activity {
     }
     private void schedule(Runnable task) {
         try { worker.execute(task); } catch (RejectedExecutionException full) { closeAccess("Previous work is ending. Try connecting again shortly."); }
+    }
+    private void cancelQueuedPresence() {
+        if (queuedPresence != null) worker.getQueue().remove(queuedPresence);
+        queuedPresence = null;
+    }
+    private void watchDisplayedRecord(long token, long displayToken, SyntheticTlsClient client, String grant) {
+        ui.postDelayed(() -> {
+            if (generation != token || displayGeneration != displayToken || activeClient != client || busy) return;
+            queuedPresence = () -> {
+                try {
+                    if (generation != token || displayGeneration != displayToken) return;
+                    client.requirePresence(grant);
+                    runOnUiThread(() -> {
+                        if (generation == token && displayGeneration == displayToken && activeClient == client && !busy)
+                            watchDisplayedRecord(token, displayToken, client, grant);
+                    });
+                } catch (Exception lost) {
+                    runOnUiThread(() -> {
+                        if (generation == token && displayGeneration == displayToken)
+                            closeAccess("Connection lost. Record hidden; fresh approval required.");
+                    });
+                }
+            };
+            schedule(queuedPresence);
+        }, 1000);
     }
     private void connect() {
         if (!identityApproved || busy || activeClient != null) return;
@@ -116,6 +144,8 @@ public final class PairingActivity extends Activity {
     }
     private void readRecord() {
         if (busy || !scopeApproved || activeClient == null || pendingGrant == null) return;
+        final long displayToken = ++displayGeneration;
+        cancelQueuedPresence();
         busy = true; contents.setText("No record shown."); status.setText("Reading selected fictional record..."); render();
         final long token = generation; final SyntheticTlsClient client = activeClient; final String grant = pendingGrant;
         schedule(() -> {
@@ -126,6 +156,7 @@ public final class PairingActivity extends Activity {
                 runOnUiThread(() -> {
                     if (generation != token) return;
                     busy = false; contents.setText(display); status.setText("Fictional record read. No changes allowed."); render();
+                    watchDisplayedRecord(token, displayToken, client, grant);
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> { if (generation == token) closeAccess("Read unavailable. No access remains."); });

@@ -78,11 +78,16 @@ export async function checkDirectTlsGui({ adb, outputDirectory, revoke, pauseApp
   await button('Connect to test computer', false); await button("Read Alex's record", false);
   await tap('Approve fictional computer'); await connectAndRead();
   checks.push('Cold process restart resumes certificate admission with fresh identity and read approval; consumed offer is not replayed');
-  await revoke(); await tap("Read Alex's record");
-  await waitText('Read unavailable. No access remains.');
+  await revoke();
+  if (storeFailure) {
+    await tap("Read Alex's record");
+    await waitText('Read unavailable. No access remains.');
+  } else {
+    await waitText('Connection lost. Record hidden; fresh approval required.');
+  }
   await button("Read Alex's record", false); await button('Allow selected read', false);
   assert.ok((await snapshot()).some(node => node.text === 'No record shown.'));
-  checks.push(storeFailure ? 'Damaged encrypted store refuses read and clears displayed content' : 'Read after host revocation fails closed and clears displayed content');
+  checks.push(storeFailure ? 'Damaged encrypted store refuses read and clears displayed content' : 'Host revocation automatically clears displayed content and old access without another read');
   writeFileSync(path.join(outputDirectory, 'gui-checks.json'), JSON.stringify({ result: 'PASS', checks }, null, 2) + '\n');
   return checks;
 }
