@@ -62,12 +62,12 @@ async function wifiRouteAvailable() {
   catch { return false; }
 }
 async function connectedAccessPoint() {
-  // Compare only in memory. Never print or retain the household network name or AP identifier.
+  // Hash the AP identifier on Android. Neither WifiInfo nor the identifier crosses adb.
+  const command = 'ap=$(cmd wifi status | grep -oE "BSSID:[[:space:]]*([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}" | head -n 1 | sed -E "s/^BSSID:[[:space:]]*//"); [ -n "$ap" ] || exit 1; printf %s "$ap" | sha256sum | cut -d " " -f1';
   try {
-    const status = await adb(['shell', 'cmd', 'wifi', 'status']);
-    const bssid = status.match(/\bBSSID:\s*([\da-f]{2}(?::[\da-f]{2}){5})\b/i)?.[1];
-    if (bssid) return bssid.toLowerCase();
-  } catch { /* Sanitize tool errors, which may include unfiltered Wi-Fi status. */ }
+    const digest = (await adb(['shell', command])).trim();
+    if (/^[\da-f]{64}$/.test(digest)) return digest;
+  } catch { /* Sanitize tool errors; never include Wi-Fi command output. */ }
   throw Error('Connected access-point identity unavailable');
 }
 async function beforeDeadline(promise, deadline, message) {
@@ -265,15 +265,20 @@ try {
     assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');
     const firstAccessPoint = await connectedAccessPoint();
     console.log('READY_FOR_ROAM: switch the selected phone to the second Wi-Fi access point in Android Settings, then leave Settings; no network name or password is recorded');
-    const changedBy = performance.now() + 120_000;
-    let changed = false;
+    const changedBy = grantTick + 60_000;
+    let secondAccessPoint;
     while (performance.now() < changedBy) {
-      try { changed = (await connectedAccessPoint()) !== firstAccessPoint && await wifiRouteAvailable(); }
+      try {
+        const candidate = await connectedAccessPoint();
+        if (candidate !== firstAccessPoint && await wifiRouteAvailable()) secondAccessPoint = candidate;
+      }
       catch { /* The phone may temporarily have no association during the switch. */ }
-      if (changed) break;
+      if (secondAccessPoint) break;
       await pause(500);
     }
-    assert.ok(changed, 'A second access point with a route to the selected host was not observed');
+    assert.ok(secondAccessPoint && performance.now() < changedBy,
+      'A second access point with a host route was not observed during the active read grant');
+    evidence.elapsedFromGrantToAccessPointChangeMs = Math.round(performance.now() - grantTick);
     console.log('SECOND_ACCESS_POINT_OBSERVED');
     visit.gate.requireVerified();
     assert.deepEqual(visit.nativeEvents, []);
@@ -285,14 +290,20 @@ try {
     await tap('Approve fictional computer');
     await tap('Connect to test computer');
     await waitText('Computer connected. Waiting for host approval...');
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point before the new connection');
     const reconnected = visit.host.listConnections().find(c => c.peerFingerprint === peer && c.connectionId !== connections[0].connectionId);
     assert.ok(reconnected, 'A new connection must wait for fresh host approval after the AP change');
     assert.equal(reads, 1); assert.equal(writes, 0);
     visit.enrollment.approveRead(reconnected);
     await waitText('Connected. Review and allow the selected read.'); await tap('Allow selected read');
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point before the second read');
     await tap("Read Alex's record"); await waitText(`${record.label}: ${record.value}`);
+    assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
+      'The phone left the changed access point by the end of the second read');
     assert.equal(reads, 2); assert.equal(writes, 0);
-    evidence.checks.push('The selected phone changed Wi-Fi access point and kept a Wi-Fi route to the private host; reopening the fictional client required fresh approval before a second read, with zero writes');
+    evidence.checks.push('The selected phone changed Wi-Fi access point during the active read grant; the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
     evidence.checks.push('The manual Android Settings switch can background the client, so this run does not isolate seamless foreground roaming or attribute display clearing solely to the radio handoff');
   } else if (event === 'wifi-cycle') {
     assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');

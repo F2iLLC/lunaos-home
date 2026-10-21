@@ -64,13 +64,15 @@ and checks the route; a failure must be reported rather than counted as a pass.
 
 The `wifi-roam` scenario exercises an attended switch between two access
 points that both reach the same private Windows host. It requires USB adb, a
-fictional read, and a user switch in Android Settings. It compares the connected
-access-point identifiers in memory without printing or retaining them, checks
-the Wi-Fi route after the switch, then requires fresh approval before reading
-again. A Settings switch can background the app, so a passing run establishes
-an access-point change and protected reconnect, not seamless foreground roaming
-or display clearing caused specifically by the radio handoff. No network name or
-password belongs in the test output or repository.
+fictional read, and a user switch in Android Settings. The phone hashes its
+connected access-point identifier before sending a digest over adb; its full
+Wi-Fi status and network name no longer reach the runner. The runner requires the
+change and a Wi-Fi route during the active 60-second read grant, rechecks the
+same changed AP at reconnect and around the second read, and requires fresh
+approval. A Settings switch can background the app, so even a passing run does
+not establish seamless foreground roaming or clearing caused specifically by
+the radio handoff. No network name or password belongs in the test output or
+repository.
 
 On October 20, 2026 (America/Chicago; October 21 UTC), the selected Samsung
 SM-S938U (API 37) passed the attended `wifi-cycle` run. The user completed the
@@ -96,27 +98,34 @@ not prove instant display clearing. Later recovery and independent security
 acceptance remain separate.
 
 On October 21, 2026 UTC, an attended `wifi-roam` run on the same Samsung
-completed a manual access-point change in each direction while both access
-points could reach the same Windows host. The passing return-direction run
-observed a different connected access point and a `wlan0` route to the host,
-then reopened the disposable fictional client. The old displayed record and
-read control were closed; a new connection waited for fresh host approval.
-After that approval, the phone read the same fictional record a second time.
-The run recorded two store reads, zero writes, no native lifecycle event, and
-cleanup passing. The disposable APK SHA-256 was
+observed a manual access-point change in each direction while both access
+points could reach the same Windows host. The return-direction run observed a
+different connected access point and a `wlan0` route to the host, then reopened
+the disposable fictional client. The old displayed record and read control
+were closed; a new connection waited for fresh host approval. After that
+approval, the phone read the same fictional record a second time. The run
+recorded two store reads, zero writes, no native lifecycle event, and cleanup
+passing under its original assertions. The disposable APK SHA-256 was
 `655e367ce9072227d25a1299e02079e749bcbe8a2491d55de043ab9461370eef`.
 An independent check found Wi-Fi enabled, a private host route over `wlan0`,
 the disposable package absent, and the former listener closed. The retained
 synthetic result contains no network names or access-point identifiers; raw
 output remains outside Git in `physical-roam-v2`.
 
-The first-direction `physical-roam-v1` observed an access-point change but
+The original runner imported the full `cmd wifi status` text into memory and
+did not record whether the AP change preceded read-grant expiry or whether the
+phone remained on the changed AP during the second read. The revised runner
+hashes only the AP identifier on the device and requires both timing and
+association checks. The prior `physical-roam-v2` observation is **not** an
+active-grant or second-AP transport acceptance pass under those stricter
+assertions; it needs a fresh attended run. The first-direction
+`physical-roam-v1` observed an access-point change but
 stopped when the harness checked the test app before Android Settings had left
 the foreground. It is **incomplete**, with cleanup passing, not a reconnect
 pass. The revised harness waits for the fictional app to return to the
-foreground. Because the user switched networks in Settings, the passing run
-does not isolate seamless foreground radio roaming or prove that the AP change
-alone cleared displayed content. Production enrollment and independent
+foreground. Because the user switched networks in Settings, neither run
+isolates seamless foreground radio roaming or proves that the AP change alone
+cleared displayed content. Production enrollment and independent
 security acceptance remain open.
 
 The user completes verification only in the trusted Windows prompt. The assistant
@@ -287,7 +296,8 @@ sources. Existing TLS negative tests still require certificate, hostname, pin,
 pairing and record authorization. Linux-only container checks remain platform-limited.
 
 These results show local-network access, one physical Wi-Fi interruption and
-recovery, one manual access-point change with protected reconnect, and native
+recovery, a manual access-point change followed by a separately approved read
+under the earlier assertions, and native
 visit closure on lock/sleep on the Samsung and PC, plus
 bounded read, background, host-identity and removal checks on the two selected
 Android devices.
