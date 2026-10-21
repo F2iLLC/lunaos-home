@@ -54,7 +54,7 @@ Android's [app-directory isolation implementation](https://android.googlesource.
 | Missing key | After deletion of only the run's key, decryption failed and ciphertext remained unchanged. Another fresh process still failed without creating a replacement key. |
 | Cleanup | The unique key/file/directory were removed, the runner uninstalled both isolated packages, and subsequent exact package lookups found both absent. Cleanup still runs when the isolation check fails. |
 
-This is storage-facility evidence only. Phone-only **user workflow** acceptance still needs Home integration, real permission/approval enforcement, trusted unlocking, physical-phone testing, lifecycle/backup recovery and independent security review. Session 2 remains in progress; Actions stays disabled and no binary distribution is authorized by these checks.
+This is storage-facility evidence only. Phone-only **user workflow** acceptance still needs Home integration, real permission/approval enforcement, trusted unlocking, physical-phone testing, lifecycle/backup recovery and independent security review. Session 2 remains in progress; these checks authorize no binary distribution. Public PR tests now run on hosted GitHub Actions; see the [CI handoff](../ci-actions-setup.md).
 
 Separate-app isolation does not establish denial of an unpaired remote device, a rooted/compromised OS, or malicious code already running under the owner app's UID. The two test packages share a development signing certificate but do not share a UID; this is not a test of hostile instrumentation signed by another publisher. Pairing identity and admission remain separate Session 2 checks.
 
