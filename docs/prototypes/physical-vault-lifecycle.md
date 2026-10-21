@@ -162,9 +162,9 @@ while a fictional record is displayed. Each check has a two-second receive
 limit, touches no vault record, and clears the displayed record and local scope
 if the connection is unavailable. This bounds detection of a silent connection
 loss while the app remains foregrounded; it is not an instant transport event
-notification. The host-side presence contract is covered by a synthetic Node
-test (17/17 focused transport tests pass). The changed Android client has not
-been built or exercised on a phone here because the Android SDK/JDK and `adb`
+notification. The host-side selected-grant presence contract is covered by
+synthetic Node tests (18/18 focused transport tests pass). The changed Android
+client has not been built or exercised on a phone here because the Android SDK/JDK and `adb`
 are unavailable; the broader Windows storage suite also cannot run here
 because `pwsh` is unavailable. Physical Wi-Fi loss and roaming remain unverified.
 
