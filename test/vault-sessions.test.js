@@ -13,6 +13,7 @@ function setup() {
     async read(id) { calls.push(['read', id]); return structuredClone(rows.get(id)); },
     async create(id, data) { calls.push(['create', id]); if (rows.has(id)) throw Error('exists'); rows.set(id, data); },
     async edit(id, data) { calls.push(['edit', id]); if (!rows.has(id)) throw Error('missing'); rows.set(id, data); return { privateValue: 'must not escape' }; },
+    async delete(id) { calls.push(['delete', id]); if (!rows.delete(id)) throw Error('missing'); return { privateValue: 'must not escape' }; },
   };
   let tick = 0;
   const service = createVaultSessionService({ store, now: () => tick });
