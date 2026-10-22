@@ -51,6 +51,7 @@ second-AP read passed only after fresh approval; this did not establish
 seamless foreground roaming. A separate attended extended Windows
 sleep/wake check
 passed after 4 minutes 31 seconds asleep; it does not prove immediate phone
-display clearing at suspend. The Android phone-host direction, seamless
-foreground roaming, and production enrollment remain unverified for
-[Session 2](https://github.com/F2iLLC/lunaos-home/issues/14).
+display clearing at suspend. A selected-device, foreground Android phone-host
+read is now recorded in the [Home phone-hosted experiment](android-home-phone-host-read.md).
+Seamless foreground roaming, background phone hosting, and production enrollment
+remain unverified for [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14).

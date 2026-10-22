@@ -71,6 +71,7 @@ integrations in issue 31; those need separate sizing once a supported route is
 established. Re-estimate after VLT-03 and VLT-05 choose their production
 boundaries.
 
-Issue 14 remains open pending review of the final PR evidence. Its product and
-independent acceptance gates remain with the stories above; neither a merged
-prototype nor this document closes them.
+Issue 14 closure requires the physical phone-hosted result above and review of
+the final PR evidence. Its product and independent acceptance gates remain
+with the stories above; neither a reviewed prototype nor this document closes
+those later stories.
