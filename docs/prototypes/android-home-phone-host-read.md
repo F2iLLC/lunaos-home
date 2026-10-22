@@ -43,9 +43,11 @@ Setup save, then completed a fresh prompt for Alex read-only access. The app
 reviewed the full disposable Windows client fingerprint before enabling the
 listener. Windows connected from its Wi-Fi address using TLS 1.3, pinned the
 phone certificate, and received exactly `Alex Example — fictional library
-visit: Monday` from the Android protected store. The encrypted 30-byte record
-was byte-for-byte unchanged across the remote read. The app closed access and
-disabled the old read control. The separate package and disposable
+visit: Monday` from the Android protected store. A corrected attended repeat
+buffered the complete, bounded TLS response through stream end before decoding
+and comparing every byte with that fixed expected line. The encrypted 30-byte
+record was byte-for-byte unchanged across the remote read. The app closed
+access and disabled the old read control. The separate package and disposable
 certificates were removed; the retained attended result reports `PASS` and
 cleanup `PASS`.
 
