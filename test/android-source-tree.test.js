@@ -111,6 +111,41 @@ test('repeat build accepts only Tauri own exact Rust JNI link', async context =>
   }
 });
 
+test('owned dangling JNI link survives Cargo clean, but hard-linked build output is refused', async context => {
+  const f = await fixture(context);
+  const native = join(f.root, 'project/target/aarch64-linux-android/debug/liblunaos_home_preview_lib.so');
+  const linkPath = join(f.src, 'main/jniLibs/arm64-v8a/liblunaos_home_preview_lib.so');
+  await mkdir(dirname(linkPath), { recursive: true });
+  await symlink(native, linkPath);
+  await prepareAndroid(f); // The Rust build recreates this missing target later.
+  const outside = join(f.root, 'outside.so');
+  await writeFile(outside, 'outside synthetic output');
+  await mkdir(dirname(native), { recursive: true });
+  await link(outside, native);
+  const before = await snapshot(f.root);
+  await assert.rejects(prepareAndroid(f), /Linked Android source entry/);
+  assert.deepEqual(await snapshot(f.root), before);
+  assert.equal(await readFile(outside, 'utf8'), 'outside synthetic output');
+});
+
+test('Cargo final and deps hard-link pair is the only accepted linked JNI output', async context => {
+  const f = await fixture(context);
+  const native = join(f.root, 'project/target/aarch64-linux-android/debug/liblunaos_home_preview_lib.so');
+  const companion = join(dirname(native), 'deps', 'liblunaos_home_preview_lib.so');
+  const linkPath = join(f.src, 'main/jniLibs/arm64-v8a/liblunaos_home_preview_lib.so');
+  await mkdir(dirname(companion), { recursive: true });
+  await mkdir(dirname(linkPath), { recursive: true });
+  await writeFile(native, 'synthetic Cargo output');
+  await link(native, companion);
+  await symlink(native, linkPath);
+  await prepareAndroid(f);
+  const outside = join(f.root, 'outside.so');
+  await link(native, outside);
+  const before = await snapshot(f.root);
+  await assert.rejects(prepareAndroid(f), /Linked Android source entry/);
+  assert.deepEqual(await snapshot(f.root), before);
+});
+
 test('missing generated project, source tree and main manifest retain initialization guidance', async context => {
   for (const missing of ['project', 'src', 'manifest']) {
     const f = await fixture(context);

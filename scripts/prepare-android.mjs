@@ -1,6 +1,6 @@
-import { readFile, writeFile, mkdir, readdir, copyFile, lstat, realpath } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile, lstat, readlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, basename } from 'node:path';
 
 const activityTemplate = await readFile(new URL('./android/MainActivity.kt', import.meta.url), 'utf8');
 const generatedActivity = `package io.github.f2illc.lunaos.home.preview
@@ -99,11 +99,36 @@ async function sourceInventory(root) {
       const info = await lstat(path);
       if (info.isSymbolicLink()) {
         const jni = /^main\/jniLibs\/(arm64-v8a|armeabi-v7a|x86|x86_64)\/liblunaos_home_preview_lib\.so$/.exec(relative);
-        const target = jni && await realpath(path);
+        const target = jni && resolve(dirname(path), await readlink(path));
         const expected = jni && ['debug', 'release'].map(profile =>
           join(rustRoot, 'target', androidTargets[jni[1]], profile, 'liblunaos_home_preview_lib.so'));
-        if (!expected?.includes(target) || !(await lstat(target)).isFile())
-          throw new Error('Linked Android source entry.');
+        if (!expected?.includes(target)) throw new Error('Linked Android source entry.');
+        // Cargo clean leaves this exact generated link dangling until the
+        // before-build hook completes. Existing targets and ancestors must
+        // still be ordinary, singly linked files/directories.
+        for (let ancestor = dirname(target); ancestor !== rustRoot; ancestor = dirname(ancestor)) {
+          let parent;
+          try { parent = await lstat(ancestor); }
+          catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+          if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error('Linked Android source entry.');
+        }
+        let built;
+        try { built = await lstat(target); }
+        catch (error) { if (error.code !== 'ENOENT') throw error; }
+        if (built) {
+          if (!built.isFile()) throw new Error('Linked Android source entry.');
+          if (built.nlink !== 1) {
+            // Cargo can hard-link its final output to its own deps artifact.
+            // Accept exactly that pair, never an additional outside link.
+            const companion = join(dirname(target), 'deps', basename(target));
+            let cargo, deps;
+            try { deps = await lstat(dirname(companion)); cargo = await lstat(companion); } catch { /* reject below */ }
+            if (built.nlink !== 2 || !deps?.isDirectory() || deps.isSymbolicLink() ||
+                !cargo?.isFile() || cargo.isSymbolicLink() ||
+                cargo.nlink !== 2 || cargo.dev !== built.dev || cargo.ino !== built.ino)
+              throw new Error('Linked Android source entry.');
+          }
+        }
         files.push(relative);
         continue;
       }

@@ -112,8 +112,8 @@ try {
   adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/io.github.f2illc.lunaos.home.preview.MainActivity`]);
   await waitText('What would you like to do today?');
   await tap('What would you like to do today?');
-  await tap('Prepare fictional computer identity (debug)');
-  await waitText('Test identity prepared on this device. The computer still needs separate approval.');
+  await tap('Prepare or renew fictional computer identity (debug)');
+  await waitText('Test identity prepared or renewed. Re-pair with the computer before connecting.');
   const cert = adb(['exec-out', 'run-as', pkg, 'cat', 'no_backup/client-public.pem']);
   const certificate = new X509Certificate(cert);
   assert.ok(certificate.verify(certificate.publicKey));

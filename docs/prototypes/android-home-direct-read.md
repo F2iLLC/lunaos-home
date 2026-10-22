@@ -18,6 +18,9 @@ flow. No household data belongs in this build.
   certificate into Home's private no-backup directory. The transport key is not
   the phone vault key. It can coexist with Home's authentication-bound record
   keys; a missing identity is not silently replaced while opening a connection.
+  The same explicit action renews an expired transport certificate, clears its
+  old test pairing config and public certificate, and requires fresh host
+  pairing with the new fingerprint. Opening a connection never rotates it.
 - The private-network test controller supplies the public host CA, exact host
   fingerprint, private IPv4 address, short-lived pairing offer, and selected
   phone model/API through the debuggable app's private directory. The standalone
@@ -41,7 +44,7 @@ test device and a Windows private-network host. Keep all synthetic store and
 provisioning files outside Git. Inspect the final APK permissions, backup and
 cleartext settings, exported components, signer, and ABI before installation.
 
-1. In Home, choose **Prepare fictional computer identity**. Retrieve only the
+1. In Home, choose **Prepare or renew fictional computer identity**. Retrieve only the
    public test certificate through the debug provisioning channel. On the host,
    open one synthetic DPAPI store, commit a fixed fictional record, and start
    the attended Windows verified direct host. Complete Windows verification

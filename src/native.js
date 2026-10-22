@@ -25,7 +25,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
 
   const prepareDirect = document.createElement('button');
   prepareDirect.type = 'button';
-  prepareDirect.textContent = 'Prepare fictional computer identity (debug)';
+  prepareDirect.textContent = 'Prepare or renew fictional computer identity (debug)';
   const openDirect = document.createElement('button');
   openDirect.type = 'button';
   openDirect.textContent = 'Open fictional computer connection (debug)';
@@ -35,7 +35,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     prepareDirect.disabled = true;
     try {
       await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'prepare-direct' });
-      directStatus.textContent = 'Test identity prepared on this device. The computer still needs separate approval.';
+      directStatus.textContent = 'Test identity prepared or renewed. Re-pair with the computer before connecting.';
     } catch {
       directStatus.textContent = 'Test identity unavailable. No computer access was granted.';
     } finally { prepareDirect.disabled = false; }
