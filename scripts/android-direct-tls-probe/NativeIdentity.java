@@ -35,7 +35,9 @@ final class NativeIdentity {
     }
     static KeyStore requireIdentity() throws Exception {
         KeyStore keys = store();
-        if (!keys.containsAlias(ALIAS) || keys.size() != 1) throw new KeyStoreException("Expected only the explicitly enrolled test identity");
+        // Home also owns authentication-bound record keys in this Keystore. The
+        // transport identity is scoped by its exact alias, not by store size.
+        if (!keys.containsAlias(ALIAS)) throw new KeyStoreException("Expected the explicitly enrolled test identity");
         Key key = keys.getKey(ALIAS, null);
         if (!(key instanceof PrivateKey) || key.getEncoded() != null || key.getFormat() != null) throw new KeyStoreException("Unexpected exportable identity");
         return keys;

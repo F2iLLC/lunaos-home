@@ -21,7 +21,9 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.equal(defaults.app.withGlobalTauri, false);
   assert.match(defaults.app.security.csp, /connect-src 'none'/);
   assert.match(vaultDebugManifest, /<activity android:name="\.VaultActivity" android:exported="false"\s*\/>/);
-  assert.deepEqual([...vaultDebugManifest.matchAll(/<uses-permission android:name="([^"]+)"/g)].map(match => match[1]), ['android.permission.USE_BIOMETRIC']);
+  assert.match(vaultDebugManifest, /<activity android:name="io\.github\.f2illc\.lunaos\.directtlsprobe\.PairingActivity" android:exported="false"\s*\/>/);
+  assert.deepEqual([...vaultDebugManifest.matchAll(/<uses-permission android:name="([^"]+)"/g)].map(match => match[1]),
+    ['android.permission.USE_BIOMETRIC', 'android.permission.INTERNET']);
   assert.match(vaultDebugManifest, /<receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove"\s*\/>/);
   assert.doesNotMatch(vaultDebugManifest, /<service\b|<activity-alias\b/);
 });
@@ -61,7 +63,7 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     await new AsyncFunction('document', 'window', bundled.outputFiles[0].text)(document, window);
     if (!enabled) { assert.equal(children.length, 0); continue; }
-    const [button, status] = children;
+    const [button, status, prepare, open, directStatus] = children;
     assert.ok(elements.has('#home-actions'));
     assert.equal(button.className, 'primary-button');
     const pending = button.click();
@@ -71,10 +73,25 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     await pending;
     assert.equal(button.disabled, false);
     assert.match(status.textContent, /Native screen requested/);
+    const preparing = prepare.click();
+    assert.equal(prepare.disabled, true);
+    assert.deepEqual(calls.at(-1), ['open_fictional_vault', { kind: 'prepare-direct' }]);
+    finish(); await preparing;
+    assert.equal(prepare.disabled, false);
+    assert.match(directStatus.textContent, /identity prepared/);
+    const opening = open.click();
+    assert.equal(open.disabled, true);
+    assert.deepEqual(calls.at(-1), ['open_fictional_vault', { kind: 'open-direct' }]);
+    finish(); await opening;
+    assert.equal(open.disabled, false);
+    assert.match(directStatus.textContent, /Native connection screen requested/);
     window.__TAURI__.core.invoke = () => Promise.reject(new Error('Private native diagnostic'));
     await button.click();
     assert.equal(button.disabled, false);
     assert.match(status.textContent, /Unavailable/);
     assert.doesNotMatch(status.textContent, /Private native diagnostic/);
+    await prepare.click(); await open.click();
+    assert.match(directStatus.textContent, /unavailable/);
+    assert.doesNotMatch(directStatus.textContent, /Private native diagnostic/);
   }
 });

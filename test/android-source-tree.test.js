@@ -6,11 +6,12 @@ import { dirname, join } from 'node:path';
 import { prepareAndroid } from '../scripts/prepare-android.mjs';
 
 const pkg = 'java/io/github/f2illc/lunaos/home/preview';
+const directPkg = 'java/io/github/f2illc/lunaos/directtlsprobe';
 const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:usesCleartextTraffic="false"><activity android:name=".MainActivity" /></application></manifest>';
 async function fixture(context) {
   const root = await mkdtemp(join(tmpdir(), 'home-source-tree-'));
   context.after(() => rm(root, { recursive: true, force: true }));
-  const projectRoot = join(root, 'project');
+  const projectRoot = join(root, 'project/gen/android');
   const src = join(projectRoot, 'app/src');
   await mkdir(join(src, 'main', pkg), { recursive: true });
   await writeFile(join(src, 'main/AndroidManifest.xml'), manifest);
@@ -34,7 +35,7 @@ async function snapshot(root, prefix = '') {
 
 test('every flavor and combined source set rejects extra Java, Kotlin and manifests before writes', async context => {
   for (const variant of ['universal', 'universalDebug', 'x86_64', 'x86_64Debug', 'arm64', 'arm64Release', 'futureFlavor']) {
-    for (const extra of [`${pkg}/Unexpected.java`, `${pkg}/Unexpected.kt`, `${pkg}/Unexpected.JAVA`, `${pkg}/Unexpected.KT`, 'AndroidManifest.xml']) {
+    for (const extra of [`${pkg}/Unexpected.java`, `${pkg}/Unexpected.kt`, `${pkg}/Unexpected.JAVA`, `${pkg}/Unexpected.KT`, `${directPkg}/Unexpected.java`, 'AndroidManifest.xml']) {
       const f = await fixture(context);
       const path = join(f.src, variant, extra);
       await mkdir(dirname(path), { recursive: true });
@@ -86,6 +87,30 @@ test('clean generated tree is byte-for-byte repeatable, including empty flavor d
   assert.match(await readFile(join(f.src, 'debug/AndroidManifest.xml'), 'utf8'), /VaultActivity/);
 });
 
+test('repeat build accepts only Tauri own exact Rust JNI link', async context => {
+  for (const external of [false, true]) {
+    const f = await fixture(context);
+    const native = join(f.root, 'project/target/aarch64-linux-android/debug/liblunaos_home_preview_lib.so');
+    const outside = join(f.root, 'outside.so');
+    await mkdir(dirname(native), { recursive: true });
+    await writeFile(native, 'synthetic Rust output');
+    await writeFile(outside, 'synthetic outside output');
+    const linkPath = join(f.src, 'main/jniLibs/arm64-v8a/liblunaos_home_preview_lib.so');
+    await mkdir(dirname(linkPath), { recursive: true });
+    await symlink(external ? outside : native, linkPath);
+    if (external) {
+      const before = await snapshot(f.root);
+      await assert.rejects(prepareAndroid(f), /Linked Android source entry/);
+      assert.deepEqual(await snapshot(f.root), before);
+    } else {
+      await prepareAndroid(f);
+      const first = await snapshot(f.root);
+      await prepareAndroid(f);
+      assert.deepEqual(await snapshot(f.root), first);
+    }
+  }
+});
+
 test('missing generated project, source tree and main manifest retain initialization guidance', async context => {
   for (const missing of ['project', 'src', 'manifest']) {
     const f = await fixture(context);
@@ -112,7 +137,8 @@ test('case variants of main, debug and flavor manifests are refused without writ
 
 test('directories at any planned generated file destination are rejected before writes', async context => {
   for (const relative of ['main/AndroidManifest.xml', `main/${pkg}/MainActivity.kt`,
-    'debug/AndroidManifest.xml', ...['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'].map(name => `debug/${pkg}/${name}`)]) {
+    'debug/AndroidManifest.xml', ...['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'].map(name => `debug/${pkg}/${name}`),
+    ...['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java'].map(name => `debug/${directPkg}/${name}`)]) {
     const f = await fixture(context);
     const path = join(f.src, relative);
     if (relative.startsWith('main/')) await rm(path);

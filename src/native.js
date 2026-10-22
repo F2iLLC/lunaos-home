@@ -22,5 +22,33 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     } finally { launch.disabled = false; }
   });
   document.querySelector('#home-actions').append(launch, result);
+
+  const prepareDirect = document.createElement('button');
+  prepareDirect.type = 'button';
+  prepareDirect.textContent = 'Prepare fictional computer identity (debug)';
+  const openDirect = document.createElement('button');
+  openDirect.type = 'button';
+  openDirect.textContent = 'Open fictional computer connection (debug)';
+  const directStatus = document.createElement('p');
+  directStatus.setAttribute('role', 'status');
+  prepareDirect.addEventListener('click', async () => {
+    prepareDirect.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'prepare-direct' });
+      directStatus.textContent = 'Test identity prepared on this device. The computer still needs separate approval.';
+    } catch {
+      directStatus.textContent = 'Test identity unavailable. No computer access was granted.';
+    } finally { prepareDirect.disabled = false; }
+  });
+  openDirect.addEventListener('click', async () => {
+    openDirect.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'open-direct' });
+      directStatus.textContent = 'Native connection screen requested. Review the computer and selected read there.';
+    } catch {
+      directStatus.textContent = 'Private test connection unavailable. No computer access was granted.';
+    } finally { openDirect.disabled = false; }
+  });
+  document.querySelector('#home-actions').append(prepareDirect, openDirect, directStatus);
 }
 await import('./app.js');

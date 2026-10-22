@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, copyFile, lstat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile, lstat, realpath } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname, join } from 'node:path';
 
@@ -18,8 +18,10 @@ const normalized = text => text.replace(/\r\n/g, '\n').trim();
 const initializationGuidance = 'Initialize Android first: npm run native:android -- init --ci --skip-targets-install';
 export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+  <uses-permission android:name="android.permission.INTERNET" />
   <application>
     <activity android:name=".VaultActivity" android:exported="false" />
+    <activity android:name="io.github.f2illc.lunaos.directtlsprobe.PairingActivity" android:exported="false" />
     <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" />
   </application>
 </manifest>
@@ -86,12 +88,24 @@ async function sourceInventory(root) {
     if (dirname(path) === path) break;
   }
   const files = [];
+  const rustRoot = resolve(root, '../../../..');
+  const androidTargets = { 'arm64-v8a': 'aarch64-linux-android', 'armeabi-v7a': 'armv7-linux-androideabi',
+    x86: 'i686-linux-android', x86_64: 'x86_64-linux-android' };
   async function walk(directory, prefix = '') {
     for (const name of await readdir(directory)) {
       const path = join(directory, name);
       const relative = prefix ? `${prefix}/${name}` : name;
       const info = await lstat(path);
-      if (info.isSymbolicLink()) throw new Error('Linked Android source entry.');
+      if (info.isSymbolicLink()) {
+        const jni = /^main\/jniLibs\/(arm64-v8a|armeabi-v7a|x86|x86_64)\/liblunaos_home_preview_lib\.so$/.exec(relative);
+        const target = jni && await realpath(path);
+        const expected = jni && ['debug', 'release'].map(profile =>
+          join(rustRoot, 'target', androidTargets[jni[1]], profile, 'liblunaos_home_preview_lib.so'));
+        if (!expected?.includes(target) || !(await lstat(target)).isFile())
+          throw new Error('Linked Android source entry.');
+        files.push(relative);
+        continue;
+      }
       if (info.isDirectory()) await walk(path, relative);
       else {
         if (!info.isFile() || info.nlink !== 1) throw new Error('Linked or invalid Android source file.');
@@ -126,12 +140,16 @@ export async function prepareAndroid({
   const activityPath = join(sourceTree, 'main/java/io/github/f2illc/lunaos/home/preview/MainActivity.kt');
   const debugRoot = join(sourceTree, 'debug');
   const javaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/preview');
+  const directJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/directtlsprobe');
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
+  const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
+  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java'];
   // Inventory traverses directories; planned file destinations need an explicit
   // type check so a later copy cannot fail after earlier files were replaced.
   for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),
-    ...sources.map(source => join(javaRoot, source))]) {
+    ...sources.map(source => join(javaRoot, source)),
+    ...directSources.map(source => join(directJavaRoot, source))]) {
     let info;
     try { info = await lstat(destination); }
     catch (error) { if (error.code === 'ENOENT') continue; throw error; }
@@ -156,8 +174,10 @@ export async function prepareAndroid({
     const file = parts.join('/');
     const mainSource = variant === 'main' && (file === 'java/io/github/f2illc/lunaos/home/preview/MainActivity.kt' ||
       generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
+    const debugVaultSource = variant === 'debug' && sources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/${source}`);
+    const debugDirectSource = variant === 'debug' && directSources.some(source => file === `java/io/github/f2illc/lunaos/directtlsprobe/${source}`);
     if (/\.(?:java|kt)$/i.test(file) && !mainSource &&
-        !(variant === 'debug' && sources.includes(file.split('/').at(-1)) && file === `java/io/github/f2illc/lunaos/home/preview/${file.split('/').at(-1)}`)) {
+        !debugVaultSource && !debugDirectSource) {
       throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
     }
     if (relative.endsWith('/AndroidManifest.xml') && relative !== 'main/AndroidManifest.xml') {
@@ -166,7 +186,9 @@ export async function prepareAndroid({
     }
   }
   await mkdir(javaRoot, { recursive: true });
+  await mkdir(directJavaRoot, { recursive: true });
   for (const source of sources) await copyFile(new URL(source, sourceRoot), join(javaRoot, source));
+  for (const source of directSources) await copyFile(new URL(source, directRoot), join(directJavaRoot, source));
   await writeFile(join(debugRoot, 'AndroidManifest.xml'), vaultDebugManifest);
   await writeFile(path, preparedManifest);
   await writeFile(activityPath, activity);
@@ -179,5 +201,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const softwareRendering = args[0] === '--software-rendering';
   await prepareAndroid({ softwareRendering });
-  console.log(`Prepared Android main manifest without permissions; debug adds only USE_BIOMETRIC and the non-exported fictional Activity. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
+  console.log(`Prepared Android main manifest without permissions; debug adds USE_BIOMETRIC and INTERNET for non-exported fictional vault/connection screens. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }
