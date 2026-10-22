@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -16,4 +16,7 @@ test('attended evidence rejects checkout descendants and existing outputs', t =>
   assert.throws(() => newExternalEvidencePath(path.join(checkout, 'scripts', '..', 'new-evidence'), checkout), /outside the checkout/);
   mkdirSync(output);
   assert.throws(() => newExternalEvidencePath(output, checkout), /new output directory/);
+  const linkedCheckout = path.join(outside, 'linked-checkout');
+  symlinkSync(checkout, linkedCheckout, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => newExternalEvidencePath(path.join(linkedCheckout, 'new-evidence'), checkout), /outside the checkout/);
 });

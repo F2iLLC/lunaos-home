@@ -43,14 +43,24 @@ The isolated build uses the installed API37 platform revision 2, Build Tools 37.
 
 Automated checks in the isolated JDK21/Node24 environment pass: all 76 JavaScript tests, the dependency-free Java service harness, direct Java compilation against the actual API37 `android.jar`, offline locked Android Cargo metadata, repeated source preparation, and the integrated x86_64 Rust debug build. The JavaScript launcher test executes the bundled code against a fake DOM/invocation adapter: only the open command is sent, pending actions disable the button, diagnostics stay sanitized, and non-Android-debug bundles do not install the button. The Java harness exercises selected-record scope, read-only/delete denial, monotonic expiry without a timer callback, held reads/writes, queued writes, grant replacement/end, a live lock-state predicate, restart without authority resurrection, duplicate operations, confirmed-after-end writes and uncertain acknowledgements. Direct Java compilation uses a test-only debug `BuildConfig` constant; the actual Gradle build uses its generated variant configuration. Compiler checks do not execute AndroidKeyStore, credential UI or lifecycle behavior.
 
-The actual offline Tauri x86_64 debug APK build also passes. Final inspection with `apksigner`, `apkanalyzer` and AAPT2 verifies:
+The original vault-only offline Tauri x86_64 debug APK build, before the
+direct-read integration, passed. Its final inspection with `apksigner`,
+`apkanalyzer` and AAPT2 verified:
 
 - Application ID `io.github.f2illc.lunaos.home.preview.debug`, x86_64 as the only native ABI, and a valid APK Signature Scheme v2 signature with one disposable debug signer.
 - `allowBackup=false`, `usesCleartextTraffic=false`, no `INTERNET` permission, and exactly `USE_BIOMETRIC` plus AndroidX Core's application-scoped `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` (declared with signature protection). The merged APK is not permission-free.
 - Only the exported Home launcher and non-exported `VaultActivity` are present as activities; no service, receiver or activity alias is packaged. In particular, `ProfileInstallReceiver` is absent.
 - Two non-exported providers remain: the existing Tauri-generated AndroidX `FileProvider` (URI grants enabled, external/cache roots, no no-backup root) and AndroidX `InitializationProvider`. Startup metadata retains EmojiCompat, ProcessLifecycle and ProfileInstaller initializers. These retained components are not evidence of runtime acceptance or a claim that every dependency component was removed.
 
-The packaged native library matches the final Rust output byte-for-byte. The final bundled JavaScript matches an independent in-memory build of the current source, including the launcher under `#home-actions`; copied debug native sources match their maintained originals. Eight focused manifest/launcher tests pass. Scratch preparation repeated without changing file hashes and refused an unexpected Java source without overwriting reviewed files. No device was installed or exercised.
+For that original vault-only build, the packaged native library matched the
+final Rust output byte-for-byte. Its bundled JavaScript matched an independent
+in-memory build, including the launcher under `#home-actions`; copied debug
+native sources matched their maintained originals. Eight focused
+manifest/launcher tests passed. Scratch preparation repeated without changing
+file hashes and refused an unexpected Java source without overwriting reviewed
+files. No device was installed or exercised in that original build check. The
+current [direct-read debug build](android-home-direct-read.md) adds `INTERNET`,
+`ACCESS_LOCAL_NETWORK`, and a non-exported connection Activity.
 
 ## Development hook
 
@@ -62,7 +72,7 @@ The original implementation was build-only. Subsequent physical-phone results ar
 
 ### Attended current-source Samsung check
 
-On 2026-10-21, a separate debug application ID built from `main` `c671cff3a243ca83ccc08170e39bd7430684e04e` was installed alongside the older preview on one Samsung phone (API 37). The ignored generated Gradle application ID was the only local variant; tracked app and native sources were unchanged. The ARM64 APK SHA-256 was `797ee75bf23d025fdd1b3f0497fb73a9d96b38e415a5fc35310843d68a5ae88a`. The final APK had no Internet permission, disabled backup and cleartext traffic, and a non-exported vault Activity. The local Node suite passed 167/167 and the Java vault-policy harness passed. These are local results, not hosted or independent acceptance.
+On 2026-10-21, a separate vault-only debug application ID built from `main` `c671cff3a243ca83ccc08170e39bd7430684e04e` was installed alongside the older preview on one Samsung phone (API 37). The ignored generated Gradle application ID was the only local variant; tracked app and native sources were unchanged. The ARM64 APK SHA-256 was `797ee75bf23d025fdd1b3f0497fb73a9d96b38e415a5fc35310843d68a5ae88a`. That historical APK had no Internet permission, disabled backup and cleartext traffic, and a non-exported vault Activity. The local Node suite passed 167/167 and the Java vault-policy harness passed. These are local results, not hosted or independent acceptance.
 
 Reproduce the attended UI sequence with a disposable debug package and only the built-in Alex/Sam fixtures: select Alex Setup; complete Android's credential prompt on the phone; confirm verification alone leaves Read/Save disabled; approve the selected scope; save and read the fictional Monday visit. Background Home and reopen the vault to check that content and access are cleared. Force-stop and relaunch, complete a fresh Android prompt, approve Alex read-only, and read the persisted Monday visit while both Save controls remain disabled. End access and check that the record disappears and operations disable. The credential must stay in Android's trusted prompt; do not record it or use household data. [Observed result and exact scope](https://github.com/F2iLLC/lunaos-home/issues/14#issuecomment-6328668286).
 

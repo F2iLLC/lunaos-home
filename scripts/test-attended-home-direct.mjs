@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
 import { selectedUsbAdb } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
+import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 
@@ -19,12 +20,15 @@ privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(item => item?.address === address && !item.internal),
   'Host address must be assigned to a private local interface');
 const repo = fileURLToPath(new URL('..', import.meta.url));
-const evidencePath = path.resolve(output), repositoryPath = path.resolve(repo);
-assert.ok(evidencePath !== repositoryPath && !evidencePath.startsWith(repositoryPath + path.sep) && !existsSync(output),
-  'Use a fresh evidence directory outside Git');
+const evidencePath = newExternalEvidencePath(output, repo);
 assert.ok(existsSync(apk));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.home.preview.issue14direct.debug';
+const aapt2Path = path.join(process.env.ANDROID_HOME, 'build-tools/37.0.0/aapt2.exe');
+const badging = execFileSync(aapt2Path, ['dump', 'badging', apk],
+  { encoding: 'utf8', timeout: 20_000, windowsHide: true, maxBuffer: 128 * 1024 });
+assert.equal(/^package: name='([^']+)'/m.exec(badging)?.[1], pkg,
+  'Selected APK must have the separate attended Home test application ID');
 const adb = (args, input) => execFileSync(adbPath, ['-s', serial, ...args],
   { input, encoding: 'utf8', timeout: 25_000, windowsHide: true });
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -45,7 +49,7 @@ assert.equal(adb(['shell', 'getprop', 'ro.product.model']).trim(), model);
 assert.equal(adb(['shell', 'getprop', 'ro.build.version.sdk']).trim(), apiText);
 assert.notEqual(adb(['shell', 'getprop', 'ro.hardware']).trim(), 'ranchu');
 assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never overwrite an installed Home direct test package');
-mkdirSync(output);
+mkdirSync(evidencePath);
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
 let installed = false, store, visit, reads = 0, writes = 0;
 
@@ -204,7 +208,7 @@ finally {
   } } catch (error) { failures.push(error); }
   fixtures.cleanup();
   evidence.reads = reads; evidence.writes = writes; evidence.cleanup = failures.length ? 'FAILED' : 'PASS';
-  writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
+  writeFileSync(path.join(evidencePath, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence));
   if (failures.length) throw new AggregateError(failures, 'Owned fictional cleanup failed');
 }
