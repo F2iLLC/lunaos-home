@@ -45,8 +45,10 @@ owns the restore implementation and acceptance; [VLT-08](https://github.com/F2iL
 still requires a second person's privacy, key, authorization, and recovery
 review plus owner acceptance. One attended Samsung Wi-Fi interruption and
 recovery check passed with a fictional record. A later manual two-access-point
-handoff passed the active-grant timing and second-AP read checks; it did not
-establish seamless foreground roaming. A separate attended extended Windows
+handoff recorded an access-point change within 60 seconds of grant issuance,
+after Android Settings had backgrounded the client and ended that grant. A
+second-AP read passed only after fresh approval; this did not establish
+seamless foreground roaming. A separate attended extended Windows
 sleep/wake check
 passed after 4 minutes 31 seconds asleep; it does not prove immediate phone
 display clearing at suspend. The Android phone-host direction, seamless
