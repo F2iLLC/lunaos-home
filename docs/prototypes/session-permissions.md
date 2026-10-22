@@ -47,7 +47,7 @@ this increment; their approval UX and integration remain future work.
 
 Revocation prevents subsequent and queued work. It cannot roll back a write already handed to an asynchronous storage adapter. If that adapter confirms the write, the receipt reports `applied` and whether access ended while it was running. A future transactional native adapter must define its exact commit/authorization boundary. Do not claim this experiment prevents an already-started write from committing after revocation.
 
-If a write throws, its outcome may be unknown. The service hides adapter diagnostics, invalidates the connection and its grants, and returns `WRITE_UNKNOWN`. It never retries. Reconnect needs a fresh approval; the future local workflow must inspect the record and resolve the unknown outcome before offering a retry. Cross-client revision conflicts, durable operation IDs and recovery UI are not implemented by this experiment.
+If a write throws, its outcome may be unknown. The service hides adapter diagnostics, invalidates the connection and its grants, and returns `WRITE_UNKNOWN`. It never retries. Reconnect needs a fresh approval; the future local workflow must inspect the record and resolve the unknown outcome before offering a retry. The opt-in [version 2 contract](../architecture/vault-record-revisions.md) adds durable revisions and atomic stale-edit/delete refusal to newly created fictional Windows stores. Its definite pre-mutation comparison refusal is `CONFLICT`, with no automatic refresh or retry. Existing version 1 probes retain their original contract. Durable operation IDs and recovery UI remain unimplemented.
 
 ## Reproduce and observed checks
 
