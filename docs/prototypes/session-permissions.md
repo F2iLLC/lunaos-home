@@ -18,6 +18,7 @@ Local and assistant connections share the same queue, authorization checks and s
 | --- | --- |
 | `approveSetup` | Read/create/edit for an explicit set of at most 64 record IDs, on one connection, for up to 15 minutes. No delete. |
 | `approveReadOnly` | Read only for the same bounded record/time scope; create/edit/delete denied. |
+| `approveCreate` / `approveEdit` / `approveDelete` | Only the named operation for selected records on one connection, for up to 15 minutes. No implicit read, disclosure, or other mutation authority. |
 | `approveDisclosure` | Separate permission to return selected fields of selected records to the connection's named assistant destination. Must fit within the operation grant and expires no later than it. |
 | `revokeGrant` / `revokeDisclosure` | Stops further use of that grant/disclosure, including queued operations and pending read responses. |
 | `removeDevice` / connection `close` / `shutdown` | Invalidates the relevant connections and grants; readmission/reconnect requires new grants. |
@@ -28,6 +29,22 @@ Every request is checked when submitted and again when it reaches storage. Input
 
 ## In-flight work and unknown outcomes
 
+The explicit change approvals advance [VLT-02](https://github.com/F2iLLC/lunaos-home/issues/5):
+later creation, editing, and deletion can receive their own grants. Only the trusted
+controller can issue these grants. Setup still excludes deletion; an existing
+read-only grant cannot be upgraded by a caller. A change grant cannot read even if
+a separate disclosure approval is attached. Use a separate read grant when that
+access is wanted. Unsupported adapter operations return `UNSUPPORTED` before
+storage is invoked, rather than reporting an uncertain write.
+
+The synthetic Windows adapter supports deletion using the existing locked,
+encrypted replacement-file commit path. The deleted record stays absent after a
+fresh worker opens the store; other member records remain. Missing targets,
+invalid identifiers, and corrupt ciphertext do not replace the committed file.
+This is active-store deletion, not secure erasure of prior backups or already
+viewed copies. No GUI/MCP deletion tool or Android deletion adapter is added by
+this increment; their approval UX and integration remain future work.
+
 Revocation prevents subsequent and queued work. It cannot roll back a write already handed to an asynchronous storage adapter. If that adapter confirms the write, the receipt reports `applied` and whether access ended while it was running. A future transactional native adapter must define its exact commit/authorization boundary. Do not claim this experiment prevents an already-started write from committing after revocation.
 
 If a write throws, its outcome may be unknown. The service hides adapter diagnostics, invalidates the connection and its grants, and returns `WRITE_UNKNOWN`. It never retries. Reconnect needs a fresh approval; the future local workflow must inspect the record and resolve the unknown outcome before offering a retry. Cross-client revision conflicts, durable operation IDs and recovery UI are not implemented by this experiment.
@@ -36,6 +53,7 @@ If a write throws, its outcome may be unknown. The service hides adapter diagnos
 
 ```sh
 node --test test/vault-sessions.test.js
+node --test test/vault-change-grants.test.js test/windows-probe-store.test.js
 npm test
 ```
 

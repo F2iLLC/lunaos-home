@@ -35,10 +35,10 @@ try {
     $probeGuid = [Guid]::ParseExact($request.probeId, 'D')
     if ($probeGuid.ToString('D') -cne $request.probeId) { throw 'id' }
     $operation = $request.operation
-    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
-    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'restore' { 3 }; default { 2 } }
+    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'delete', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
+    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'delete' { 3 }; 'restore' { 3 }; default { 2 } }
     if ($request.Count -ne $expected) { throw 'request' }
-    if ($operation -cin @('read', 'create', 'edit')) { Assert-Id $request.recordId }
+    if ($operation -cin @('read', 'create', 'edit', 'delete')) { Assert-Id $request.recordId }
     if ($operation -cin @('create', 'edit')) { Assert-Detail $request.data }
     if ($operation -eq 'restore') {
         $snapshot = $request.snapshot
@@ -105,8 +105,12 @@ try {
                 if (-not $envelope.records.psbase.Contains($request.recordId)) { throw 'missing-record' }
                 $envelope.records[$request.recordId] = $request.data
             }
+            'delete' {
+                if (-not $envelope.records.psbase.Contains($request.recordId)) { throw 'missing-record' }
+                $envelope.records.psbase.Remove($request.recordId)
+            }
         }
-        if ($operation -cin @('init', 'create', 'edit', 'restore')) {
+        if ($operation -cin @('init', 'create', 'edit', 'delete', 'restore')) {
             $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 8 -Compress))
             try { $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, $scope) }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
