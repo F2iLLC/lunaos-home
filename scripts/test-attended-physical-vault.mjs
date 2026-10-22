@@ -286,7 +286,7 @@ try {
       await pause(500);
     }
     assert.ok(secondAccessPoint && performance.now() < changedBy,
-      'A second access point with a host route was not observed during the active read grant');
+      'A second access point with a host route was not observed within 60 seconds of grant issuance');
     evidence.elapsedFromGrantToAccessPointChangeMs = Math.round(performance.now() - grantTick);
     console.log('SECOND_ACCESS_POINT_OBSERVED');
     visit.gate.requireVerified();
@@ -312,8 +312,8 @@ try {
     assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
       'The phone left the changed access point by the end of the second read');
     assert.equal(reads, 2); assert.equal(writes, 0);
-    evidence.checks.push('The selected phone changed Wi-Fi access point during the active read grant; the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
-    evidence.checks.push('The manual Android Settings switch can background the client, so this run does not isolate seamless foreground roaming or attribute display clearing solely to the radio handoff');
+    evidence.checks.push('The selected phone changed Wi-Fi access point within 60 seconds of the first grant issuance; after Settings ended the old connection, the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
+    evidence.checks.push('Android Settings backgrounds the client and closes its first grant; this run does not prove an active-grant radio handoff or attribute display clearing solely to the radio change');
   } else if (event === 'wifi-cycle') {
     assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
     assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');

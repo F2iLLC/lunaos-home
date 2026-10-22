@@ -24,12 +24,13 @@ automation and ChatGPT integration remain tracked in [issue 31](https://github.c
 | Phone reads a computer-held record | [Joined Home direct read](android-home-direct-read.md) records a current-source Samsung read from the reopened Windows encrypted store over mutually authenticated TLS. End/reconnect required fresh host and phone read approvals: two reads, zero writes, unchanged ciphertext. |
 | Family scope and unauthorized client | [Android Home vault](android-home-vault.md) records both fictional member views under one admitted phone user. [Direct TLS](direct-vault-tls.md) and [native identity](android-native-identity.md) cover wrong identity, unapproved client, pairing/replay and selected-record denial. Member labels are not separate security identities. |
 | Session boundary and disclosure | [Session permissions](session-permissions.md) and [Windows assistant](windows-assistant.md) cover scoped setup/read-only grants, expired and queued-write denial, unknown write outcomes, and separate selected-field disclosure to the tested Windows Claude Code client. That evidence does not establish other assistant clients or arbitrary records. |
-| Connection and failure behavior | [Physical lifecycle](physical-vault-lifecycle.md) records lock, sleep, link interruption, and a manually changed Wi-Fi access point during an active grant; [joined Home](android-home-direct-read.md) records End/reconnect. A Settings-driven AP switch backgrounds the phone, so seamless foreground roaming is unverified. The joined Home package has not independently exercised every standalone probe failure case. |
+| Connection and failure behavior | [Physical lifecycle](physical-vault-lifecycle.md) records lock, sleep, link interruption, and a manual Wi-Fi access-point change followed by separately approved reconnect; [joined Home](android-home-direct-read.md) records End/reconnect. Android Settings backgrounds the phone client and ends its first grant before the AP switch, so active-grant and seamless foreground roaming remain unverified. The joined Home package has not independently exercised every standalone probe failure case. |
 | User-held backup and clean-device restore | [Recovery handoff](session-2-recovery-handoff.md) records the same-PC Windows portable-backup candidate and concrete [VLT-07](https://github.com/F2iLLC/lunaos-home/issues/10) tests. A clean-device, user-held-key restore is unverified. CurrentUser DPAPI files and AndroidKeyStore ciphertext cannot be assumed portable. |
 
 The Android **phone-hosted** connection direction has no implemented listener
-or physical acceptance run. Keep it unverified and assess a foreground-only
-prototype with its actual lifecycle constraints before claiming support. No
+or physical acceptance run. The owner requires physical phone-hosted proof
+before closing issue 14. Assess a foreground-only prototype with its actual
+lifecycle constraints before claiming support. No
 public endpoint, hosted vault, cloud relay, or background availability is
 inferred from the Windows-hosted result. The separate phone-only path works
 locally without a computer.
@@ -71,7 +72,6 @@ integrations in issue 31; those need separate sizing once a supported route is
 established. Re-estimate after VLT-03 and VLT-05 choose their production
 boundaries.
 
-Issue 14 can hand off this feasible narrow architecture after the final PR
-evidence is reviewed. Its open product and independent acceptance gates remain
-with the stories above; neither a merged prototype nor this document closes
-them.
+Issue 14 remains open pending physical phone-hosted proof and review of the
+final PR evidence. Its product and independent acceptance gates remain with
+the stories above; neither a merged prototype nor this document closes them.

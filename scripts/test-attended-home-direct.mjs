@@ -29,9 +29,14 @@ const badging = execFileSync(aapt2Path, ['dump', 'badging', apk],
   { encoding: 'utf8', timeout: 20_000, windowsHide: true, maxBuffer: 128 * 1024 });
 assert.equal(/^package: name='([^']+)'/m.exec(badging)?.[1], pkg,
   'Selected APK must have the separate attended Home test application ID');
+assert.equal(/^targetSdkVersion:'(\d+)'/m.exec(badging)?.[1], '37',
+  'Selected APK must target Android API 37 for the local-network permission check');
+assert.match(badging, /^uses-permission: name='android\.permission\.ACCESS_LOCAL_NETWORK'/m,
+  'Selected APK must declare the Android local-network permission');
 const adb = (args, input) => execFileSync(adbPath, ['-s', serial, ...args],
   { input, encoding: 'utf8', timeout: 25_000, windowsHide: true });
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+const wifiRoute = () => /\bdev wlan0\b/.test(adb(['shell', 'ip', '-4', 'route', 'get', address]));
 const fingerprint = certificate => certificateFingerprint(certificate);
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const evidence = { result: 'INCOMPLETE', model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
@@ -134,6 +139,7 @@ try {
       create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
   // The empty preflight connection proves this exact listener port is reachable
   // from the phone. It sends no application data and cannot authenticate.
+  assert.ok(wifiRoute(), 'Selected phone must route to the private Windows host over Wi-Fi');
   const beforeTcp = visit.host.incomingTcpCount();
   try { adb(['shell', 'toybox', 'nc', '-w', '2', address, String(visit.host.port)]); }
   catch { /* An unauthenticated TLS server may close netcat with a nonzero exit. */ }
@@ -173,6 +179,7 @@ try {
   await tap('Allow selected read');
   await tap("Read Alex's record");
   const shown = await waitText(`${record.label}: ${record.value}`);
+  assert.ok(wifiRoute(), 'Protected Home read must use the phone Wi-Fi route');
   evidence.readDisplayedWithinMs = Date.now() - approvalStarted;
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
@@ -182,6 +189,11 @@ try {
   assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('End cleared displayed content and old read authority without a second store read');
+  const closedBy = Date.now() + 5_000;
+  while (visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId) &&
+      Date.now() < closedBy) await pause(20);
+  assert.ok(!visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId),
+    'Ended connection must leave the host before reconnecting');
   await tap('Connect to test computer');
   const reconnected = await waitText('Computer connected. Waiting for host approval...');
   assert.ok(reconnected.some(node => node.text === 'No record shown.'));
@@ -198,6 +210,7 @@ try {
   await tap('Allow selected read');
   await tap("Read Alex's record");
   const shownAgain = await waitText(`${record.label}: ${record.value}`);
+  assert.ok(wifiRoute(), 'Reconnected Home read must use the phone Wi-Fi route');
   assert.equal(reads, 2); assert.equal(writes, 0);
   evidence.checks.push('Reconnect withheld the record until a fresh host approval and phone read approval on the new connection');
   if (!tapVisible('End connection', shownAgain)) await tap('End connection');

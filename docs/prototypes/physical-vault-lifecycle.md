@@ -67,10 +67,11 @@ points that both reach the same private Windows host. It requires USB adb, a
 fictional read, and a user switch in Android Settings. The phone hashes its
 connected access-point identifier before sending a digest over adb; its full
 Wi-Fi status and network name no longer reach the runner. The runner requires the
-change and a Wi-Fi route during the active 60-second read grant, rechecks the
+change and a Wi-Fi route within 60 seconds of the first read-grant issuance, rechecks the
 same changed AP at reconnect and around the second read, and requires fresh
-approval. A Settings switch can background the app, so even a passing run does
-not establish seamless foreground roaming or clearing caused specifically by
+approval. Opening Settings backgrounds the app and ends that first grant, so
+even a passing run does not establish an active-grant handoff, seamless
+foreground roaming, or clearing caused specifically by
 the radio handoff. No network name or password belongs in the test output or
 repository.
 
@@ -115,9 +116,9 @@ output remains outside Git in `physical-roam-v2`.
 The original runner imported the full `cmd wifi status` text into memory and
 did not record whether the AP change preceded read-grant expiry or whether the
 phone remained on the changed AP during the second read. The revised runner
-hashes only the AP identifier on the device and requires both timing and
+hashes only the AP identifier on the device and requires both time-since-grant and
 association checks. The prior `physical-roam-v2` observation is **not** an
-active-grant or second-AP transport acceptance pass under those stricter
+time-bounded or second-AP transport acceptance pass under those stricter
 assertions; the later strict rerun is recorded below. The first-direction
 `physical-roam-v1` observed an access-point change but
 stopped when the harness checked the test app before Android Settings had left
@@ -132,8 +133,10 @@ On October 21, 2026 (America/Chicago; October 22 UTC), the revised
 `wifi-roam` assertions passed on the selected Samsung SM-S938U (API 37).
 The user switched to a second access point through Android Settings after
 the first fictional read. The runner observed a different hashed AP identifier
-and a `wlan0` route to the private Windows host 35,002 ms after the read grant
-began, within its 60-second lifetime. After Settings exited, the disposable
+and a `wlan0` route to the private Windows host 35,002 ms after the first read
+grant was issued, before its original 60-second deadline. Opening Settings
+backgrounded the client and ended that first grant before the AP change, so
+the time measurement does not show an active grant during the switch. After Settings exited, the disposable
 client returned to the foreground with its old record hidden and old read
 disabled. A new connection waited for a separate host approval; the changed
 AP and host route were checked again before and after the second fictional
@@ -142,8 +145,9 @@ active, no native lifecycle event was recorded, and cleanup passed. The APK
 SHA-256 was `e02085ed00287860efc437e8c4f57c6c46016db2705666dcc0194998fa746f1a`.
 An independent post-run check found the test package absent, the listener
 closed, and a Wi-Fi route to the host. The retained result contains no AP name
-or identifier. This is one manual Settings handoff on one phone; it does not
-prove seamless foreground roaming or that the radio handoff alone cleared the
+or identifier. This is one manual Settings handoff followed by new approval on
+one phone; it does not prove seamless foreground roaming, an active-grant
+handoff, or that the radio change alone cleared the
 record. The runner now retries launching only the selected disposable Activity
 after Settings leaves focus, avoiding a race with the user's Settings exit.
 
