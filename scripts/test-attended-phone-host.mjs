@@ -118,7 +118,8 @@ function oneRead(port, phoneFingerprint) {
     const socket = connectTls({ host: phoneAddress, port, localAddress: pcAddress,
       cert: fixtures.windowsClientIdentity.cert, key: fixtures.windowsClientIdentity.key,
       rejectUnauthorized: false, minVersion: 'TLSv1.3', maxVersion: 'TLSv1.3', timeout: 8_000 });
-    let response = '', settled = false;
+    const chunks = [];
+    let size = 0, settled = false;
     const finish = (error, result) => {
       if (settled) return;
       settled = true; socket.destroy();
@@ -135,13 +136,14 @@ function oneRead(port, phoneFingerprint) {
       } catch (error) { finish(error); }
     });
     socket.on('data', chunk => {
-      response += chunk.toString('utf8');
-      if (response.length > 200) finish(Error('Oversized fictional response'));
-      else if (response.includes('\n')) finish(undefined, response);
+      size += chunk.length;
+      if (size > 200) finish(Error('Oversized fictional response'));
+      else chunks.push(chunk);
     });
     socket.on('error', error => finish(error));
     socket.on('timeout', () => finish(Error('Phone-hosted TLS read timed out')));
-    socket.on('end', () => { if (!settled) finish(Error('Phone closed before the fixed read completed')); });
+    socket.on('end', () => finish(undefined, Buffer.concat(chunks).toString('utf8')));
+    socket.on('close', () => { if (!settled) finish(Error('Phone closed before the fixed read completed')); });
   });
 }
 try {
