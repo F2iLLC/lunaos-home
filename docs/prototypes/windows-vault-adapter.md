@@ -4,6 +4,12 @@ This [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14) experiment con
 
 ## Run locally
 
+The default probe below uses version 1. The opt-in
+[version 2 record contract](../architecture/vault-record-revisions.md) adds stored
+revisions and conditional edits/deletions in a separate new fictional store. It
+refuses format downgrade and does not migrate existing stores or enable the old
+backup format. Its Windows-specific automated tests record the supported scope.
+
 On Windows with Node 24+ and PowerShell 7:
 
 ```powershell
