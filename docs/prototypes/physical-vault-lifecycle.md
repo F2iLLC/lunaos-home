@@ -118,7 +118,7 @@ phone remained on the changed AP during the second read. The revised runner
 hashes only the AP identifier on the device and requires both timing and
 association checks. The prior `physical-roam-v2` observation is **not** an
 active-grant or second-AP transport acceptance pass under those stricter
-assertions; it needs a fresh attended run. The first-direction
+assertions; the later strict rerun is recorded below. The first-direction
 `physical-roam-v1` observed an access-point change but
 stopped when the harness checked the test app before Android Settings had left
 the foreground. It is **incomplete**, with cleanup passing, not a reconnect
@@ -127,6 +127,25 @@ foreground. Because the user switched networks in Settings, neither run
 isolates seamless foreground radio roaming or proves that the AP change alone
 cleared displayed content. Production enrollment and independent
 security acceptance remain open.
+
+On October 21, 2026 (America/Chicago; October 22 UTC), the revised
+`wifi-roam` assertions passed on the selected Samsung SM-S938U (API 37).
+The user switched to a second access point through Android Settings after
+the first fictional read. The runner observed a different hashed AP identifier
+and a `wlan0` route to the private Windows host 35,002 ms after the read grant
+began, within its 60-second lifetime. After Settings exited, the disposable
+client returned to the foreground with its old record hidden and old read
+disabled. A new connection waited for a separate host approval; the changed
+AP and host route were checked again before and after the second fictional
+read. The host counted two reads and zero writes. Windows verification stayed
+active, no native lifecycle event was recorded, and cleanup passed. The APK
+SHA-256 was `e02085ed00287860efc437e8c4f57c6c46016db2705666dcc0194998fa746f1a`.
+An independent post-run check found the test package absent, the listener
+closed, and a Wi-Fi route to the host. The retained result contains no AP name
+or identifier. This is one manual Settings handoff on one phone; it does not
+prove seamless foreground roaming or that the radio handoff alone cleared the
+record. The runner now retries launching only the selected disposable Activity
+after Settings leaves focus, avoiding a race with the user's Settings exit.
 
 The user completes verification only in the trusted Windows prompt. The assistant
 compares the exact on-screen synthetic identities and approves the fixed

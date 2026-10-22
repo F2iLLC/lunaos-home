@@ -29,7 +29,8 @@ flow. No household data belongs in this build.
   approved host fingerprint, and separate host and phone approvals. No public
   listener, cleartext transport, tunnel, or arbitrary server address is added.
 - Only the Android debug manifest requests `INTERNET`, `USE_BIOMETRIC`, and
-  `ACCESS_LOCAL_NETWORK`; the latter is requested at runtime on API37+ and a
+  `ACCESS_LOCAL_NETWORK`; the latter is requested at runtime when both the
+  device and Home target API37+ and a
   denial keeps Connect disabled. [Android 17 requires this permission](https://developer.android.com/privacy-and-security/local-network-permission)
   for an app targeting API37 to make a direct LAN TCP connection. The
   generated main manifest remains permission-free. The connection Activity is

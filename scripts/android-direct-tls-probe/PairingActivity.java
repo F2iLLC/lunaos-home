@@ -56,7 +56,8 @@ public final class PairingActivity extends Activity {
         }
     }
     private boolean localNetworkReady() {
-        return Build.VERSION.SDK_INT < 37 || checkSelfPermission(LOCAL_NETWORK_PERMISSION) == PackageManager.PERMISSION_GRANTED;
+        return Build.VERSION.SDK_INT < 37 || getApplicationInfo().targetSdkVersion < 37
+            || checkSelfPermission(LOCAL_NETWORK_PERMISSION) == PackageManager.PERMISSION_GRANTED;
     }
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);

@@ -113,11 +113,19 @@ async function nodes() {
   // Keep only synthetic app nodes; never retain keyboard, notification or other-app nodes.
   return [...xml.matchAll(/<node\b[^>]*>/g)].map(([tag]) => Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [k, v.replaceAll('&apos;', "'").replaceAll('&amp;', '&')]))).filter(n => n.package === pkg);
 }
-async function waitAppForeground() {
-  const deadline = Date.now() + 20_000;
+async function waitAppForeground({ relaunch = false } = {}) {
+  const deadline = Date.now() + (relaunch ? 40_000 : 20_000);
+  let lastLaunch = Date.now();
   do {
     const focus = await adb(['shell', 'dumpsys', 'window']);
     if (focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes(pkg))) return;
+    // A manual Settings exit can race the first am start. Reissue only this
+    // explicitly selected disposable Activity after Settings leaves focus.
+    if (relaunch && Date.now() - lastLaunch >= 3_000 &&
+        !focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes('com.android.settings'))) {
+      await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+      lastLaunch = Date.now();
+    }
     await pause(300);
   } while (Date.now() < deadline);
   throw Error('Fictional test app did not return to the foreground after the AP switch');
@@ -183,6 +191,7 @@ try {
   assert.match(rejectionOutput, /INSTRUMENTATION_CODE: -1/);
   evidence.checks.push('Selected physical Android rejected wrong TLS host name and host fingerprint before pairing');
   await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+  await waitAppForeground();
   const screen = await waitText('Review the test computer identity.');
   assert.ok(screen.some(n => n.text === `Test computer identity: ${review.hostFingerprint}`));
   assert.ok(screen.some(n => n.text === `Android identity: ${peer}`));
@@ -283,7 +292,7 @@ try {
     visit.gate.requireVerified();
     assert.deepEqual(visit.nativeEvents, []);
     await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
-    await waitAppForeground();
+    await waitAppForeground({ relaunch: true });
     const returned = await waitText('No record shown.');
     assert.ok(returned.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     assert.ok(returned.some(n => n.text === 'Connect to test computer' && n.enabled === 'false'));
