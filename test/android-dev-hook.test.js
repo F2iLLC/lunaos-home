@@ -11,16 +11,18 @@ const defaults = JSON.parse(await readFile(join(root, 'src-tauri/tauri.conf.json
 const android = JSON.parse(await readFile(join(root, 'src-tauri/tauri.android.conf.json'), 'utf8'));
 const hooks = { ...defaults.build, ...android.build };
 const pkg = 'java/io/github/f2illc/lunaos/home/preview';
+const directPkg = 'java/io/github/f2illc/lunaos/directtlsprobe';
 // Discover maintained sources independently of the preparation allowlist so a
 // new helper cannot be omitted from both the implementation and its test.
 const sources = (await readdir(join(root, 'scripts/android/vault')))
   .filter(name => /\.(java|kt)$/.test(name));
+const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java'];
 const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET" /><application android:usesCleartextTraffic="false"><activity android:name=".MainActivity" /></application></manifest>';
 
 async function fixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'home-android-hook-'));
   context.after(() => rm(directory, { recursive: true, force: true }));
-  for (const path of ['src', 'lib', 'scripts/android', 'scripts/build-native.mjs', 'scripts/prepare-android.mjs', 'package.json', 'LICENSE']) {
+  for (const path of ['src', 'lib', 'scripts/android', 'scripts/android-direct-tls-probe', 'scripts/build-native.mjs', 'scripts/prepare-android.mjs', 'package.json', 'LICENSE']) {
     await mkdir(join(directory, path, '..'), { recursive: true });
     await cp(join(root, path), join(directory, path), { recursive: true });
   }
@@ -56,7 +58,12 @@ test('both configured hooks populate a clean generated tree before native compil
       assert.deepEqual(await readFile(join(f.src, 'debug', pkg, source)),
         await readFile(join(root, 'scripts/android/vault', source)));
     }
+    for (const source of directSources) {
+      assert.deepEqual(await readFile(join(f.src, 'debug', directPkg, source)),
+        await readFile(join(root, 'scripts/android-direct-tls-probe', source)));
+    }
     assert.match(await readFile(join(f.src, 'debug/AndroidManifest.xml'), 'utf8'), /VaultActivity/);
+    assert.match(await readFile(join(f.src, 'debug/AndroidManifest.xml'), 'utf8'), /PairingActivity/);
     assert.doesNotMatch(await readFile(join(f.src, 'main/AndroidManifest.xml'), 'utf8'), /android.permission.INTERNET/);
     assert.match(await readFile(join(f.directory, 'native-dist/app.js'), 'utf8'), /open_fictional_vault/);
   }

@@ -27,7 +27,13 @@ final class SyntheticTlsClient implements AutoCloseable {
             KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             km.init(keys, null);
             KeyStore trust = KeyStore.getInstance(KeyStore.getDefaultType()); trust.load(null);
-            try (InputStream in = context.getAssets().open("ca.pem")) { trust.setCertificateEntry("fixture-ca", CertificateFactory.getInstance("X.509").generateCertificate(in)); }
+            // The standalone probe packages this public CA as an asset. Home's
+            // debug build receives the same public CA through its app-private
+            // test provisioning channel after installation.
+            InputStream ca = "io.github.f2illc.lunaos.directtlsprobe".equals(context.getPackageName())
+                ? context.getAssets().open("ca.pem")
+                : new FileInputStream(new File(context.getNoBackupFilesDir(), "ca.pem"));
+            try (InputStream in = ca) { trust.setCertificateEntry("fixture-ca", CertificateFactory.getInstance("X.509").generateCertificate(in)); }
             TrustManagerFactory tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); tm.init(trust);
             SSLContext tls = SSLContext.getInstance("TLSv1.3"); tls.init(km.getKeyManagers(), tm.getTrustManagers(), new SecureRandom());
             Socket tcp = new Socket();

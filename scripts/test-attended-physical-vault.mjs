@@ -113,11 +113,19 @@ async function nodes() {
   // Keep only synthetic app nodes; never retain keyboard, notification or other-app nodes.
   return [...xml.matchAll(/<node\b[^>]*>/g)].map(([tag]) => Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [k, v.replaceAll('&apos;', "'").replaceAll('&amp;', '&')]))).filter(n => n.package === pkg);
 }
-async function waitAppForeground() {
-  const deadline = Date.now() + 20_000;
+async function waitAppForeground({ relaunch = false } = {}) {
+  const deadline = Date.now() + (relaunch ? 40_000 : 20_000);
+  let lastLaunch = Date.now();
   do {
     const focus = await adb(['shell', 'dumpsys', 'window']);
     if (focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes(pkg))) return;
+    // A manual Settings exit can race the first am start. Reissue only this
+    // explicitly selected disposable Activity after Settings leaves focus.
+    if (relaunch && Date.now() - lastLaunch >= 3_000 &&
+        !focus.split('\n').some(line => /mCurrentFocus=/.test(line) && line.includes('com.android.settings'))) {
+      await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+      lastLaunch = Date.now();
+    }
     await pause(300);
   } while (Date.now() < deadline);
   throw Error('Fictional test app did not return to the foreground after the AP switch');
@@ -183,6 +191,7 @@ try {
   assert.match(rejectionOutput, /INSTRUMENTATION_CODE: -1/);
   evidence.checks.push('Selected physical Android rejected wrong TLS host name and host fingerprint before pairing');
   await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
+  await waitAppForeground();
   const screen = await waitText('Review the test computer identity.');
   assert.ok(screen.some(n => n.text === `Test computer identity: ${review.hostFingerprint}`));
   assert.ok(screen.some(n => n.text === `Android identity: ${peer}`));
@@ -277,13 +286,13 @@ try {
       await pause(500);
     }
     assert.ok(secondAccessPoint && performance.now() < changedBy,
-      'A second access point with a host route was not observed during the active read grant');
+      'A second access point with a host route was not observed within 60 seconds of grant issuance');
     evidence.elapsedFromGrantToAccessPointChangeMs = Math.round(performance.now() - grantTick);
     console.log('SECOND_ACCESS_POINT_OBSERVED');
     visit.gate.requireVerified();
     assert.deepEqual(visit.nativeEvents, []);
     await adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/.PairingActivity`]);
-    await waitAppForeground();
+    await waitAppForeground({ relaunch: true });
     const returned = await waitText('No record shown.');
     assert.ok(returned.some(n => n.text === "Read Alex's record" && n.enabled === 'false'));
     assert.ok(returned.some(n => n.text === 'Connect to test computer' && n.enabled === 'false'));
@@ -303,8 +312,8 @@ try {
     assert.ok((await connectedAccessPoint()) === secondAccessPoint && await wifiRouteAvailable(),
       'The phone left the changed access point by the end of the second read');
     assert.equal(reads, 2); assert.equal(writes, 0);
-    evidence.checks.push('The selected phone changed Wi-Fi access point during the active read grant; the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
-    evidence.checks.push('The manual Android Settings switch can background the client, so this run does not isolate seamless foreground roaming or attribute display clearing solely to the radio handoff');
+    evidence.checks.push('The selected phone changed Wi-Fi access point within 60 seconds of the first grant issuance; after Settings ended the old connection, the changed AP and private-host Wi-Fi route were observed again around the separately approved second fictional read, with zero writes');
+    evidence.checks.push('Android Settings backgrounds the client and closes its first grant; this run does not prove an active-grant radio handoff or attribute display clearing solely to the radio change');
   } else if (event === 'wifi-cycle') {
     assert.equal(sync(['shell', 'settings', 'get', 'global', 'wifi_on']).trim(), '1', 'Physical Wi-Fi must begin enabled');
     assert.ok(await wifiRouteAvailable(), 'Physical phone must route to the selected private host over Wi-Fi');

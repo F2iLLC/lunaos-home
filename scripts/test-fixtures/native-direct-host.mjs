@@ -10,7 +10,9 @@ export async function launchNativeDirectHost(options) {
   if (process.platform !== 'win32' || !process.stdin.isTTY) throw Error('Run native verification from an attended Windows terminal.');
   const binary = fileURLToPath(new URL('../../src-tauri/target/debug/lunaos-home-preview.exe', import.meta.url));
   await access(binary); // Build this checkout's native target first.
-  const child = spawn(binary, ['--fictional-windows-vault'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  // The owner must see and complete the OS-owned verification dialog. Hiding
+  // this GUI child can leave the prompt attached to an invisible owner window.
+  const child = spawn(binary, ['--fictional-windows-vault'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false });
   return superviseNativeDirectHost(child, options);
 }
 

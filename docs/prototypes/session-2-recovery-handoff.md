@@ -44,9 +44,14 @@ device-removal check passed. [VLT-07](https://github.com/F2iLLC/lunaos-home/issu
 owns the restore implementation and acceptance; [VLT-08](https://github.com/F2iLLC/lunaos-home/issues/12)
 still requires a second person's privacy, key, authorization, and recovery
 review plus owner acceptance. One attended Samsung Wi-Fi interruption and
-recovery check passed with a fictional record; it does not establish roaming
-between access points. A separate attended extended Windows sleep/wake check
+recovery check passed with a fictional record. A later manual two-access-point
+handoff recorded an access-point change within 60 seconds of grant issuance,
+after Android Settings had backgrounded the client and ended that grant. A
+second-AP read passed only after fresh approval; this did not establish
+seamless foreground roaming. A separate attended extended Windows
+sleep/wake check
 passed after 4 minutes 31 seconds asleep; it does not prove immediate phone
-display clearing at suspend. The Android phone-host direction, network
-roaming, and production enrollment remain unverified for
-[Session 2](https://github.com/F2iLLC/lunaos-home/issues/14).
+display clearing at suspend. A selected-device, foreground Android phone-host
+read is now recorded in the [Home phone-hosted experiment](android-home-phone-host-read.md).
+Seamless foreground roaming, background phone hosting, and production enrollment
+remain unverified for [Session 2](https://github.com/F2iLLC/lunaos-home/issues/14).

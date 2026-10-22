@@ -18,6 +18,8 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import io.github.f2illc.lunaos.directtlsprobe.PhoneHostServer;
+import io.github.f2illc.lunaos.directtlsprobe.HomeDirectEntry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +40,12 @@ public final class VaultActivity extends Activity {
     private Button read;
     private Button monday;
     private Button tuesday;
+    private Button networkPermission;
+    private Button prepareIdentity;
+    private Button reviewHost;
+    private Button startHost;
+    private PhoneHostServer phoneHost;
+    private String reviewedHost;
     private boolean resumed;
     private boolean busy;
     private boolean pendingWork;
@@ -79,7 +87,7 @@ public final class VaultActivity extends Activity {
             view.setPadding(occupied.left, occupied.top, occupied.right, occupied.bottom);
             return insets;
         });
-        text("Fictional phone vault experiment — debug only\nAlex/Sam fixtures only. No assistant, pairing, recovery or real household input. Family member selection is record scope, not a separate identity. After an interrupted save, approve read-only and inspect the record before deciding to save again.");
+        text("Fictional phone vault experiment — debug only\nAlex/Sam fixtures only. No assistant, production pairing, recovery or real household input. Family member selection is record scope, not a separate identity. After an interrupted save, approve read-only and inspect the record before deciding to save again.");
         text("Select one fictional member");
         members = choices("Alex Example", "Sam Example");
         text("Select access mode");
@@ -93,6 +101,10 @@ public final class VaultActivity extends Activity {
         read = button("Read selected fictional record", () -> work(false, 0));
         monday = button("Save fictional visit: Monday", () -> work(true, 0));
         tuesday = button("Save fictional visit: Tuesday", () -> work(true, 1));
+        networkPermission = button("Allow local network for fictional phone host (debug)", this::requestLocalNetwork);
+        prepareIdentity = button("Prepare fictional phone TLS identity (debug)", this::preparePhoneIdentity);
+        reviewHost = button("Review fictional Windows client identity (debug)", this::reviewWindowsHost);
+        startHost = button("Allow one Windows read of Alex (debug)", this::startPhoneHost);
         button("End access", () -> close("Closed by you. In-flight committed writes cannot be undone."));
         button("Back to Home", this::finish);
         members.setOnCheckedChangeListener((group, checked) -> close("Selection changed. Verify again."));
@@ -123,6 +135,11 @@ public final class VaultActivity extends Activity {
         read.setEnabled(!busy && grant != null);
         monday.setEnabled(!busy && grant != null && grant.mode == VaultService.Mode.SETUP);
         tuesday.setEnabled(monday.isEnabled());
+        networkPermission.setEnabled(!busy && resumed && localNetworkRequired());
+        prepareIdentity.setEnabled(!busy && resumed && grant == null);
+        reviewHost.setEnabled(!busy && resumed && grant != null &&
+            grant.member == VaultService.Member.ALEX && grant.mode == VaultService.Mode.READ_ONLY && phoneHost == null);
+        startHost.setEnabled(reviewHost.isEnabled() && reviewedHost != null && !localNetworkRequired());
         for (RadioGroup group : new RadioGroup[] { members, modes })
             for (int index = 0; index < group.getChildCount(); index++) group.getChildAt(index).setEnabled(!busy && grant == null);
     }
@@ -163,6 +180,61 @@ public final class VaultActivity extends Activity {
                 second(modes) ? VaultService.Mode.SETUP : VaultService.Mode.READ_ONLY);
             status.setText("Approved selected scope for 60 seconds. Missing records require Setup and an explicit Save.");
         } catch (SecurityException denied) { close("Closed: uncertain write. Restart and review; no automatic retry."); }
+        controls();
+    }
+    private boolean localNetworkRequired() {
+        return Build.VERSION.SDK_INT >= 37 && getApplicationInfo().targetSdkVersion >= 37 &&
+            checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+    private void preparePhoneIdentity() {
+        if (!resumed || grant != null || busy) return;
+        try {
+            HomeDirectEntry.prepareIdentity(this);
+            status.setText("Fictional phone TLS identity prepared. Its private key stays in Android Keystore.");
+        } catch (Exception unavailable) {
+            status.setText("Fictional phone TLS identity unavailable. No listener started.");
+        }
+        controls();
+    }
+    private void requestLocalNetwork() {
+        if (localNetworkRequired()) requestPermissions(new String[] { "android.permission.ACCESS_LOCAL_NETWORK" }, 1401);
+        else { status.setText("Local network already allowed for this fictional debug package."); controls(); }
+    }
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == 1401) {
+            status.setText(localNetworkRequired() ? "Local network denied. Phone host remains closed." :
+                "Local network allowed. Verify and approve a selected read before starting the phone host.");
+            controls();
+        }
+    }
+    private void reviewWindowsHost() {
+        try {
+            reviewedHost = PhoneHostServer.hostFingerprint(this);
+            status.setText("Fictional Windows client identity: " + reviewedHost +
+                ". Review it, then separately allow one Alex read. No record has been shared.");
+        } catch (Exception unavailable) {
+            reviewedHost = null;
+            status.setText("Fictional Windows client identity unavailable. No phone listener started.");
+        }
+        controls();
+    }
+    private void startPhoneHost() {
+        if (!resumed || grant == null || reviewedHost == null || localNetworkRequired() || phoneHost != null) return;
+        try {
+            service.check(grant, VaultService.Member.ALEX, VaultService.Action.READ);
+            long token = generation;
+            phoneHost = new PhoneHostServer(this, service, grant, reviewedHost,
+                succeeded -> runOnUiThread(() -> {
+                    if (owner == this && token == generation)
+                        close(succeeded ? "Fictional Windows read completed. Access ended." :
+                            "Phone-hosted read unavailable. Access ended.");
+                }));
+            record.setText("");
+            status.setText("Phone host ready on private Wi-Fi for one approved fictional Alex read. Port: " + phoneHost.port());
+        } catch (Exception unavailable) {
+            close("Phone host unavailable. No record shared.");
+        }
         controls();
     }
     private void work(boolean writing, int variant) {
@@ -213,6 +285,8 @@ public final class VaultActivity extends Activity {
     }
     private void close(String message) {
         generation++; verifiedUntil = 0; grant = null; busy = pendingWork;
+        if (phoneHost != null) { phoneHost.close(); phoneHost = null; }
+        reviewedHost = null;
         if (owner == this && service != null) service.end();
         if (authentication != null) { authentication.cancel(); authentication = null; }
         if (record != null) record.setText("");

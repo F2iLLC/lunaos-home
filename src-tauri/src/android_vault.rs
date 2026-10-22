@@ -6,13 +6,20 @@ pub(crate) struct Vault<R: Runtime>(PluginHandle<R>);
 pub async fn open_fictional_vault<R: Runtime>(
     window: tauri::WebviewWindow<R>,
     state: tauri::State<'_, Vault<R>>,
+    kind: Option<String>,
 ) -> Result<(), String> {
     if window.label() != "main" {
         return Err("Only the local main window may open this experiment".into());
     }
+    let operation = match kind.as_deref() {
+        None => "open",
+        Some("prepare-direct") => "prepareDirect",
+        Some("open-direct") => "openDirect",
+        _ => return Err("Unsupported fictional experiment".into()),
+    };
     state
         .0
-        .run_mobile_plugin_async::<()>("open", ())
+        .run_mobile_plugin_async::<()>(operation, ())
         .await
         .map_err(|_| "Native screen unavailable".into())
 }

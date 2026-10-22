@@ -1,6 +1,7 @@
 package io.github.f2illc.lunaos.directtlsprobe;
 
 import android.app.Activity;
+import android.content.pm.PackageManager;
 import android.os.*;
 import android.widget.*;
 import java.io.*;
@@ -9,6 +10,8 @@ import org.json.JSONObject;
 
 /** Visible fictional approval flow only. Native transport identity is separate from OS vault unlock. */
 public final class PairingActivity extends Activity {
+    private static final String LOCAL_NETWORK_PERMISSION = "android.permission.ACCESS_LOCAL_NETWORK";
+    private static final int LOCAL_NETWORK_REQUEST = 37;
     private JSONObject config;
     private TextView status, contents;
     private Button approveHost, connect, approveRead, read, end;
@@ -27,7 +30,8 @@ public final class PairingActivity extends Activity {
         super.onCreate(saved);
         try { if (!"ranchu".equals(Build.HARDWARE) && !FixtureConfig.approvedPhysicalTarget(this)) { finish(); return; } }
         catch (Exception error) { finish(); return; }
-        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            | android.view.WindowManager.LayoutParams.FLAG_SECURE);
         try { config = FixtureConfig.read(this); displayedHost = config.getString("hostFingerprint"); displayedPeer = NativeIdentity.fingerprint(); } catch (Exception error) { finish(); return; }
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(24, 24, 24, 24);
@@ -46,6 +50,22 @@ public final class PairingActivity extends Activity {
         read = button(layout, "Read Alex's record", this::readRecord);
         end = button(layout, "End connection", () -> closeAccess("Connection ended. Reading needs fresh approval."));
         render();
+        if (!localNetworkReady()) {
+            status.setText("Android local network permission is required for this fictional connection.");
+            requestPermissions(new String[]{LOCAL_NETWORK_PERMISSION}, LOCAL_NETWORK_REQUEST);
+        }
+    }
+    private boolean localNetworkReady() {
+        return Build.VERSION.SDK_INT < 37 || getApplicationInfo().targetSdkVersion < 37
+            || checkSelfPermission(LOCAL_NETWORK_PERMISSION) == PackageManager.PERMISSION_GRANTED;
+    }
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != LOCAL_NETWORK_REQUEST) return;
+        if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            status.setText("Review the test computer identity.");
+        else closeAccess("Android local network access denied. No connection opened.");
+        render();
     }
     private TextView label(LinearLayout layout, String text) {
         TextView view = new TextView(this); view.setText(text); view.setTextSize(17); view.setPadding(0, 8, 0, 8); layout.addView(view); return view;
@@ -55,7 +75,7 @@ public final class PairingActivity extends Activity {
     }
     private void render() {
         approveHost.setEnabled(!identityApproved && !busy);
-        connect.setEnabled(identityApproved && !busy && activeClient == null);
+        connect.setEnabled(identityApproved && localNetworkReady() && !busy && activeClient == null);
         approveRead.setEnabled(!busy && pendingGrant != null && !scopeApproved);
         read.setEnabled(!busy && scopeApproved && pendingGrant != null && activeClient != null);
         end.setEnabled(busy || activeClient != null || pendingGrant != null);
@@ -101,14 +121,17 @@ public final class PairingActivity extends Activity {
     }
     private void connect() {
         if (!identityApproved || busy || activeClient != null) return;
+        if (!localNetworkReady()) { closeAccess("Android local network access denied. No connection opened."); return; }
         busy = true; contents.setText("No record shown."); status.setText("Connecting to the approved test computer..."); render();
         final long token = generation;
         schedule(() -> {
             SyntheticTlsClient client = null;
+            String phase = "config";
             try {
                 if (generation != token) return;
                 config = FixtureConfig.read(this);
                 if (!displayedHost.equals(config.getString("hostFingerprint")) || !displayedPeer.equals(NativeIdentity.fingerprint())) throw new IOException("Identity changed; review again");
+                phase = "tls";
                 client = new SyntheticTlsClient(this, config);
                 synchronized (clientLock) {
                     if (generation != token) { client.close(); return; }
@@ -116,6 +139,7 @@ public final class PairingActivity extends Activity {
                 }
                 // Authenticated resume carries no grants. It also recovers admission
                 // after cold restart or a lost pairing response, without replaying writes.
+                phase = "resume";
                 JSONObject result = client.call(new JSONObject().put("op", "resume"));
                 if (!result.getBoolean("ok") && "DENIED".equals(result.optString("code"))) {
                     client.close();
@@ -125,10 +149,12 @@ public final class PairingActivity extends Activity {
                         if (generation != token) { client.close(); return; }
                         activeClient = client;
                     }
+                    phase = "pair";
                     result = client.call(new JSONObject().put("op", "pair").put("offer", config.getString("offer")));
                 }
                 if (!result.getBoolean("ok")) throw new IOException();
                 runOnUiThread(() -> { if (generation == token) status.setText("Computer connected. Waiting for host approval..."); });
+                phase = "approval";
                 String grant = client.approval();
                 runOnUiThread(() -> {
                     if (generation != token) return;
@@ -137,6 +163,9 @@ public final class PairingActivity extends Activity {
                     ui.postDelayed(() -> { if (generation == token) closeAccess("Test access expired. Connect and approve again."); }, 60_000);
                 });
             } catch (Exception error) {
+                // Class and phase only; never log a peer, address, offer, key,
+                // certificate, record, or OS diagnostic from this debug client.
+                android.util.Log.w("HomeDirectProbe", "connect=" + phase + "/" + error.getClass().getSimpleName());
                 if (client != null) try { client.close(); } catch (IOException ignored) { }
                 runOnUiThread(() -> { if (generation == token) closeAccess("Connection or approval unavailable. No access remains."); });
             }
@@ -159,10 +188,13 @@ public final class PairingActivity extends Activity {
                     watchDisplayedRecord(token, displayToken, client, grant);
                 });
             } catch (Exception error) {
+                // Only a phase and exception class; no record or transport data.
+                android.util.Log.w("HomeDirectProbe", "read/" + error.getClass().getSimpleName());
                 runOnUiThread(() -> { if (generation == token) closeAccess("Read unavailable. No access remains."); });
             }
         });
     }
+    @Override protected void onResume() { super.onResume(); if (connect != null) render(); }
     @Override protected void onPause() { identityApproved = false; closeAccess("Access closed while away. Review the computer again."); super.onPause(); }
     @Override protected void onDestroy() { closeAccess("Access closed."); worker.shutdownNow(); super.onDestroy(); }
 }

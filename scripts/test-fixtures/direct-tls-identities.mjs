@@ -5,7 +5,7 @@ import path from 'node:path';
 import { certificateFingerprint } from '../../lib/direct-vault-tls.js';
 
 // Disposable identities only. Never touches the OS/user trust store.
-export function createDirectTlsIdentities({ hostOnly = false } = {}) {
+export function createDirectTlsIdentities({ hostOnly = false, windowsClient = false } = {}) {
   const scratch = mkdtempSync(path.join(tmpdir(), 'home-direct-tls-'));
   const gitOpenSSL = 'C:/Program Files/Git/usr/bin/openssl.exe';
   const openssl = process.env.HOME_TEST_OPENSSL || (existsSync(gitOpenSSL) ? gitOpenSSL : 'openssl');
@@ -26,12 +26,13 @@ export function createDirectTlsIdentities({ hostOnly = false } = {}) {
       result.fingerprint = certificateFingerprint(result.cert); return result;
     }
     const hostIdentity = identity('Fictional-Host', true);
-    if (hostOnly) return { scratch, ca, hostIdentity, cleanup };
+    const windowsClientIdentity = windowsClient ? identity('Fictional-Windows-Client') : undefined;
+    if (hostOnly) return { scratch, ca, hostIdentity, windowsClientIdentity, cleanup };
     const phoneIdentity = identity('Fictional-Phone');
     const outsiderIdentity = identity('Fictional-Unapproved-Peer');
     run(['req', '-x509', ...keyArgs, '-keyout', 'untrusted.key', '-out', 'untrusted.pem', '-subj', '/CN=Fictional-Untrusted-Issuer', '-days', '1', '-addext', 'basicConstraints=critical,CA:FALSE', '-addext', 'extendedKeyUsage=clientAuth']);
     const untrustedIdentity = { key: readFileSync(path.join(scratch, 'untrusted.key')), cert: readFileSync(path.join(scratch, 'untrusted.pem')) };
     run(['pkcs12', '-export', '-inkey', 'Fictional-Phone.key', '-in', 'Fictional-Phone.pem', '-out', 'phone.p12', '-passout', 'pass:fictional-only']);
-    return { scratch, ca, hostIdentity, phoneIdentity, outsiderIdentity, untrustedIdentity, cleanup };
+    return { scratch, ca, hostIdentity, windowsClientIdentity, phoneIdentity, outsiderIdentity, untrustedIdentity, cleanup };
   } catch (error) { cleanup(); throw error; }
 }

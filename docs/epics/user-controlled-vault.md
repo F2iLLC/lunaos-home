@@ -41,6 +41,11 @@ Completion means a nontechnical evaluator can install/setup on the supported tar
 
 Budget **15–20 focused build sessions** as an initial engineering estimate, not a delivery commitment. A session means a bounded implementation/test/review cycle ending with reviewable published work, not an arbitrary chat length or fixed number of hours. External review scheduling, app distribution approval if required, and unavailable test devices/accounts can add calendar time. Overlap and rework are uncertain; do not treat story count as session count.
 
+The [Session 2 feasibility handoff](../prototypes/session-two-feasibility-handoff.md)
+revises this original estimate using the selected-device prototype evidence and
+remaining implementation stories. Retain the table below as the initial
+baseline, not the current forecast.
+
 | Work area | Provisional sessions |
 | --- | --- |
 | Platform, mobile storage, assistant/GUI and bridge feasibility | 2 |

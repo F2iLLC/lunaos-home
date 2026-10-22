@@ -46,6 +46,11 @@ Tracking: [Session 1: Prove the app and assistant review flow](https://github.co
 
 **Handoff:** decide whether the chosen architecture is viable, what needs repair, and whether the provisional 15–20-session budget still fits. Keep production encryption/key/recovery review, complete CRUD, robust migrations, complete plugin packaging, and independent acceptance open until their later stories pass.
 
+The [Session 2 feasibility handoff](../prototypes/session-two-feasibility-handoff.md)
+maps the selected-device evidence, unsupported directions, implementation
+stories, and revised planning range. Its joined Home result remains subject to
+review of the final linked PR head.
+
 ## Session evidence and boundaries
 
 Each session ends with source/prototype changes published to a PR, actual remote-head verification, concise synthetic results, and explicit unsupported/unverified items. Do not mark the epic complete or use real family records. The reviewed public PR workflow provides hosted CI evidence for its Node suite; native builds and physical-device checks require separate local or approved infrastructure evidence. The [CI handoff](../ci-actions-setup.md) records the remaining private enterprise-network isolation probe before CI acceptance. A session can establish that a proposed approach does not work; that evidence still informs the decision, but it is not a successful capability demonstration.
