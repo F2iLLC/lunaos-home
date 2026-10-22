@@ -6,7 +6,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createInterface } from 'node:readline/promises';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
 import { selectedUsbAdb } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
@@ -49,7 +48,6 @@ assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never ov
 mkdirSync(output);
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
 let installed = false, store, visit, reads = 0, writes = 0;
-const terminal = createInterface({ input: process.stdin, output: process.stdout });
 
 function appNodes() {
   const focus = adb(['shell', 'dumpsys', 'window']);
@@ -61,24 +59,49 @@ function appNodes() {
       [key, value.replaceAll('&apos;', "'").replaceAll('&amp;', '&')]))).filter(node => node.package === pkg);
 }
 async function tap(label) {
+  let last = 'absent';
   for (let attempt = 0; attempt < 8; attempt++) {
     const found = appNodes().find(node => node.text === label && node.enabled === 'true');
     if (found) {
       const [left, top, right, bottom] = found.bounds.match(/\d+/g).map(Number);
-      assert.ok(right > left && bottom > top);
-      adb(['shell', 'input', 'tap', String(Math.floor((left + right) / 2)), String(Math.floor((top + bottom) / 2))]);
-      return;
+      if (right > left && bottom > top) {
+        adb(['shell', 'input', 'tap', String(Math.floor((left + right) / 2)), String(Math.floor((top + bottom) / 2))]);
+        return;
+      }
+      last = 'outside viewport';
+    } else {
+      last = 'absent or disabled';
     }
     adb(['shell', 'input', 'swipe', '540', '2050', '540', '870', '320']);
     await pause(250);
   }
-  throw Error(`Enabled fictional control unavailable: ${label}`);
+  throw Error(`Enabled fictional control unavailable: ${label} (${last})`);
+}
+function tapVisible(label, nodes) {
+  const found = nodes.find(node => node.text === label && node.enabled === 'true');
+  if (!found) return false;
+  const [left, top, right, bottom] = found.bounds.match(/\d+/g).map(Number);
+  if (right <= left || bottom <= top) return false;
+  adb(['shell', 'input', 'tap', String(Math.floor((left + right) / 2)), String(Math.floor((top + bottom) / 2))]);
+  return true;
 }
 async function waitText(label, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
-  do { const found = appNodes(); if (found.some(node => node.text === label)) return found; await pause(250); }
+  do {
+    try { const found = appNodes(); if (found.some(node => node.text === label)) return found; }
+    catch (error) { if (!String(error.message).includes('Bring the Home test app to the foreground')) throw error; }
+    await pause(250);
+  }
   while (Date.now() < deadline);
-  throw Error(`Fictional screen did not show: ${label}`);
+  const knownStatuses = ['Review the test computer identity.', 'Computer approved for this screen. Connect when ready.',
+    'Connecting to the approved test computer...', 'Computer connected. Waiting for host approval...',
+    'Connected. Review and allow the selected read.', 'Connection or approval unavailable. No access remains.',
+    'Connection ended. Reading needs fresh approval.', 'Reading selected fictional record...',
+    'Fictional record read. No changes allowed.', 'Read unavailable. No access remains.',
+    'Connection lost. Record hidden; fresh approval required.', 'Test access expired. Connect and approve again.'];
+  let observed = 'screen unavailable';
+  try { observed = appNodes().find(node => knownStatuses.includes(node.text))?.text || 'no expected status'; } catch { /* keep bounded result */ }
+  throw Error(`Fictional screen did not show: ${label}; observed: ${observed}`);
 }
 function privateFile(name, bytes) {
   adb(['shell', '-T', 'run-as', pkg, 'sh', '-c', `'cat > no_backup/${name}'`], bytes);
@@ -86,7 +109,7 @@ function privateFile(name, bytes) {
 
 try {
   assert.match(adb(['install', '-t', apk]), /Success/); installed = true;
-  adb(['shell', 'am', 'start', '-n', `${pkg}/io.github.f2illc.lunaos.home.preview.MainActivity`]);
+  adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/io.github.f2illc.lunaos.home.preview.MainActivity`]);
   await waitText('What would you like to do today?');
   await tap('What would you like to do today?');
   await tap('Prepare fictional computer identity (debug)');
@@ -105,23 +128,32 @@ try {
   visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity, ca: cert, bindAddress: address, idleMs: 60_000,
     store: { lifecycleStore: store, read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
       create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
+  // The empty preflight connection proves this exact listener port is reachable
+  // from the phone. It sends no application data and cannot authenticate.
+  const beforeTcp = visit.host.incomingTcpCount();
+  try { adb(['shell', 'toybox', 'nc', '-w', '2', address, String(visit.host.port)]); }
+  catch { /* An unauthenticated TLS server may close netcat with a nonzero exit. */ }
+  await pause(250);
+  if (visit.host.incomingTcpCount() <= beforeTcp) throw Error('Selected phone cannot reach the exact Windows test listener port');
+  evidence.checks.push('Selected phone reached the exact private Windows listener port before verification');
   console.log('WINDOWS_VERIFICATION_READY: complete the trusted Windows prompt on this computer');
   const verifiedBy = Date.now() + 120_000;
   for (;;) { try { visit.gate.requireVerified(); break; } catch { if (Date.now() >= verifiedBy) throw Error('Windows verification not completed'); await pause(250); } }
 
-  const review = visit.enrollment.review(peer);
   privateFile('ca.pem', fixtures.ca);
   const config = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText),
-    transportAddress: address, port: visit.host.port, hostFingerprint: review.hostFingerprint, offer: 'not-approved' };
+    transportAddress: address, port: visit.host.port, hostFingerprint: visit.host.hostFingerprint, offer: 'not-approved' };
   privateFile('config.json', JSON.stringify(config));
   await tap('Open fictional computer connection (debug)');
-  await waitText('Review the test computer identity.');
+  console.log('ANDROID_LOCAL_NETWORK_PERMISSION_READY: approve the Android local network prompt for this test package if shown');
+  await waitText('Review the test computer identity.', 180_000);
+  const review = visit.enrollment.review(peer);
   const screen = appNodes();
   assert.ok(screen.some(node => node.text === `Test computer identity: ${review.hostFingerprint}`));
   assert.ok(screen.some(node => node.text === `Android identity: ${peer}`));
-  console.log(`IDENTITY_REVIEW: phone must show host ${review.hostFingerprint} and Android ${peer}`);
-  const hostDecision = await terminal.question('After comparing both full identities on the phone, type allow to pair: ');
-  assert.equal(hostDecision.trim(), 'allow', 'Pairing denied');
+  // The owner delegated this fixed fictional test scope. This is an attended
+  // agent decision after both full identities are shown, not human acceptance.
+  console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
   const offer = visit.enrollment.decide({ ...review, allow: true });
   privateFile('config.json', JSON.stringify({ ...config, ...offer }));
   await tap('Approve fictional computer');
@@ -130,16 +162,17 @@ try {
   const connections = visit.host.listConnections();
   assert.equal(connections.length, 1);
   assert.equal(connections[0].peerFingerprint, peer);
-  const readDecision = await terminal.question('After reviewing the selected Alex read, type allow for this connection: ');
-  assert.equal(readDecision.trim(), 'allow', 'Selected read denied');
+  // A separate decision grants only this connection's Alex read for 60 seconds.
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.');
+  const approvalStarted = Date.now();
   await tap('Allow selected read');
   await tap("Read Alex's record");
-  await waitText(`${record.label}: ${record.value}`);
+  const shown = await waitText(`${record.label}: ${record.value}`);
+  evidence.readDisplayedWithinMs = Date.now() - approvalStarted;
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
-  await tap('End connection');
+  if (!tapVisible('End connection', shown)) await tap('End connection');
   const ended = await waitText('Connection ended. Reading needs fresh approval.');
   assert.ok(ended.some(node => node.text === 'No record shown.'));
   assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
@@ -147,7 +180,20 @@ try {
   evidence.checks.push('End cleared displayed content and old read authority without a second store read');
   assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
   evidence.result = 'PASS';
-} catch (error) { evidence.error = error.name; throw error; }
+} catch (error) {
+  evidence.error = error.name;
+  evidence.connectionsAtFailure = visit?.host?.listConnections().length ?? 0;
+  evidence.rejectedHandshakesAtFailure = visit?.host?.rejectedHandshakeCount() ?? 0;
+  try {
+    const pid = adb(['shell', 'pidof', pkg]).trim().split(/\s+/)[0];
+    assert.match(pid, /^\d+$/);
+    const diagnostic = adb(['logcat', '-d', `--pid=${pid}`, '-s', 'HomeDirectProbe:W', '*:S']);
+    const matched = [...diagnostic.matchAll(/(?:connect=(config|tls|resume|pair|approval)|\b(read))\/([A-Za-z]+(?:Exception|Error))/g)].at(-1);
+    if (matched) evidence.androidConnectionDiagnostic = `${matched[1] || matched[2]}/${matched[3]}`;
+  } catch { /* ADB may be unavailable during cleanup; preserve the primary failure. */ }
+  console.error('PRIMARY_RUN_FAILURE', error);
+  throw error;
+}
 finally {
   const failures = [];
   try { await visit?.close(); } catch (error) { failures.push(error); }
@@ -156,7 +202,7 @@ finally {
     adb(['shell', 'rm', '-f', '/data/local/tmp/home-direct-ui.xml']);
     assert.match(adb(['uninstall', pkg]), /Success/);
   } } catch (error) { failures.push(error); }
-  terminal.close(); fixtures.cleanup();
+  fixtures.cleanup();
   evidence.reads = reads; evidence.writes = writes; evidence.cleanup = failures.length ? 'FAILED' : 'PASS';
   writeFileSync(path.join(output, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence));

@@ -19,6 +19,7 @@ const initializationGuidance = 'Initialize Android first: npm run native:android
 export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
   <application>
     <activity android:name=".VaultActivity" android:exported="false" />
     <activity android:name="io.github.f2illc.lunaos.directtlsprobe.PairingActivity" android:exported="false" />
@@ -201,5 +202,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const softwareRendering = args[0] === '--software-rendering';
   await prepareAndroid({ softwareRendering });
-  console.log(`Prepared Android main manifest without permissions; debug adds USE_BIOMETRIC and INTERNET for non-exported fictional vault/connection screens. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
+  console.log(`Prepared Android main manifest without permissions; debug adds USE_BIOMETRIC, INTERNET and ACCESS_LOCAL_NETWORK for non-exported fictional vault/connection screens. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }

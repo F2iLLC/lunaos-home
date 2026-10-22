@@ -23,7 +23,7 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.match(vaultDebugManifest, /<activity android:name="\.VaultActivity" android:exported="false"\s*\/>/);
   assert.match(vaultDebugManifest, /<activity android:name="io\.github\.f2illc\.lunaos\.directtlsprobe\.PairingActivity" android:exported="false"\s*\/>/);
   assert.deepEqual([...vaultDebugManifest.matchAll(/<uses-permission android:name="([^"]+)"/g)].map(match => match[1]),
-    ['android.permission.USE_BIOMETRIC', 'android.permission.INTERNET']);
+    ['android.permission.USE_BIOMETRIC', 'android.permission.INTERNET', 'android.permission.ACCESS_LOCAL_NETWORK']);
   assert.match(vaultDebugManifest, /<receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove"\s*\/>/);
   assert.doesNotMatch(vaultDebugManifest, /<service\b|<activity-alias\b/);
 });
