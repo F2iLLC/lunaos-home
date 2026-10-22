@@ -182,6 +182,28 @@ try {
   assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('End cleared displayed content and old read authority without a second store read');
+  await tap('Connect to test computer');
+  const reconnected = await waitText('Computer connected. Waiting for host approval...');
+  assert.ok(reconnected.some(node => node.text === 'No record shown.'));
+  assert.ok(reconnected.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+  assert.equal(reads, 1);
+  const resumedConnections = visit.host.listConnections();
+  assert.equal(resumedConnections.length, 1);
+  assert.notEqual(resumedConnections[0].connectionId, connections[0].connectionId);
+  assert.equal(resumedConnections[0].peerFingerprint, peer);
+  visit.enrollment.approveRead(resumedConnections[0]);
+  const ready = await waitText('Connected. Review and allow the selected read.');
+  assert.ok(ready.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+  assert.equal(reads, 1);
+  await tap('Allow selected read');
+  await tap("Read Alex's record");
+  const shownAgain = await waitText(`${record.label}: ${record.value}`);
+  assert.equal(reads, 2); assert.equal(writes, 0);
+  evidence.checks.push('Reconnect withheld the record until a fresh host approval and phone read approval on the new connection');
+  if (!tapVisible('End connection', shownAgain)) await tap('End connection');
+  const endedAgain = await waitText('Connection ended. Reading needs fresh approval.');
+  assert.ok(endedAgain.some(node => node.text === 'No record shown.'));
+  assert.equal(reads, 2); assert.equal(writes, 0);
   assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
   evidence.result = 'PASS';
 } catch (error) {

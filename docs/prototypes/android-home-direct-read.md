@@ -82,6 +82,20 @@ physical read and End check, not the other failure and lifecycle permutations
 listed above. No credential, household data, or private transport material
 was captured in the retained result.
 
+On 2026-10-21, a full current-source ARM64 debug rebuild (APK SHA-256
+`3edeaf3030ffebbdf4b0a69b56ca8fcbea6eeef4c2068818c3e895d316fe1347`)
+passed the attended joined Home reconnect check on the same Samsung API 37.
+The first approved read displayed the committed fictional Alex record. End
+cleared it and disabled the old read control. Home then connected with a new
+connection ID; before a fresh host grant the record stayed hidden and Read
+stayed disabled. A fresh host read approval alone still left Read disabled.
+Only after the separate phone read approval did a second protected-store read
+display the record. The host counted exactly two reads and zero writes; the
+encrypted store stayed byte-for-byte unchanged. A final End cleared the screen.
+The separate app and synthetic Windows store were removed; cleanup passed.
+This checks one explicit End/reconnect path, not background, cold restart,
+revocation, or unavailable-host behavior in the joined Home package.
+
 The private certificate and offer provisioning above is test infrastructure,
 not a reviewed onboarding path. Android's direct screen does not itself prompt
 for device credentials; the Windows verified visit gates the protected host
