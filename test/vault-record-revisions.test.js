@@ -128,6 +128,43 @@ test('assistant revision reads require separate disclosure; revision tokens neve
   await assert.rejects(assistant.execute(read, request('read')), { code: 'DISCLOSURE_REQUIRED' });
 });
 
+test('malformed stored revisions and records return a typed read failure without adapter details', async t => {
+  const { local, grant, rows } = fixture(t);
+  const created = await local.execute(grant, request('create', { data: alex }));
+  for (const badRecord of [
+    { revision: 'invalid', data: alex },
+    { revision: created.revision, data: { ...alex, value: 'bad\uD800' } },
+    { revision: created.revision, data: alex, internal: 'private adapter detail' },
+  ]) {
+    rows.set('alex-work', badRecord);
+    await assert.rejects(local.execute(grant, request('read')), error => {
+      assert.equal(error.code, 'READ_FAILED');
+      assert.deepEqual(Object.keys(error), ['code']);
+      assert.equal(error.message, 'The record could not be read.');
+      return true;
+    });
+  }
+  rows.set('alex-work', { revision: created.revision, data: alex });
+  assert.equal((await local.execute(grant, request('read'))).revision, created.revision);
+});
+
+test('privileged activity keeps bounded typed outcomes without values or grant IDs', async t => {
+  const { service, local, grant } = fixture(t);
+  const created = await local.execute(grant, request('create', { data: alex }));
+  await local.execute(grant, request('read'));
+  await assert.rejects(local.execute(grant, request('edit', {
+    data: sam, expectedRevision: crypto.randomUUID(),
+  })), { code: 'CONFLICT' });
+  assert.deepEqual(service.recentActivity(), [
+    { sequence: 1, deviceId: 'windows-example', action: 'create', outcome: 'applied' },
+    { sequence: 2, deviceId: 'windows-example', action: 'read', outcome: 'read' },
+    { sequence: 3, deviceId: 'windows-example', action: 'edit', outcome: 'CONFLICT' },
+  ]);
+  assert.equal(JSON.stringify(service.recentActivity()).includes(alex.value), false);
+  assert.equal(JSON.stringify(service.recentActivity()).includes(grant), false);
+  assert.notEqual(created.revision, undefined);
+});
+
 test('queued expected revision is copied, then checked against the committed revision', async t => {
   const { store, service, local, grant } = fixture(t);
   const created = await local.execute(grant, request('create', { data: alex }));

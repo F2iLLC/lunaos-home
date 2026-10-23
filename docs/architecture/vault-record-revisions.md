@@ -13,8 +13,12 @@ the same probe ID and version. The service rejects a mismatched adapter version.
 The encrypted envelope is format 2, and its DPAPI purpose binds both that version
 and the store ID. Each record contains `{ revision, data }` inside the ciphertext.
 
-The existing version 1 GUI, MCP, TLS and backup probes remain version 1; they do
-not gain revision protection from this change. A version 1 adapter cannot open a
+The default version 1 GUI, MCP, TLS and backup probes remain version 1; they do
+not gain revision protection from this change. The Windows native fictional
+preview can opt in with `node scripts/windows-vault-native.mjs --contract-v2`
+and reopen the resulting store with `--resume-v2 <probe ID>`. Its GUI and
+separate stdio MCP assistant bridge use the same version 2 session service and
+encrypted adapter. A version 1 adapter cannot open a
 version 2 store, and the reverse also fails. There is no silent migration or
 fallback to an unconditional write. Version 2 export/import is refused until its
 recovery contract is specified. Do not run the old snapshot format against a new
@@ -47,6 +51,30 @@ They survive worker/process reopen. Deletion followed by recreation uses a fresh
 token, so an edit or deletion of the old incarnation cannot affect the new one.
 They are neither permissions nor secret capabilities. The service copies the
 request before queuing so a caller cannot swap the expected revision afterward.
+
+Record, member, and device IDs have explicit bounded, opaque identifier schemas.
+The trusted controller assigns and binds a stable device ID to an authenticated
+identity; a member designation never serves as identity or permission. The
+developer preview uses fixed fictional IDs. Durable enrollment and ID binding
+across installations belong to VLT-05, so this process-local admission list is
+not a production device registry.
+
+The versioned GUI retains the revision from a confirmed create or read. It
+requires a read before an edit when no revision is held and discards a stale
+revision after `CONFLICT`. The assistant MCP edit tool requires an explicit
+`expectedRevision` from an earlier authorized result; it cannot approve its own
+grant or infer a newer value. The GUI and assistant share one store and service,
+but have distinct connection-bound grants. An assistant read still needs a
+separate selected-field disclosure. The service exposes bounded typed outcomes:
+`DENIED`, `DISCLOSURE_REQUIRED`, `INVALID`, `UNSUPPORTED`, `CONFLICT`,
+`NOT_FOUND`, `BUSY`, `READ_FAILED`, and `WRITE_UNKNOWN`. Malformed stored reads
+become `READ_FAILED` without exposing adapter details.
+
+The privileged controller can inspect the last 128 accepted operation outcomes
+in process memory. Each entry contains only a sequence number, opaque device ID,
+action, and typed outcome; it has no record values, revisions, grant IDs, or
+assistant payloads. It is not a durable audit trail and is not exposed to either
+record connection. Persistence and user-facing activity belong to later work.
 
 ## Atomic comparison and authorization
 
@@ -81,14 +109,16 @@ The Windows worker does not wait for another writer's lock or remove a stale
 lock. Lock contention may therefore produce the conservative unknown result
 instead of `CONFLICT`; it never reports a second save. Once the lock is available,
 a request with the old revision fails the comparison. Crash/power-loss recovery,
-hostile same-user filesystem races, Android storage and GUI/MCP integration of
-this contract remain unverified.
+hostile same-user filesystem races, Android storage and attended native GUI/MCP
+use of this version remain unverified. The automated GUI/MCP contract check uses
+an in-memory synthetic adapter; the Windows DPAPI adapter is checked separately.
 
 ## Reproduce
 
 ```sh
 node --test test/vault-record-revisions.test.js
 node --test test/windows-record-revisions.test.js
+node --test test/windows-preview-v2.test.js
 npm test
 ```
 
@@ -98,5 +128,8 @@ committed changes with missing or invalid receipts. Windows-only tests use real
 DPAPI files and fresh PowerShell workers to check durable revisions, byte-for-byte
 preservation on conflicts, version downgrade refusal, tamper refusal, concurrent
 independent services, and a deliberately lost acknowledgement after commit.
+The GUI/MCP test exercises one versioned service with separate grants,
+disclosure, stale revision refusal, and expiry over the actual local HTTP and
+stdio tool adapters.
 All records are fictional and the fixtures are removed. Hosted Linux tests skip
 the Windows checks; they are not evidence of native device acceptance.
