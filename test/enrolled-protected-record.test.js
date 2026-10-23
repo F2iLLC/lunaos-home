@@ -72,6 +72,8 @@ test('local terminal displays exact identities and scope, with deny as the defau
   const console = openHostApprovalConsole({ input, output, synthetic: true });
   try {
     const review = { requestId: 'review', peerFingerprint: fixtures.phoneIdentity.fingerprint, hostFingerprint: fixtures.hostIdentity.fingerprint };
+    const ready = console.readyForEnrollment(); input.write('\n');
+    assert.equal(await ready, true);
     const denied = console.enrollment(review); input.write('no\n');
     assert.deepEqual(await denied, { ...review, allow: false });
     const accepted = console.enrollment(review); input.write('allow\n');
@@ -79,6 +81,7 @@ test('local terminal displays exact identities and scope, with deny as the defau
     const scoped = console.read({ peerFingerprint: review.peerFingerprint, connectionId: 'selected-connection' }); input.write('allow\n');
     assert.equal(await scoped, true);
     assert.ok(display.includes(review.peerFingerprint) && display.includes(review.hostFingerprint));
+    assert.match(display, /Press Enter to start the 60-second identity review/);
     assert.match(display, /selected-connection/); assert.match(display, /Alex \/ Library visit read-only for 60 seconds/);
     console.devices([{ peerFingerprint: review.peerFingerprint, removal: 'enrolled' }]);
     assert.match(display, new RegExp(`${review.peerFingerprint}: enrolled`));

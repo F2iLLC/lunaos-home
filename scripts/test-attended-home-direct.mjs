@@ -59,7 +59,7 @@ assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never ov
 mkdirSync(evidencePath);
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
 let installed = false, store, visit, registry, reads = 0, writes = 0;
-const hostConsole = openHostApprovalConsole();
+const hostConsole = openHostApprovalConsole({ readTimeoutMs: 30_000 });
 
 function appNodes() {
   const focus = adb(['shell', 'dumpsys', 'window']);
@@ -115,6 +115,15 @@ async function waitText(label, timeoutMs = 20_000) {
   try { observed = appNodes().find(node => knownStatuses.includes(node.text))?.text || 'no expected status'; } catch { /* keep bounded result */ }
   throw Error(`Fictional screen did not show: ${label}; observed: ${observed}`);
 }
+async function waitEnabled(label, timeoutMs = 45_000) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const found = appNodes().find(node => node.text === label && node.enabled === 'true');
+    if (found) return;
+    await pause(250);
+  } while (Date.now() < deadline);
+  throw Error(`Operator did not enable fictional control: ${label}`);
+}
 function privateFile(name, bytes) {
   adb(['shell', '-T', 'run-as', pkg, 'sh', '-c', `'cat > no_backup/${name}'`], bytes);
 }
@@ -146,9 +155,11 @@ try {
   // from the phone. It sends no application data and cannot authenticate.
   assert.ok(wifiRoute(), 'Selected phone must route to the private Windows host over Wi-Fi');
   const beforeTcp = visit.host.incomingTcpCount();
-  try { adb(['shell', 'toybox', 'nc', '-w', '2', address, String(visit.host.port)]); }
-  catch { /* An unauthenticated TLS server may close netcat with a nonzero exit. */ }
-  await pause(250);
+  for (let attempt = 0; attempt < 3 && visit.host.incomingTcpCount() <= beforeTcp; attempt++) {
+    try { adb(['shell', 'toybox', 'nc', '-w', '2', address, String(visit.host.port)]); }
+    catch { /* An unauthenticated TLS server may close netcat with a nonzero exit. */ }
+    await pause(250);
+  }
   if (visit.host.incomingTcpCount() <= beforeTcp) throw Error('Selected phone cannot reach the exact Windows test listener port');
   evidence.checks.push('Selected phone reached the exact private Windows listener port before verification');
   console.log('WINDOWS_VERIFICATION_READY: complete the trusted Windows prompt on this computer');
@@ -162,6 +173,7 @@ try {
   await tap('Open fictional computer connection (debug)');
   console.log('ANDROID_LOCAL_NETWORK_PERMISSION_READY: approve the Android local network prompt for this test package if shown');
   await waitText('Review the test computer identity.', 180_000);
+  if (!await hostConsole.readyForEnrollment()) throw Error('Operator did not start identity review');
   const review = visit.enrollment.review(peer);
   const screen = appNodes();
   assert.ok(screen.some(node => node.text === `Test computer identity: ${review.hostFingerprint}`));
@@ -169,7 +181,8 @@ try {
   console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
   const offer = visit.enrollment.decide(await hostConsole.enrollment(review));
   privateFile('config.json', JSON.stringify({ ...config, ...offer }));
-  await tap('Approve fictional computer');
+  console.log('PHONE_PAIRING_APPROVAL_READY: inspect both identities and scope, then tap Approve fictional computer on the phone within 45 seconds');
+  await waitText('Computer approved for this screen. Connect when ready.', 45_000);
   await tap('Connect to test computer');
   await waitText('Computer connected. Waiting for host approval...');
   const connections = visit.host.listConnections();
@@ -180,7 +193,8 @@ try {
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.');
   const approvalStarted = Date.now();
-  await tap('Allow selected read');
+  console.log('PHONE_READ_APPROVAL_READY: tap Allow selected read on the phone within 45 seconds');
+  await waitEnabled("Read Alex's record");
   await tap("Read Alex's record");
   const shown = await waitText(`${record.label}: ${record.value}`);
   assert.ok(wifiRoute(), 'Protected Home read must use the phone Wi-Fi route');
@@ -212,7 +226,8 @@ try {
   const ready = await waitText('Connected. Review and allow the selected read.');
   assert.ok(ready.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
   assert.equal(reads, 1);
-  await tap('Allow selected read');
+  console.log('PHONE_RECONNECTED_READ_APPROVAL_READY: tap Allow selected read again on the phone within 45 seconds');
+  await waitEnabled("Read Alex's record");
   await tap("Read Alex's record");
   const shownAgain = await waitText(`${record.label}: ${record.value}`);
   assert.ok(wifiRoute(), 'Reconnected Home read must use the phone Wi-Fi route');
