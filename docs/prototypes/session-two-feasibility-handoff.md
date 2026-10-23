@@ -1,5 +1,9 @@
 # Session 2 feasibility handoff
 
+The consolidated [VLT-01 decision and threat model](../architecture/vlt01-feasibility-decisions.md)
+records the selected host, recovery, dependency, and authorization boundaries for
+the next implementation stories.
+
 This is a fictional-fixture engineering decision for [issue 14](https://github.com/F2iLLC/lunaos-home/issues/14),
 not approval to store sensitive household information. It combines the
 published prototype evidence with the joined Home result in [PR 85](https://github.com/F2iLLC/lunaos-home/pull/85).
