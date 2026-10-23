@@ -2,7 +2,7 @@ import { createInterface } from 'node:readline/promises';
 
 // Developer-only local terminal; the connected client never answers this prompt.
 // Automated tests inject a decision instead and explicitly label that evidence.
-export function openHostApprovalConsole({ input = process.stdin, output = process.stdout, synthetic = false } = {}) {
+export function openHostApprovalConsole({ input = process.stdin, output = process.stdout, synthetic = false, readTimeoutMs = 10_000 } = {}) {
   if (!synthetic && (!input.isTTY || !output.isTTY)) throw Error('A local interactive terminal is required.');
   const terminal = createInterface({ input, output, terminal: false });
   const show = text => output.write(text + '\n');
@@ -14,14 +14,21 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
   }
   show(synthetic ? 'Synthetic driver of local approval controls; no human or OS verification claim.' : 'Local developer approval controls. This does not verify Windows user presence.');
   return {
+    async readyForEnrollment() {
+      try {
+        await terminal.question('Bring the phone and this terminal into view. Press Enter to start the 60-second identity review (this does not approve pairing): ',
+          { signal: AbortSignal.any([stopped.signal, AbortSignal.timeout(120_000)]) });
+        return true;
+      } catch { return false; }
+    },
     async enrollment(review) {
       show(`Compare both full identities and the proposed scope on the test Android screen.\nComputer: ${review.hostFingerprint}\nAndroid: ${review.peerFingerprint}\nProposed access: Alex / Library visit, read-only for up to 60 seconds after a separate approval.`);
-      const answer = await ask('Allow this Android connection? Type allow, or anything else to deny: ', 60_000);
+      const answer = await ask('Within 60 seconds, type allow to approve this Android connection; anything else denies: ', 60_000);
       return { ...review, allow: answer === 'allow' };
     },
     async read(connection) {
       show(`Android: ${connection.peerFingerprint}\nConnection: ${connection.connectionId}`);
-      return (await ask('Allow Alex / Library visit read-only for 60 seconds? Type allow: ', 10_000)) === 'allow';
+      return (await ask('Allow Alex / Library visit read-only for 60 seconds? Type allow: ', readTimeoutMs)) === 'allow';
     },
     devices(devices) {
       show('Enrolled fictional devices and removal state:');
