@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDraftStore, exampleProposal } from '../lib/drafts.js';
+import { createProfileReviewProposal } from '../lib/profile-review.js';
 
 function setup() {
   const store = createDraftStore();
@@ -54,4 +55,38 @@ test('manual changes require review again and skipped details leave the assistan
   store.review({ ...ref, revision: 3, action: 'skip' });
   assert.equal(store.pending().requests.length, 0);
   assert.equal(store.read().people[0].fields[0].status, 'skipped');
+});
+
+test('sourced staging rejects selected unresolved values, oversized fields and aggregate evidence', () => {
+  const proposal = createProfileReviewProposal();
+  const conflict = proposal.people[0].fields.find(field => field.uncertainty === 'conflicting');
+  conflict.value = 'AbC';
+  assert.throws(() => createDraftStore().stage(proposal), /Unresolved fields must have no selected value/);
+
+  conflict.value = null;
+  delete conflict.status;
+  assert.throws(() => createDraftStore().stage(proposal), /require review/);
+
+  const resolved = createProfileReviewProposal().people[0].fields[0];
+  const manyFields = { people: [{ name: 'Alex Example', fields: Array.from({ length: 13 }, (_, index) => ({ ...resolved, label: `Detail ${index}` })), suggestions: [] }] };
+  assert.throws(() => createDraftStore().stage(manyFields));
+
+  const evidence = resolved.evidence[0];
+  const manyEvidence = { people: [{ name: 'Alex Example', fields: [
+    { ...resolved, label: 'First', evidence: Array.from({ length: 51 }, () => evidence) },
+    { ...resolved, label: 'Second', evidence: Array.from({ length: 50 }, () => evidence) },
+  ], suggestions: [] }] };
+  assert.throws(() => createDraftStore().stage(manyEvidence), /at most 100 evidence items/);
+});
+
+test('a skipped unresolved field cannot be confirmed into an unreadable null state', () => {
+  const store = createDraftStore();
+  const draft = store.stage(createProfileReviewProposal());
+  const person = draft.people[0];
+  const conflict = person.fields.find(field => field.value === null);
+  const ref = { draftId: draft.id, personId: person.id, itemId: conflict.id };
+  store.review({ ...ref, revision: 0, action: 'skip' });
+  assert.throws(() => store.review({ ...ref, revision: 1, action: 'confirm' }), /Correct/);
+  assert.equal(store.read().people[0].fields.find(field => field.id === conflict.id).status, 'skipped');
+  assert.equal(store.read().revision, 1);
 });

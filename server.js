@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { createDraftStore, exampleProposal, DraftError } from './lib/drafts.js';
+import { createDraftStore, DraftError } from './lib/drafts.js';
+import { createProfileReviewProposal } from './lib/profile-review.js';
 import { VaultAccessError } from './lib/vault-sessions.js';
 
 const routes = new Map([
@@ -76,7 +77,7 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
         }
         if (bytes > 65536) { send(413, { error: 'That change is too large for this preview.' }); return; }
         const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const draft = request.url === '/api/example' ? drafts.stage(exampleProposal)
+        const draft = request.url === '/api/example' ? drafts.stage(createProfileReviewProposal())
           : request.url === '/api/review' ? drafts.review(input) : drafts.discard(input);
         send(200, { draft });
       } catch (error) {

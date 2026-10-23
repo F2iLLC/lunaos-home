@@ -4,6 +4,13 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createHttpDraftClient } from '../src/draft-client.js';
 import { createDraftStore, exampleProposal } from '../lib/drafts.js';
+import { createProfileReviewProposal } from '../lib/profile-review.js';
+
+test('response checker accepts sourced profile fields, unresolved values and candidate people without details', async () => {
+  const draft = createDraftStore().stage(createProfileReviewProposal());
+  const client = createHttpDraftClient(() => Response.json({ draft }));
+  assert.deepEqual((await client('/api/draft')).draft, draft);
+});
 
 test('a committed change with a lost response is not replayed before a successful refresh', async t => {
   const store = createDraftStore();
@@ -82,7 +89,7 @@ test('unusable drafts cannot replace a known draft or unlock writes after recove
   for (const change of [
     draft => { draft.revision = -1; },
     draft => { draft.revision = 0.5; },
-    draft => { draft.people[0].fields = []; },
+    draft => { draft.people[0].fields[0].value = null; },
     draft => { draft.people[0].fields[0].value = {}; },
     draft => { draft.people[0].fields[0].status = 'saved'; },
     draft => { delete draft.people[0].fields[0].reply; },

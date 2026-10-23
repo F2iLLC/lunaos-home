@@ -11,13 +11,21 @@ function isReadableDraft(draft) {
     ids.add(value);
     return true;
   };
+  const profileUncertainty = ['single-source', 'corroborated', 'conflicting', 'ambiguous-identity', 'unmatched-identity'];
+  const validEvidence = value => list(value, 1, 100, item => object(item)
+    && text(item.sourceLabel) && text(item.sourceReference)
+    && typeof item.observedAt === 'string' && !Number.isNaN(Date.parse(item.observedAt))
+    && ['direct', 'inferred'].includes(item.provenance) && text(item.value)
+    && item.trust === 'untrusted-source-data');
   // Validate the read contract before replacing UI state or clearing recovery.
   // This is response integrity checking, not authentication of the local service.
   return object(draft) && uniqueId(draft.id) && Number.isSafeInteger(draft.revision) && draft.revision >= 0
     && list(draft.people, 1, 6, person => object(person) && uniqueId(person.id) && text(person.name)
-      && list(person.fields, 1, 12, field => object(field) && uniqueId(field.id)
-        && text(field.label) && text(field.value) && text(field.source)
+      && list(person.fields, 0, 12, field => object(field) && uniqueId(field.id)
+        && text(field.label) && (text(field.value) || (field.value === null && ['needs-review', 'skipped'].includes(field.status) && profileUncertainty.includes(field.uncertainty))) && text(field.source)
         && ['proposed', 'needs-review', 'confirmed', 'skipped'].includes(field.status)
+        && (field.uncertainty === undefined || profileUncertainty.includes(field.uncertainty))
+        && (field.evidence === undefined || validEvidence(field.evidence))
         && text(field.question, 1024, 0) && text(field.reply, 240, 0))
       && list(person.suggestions, 0, 6, item => object(item) && uniqueId(item.id)
         && text(item.title) && text(item.reason) && ['proposed', 'accepted', 'declined'].includes(item.status)));

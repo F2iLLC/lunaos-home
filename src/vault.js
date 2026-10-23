@@ -6,6 +6,13 @@ let fieldId;
 let busy = false;
 const $ = selector => document.querySelector(selector);
 const labels = { proposed: 'Please check', 'needs-review': 'Needs review', confirmed: 'Looks right', skipped: 'Skipped', accepted: 'Yes, later', declined: 'Not now' };
+const uncertaintyLabels = {
+  'single-source': 'One source · unverified',
+  corroborated: 'Sources agree · still needs review',
+  conflicting: 'Sources disagree · no value selected',
+  'ambiguous-identity': 'Person match needs review',
+  'unmatched-identity': 'Person match needs review',
+};
 function element(tag, text, className) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -50,6 +57,17 @@ export const refreshDraft = () => request('/api/draft');
 function review(person, item, action, revision, value) {
   return request('/api/review', { draftId: draft.id, personId: person.id, itemId: item.id, revision, action, ...(value === undefined ? {} : { value }) });
 }
+function renderSuggestions(person, revision) {
+  $('#draft-suggestions').replaceChildren(...person.suggestions.map(item => {
+    const card = element('div', undefined, 'suggestion');
+    const controls = element('div', undefined, 'review-actions');
+    controls.append(button('Yes, later', () => review(person, item, 'accept', revision)), button('Not now', () => review(person, item, 'decline', revision)));
+    card.append(element('h3', item.title), element('p', item.reason), element('p', labels[item.status], 'status-tag'), controls);
+    return card;
+  }));
+  if (!person.suggestions.length) $('#draft-suggestions').append(element('p', 'No suggestions for this person yet.', 'section-help'));
+}
+
 function render() {
   $('#draft-empty').hidden = Boolean(draft);
   $('#draft-content').hidden = !draft;
@@ -58,7 +76,7 @@ function render() {
   const person = draft.people.find(item => item.id === personId) || draft.people[0];
   personId = person.id;
   const field = person.fields.find(item => item.id === fieldId) || person.fields[0];
-  fieldId = field.id;
+  fieldId = field?.id ?? null;
   const revision = draft.revision;
   $('#family-members').replaceChildren(...draft.people.map(member => {
     const node = button(member.name, () => { personId = member.id; fieldId = null; render(); $('#person-heading').focus(); }, 'member-button');
@@ -70,16 +88,45 @@ function render() {
   $('#draft-fields').replaceChildren(...person.fields.map(item => {
     const node = button('', () => { fieldId = item.id; render(); $('#field-title').focus(); }, 'field-choice');
     node.setAttribute('aria-pressed', String(item.id === fieldId));
-    node.append(element('span', item.label, 'field-label'), element('strong', item.value), element('span', labels[item.status], `status-tag ${item.status}`));
+    const summary = item.value ?? (item.uncertainty === 'conflicting' ? 'Sources disagree' : 'Person match needs review');
+    node.append(element('span', item.label, 'field-label'), element('strong', summary), element('span', labels[item.status], `status-tag ${item.status}`));
     return node;
   }));
   const editor = $('#field-editor');
   editor.replaceChildren();
+  if (!field) {
+    const heading = element('h2', 'No details to review yet'); heading.id = 'field-title'; heading.tabIndex = -1;
+    editor.append(heading, element('p', 'This fictional candidate has no sourced profile details in the sample.', 'section-help'));
+    renderSuggestions(person, revision);
+    return;
+  }
   const heading = element('h2', field.label); heading.id = 'field-title'; heading.tabIndex = -1;
-  editor.append(heading, element('p', field.value, 'field-value'), element('p', field.source, 'section-help'), element('p', labels[field.status], 'status-tag'));
+  const valueText = field.value ?? (field.uncertainty === 'conflicting'
+    ? 'Sources disagree. No single value is selected.'
+    : 'This detail is not matched to one person. No value is selected.');
+  editor.append(heading, element('p', valueText, 'field-value'), element('p', field.source, 'section-help'), element('p', labels[field.status], 'status-tag'));
+  if (field.uncertainty) {
+    const uncertainty = field.value !== null && field.uncertainty === 'conflicting'
+      ? (field.status === 'confirmed'
+        ? 'Original sources disagreed · you confirmed this value'
+        : 'Original sources disagreed · selected value still needs review')
+      : uncertaintyLabels[field.uncertainty];
+    editor.append(element('p', uncertainty, 'status-tag'));
+  }
+  if (field.evidence?.length) {
+    const evidenceHeading = element('h3', field.source === 'Your edit' ? 'Original source evidence' : 'Source evidence');
+    const evidenceList = element('ul', undefined, 'field-evidence');
+    for (const item of field.evidence) {
+      const evidence = element('li');
+      const observedDate = item.observedAt.slice(0, 10);
+      evidence.append(element('strong', item.value), element('span', `${item.sourceLabel} · ${item.provenance === 'direct' ? 'Direct statement' : 'Inferred'} · Observed ${observedDate} · ${item.sourceReference}`));
+      evidenceList.append(evidence);
+    }
+    editor.append(evidenceHeading, evidenceList);
+  }
   const actions = element('div', undefined, 'review-actions');
   const confirm = button('Looks right', () => review(person, field, 'confirm', revision));
-  confirm.disabled = field.status === 'needs-review';
+  confirm.disabled = field.status === 'needs-review' || field.value === null;
   actions.append(confirm, button('Needs review', () => review(person, field, 'flag', revision)), button('Skip this detail', () => review(person, field, 'skip', revision)));
   editor.append(actions);
   if (field.status === 'needs-review' && !canRequestAssistantReview()) {
@@ -97,19 +144,12 @@ function render() {
   }
   const edit = element('form', undefined, 'manual-edit');
   const editLabel = element('label', 'Or change it yourself'); editLabel.htmlFor = 'field-value';
-  const input = element('input'); input.id = 'field-value'; input.type = 'text'; input.required = true; input.maxLength = 240; input.autocomplete = 'off'; input.value = field.value;
+  const input = element('input'); input.id = 'field-value'; input.type = 'text'; input.required = true; input.maxLength = 240; input.autocomplete = 'off'; input.value = field.value ?? '';
   const submit = element('button', 'Update draft', 'quiet-button'); submit.type = 'submit';
   edit.append(editLabel, input, submit);
   edit.addEventListener('submit', event => { event.preventDefault(); review(person, field, 'edit', revision, input.value); });
   editor.append(edit);
-  $('#draft-suggestions').replaceChildren(...person.suggestions.map(item => {
-    const card = element('div', undefined, 'suggestion');
-    const controls = element('div', undefined, 'review-actions');
-    controls.append(button('Yes, later', () => review(person, item, 'accept', revision)), button('Not now', () => review(person, item, 'decline', revision)));
-    card.append(element('h3', item.title), element('p', item.reason), element('p', labels[item.status], 'status-tag'), controls);
-    return card;
-  }));
-  if (!person.suggestions.length) $('#draft-suggestions').append(element('p', 'No suggestions for this person yet.', 'section-help'));
+  renderSuggestions(person, revision);
 }
 $('#refresh-draft').addEventListener('click', refreshDraft);
 $('#example-draft').addEventListener('click', () => request('/api/example', {}));
