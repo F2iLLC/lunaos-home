@@ -64,6 +64,35 @@ test('ambiguous removal closes access and requires registry readback', async t =
   }
 });
 
+test('explicit retry needs a fresh readback showing the peer still enrolled', async t => {
+  const adapter = store(); const peers = new Set(); const retryCommit = pause();
+  let removes = 0; let reads = 0; let retryEntered = false;
+  const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
+    load: async () => { reads++; return [...peers]; }, add: async value => { peers.add(value); },
+    remove: async value => { removes++; if (removes === 1) throw Error('write did not commit');
+      retryEntered = true; await retryCommit.promise; peers.delete(value); } };
+  const host = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
+  t.after(() => host.close());
+  const control = createLocalEnrollment(host, { pairingRegistry: registry });
+  const phone = await connect(host, reviewOffer(control)); t.after(() => phone.close());
+  assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'uncertain' });
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+  assert.deepEqual(await control.reconcileRemoval(peer), { peerFingerprint: peer, removal: 'uncertain' });
+  assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'uncertain' }]);
+  const retried = control.retryRemoval(peer);
+  await waitFor(() => retryEntered);
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+  await assert.rejects(control.reconcileRemoval(peer), { code: 'DENIED' });
+  retryCommit.resolve();
+  assert.deepEqual(await retried, { peerFingerprint: peer, removal: 'confirmed' });
+  assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'confirmed' }]);
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+  assert.deepEqual([...peers], []);
+  assert.equal(removes, 2);
+  assert.equal(reads, 2);
+  await assert.rejects(connect(host), { code: 'UNAVAILABLE' });
+});
+
 test('re-enrollment reports the live peer instead of a stale removal', async t => {
   const other = 'a'.repeat(64);
   const adapter = store(); const peers = new Set([other]);
@@ -95,6 +124,7 @@ test('close invalidates every device-state method with default access control', 
   assert.throws(() => control.enrolledDevices(), { code: 'DENIED' });
   await assert.rejects(control.removeDevice(peer), { code: 'DENIED' });
   await assert.rejects(control.reconcileRemoval(peer), { code: 'DENIED' });
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
   assert.equal(calls, 0);
 });
 

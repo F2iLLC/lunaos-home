@@ -32,6 +32,10 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
       show(`Remove Android identity: ${peerFingerprint}`);
       return (await ask('Remove this device? Type remove, or anything else to keep it: ', 60_000)) === 'remove';
     },
+    async retryRemoval(peerFingerprint) {
+      show(`Registry readback still contains Android identity: ${peerFingerprint}. Host access is stopped.`);
+      return (await ask('Try removal again? Type retry, or anything else to stop: ', 60_000)) === 'retry';
+    },
     close() { terminal.close(); },
   };
 }
