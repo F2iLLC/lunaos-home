@@ -88,7 +88,8 @@ function render() {
   $('#draft-fields').replaceChildren(...person.fields.map(item => {
     const node = button('', () => { fieldId = item.id; render(); $('#field-title').focus(); }, 'field-choice');
     node.setAttribute('aria-pressed', String(item.id === fieldId));
-    node.append(element('span', item.label, 'field-label'), element('strong', item.value ?? 'Sources disagree'), element('span', labels[item.status], `status-tag ${item.status}`));
+    const summary = item.value ?? (item.uncertainty === 'conflicting' ? 'Sources disagree' : 'Person match needs review');
+    node.append(element('span', item.label, 'field-label'), element('strong', summary), element('span', labels[item.status], `status-tag ${item.status}`));
     return node;
   }));
   const editor = $('#field-editor');
@@ -100,11 +101,15 @@ function render() {
     return;
   }
   const heading = element('h2', field.label); heading.id = 'field-title'; heading.tabIndex = -1;
-  const valueText = field.value ?? 'Sources disagree. No single value is selected.';
+  const valueText = field.value ?? (field.uncertainty === 'conflicting'
+    ? 'Sources disagree. No single value is selected.'
+    : 'This detail is not matched to one person. No value is selected.');
   editor.append(heading, element('p', valueText, 'field-value'), element('p', field.source, 'section-help'), element('p', labels[field.status], 'status-tag'));
   if (field.uncertainty) {
-    const uncertainty = field.source === 'Your edit' && field.uncertainty === 'conflicting'
-      ? 'Original sources disagreed · your edit still needs review'
+    const uncertainty = field.value !== null && field.uncertainty === 'conflicting'
+      ? (field.status === 'confirmed'
+        ? 'Original sources disagreed · you confirmed this value'
+        : 'Original sources disagreed · selected value still needs review')
       : uncertaintyLabels[field.uncertainty];
     editor.append(element('p', uncertainty, 'status-tag'));
   }
@@ -121,7 +126,7 @@ function render() {
   }
   const actions = element('div', undefined, 'review-actions');
   const confirm = button('Looks right', () => review(person, field, 'confirm', revision));
-  confirm.disabled = field.status === 'needs-review';
+  confirm.disabled = field.status === 'needs-review' || field.value === null;
   actions.append(confirm, button('Needs review', () => review(person, field, 'flag', revision)), button('Skip this detail', () => review(person, field, 'skip', revision)));
   editor.append(actions);
   if (field.status === 'needs-review' && !canRequestAssistantReview()) {

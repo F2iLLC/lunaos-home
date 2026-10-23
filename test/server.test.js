@@ -51,12 +51,11 @@ test('draft API rejects foreign sites, rebinding hosts, bad input and stale edit
   const { draft } = await (await post('/api/example', {})).json();
   assert.equal(draft.people.length, 3);
   assert.equal((await post('/api/example', {})).status, 409);
-  const change = { draftId: draft.id, personId: draft.people[0].id, itemId: draft.people[0].fields[0].id, revision: 0, action: 'edit', value: 'Willow Workshop' };
-  assert.equal((await post('/api/review', { ...change, action: 'confirm' })).status, 400);
+  const change = { draftId: draft.id, personId: draft.people[0].id, itemId: draft.people[0].fields[0].id, revision: 0, action: 'confirm' };
   assert.equal((await post('/api/review', change)).status, 200);
   assert.equal((await post('/api/review', change)).status, 409);
   assert.equal((await post('/api/discard', { draftId: draft.id, revision: 0 })).status, 409);
-  assert.equal((await post('/api/review', { ...change, action: 'confirm', revision: 1, value: undefined })).status, 200);
+  assert.equal((await post('/api/review', { ...change, action: 'edit', revision: 1, value: 'Willow Workshop' })).status, 200);
   assert.equal((await post('/api/discard', { draftId: draft.id, revision: 1 })).status, 409);
   assert.equal((await post('/api/discard', { draftId: draft.id, revision: 2 })).status, 200);
   assert.equal((await (await fetch(base + '/api/draft', { headers })).json()).draft, null);

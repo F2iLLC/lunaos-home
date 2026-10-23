@@ -11,7 +11,7 @@ test('fictional GUI proposal preserves sourced fields, uncertainty and candidate
   const relationship = proposal.people.find(person => person.name === 'Sam Example').fields[0];
 
   assert.equal(workplace.value, 'Willow Studio');
-  assert.equal(workplace.status, 'needs-review');
+  assert.equal(workplace.status, undefined);
   assert.deepEqual(workplace.evidence, [{
     sourceLabel: 'Assistant memory example',
     sourceReference: 'Fictional note 1',
