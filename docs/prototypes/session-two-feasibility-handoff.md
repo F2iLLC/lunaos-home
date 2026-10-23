@@ -40,6 +40,8 @@ inferred. The separate phone-only path works locally without a computer.
 
 ## Implementation handoff
 
+The first post-feasibility build slice is tracked in the [Session 3 storage and pairing handoff](session-three-storage-pairing-handoff.md). It adds protected synthetic peer custody and a versioned transport path; the production requirements below remain open.
+
 1. [VLT-03](https://github.com/F2iLLC/lunaos-home/issues/6): replace fixed
    examples with reviewed records and schemas; decide authentication-bound
    Windows key release and Android/Windows unlock methods; test migration,

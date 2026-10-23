@@ -1,6 +1,6 @@
 # Epic: User-controlled shared vault
 
-**Status:** proposed implementation plan; no vault, pairing, authentication, or data protection is implemented by the current starter. This epic implements the vault foundation of [roadmap milestones 1–4](../../ROADMAP.md). Publication is not security acceptance or permission to use real records.
+**Status:** proposed product implementation plan with bounded fictional storage, pairing, authentication-gate, and transport prototypes. The [Session 3 handoff](../prototypes/session-three-storage-pairing-handoff.md) records the first protected pairing-custody increment. Production vault, guided enrollment, and authentication-bound key release remain open. This epic implements the vault foundation of [roadmap milestones 1–4](../../ROADMAP.md). Publication is not security acceptance or permission to use real records.
 
 **Tracking:** [User-controlled shared vault epic](https://github.com/F2iLLC/lunaos-home/issues/2). Merging the planning document does not close the implementation epic.
 
