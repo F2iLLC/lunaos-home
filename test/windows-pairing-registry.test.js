@@ -90,7 +90,18 @@ test('real registry readback resolves removal receipts lost before and after com
     const store = await openWindowsProbeStore({ create: true });
     const durable = openWindowsPairingRegistry({ probeId: store.probeId,
       hostFingerprint: identities.hostIdentity.fingerprint });
-    t.after(async () => { await durable.removeSyntheticRegistry(); await store.removeSyntheticStore(); });
+    let host, restarted, phone;
+    t.after(async () => {
+      phone?.close();
+      try { await restarted?.close(); }
+      finally {
+        try { await host?.close(); }
+        finally {
+          try { await durable.removeSyntheticRegistry(); }
+          finally { await store.removeSyntheticStore(); }
+        }
+      }
+    });
     let removals = 0;
     const registry = { ...durable, remove: async fingerprint => {
       removals++;
@@ -99,12 +110,11 @@ test('real registry readback resolves removal receipts lost before and after com
     } };
     const start = selected => startDirectVaultExperiment({ identity: identities.hostIdentity,
       ca: identities.ca, store, pairingRegistry: selected });
-    const host = await start(registry);
+    host = await start(registry);
     const control = createLocalEnrollment(host, { pairingRegistry: registry });
     const offer = control.decide({ ...control.review(identities.phoneIdentity.fingerprint), allow: true });
-    const phone = await connectDirectVaultExperiment({ port: host.port, identity: identities.phoneIdentity,
+    phone = await connectDirectVaultExperiment({ port: host.port, identity: identities.phoneIdentity,
       ca: identities.ca, approvedHostFingerprint: host.hostFingerprint, offer: offer.offer });
-    t.after(() => phone.close());
     assert.deepEqual(await durable.load(), [identities.phoneIdentity.fingerprint]);
     assert.deepEqual(await control.removeDevice(identities.phoneIdentity.fingerprint),
       { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'uncertain' });
@@ -115,9 +125,11 @@ test('real registry readback resolves removal receipts lost before and after com
     control.close();
     phone.close();
     await host.close();
-    const restarted = await start(durable);
+    host = undefined;
+    restarted = await start(durable);
     assert.deepEqual(restarted.listPairedPeers(), committed ? [] : [identities.phoneIdentity.fingerprint]);
     await restarted.close();
+    restarted = undefined;
     assert.deepEqual(await durable.load(), committed ? [] : [identities.phoneIdentity.fingerprint]);
   }
 });
