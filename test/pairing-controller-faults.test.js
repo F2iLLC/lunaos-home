@@ -93,6 +93,71 @@ test('explicit retry needs a fresh readback showing the peer still enrolled', as
   await assert.rejects(connect(host), { code: 'UNAVAILABLE' });
 });
 
+test('a second lost removal receipt needs another readback; restart resolves both commit outcomes', async t => {
+  for (const retryCommitted of [false, true]) {
+    const adapter = store(); const peers = new Set(); let removes = 0; let reads = 0;
+    const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
+      load: async () => { reads++; return [...peers]; }, add: async value => { peers.add(value); },
+      remove: async value => {
+        removes++;
+        if (retryCommitted && removes === 2) peers.delete(value);
+        throw Error('lost removal receipt');
+      } };
+    const host = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
+    const control = createLocalEnrollment(host, { pairingRegistry: registry });
+    const phone = await connect(host, reviewOffer(control));
+    t.after(() => phone.close());
+    assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'uncertain' });
+    assert.deepEqual(await control.reconcileRemoval(peer), { peerFingerprint: peer, removal: 'uncertain' });
+    assert.deepEqual(await control.retryRemoval(peer), { peerFingerprint: peer, removal: 'uncertain' });
+    assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'uncertain' }]);
+    await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+    assert.deepEqual(await control.reconcileRemoval(peer),
+      { peerFingerprint: peer, removal: retryCommitted ? 'confirmed' : 'uncertain' });
+    assert.equal(removes, 2);
+    assert.equal(reads, 3);
+    assert.deepEqual(host.listPairedPeers(), []);
+    await assert.rejects(connect(host), { code: 'UNAVAILABLE' });
+    control.close();
+    await host.close();
+    const restarted = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
+    t.after(() => restarted.close());
+    assert.deepEqual(restarted.listPairedPeers(), retryCommitted ? [] : [peer]);
+  }
+});
+
+test('concurrent operator actions cannot use an in-flight or stale readback', async t => {
+  const adapter = store(); const peers = new Set(); const read = pause(); const retry = pause();
+  let reads = 0; let removes = 0; let readEntered = false; let retryEntered = false;
+  const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
+    load: async () => { reads++; if (reads === 2) { readEntered = true; await read.promise; } return [...peers]; },
+    add: async value => { peers.add(value); },
+    remove: async value => { removes++; if (removes === 1) throw Error('write did not commit');
+      retryEntered = true; await retry.promise; peers.delete(value); } };
+  const host = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
+  t.after(() => host.close());
+  const control = createLocalEnrollment(host, { pairingRegistry: registry });
+  const phone = await connect(host, reviewOffer(control)); t.after(() => phone.close());
+  assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'uncertain' });
+  const reconciling = control.reconcileRemoval(peer);
+  await waitFor(() => readEntered);
+  await assert.rejects(control.reconcileRemoval(peer), { code: 'DENIED' });
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+  await assert.rejects(control.removeDevice(peer), { code: 'DENIED' });
+  read.resolve();
+  assert.deepEqual(await reconciling, { peerFingerprint: peer, removal: 'uncertain' });
+  const retrying = control.retryRemoval(peer);
+  await waitFor(() => retryEntered);
+  await assert.rejects(control.reconcileRemoval(peer), { code: 'DENIED' });
+  await assert.rejects(control.retryRemoval(peer), { code: 'DENIED' });
+  retry.resolve();
+  assert.deepEqual(await retrying, { peerFingerprint: peer, removal: 'confirmed' });
+  assert.equal(reads, 2);
+  assert.equal(removes, 2);
+  assert.deepEqual(host.listPairedPeers(), []);
+  await assert.rejects(connect(host), { code: 'UNAVAILABLE' });
+});
+
 test('re-enrollment reports the live peer instead of a stale removal', async t => {
   const other = 'a'.repeat(64);
   const adapter = store(); const peers = new Set([other]);
