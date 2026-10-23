@@ -6,6 +6,7 @@ import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-i
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { startDirectVaultExperiment, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
+import { createLocalEnrollment } from '../lib/local-enrollment.js';
 
 const windows = { skip: process.platform !== 'win32', timeout: 90_000 };
 const identities = createDirectTlsIdentities();
@@ -82,4 +83,53 @@ test('failed durable add does not admit a peer or return a successful pairing', 
     ca: identities.ca, approvedHostFingerprint: host.hostFingerprint, offer: offer.offer }),
   error => ['WRITE_UNKNOWN', 'UNAVAILABLE'].includes(error.code));
   assert.equal(host.listConnections().length, 0);
+});
+
+test('real registry readback resolves removal receipts lost before and after commit', windows, async t => {
+  for (const committed of [false, true]) {
+    const store = await openWindowsProbeStore({ create: true });
+    const durable = openWindowsPairingRegistry({ probeId: store.probeId,
+      hostFingerprint: identities.hostIdentity.fingerprint });
+    let host, restarted, phone;
+    t.after(async () => {
+      phone?.close();
+      try { await restarted?.close(); }
+      finally {
+        try { await host?.close(); }
+        finally {
+          try { await durable.removeSyntheticRegistry(); }
+          finally { await store.removeSyntheticStore(); }
+        }
+      }
+    });
+    let removals = 0;
+    const registry = { ...durable, remove: async fingerprint => {
+      removals++;
+      if (committed) await durable.remove(fingerprint);
+      throw Error('fictional lost removal receipt');
+    } };
+    const start = selected => startDirectVaultExperiment({ identity: identities.hostIdentity,
+      ca: identities.ca, store, pairingRegistry: selected });
+    host = await start(registry);
+    const control = createLocalEnrollment(host, { pairingRegistry: registry });
+    const offer = control.decide({ ...control.review(identities.phoneIdentity.fingerprint), allow: true });
+    phone = await connectDirectVaultExperiment({ port: host.port, identity: identities.phoneIdentity,
+      ca: identities.ca, approvedHostFingerprint: host.hostFingerprint, offer: offer.offer });
+    assert.deepEqual(await durable.load(), [identities.phoneIdentity.fingerprint]);
+    assert.deepEqual(await control.removeDevice(identities.phoneIdentity.fingerprint),
+      { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'uncertain' });
+    assert.deepEqual(host.listPairedPeers(), []);
+    assert.deepEqual(await control.reconcileRemoval(identities.phoneIdentity.fingerprint),
+      { peerFingerprint: identities.phoneIdentity.fingerprint, removal: committed ? 'confirmed' : 'uncertain' });
+    assert.equal(removals, 1);
+    control.close();
+    phone.close();
+    await host.close();
+    host = undefined;
+    restarted = await start(durable);
+    assert.deepEqual(restarted.listPairedPeers(), committed ? [] : [identities.phoneIdentity.fingerprint]);
+    await restarted.close();
+    restarted = undefined;
+    assert.deepEqual(await durable.load(), committed ? [] : [identities.phoneIdentity.fingerprint]);
+  }
 });
