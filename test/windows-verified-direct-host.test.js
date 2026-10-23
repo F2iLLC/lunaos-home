@@ -81,7 +81,8 @@ async function fixture(t, store, options = {}) {
 test('verified local controller opts into protected pairing and reports confirmed removal', { skip: process.platform !== 'win32' }, async t => {
   const store = await openWindowsProbeStore({ create: true });
   const registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: identities.hostIdentity.fingerprint });
-  const f = await fixture(t, store, { protectedPairing: true });
+  const f = await fixture(t, { lifecycleStore: store, read: store.read, create: store.create, edit: store.edit },
+    { protectedPairing: true });
   t.after(async () => { await registry.removeSyntheticRegistry(); await store.removeSyntheticStore(); });
   assert.throws(() => f.enrollment.enrolledDevices(), denied);
   f.verify();

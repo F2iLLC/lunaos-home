@@ -39,8 +39,9 @@ test('enrollment is durable before success; one-use offers reject replay', async
 });
 
 test('ambiguous removal closes access and requires registry readback', async t => {
+  const other = 'a'.repeat(64);
   for (const committed of [false, true]) {
-    const adapter = store(); const peers = new Set(); let reads = 0;
+    const adapter = store(); const peers = new Set([other]); let reads = 0;
     const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
       load: async () => { reads++; return [...peers]; }, add: async value => { peers.add(value); },
       remove: async value => { if (committed) peers.delete(value); throw Error('lost removal receipt'); } };
@@ -54,8 +55,40 @@ test('ambiguous removal closes access and requires registry readback', async t =
     await assert.rejects(phone.execute(crypto.randomUUID(), { action: 'read', recordId: 'alex-library' }),
       error => ['DENIED', 'UNAVAILABLE'].includes(error.code));
     assert.deepEqual(await control.reconcileRemoval(peer), { peerFingerprint: peer, removal: committed ? 'confirmed' : 'uncertain' });
+    assert.deepEqual(control.enrolledDevices(), [
+      { peerFingerprint: peer, removal: committed ? 'confirmed' : 'uncertain' },
+      { peerFingerprint: other, removal: 'enrolled' },
+    ].sort((a, b) => a.peerFingerprint.localeCompare(b.peerFingerprint)));
+    assert.deepEqual(host.listPairedPeers(), []); // Readback restores the management inventory, not host access.
     assert.equal(reads, 2); // Startup plus explicit reconciliation; no automatic retry.
   }
+});
+
+test('re-enrollment reports the live peer instead of a stale removal', async t => {
+  const adapter = store(); const peers = new Set();
+  const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
+    load: async () => [...peers], add: async value => { peers.add(value); },
+    remove: async value => { peers.delete(value); } };
+  const host = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
+  t.after(() => host.close());
+  const control = createLocalEnrollment(host, { pairingRegistry: registry });
+  const first = await connect(host, reviewOffer(control)); t.after(() => first.close());
+  assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'confirmed' });
+  const second = await connect(host, reviewOffer(control)); t.after(() => second.close());
+  assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'enrolled' }]);
+});
+
+test('close invalidates every device-state method with default access control', async () => {
+  let calls = 0;
+  const host = { listPairedPeers: () => { calls++; return [peer]; } };
+  const registry = { load: async () => [peer] };
+  const control = createLocalEnrollment(host, { pairingRegistry: registry });
+  control.close();
+  assert.throws(() => control.cancel('unused'), { code: 'DENIED' });
+  assert.throws(() => control.enrolledDevices(), { code: 'DENIED' });
+  await assert.rejects(control.removeDevice(peer), { code: 'DENIED' });
+  await assert.rejects(control.reconcileRemoval(peer), { code: 'DENIED' });
+  assert.equal(calls, 0);
 });
 
 test('lost pairing receipt is WRITE_UNKNOWN; restart reads custody without replaying offer', async t => {
