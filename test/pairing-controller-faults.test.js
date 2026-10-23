@@ -65,17 +65,24 @@ test('ambiguous removal closes access and requires registry readback', async t =
 });
 
 test('re-enrollment reports the live peer instead of a stale removal', async t => {
-  const adapter = store(); const peers = new Set();
+  const other = 'a'.repeat(64);
+  const adapter = store(); const peers = new Set([other]);
   const registry = { probeId: adapter.probeId, hostFingerprint: identities.hostIdentity.fingerprint,
     load: async () => [...peers], add: async value => { peers.add(value); },
-    remove: async value => { peers.delete(value); } };
+    remove: async value => { peers.delete(value); if (value === other) throw Error('lost removal receipt'); } };
   const host = await startDirectVaultExperiment({ identity: identities.hostIdentity, ca: identities.ca, store: adapter, pairingRegistry: registry });
   t.after(() => host.close());
   const control = createLocalEnrollment(host, { pairingRegistry: registry });
   const first = await connect(host, reviewOffer(control)); t.after(() => first.close());
   assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'confirmed' });
   const second = await connect(host, reviewOffer(control)); t.after(() => second.close());
-  assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'enrolled' }]);
+  assert.deepEqual(control.enrolledDevices().find(device => device.peerFingerprint === peer),
+    { peerFingerprint: peer, removal: 'enrolled' });
+  assert.deepEqual(await control.removeDevice(other), { peerFingerprint: other, removal: 'uncertain' });
+  assert.deepEqual(await control.reconcileRemoval(other), { peerFingerprint: other, removal: 'confirmed' });
+  assert.deepEqual(control.enrolledDevices(), [{ peerFingerprint: peer, removal: 'enrolled' },
+    { peerFingerprint: other, removal: 'confirmed' }].sort((a, b) => a.peerFingerprint.localeCompare(b.peerFingerprint)));
+  assert.deepEqual(host.listPairedPeers(), []);
 });
 
 test('close invalidates every device-state method with default access control', async () => {
