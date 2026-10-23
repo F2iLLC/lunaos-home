@@ -230,7 +230,12 @@ try {
     if (removed.removal === 'uncertain') {
       const checked = await visit.enrollment.reconcileRemoval(peer);
       hostConsole.devices(visit.enrollment.enrolledDevices());
-      if (checked.removal !== 'confirmed') throw Error('Device removal remains uncertain');
+      if (checked.removal !== 'confirmed') {
+        if (!await hostConsole.retryRemoval(peer)) throw Error('Device removal remains uncertain');
+        const retried = await visit.enrollment.retryRemoval(peer);
+        hostConsole.devices(visit.enrollment.enrolledDevices());
+        if (retried.removal !== 'confirmed') throw Error('Device removal remains uncertain; readback required before another attempt');
+      }
     }
     evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
   }
