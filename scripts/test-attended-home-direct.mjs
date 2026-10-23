@@ -12,6 +12,8 @@ import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
+import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
 
 const [output, apk, serial, model, apiText, address] = process.argv.slice(2);
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
@@ -56,7 +58,8 @@ assert.notEqual(adb(['shell', 'getprop', 'ro.hardware']).trim(), 'ranchu');
 assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never overwrite an installed Home direct test package');
 mkdirSync(evidencePath);
 const fixtures = createDirectTlsIdentities({ hostOnly: true });
-let installed = false, store, visit, reads = 0, writes = 0;
+let installed = false, store, visit, registry, reads = 0, writes = 0;
+const hostConsole = openHostApprovalConsole();
 
 function appNodes() {
   const focus = adb(['shell', 'dumpsys', 'window']);
@@ -134,7 +137,9 @@ try {
   const ciphertext = readFileSync(path.join(store.directory, 'records.bin'));
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
   store = await openWindowsProbeStore({ probeId: store.probeId });
+  registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
   visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity, ca: cert, bindAddress: address, idleMs: 60_000,
+    protectedPairing: true,
     store: { lifecycleStore: store, read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
       create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
   // The empty preflight connection proves this exact listener port is reachable
@@ -161,10 +166,8 @@ try {
   const screen = appNodes();
   assert.ok(screen.some(node => node.text === `Test computer identity: ${review.hostFingerprint}`));
   assert.ok(screen.some(node => node.text === `Android identity: ${peer}`));
-  // The owner delegated this fixed fictional test scope. This is an attended
-  // agent decision after both full identities are shown, not human acceptance.
   console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
-  const offer = visit.enrollment.decide({ ...review, allow: true });
+  const offer = visit.enrollment.decide(await hostConsole.enrollment(review));
   privateFile('config.json', JSON.stringify({ ...config, ...offer }));
   await tap('Approve fictional computer');
   await tap('Connect to test computer');
@@ -173,6 +176,7 @@ try {
   assert.equal(connections.length, 1);
   assert.equal(connections[0].peerFingerprint, peer);
   // A separate decision grants only this connection's Alex read for 60 seconds.
+  if (!await hostConsole.read(connections[0])) throw Error('Host denied selected read');
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.');
   const approvalStarted = Date.now();
@@ -203,6 +207,7 @@ try {
   assert.equal(resumedConnections.length, 1);
   assert.notEqual(resumedConnections[0].connectionId, connections[0].connectionId);
   assert.equal(resumedConnections[0].peerFingerprint, peer);
+  if (!await hostConsole.read(resumedConnections[0])) throw Error('Host denied selected read');
   visit.enrollment.approveRead(resumedConnections[0]);
   const ready = await waitText('Connected. Review and allow the selected read.');
   assert.ok(ready.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
@@ -218,6 +223,17 @@ try {
   assert.ok(endedAgain.some(node => node.text === 'No record shown.'));
   assert.equal(reads, 2); assert.equal(writes, 0);
   assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
+  hostConsole.devices(visit.enrollment.enrolledDevices());
+  if (await hostConsole.removal(peer)) {
+    const removed = await visit.enrollment.removeDevice(peer);
+    hostConsole.devices(visit.enrollment.enrolledDevices());
+    if (removed.removal === 'uncertain') {
+      const checked = await visit.enrollment.reconcileRemoval(peer);
+      hostConsole.devices(visit.enrollment.enrolledDevices());
+      if (checked.removal !== 'confirmed') throw Error('Device removal remains uncertain');
+    }
+    evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
+  }
   evidence.result = 'PASS';
 } catch (error) {
   evidence.error = error.name;
@@ -236,7 +252,9 @@ try {
 finally {
   const failures = [];
   try { await visit?.close(); } catch (error) { failures.push(error); }
+  try { await registry?.removeSyntheticRegistry(); } catch (error) { failures.push(error); }
   try { await store?.removeSyntheticStore(); } catch (error) { failures.push(error); }
+  hostConsole.close();
   try { if (installed) {
     adb(['shell', 'rm', '-f', '/data/local/tmp/home-direct-ui.xml']);
     assert.match(adb(['uninstall', pkg]), /Success/);

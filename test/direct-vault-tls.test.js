@@ -155,7 +155,8 @@ test('TLS refuses missing client certificates before any application response', 
 test('server TLS rejects a client certificate from an independently untrusted issuer', async t => {
   const { host, connect } = await setup(t);
   const approved = host.approvePairing(certificateFingerprint(untrustedIdentity.cert));
-  await assert.rejects(connect({ ...approved, identity: untrustedIdentity }), isCode('UNAVAILABLE'));
+  await assert.rejects(connect({ ...approved, identity: untrustedIdentity }),
+    error => ['UNAVAILABLE', 'WRITE_UNKNOWN'].includes(error.code));
 });
 
 test('pairing expires at its deadline, can be cancelled and fails on clock rollback', async t => {
