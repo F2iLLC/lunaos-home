@@ -91,3 +91,29 @@ test('assistant sharing is a separate selected-field request and a late response
   assert.equal(ui.element('#sharing-status').textContent, 'Sharing has ended.');
   assert.equal(ui.element('#assistant-status').textContent, 'Assistant access has ended.');
 });
+
+test('versioned GUI requires a reviewed revision and clears it after a conflict', async () => {
+  const calls = [];
+  let currentRevision = crypto.randomUUID();
+  const ui = screen(async (_url, options) => {
+    const input = JSON.parse(options.body); calls.push(input);
+    if (input.action === 'approve') return ok({ ...approved, contractVersion: 2 });
+    if (input.operation === 'read') return ok({ version: 2, recordId: input.recordId,
+      revision: currentRevision, data: { memberId: 'alex-example', label: 'Workplace', value: 'Willow Studio' } });
+    return { ok: false, json: async () => ({ code: 'CONFLICT', error: 'This record changed. Review it again before making another change.' }) };
+  });
+  await ui.click('#approve-setup');
+  await ui.click('#edit-record');
+  assert.equal(calls.length, 1);
+  assert.match(ui.element('#preview-error').textContent, /View the saved example/);
+  await ui.click('#read-record');
+  assert.equal(ui.element('#record-result').textContent, 'Workplace: Willow Studio');
+  await ui.click('#edit-record');
+  assert.equal(calls[2].expectedRevision, currentRevision);
+  await ui.click('#edit-record');
+  assert.equal(calls.length, 3);
+  currentRevision = crypto.randomUUID();
+  await ui.click('#read-record');
+  await ui.click('#edit-record');
+  assert.equal(calls[4].expectedRevision, currentRevision);
+});

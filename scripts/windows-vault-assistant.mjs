@@ -17,21 +17,25 @@ async function request(input) {
   if (!response.ok) throw Object.assign(Error('Fictional operation refused.'), { code: value.code });
   return value;
 }
-const { connectionId } = await request({ action: 'connect' });
+const { connectionId, contractVersion } = await request({ action: 'connect' });
+if (![1, 2].includes(contractVersion)) throw Error('Unsupported fictional record contract.');
 const mcp = new McpServer({ name: 'lunaos-home-windows-example', version: '0.1.0' });
 let writeUncertain = false;
 for (const operation of ['read', 'create', 'edit']) mcp.registerTool(`home_example_${operation}`, {
   title: `${operation} a fixed fictional Windows example`,
   description: 'Developer-only fixed Alex/Sam examples. Home must approve access locally. Reading requires a separate local approval for one record and field; other fields are withheld. Cannot approve access, choose a destination, access real records or collect private data. Do not retry an unconfirmed write; ask for a local review.',
-  inputSchema: z.object({ recordId: z.enum(['alex-work', 'sam-school']) }).strict(),
+  inputSchema: z.object({ recordId: z.enum(['alex-work', 'sam-school']),
+    ...(operation === 'edit' && contractVersion === 2 ? { expectedRevision: z.string().uuid() } : {}),
+  }).strict(),
   annotations: { readOnlyHint: operation === 'read', destructiveHint: false, openWorldHint: false },
 }, async input => {
   try {
     if (writeUncertain) throw Object.assign(Error('Reconnect required.'), { code: 'DENIED' });
-    const value = await request({ action: 'record', connectionId, operation, recordId: input.recordId });
+    const value = await request({ action: 'record', connectionId, operation, recordId: input.recordId,
+      ...(input.expectedRevision ? { expectedRevision: input.expectedRevision } : {}) });
     return { content: [{ type: 'text', text: JSON.stringify(value) }] };
   } catch (error) {
-    const codes = ['DENIED', 'DISCLOSURE_REQUIRED', 'NOT_FOUND', 'READ_FAILED', 'WRITE_UNKNOWN', 'INVALID', 'BUSY'];
+    const codes = ['DENIED', 'DISCLOSURE_REQUIRED', 'NOT_FOUND', 'READ_FAILED', 'WRITE_UNKNOWN', 'INVALID', 'BUSY', 'CONFLICT'];
     const code = codes.includes(error.code) ? error.code : operation === 'read' ? 'READ_FAILED' : 'WRITE_UNKNOWN';
     if (code === 'WRITE_UNKNOWN') { writeUncertain = true; await disconnect(); }
     const messages = {
@@ -40,6 +44,7 @@ for (const operation of ['read', 'create', 'edit']) mcp.registerTool(`home_examp
       NOT_FOUND: 'This example has not been saved.',
       BUSY: 'The preview is busy. Check it locally before continuing.',
       INVALID: 'This request is not supported by the fictional example.',
+      CONFLICT: 'This example changed. Review it locally before requesting another change.',
     };
     return { isError: true, content: [{ type: 'text', text: JSON.stringify({ code,
       message: messages[code] || 'This operation needs the current local access and sharing approval.',

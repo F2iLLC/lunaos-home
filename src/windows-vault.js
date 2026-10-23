@@ -1,6 +1,8 @@
 const key = location.hash.slice(1);
 history.replaceState(null, '', location.pathname); // Do not retain the process capability in navigation history.
 let grant;
+let contractVersion = 1;
+const recordRevisions = new Map();
 let revision = 0;
 let timer;
 const status = document.querySelector('#access-status');
@@ -10,6 +12,7 @@ const accessButtons = [...document.querySelectorAll('#approve-read, #approve-set
 const recordButtons = [...document.querySelectorAll('#read-record, #create-record, #edit-record')];
 function clearAccess(message) {
   grant = undefined;
+  recordRevisions.clear();
   revision++;
   clearTimeout(timer);
   result.textContent = '';
@@ -37,6 +40,7 @@ for (const mode of ['read', 'setup']) document.querySelector(`#approve-${mode}`)
     const remaining = approved.lifetimeMs - (performance.now() - started);
     if (remaining <= 0) { clearAccess('Access has ended. Choose access again to continue.'); return; }
     grant = approved.grantId;
+    contractVersion = approved.contractVersion;
     status.textContent = `${mode === 'read' ? 'Viewing' : 'Adding and changing'} approved for both examples · up to one minute. This approval does not share with an assistant.`;
     timer = setTimeout(() => clearAccess('Access has ended. Choose access again to continue.'), remaining);
   } catch (failure) { if (pending === revision) { clearAccess('Approval could not be confirmed. Any access granted ends within one minute.'); error.textContent = failure.message; } }
@@ -62,14 +66,25 @@ for (const operation of ['read', 'create', 'edit']) document.querySelector(`#${o
   if (!grant) { error.textContent = 'Choose access first.'; return; }
   const pending = revision;
   const recordId = document.querySelector('#member').value;
+  const expectedRevision = operation === 'edit' && contractVersion === 2 ? recordRevisions.get(recordId) : undefined;
+  if (operation === 'edit' && contractVersion === 2 && !expectedRevision) {
+    error.textContent = 'View the saved example before changing it.';
+    return;
+  }
   recordButtons.forEach(button => { button.disabled = true; });
   try {
-    const value = await request({ action: 'record', grantId: grant, recordId, operation });
+    const value = await request({ action: 'record', grantId: grant, recordId, operation,
+      ...(expectedRevision ? { expectedRevision } : {}) });
     if (pending !== revision) return;
+    if (contractVersion === 2) recordRevisions.set(recordId, value.revision);
     if (value.accessEnded) { clearAccess('The change was saved, but access has ended. Approve viewing to check it.'); return; }
-    if (recordId === document.querySelector('#member').value) result.textContent = operation === 'read' ? `${value.label}: ${value.value}` : 'Example saved on this computer.';
+    if (recordId === document.querySelector('#member').value) {
+      const detail = contractVersion === 2 ? value.data : value;
+      result.textContent = operation === 'read' ? `${detail.label}: ${detail.value}` : 'Example saved on this computer.';
+    }
   } catch (failure) {
     if (pending !== revision) return;
+    if (failure.code === 'CONFLICT') recordRevisions.delete(recordId);
     if (['DENIED', 'WRITE_UNKNOWN'].includes(failure.code) || (!failure.code && operation !== 'read')) clearAccess('Choose access again to continue.');
     error.textContent = failure.code ? failure.message : operation === 'read'
       ? 'The example could not be read. Check that the preview is still running.'

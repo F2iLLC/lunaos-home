@@ -7,10 +7,16 @@ import { createAppServer } from '../server.js';
 
 if (process.platform !== 'win32') throw Error('This example needs Windows.');
 const args = process.argv.slice(2);
-if (args.length && (args.length !== 2 || args[0] !== '--resume')) throw Error('Use no arguments, or --resume with the example ID.');
+if (args.length && !((args.length === 1 && args[0] === '--contract-v2') ||
+    (args.length === 2 && ['--resume', '--resume-v2'].includes(args[0])))) {
+  throw Error('Use no arguments, --contract-v2, or --resume/--resume-v2 with the example ID.');
+}
+const versioned = args[0] === '--contract-v2' || args[0] === '--resume-v2';
+const resume = args.length === 2;
 const store = await openWindowsProbeStore({
   powershell: process.env.LUNA_HOME_PROBE_POWERSHELL || 'pwsh',
-  ...(args.length ? { probeId: args[1] } : {}), create: !args.length,
+  ...(resume ? { probeId: args[1] } : {}), create: !resume,
+  contractVersion: versioned ? 2 : 1,
 });
 const preview = createWindowsPreview({ store });
 // Fixed local build, no shell, no URL/key in process arguments. The visible
@@ -30,7 +36,7 @@ server.listen(0, '127.0.0.1', () => {
   child.stdin.end(`http://127.0.0.1:${server.address().port}/windows-vault#${preview.key}\n`);
   console.log('Complete verification only in the Windows prompt. Cancel to leave access closed.');
   console.log('Access ends when the window closes or after five minutes; individual approvals last at most one minute.');
-  console.log(`Resume: node scripts/windows-vault-native.mjs --resume ${store.probeId}`);
+  console.log(`Resume: node scripts/windows-vault-native.mjs ${versioned ? '--resume-v2' : '--resume'} ${store.probeId}`);
   console.log(`Assistant bridge environment: LUNA_HOME_WINDOWS_URL=http://127.0.0.1:${server.address().port} LUNA_HOME_WINDOWS_ASSISTANT_KEY=${preview.assistantKey}`);
   console.log('Give only this bridge environment to the test assistant. No browser approval link is issued.');
 });
