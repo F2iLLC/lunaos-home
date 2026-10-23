@@ -80,6 +80,10 @@ test('local terminal displays exact identities and scope, with deny as the defau
     assert.equal(await scoped, true);
     assert.ok(display.includes(review.peerFingerprint) && display.includes(review.hostFingerprint));
     assert.match(display, /selected-connection/); assert.match(display, /Alex \/ Library visit read-only for 60 seconds/);
+    console.devices([{ peerFingerprint: review.peerFingerprint, removal: 'enrolled' }]);
+    assert.match(display, new RegExp(`${review.peerFingerprint}: enrolled`));
+    const remove = console.removal(review.peerFingerprint); input.write('remove\n');
+    assert.equal(await remove, true);
     const eof = console.read({ peerFingerprint: review.peerFingerprint, connectionId: 'closed-input' });
     input.end(); assert.equal(await eof, false);
   } finally { console.close(); }

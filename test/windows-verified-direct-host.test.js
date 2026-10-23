@@ -10,6 +10,7 @@ import { superviseNativeDirectHost, requireLifecycleDuringGrant, requireVisitDea
 import { startWindowsVerifiedDirectHost } from '../lib/windows-verified-direct-host.js';
 import { connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 
 const identities = createDirectTlsIdentities();
@@ -57,10 +58,10 @@ test('a child or pipe failure inside the deadline window cannot count as visit e
   assert.throws(() => requireVisitDeadline({ reason: 'visit-deadline' }, [], 280_000));
 });
 // Controlled child receipts only. These tests never invoke Windows authentication.
-async function fixture(t, store) {
+async function fixture(t, store, options = {}) {
   const child = new EventEmitter(); child.stdout = new EventEmitter(); child.kill = () => { child.killed = true; };
   let tick = 0; const timers = [];
-  const visit = await startWindowsVerifiedDirectHost({ child, store, identity: identities.hostIdentity, ca: identities.ca,
+  const visit = await startWindowsVerifiedDirectHost({ child, store, identity: identities.hostIdentity, ca: identities.ca, ...options,
     gateOptions: { now: () => tick, schedule: (fn, ms) => { const timer = { fn, ms }; timers.push(timer); return timer; }, cancel: timer => { if (timer) timer.cancelled = true; } },
   });
   t.after(() => visit.close());
@@ -76,6 +77,22 @@ async function fixture(t, store) {
   };
   return { ...visit, child, timers, verify, end, connect, pair, time: value => { tick = value; } };
 }
+
+test('verified local controller opts into protected pairing and reports confirmed removal', { skip: process.platform !== 'win32' }, async t => {
+  const store = await openWindowsProbeStore({ create: true });
+  const registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: identities.hostIdentity.fingerprint });
+  const f = await fixture(t, store, { protectedPairing: true });
+  t.after(async () => { await registry.removeSyntheticRegistry(); await store.removeSyntheticStore(); });
+  assert.throws(() => f.enrollment.enrolledDevices(), denied);
+  f.verify();
+  const phone = await f.pair();
+  assert.deepEqual(f.enrollment.enrolledDevices(), [{ peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'enrolled' }]);
+  assert.deepEqual(await registry.load(), [identities.phoneIdentity.fingerprint]);
+  assert.deepEqual(await f.enrollment.removeDevice(identities.phoneIdentity.fingerprint),
+    { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'confirmed' });
+  assert.deepEqual(await registry.load(), []);
+  await assert.rejects(phone.execute(crypto.randomUUID(), read), unavailable);
+});
 const emptyStore = () => ({ read: async () => example, create: async () => {}, edit: async () => {} });
 async function pending(host, count) {
   const deadline = performance.now() + 2000;

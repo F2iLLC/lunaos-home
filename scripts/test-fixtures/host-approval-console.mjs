@@ -15,13 +15,22 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
   show(synthetic ? 'Synthetic driver of local approval controls; no human or OS verification claim.' : 'Local developer approval controls. This does not verify Windows user presence.');
   return {
     async enrollment(review) {
-      show(`Compare both full identities on the test Android screen.\nComputer: ${review.hostFingerprint}\nAndroid: ${review.peerFingerprint}`);
+      show(`Compare both full identities and the proposed scope on the test Android screen.\nComputer: ${review.hostFingerprint}\nAndroid: ${review.peerFingerprint}\nProposed access: Alex / Library visit, read-only for up to 60 seconds after a separate approval.`);
       const answer = await ask('Allow this Android connection? Type allow, or anything else to deny: ', 60_000);
       return { ...review, allow: answer === 'allow' };
     },
     async read(connection) {
       show(`Android: ${connection.peerFingerprint}\nConnection: ${connection.connectionId}`);
       return (await ask('Allow Alex / Library visit read-only for 60 seconds? Type allow: ', 10_000)) === 'allow';
+    },
+    devices(devices) {
+      show('Enrolled fictional devices and removal state:');
+      for (const device of devices) show(`${device.peerFingerprint}: ${device.removal}`);
+      if (!devices.length) show('None');
+    },
+    async removal(peerFingerprint) {
+      show(`Remove Android identity: ${peerFingerprint}`);
+      return (await ask('Remove this device? Type remove, or anything else to keep it: ', 60_000)) === 'remove';
     },
     close() { terminal.close(); },
   };

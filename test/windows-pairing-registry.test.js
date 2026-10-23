@@ -80,6 +80,6 @@ test('failed durable add does not admit a peer or return a successful pairing', 
   const offer = host.approvePairing(identities.phoneIdentity.fingerprint);
   await assert.rejects(connectDirectVaultExperiment({ port: host.port, identity: identities.phoneIdentity,
     ca: identities.ca, approvedHostFingerprint: host.hostFingerprint, offer: offer.offer }),
-  error => ['UNAVAILABLE', 'DENIED'].includes(error.code));
+  error => ['WRITE_UNKNOWN', 'UNAVAILABLE'].includes(error.code));
   assert.equal(host.listConnections().length, 0);
 });
