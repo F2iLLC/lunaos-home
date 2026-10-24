@@ -26,6 +26,18 @@ The following are documentation findings checked October 16, not live account or
 | Claude mobile remote connector | Anthropic documents requests as originating from its cloud and requiring a publicly reachable server. That is not a direct private-device connection. [Claude remote connector network requirements](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). |
 | Claude local desktop extension | Anthropic documents local extensions for Desktop/Code, not mobile. Claude Desktop remains a candidate requiring a separate clean synthetic test; Code's success does not establish Desktop compatibility. [Desktop versus remote connectors](https://support.claude.com/en/articles/11725091-when-to-use-desktop-and-web-connectors). |
 
+### ChatGPT route refresh, October 24, 2026
+
+The October 16 custom-MCP row describes the then-reviewed web connector, not every current ChatGPT desktop path. Current official documentation distinguishes these candidates:
+
+| Candidate | Documented route | Home status and decision boundary |
+| --- | --- | --- |
+| ChatGPT web custom MCP | ChatGPT web accepts an HTTPS server URL or a Secure MCP Tunnel, with workspace permissions and security restrictions. [Custom MCP guide](https://developers.openai.com/api/docs/guides/custom-mcp-server) | No Home endpoint or tunnel was configured or tested. A public endpoint, cloud relay, or tunnel is outside the accepted Session 2 scope. |
+| ChatGPT desktop-only plugin | OpenAI documents a local stdio MCP server packaged as a desktop-only plugin, usable only in local desktop threads. Local MCP submission is limited to approved, allowlisted partners. [Desktop-only plugin guide](https://developers.openai.com/plugins/deploy/desktop-only) | A possible computer-only candidate, not verified account eligibility or a working Home connection. It would need a reviewed interaction/disclosure scope, a synthetic-only package, a clean local installation, and an observed tool call before any support claim. The guide gives no exact supported ChatGPT desktop build for this Home experiment. |
+| Secure MCP Tunnel | OpenAI documents outbound forwarding through an OpenAI-hosted tunnel endpoint to a private MCP server. [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) | Technically different from a public listener, but still a tunnel and hosted transport path. The accepted Home scope does not authorize configuring or using it. |
+
+These pages do not establish a local stdio plugin path on ChatGPT mobile or verify this account's permissions. No plugin was installed, tunnel created, client connected, or record disclosed for this refresh. ChatGPT and mobile assistant automation remain open under [issue 31](https://github.com/F2iLLC/lunaos-home/issues/31); the verified Windows Claude Code path is unchanged.
+
 Inference: the documented consumer mobile connector routes do not supply the direct private-device transport required here. This is not a claim that every future client or every possible integration is impossible. No public endpoint, tunnel or cloud relay was introduced to manufacture a pass. A locally running client also does not make its hosted model local: production disclosure must still be separately scoped and minimized.
 
 ## Accepted next-session scope
