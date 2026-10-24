@@ -313,3 +313,34 @@ sensitive-use acceptance. Joined cold-PC restart, phone version-2 stale edit,
 second physical rogue phone and corrected still-valid stolen-offer physical
 evidence remain outstanding. No phone action, deployment, issue closure,
 credential reset or additional merge was performed in this follow-up.
+
+### Joined retained-fixture restart runner
+
+After PR #113 merged, the next bounded VLT-05 increment starts from
+`8aa2155b97b5221dfd9fa4406eceab4a01663e88`. The joined Home runner now has
+separate `restart-prepare`, `restart-verify`, and `restart-cleanup` modes;
+[the dedicated guide](joined-home-restart.md) describes the operator sequence.
+The prepare step retains the same test package and Android identity, encrypted
+Windows record, protected enrollment and a DPAPI-protected disposable host TLS
+identity. Verification requires a changed OS boot marker, identical clean
+source/builds and installed APK, matching certificates and ciphertext, and fresh
+identity/scope/read approvals. It never recreates the store, renews the phone
+identity, issues a new pairing offer or replays a mutation. Cleanup is separate.
+
+Local preparation tests include same-boot/incomplete-state/build mismatch
+refusal, output path isolation, real Windows DPAPI state reopen in another
+process, tamper denial, interrupted pending-state write preservation and an
+exclusive controller lock. These are automated results, not phone evidence.
+Exact source/build hashes, local totals, hosted checks and attended outcomes
+are recorded on this increment's PR before any acceptance claim.
+
+This read-only sequence deliberately ends the connection and host before the
+operator's Restart and relaunches the phone app afterward. It tests persisted
+pairing/store recovery and fresh grants, not an active read interrupted by
+shutdown or uninterrupted phone foreground behavior during reboot. The
+Windows app still uses its DPAPI access gate; this does not integrate the native
+KSP envelope. Until attended results are recorded, joined restart remains
+unproved. Phone version-2 stale edit, a second physical rogue phone, corrected
+still-valid stolen-offer evidence, production enrollment and sensitive-use
+acceptance remain separate open gates. No automatic restart, merge, deployment
+or issue closure is authorized by this runner.
