@@ -1,5 +1,9 @@
 # Vehicle greetings v0.1
 
+The [passenger-aware increment](vehicle-passengers.md) adds local manual presence,
+owner-confirmed child profiles and simulated sensor tests while retaining this
+connection, audio and trip infrastructure.
+
 An opt-in Android vehicle companion slice that preserves the factory infotainment system. The owner configures a vehicle name and spoken nickname on the phone; source code contains only generic templates. The vehicle is a LunaOS endpoint and personality profile. There is no separate assistant account, dashboard app, vehicle firmware change, vehicle telemetry, CAN access, or vehicle control.
 
 ## Implemented slice

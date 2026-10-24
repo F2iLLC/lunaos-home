@@ -47,4 +47,8 @@ public final class VehicleGreetings {
         if (previousKnown && selected >= lastId) selected++;
         return new Choice(selected, LINES[selected].replace("{period}", period).replace("{name}", nickname.trim()));
     }
+    public static Choice withPassengers(String period, String nickname, int lastId, String preferred, VehiclePassengers.Decision passengers) {
+        if ("silent".equals(passengers.kind)) return null;
+        return passengers.text == null ? choose(period, nickname, lastId, preferred) : new Choice(-1, passengers.text);
+    }
 }
