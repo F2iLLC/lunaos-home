@@ -96,17 +96,23 @@ struct RestartState {
     cipher: Vec<u8>,
     digest: [u8; 32],
     uptime_ms: u64,
+    boot_time_ticks: Option<u64>,
 }
 
 impl RestartState {
     fn encode(&self) -> String {
-        format!(
-            "1\n{}\n{}\n{}\n{}\n",
+        let mut encoded = format!(
+            "{}\n{}\n{}\n{}\n{}\n",
+            if self.boot_time_ticks.is_some() { 2 } else { 1 },
             self.name,
             hex(&self.cipher),
             hex(&self.digest),
             self.uptime_ms
-        )
+        );
+        if let Some(boot_time_ticks) = self.boot_time_ticks {
+            encoded.push_str(&format!("{boot_time_ticks}\n"));
+        }
+        encoded
     }
 
     fn decode(content: &str) -> Result<Self, &'static str> {
@@ -114,7 +120,8 @@ impl RestartState {
             return Err("restart-state-invalid");
         }
         let mut lines = content.lines();
-        if lines.next() != Some("1") {
+        let version = lines.next().ok_or("restart-state-invalid")?;
+        if !matches!(version, "1" | "2") {
             return Err("restart-state-invalid");
         }
         let name = lines.next().ok_or("restart-state-invalid")?;
@@ -138,7 +145,15 @@ impl RestartState {
             .ok_or("restart-state-invalid")?
             .parse::<u64>()
             .map_err(|_| "restart-state-invalid")?;
-        if uptime_ms == 0 || lines.next().is_some() {
+        let boot_time_ticks = if version == "2" {
+            Some(
+                parse_boot_time(lines.next().ok_or("restart-state-invalid")?)
+                    .ok_or("restart-state-invalid")?,
+            )
+        } else {
+            None // Legacy state is readable for explicit cleanup only.
+        };
+        if (version == "1" && uptime_ms == 0) || lines.next().is_some() {
             return Err("restart-state-invalid");
         }
         Ok(Self {
@@ -146,8 +161,40 @@ impl RestartState {
             cipher,
             digest,
             uptime_ms,
+            boot_time_ticks,
         })
     }
+}
+
+fn parse_boot_time(value: &str) -> Option<u64> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value
+        .parse::<u64>()
+        .ok()
+        .filter(|ticks| *ticks > 0 && *ticks <= 3_155_378_975_999_999_999)
+}
+
+fn current_boot_time() -> Result<u64, &'static str> {
+    // Use the OS-reported last restart time, not wall-clock minus uptime.
+    // https://learn.microsoft.com/windows/win32/cimwin32prov/win32-operatingsystem
+    let powershell = Path::new(&std::env::var_os("SystemRoot").ok_or("boot-marker-unavailable")?)
+        .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let output = Command::new(powershell)
+        .args([
+            "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+            "$ErrorActionPreference = 'Stop'; (Get-CimInstance -ClassName Win32_OperatingSystem -Property LastBootUpTime -OperationTimeoutSec 15).LastBootUpTime.ToUniversalTime().Ticks.ToString([Globalization.CultureInfo]::InvariantCulture)",
+        ])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|_| "boot-marker-unavailable")?;
+    if !output.status.success() {
+        return Err("boot-marker-unavailable");
+    }
+    let value = std::str::from_utf8(&output.stdout).map_err(|_| "boot-marker-unavailable")?;
+    parse_boot_time(value.trim()).ok_or("boot-marker-unavailable")
 }
 
 fn write_restart_state(path: &Path, state: &RestartState) -> Result<(), &'static str> {
@@ -238,6 +285,8 @@ fn silent_child(passport: bool, name: &str, cipher: &str) -> i32 {
     }
 }
 fn probe(passport: bool, restart_state: Option<&Path>) -> Result<(), &'static str> {
+    // Fail before creating a key or prompting if the reboot marker cannot be read.
+    let boot_time_ticks = restart_state.map(|_| current_boot_time()).transpose()?;
     let mut provider = NCRYPT_PROV_HANDLE(0);
     unsafe { NCryptOpenStorageProvider(&mut provider, provider_name(passport), 0) }
         .map_err(|_| "key-provider-unavailable")?;
@@ -347,6 +396,7 @@ fn probe(passport: bool, restart_state: Option<&Path>) -> Result<(), &'static st
                     cipher,
                     digest,
                     uptime_ms: unsafe { GetTickCount64() },
+                    boot_time_ticks,
                 },
             )?;
             println!("restart-state-prepared");
@@ -454,8 +504,10 @@ fn check_separate_process_silent(state: &RestartState) -> Result<(), &'static st
 
 fn verify_restart(path: &Path) -> Result<(), &'static str> {
     let state = read_restart_state(path)?;
-    let current_uptime_ms = unsafe { GetTickCount64() };
-    if !cold_restart_observed(state.uptime_ms, current_uptime_ms) {
+    let saved_boot_time = state
+        .boot_time_ticks
+        .ok_or("restart-state-reprepare-required")?;
+    if !cold_restart_observed(saved_boot_time, current_boot_time()?) {
         return Err("cold-restart-not-observed");
     }
     println!("cold-restart-observed");
@@ -481,8 +533,8 @@ fn verify_restart(path: &Path) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn cold_restart_observed(before_ms: u64, after_ms: u64) -> bool {
-    after_ms.saturating_add(60_000) < before_ms
+fn cold_restart_observed(before_boot_time: u64, after_boot_time: u64) -> bool {
+    before_boot_time != after_boot_time
 }
 
 fn cleanup_restart(path: &Path) -> Result<(), &'static str> {
@@ -562,7 +614,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{cold_restart_observed, RestartState};
+    use super::{cold_restart_observed, current_boot_time, parse_boot_time, RestartState};
 
     #[test]
     fn restart_state_round_trip_and_rejects_malformed_input() {
@@ -571,6 +623,7 @@ mod tests {
             cipher: vec![7; 256],
             digest: [9; 32],
             uptime_ms: 600_000,
+            boot_time_ticks: Some(638_000_000_000_000_000),
         };
         let encoded = state.encode();
         let decoded = RestartState::decode(&encoded).unwrap();
@@ -578,16 +631,67 @@ mod tests {
         assert_eq!(decoded.cipher, state.cipher);
         assert_eq!(decoded.digest, state.digest);
         assert_eq!(decoded.uptime_ms, state.uptime_ms);
+        assert_eq!(decoded.boot_time_ticks, state.boot_time_ticks);
         assert!(RestartState::decode(&encoded.replace("LunaOSHome", "OtherHome")).is_err());
-        assert!(RestartState::decode(&encoded.replace("600000\n", "0\n")).is_err());
+        assert!(RestartState::decode(&encoded.replace("638000000000000000\n", "0\n")).is_err());
+        assert!(RestartState::decode(&encoded.replace("638000000000000000\n", "")).is_err());
+        assert!(RestartState::decode(&encoded.replacen("2\n", "3\n", 1)).is_err());
         assert!(RestartState::decode(&format!("{encoded}extra\n")).is_err());
         assert!(RestartState::decode(encoded.trim_end()).is_err());
     }
 
     #[test]
-    fn boot_guard_requires_a_decreased_uptime_with_margin() {
-        assert!(!cold_restart_observed(600_000, 700_000));
-        assert!(!cold_restart_observed(600_000, 550_000));
-        assert!(cold_restart_observed(600_000, 60_000));
+    fn boot_guard_uses_restart_time_independently_of_uptime() {
+        let boot = 638_000_000_000_000_000;
+        for uptime_ms in [0, 30_000, 120_000, 600_000] {
+            let state = RestartState {
+                name: format!("LunaOSHome.FictionalKeyRelease.{}", "a".repeat(32)),
+                cipher: vec![7; 256],
+                digest: [9; 32],
+                uptime_ms,
+                boot_time_ticks: Some(boot),
+            };
+            let decoded = RestartState::decode(&state.encode()).unwrap();
+            let saved = decoded.boot_time_ticks.unwrap();
+            assert!(!cold_restart_observed(saved, boot));
+            // The next boot remains different even after an arbitrarily long delay.
+            assert!(cold_restart_observed(saved, boot + 1_200_000_000));
+        }
+    }
+
+    #[test]
+    fn legacy_state_retains_cleanup_information_without_a_boot_marker() {
+        let legacy = format!(
+            "1\nLunaOSHome.FictionalKeyRelease.{}\n{}\n{}\n600000\n",
+            "a".repeat(32),
+            "07".repeat(256),
+            "09".repeat(32)
+        );
+        let decoded = RestartState::decode(&legacy).unwrap();
+        assert_eq!(decoded.boot_time_ticks, None);
+        assert_eq!(decoded.encode(), legacy);
+    }
+
+    #[test]
+    fn boot_marker_rejects_missing_malformed_and_out_of_range_values() {
+        for value in [
+            "",
+            "0",
+            "-1",
+            "+1",
+            "1\n2",
+            "invalid",
+            "3155378976000000000",
+            "18446744073709551616",
+        ] {
+            assert_eq!(parse_boot_time(value), None);
+        }
+    }
+
+    #[test]
+    fn windows_boot_marker_is_stable_across_fresh_queries() {
+        let first = current_boot_time().unwrap();
+        let second = current_boot_time().unwrap();
+        assert!(!cold_restart_observed(first, second));
     }
 }
