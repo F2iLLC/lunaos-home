@@ -101,6 +101,12 @@ do not recreate identities or infer cleanup success. `restart-state.pending`
 also remains encrypted and may be removed only as part of explicit owned
 cleanup after the committed state has been read successfully.
 
+Once ownership is validated, record-store cleanup invokes the worker directly,
+without opening or decrypting `records.bin`. This allows cleanup after a partial
+preparation or damaged record ciphertext. UUID path checks, exclusive locking,
+and nonrecursive deletion still apply; unknown files or stale locks require
+reconciliation. The protected ownership receipt must still be readable.
+
 ### Explicit runner-only repair
 
 The first post-restart attempt hit `ENOBUFS` while reading the installed APK:

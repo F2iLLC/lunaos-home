@@ -12,7 +12,7 @@ import { selectedUsbAdb, selectedUsbAdbByCableCycle, selectedUsbAdbDetached } fr
 import { launchNativeDirectHost, requireLifecycleDuringGrant, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
-import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsProbeStore, removeWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
 import { fileHash, windowsBootMarker, requireRestart, restartDirectory, lockRestartDirectory,
@@ -240,8 +240,7 @@ try {
     if (existsSync(ownedStore)) {
       registry = openWindowsPairingRegistry({ probeId: restartState.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
       await registry.removeSyntheticRegistry(); registry = undefined;
-      store = await openWindowsProbeStore({ probeId: restartState.probeId });
-      await store.removeSyntheticStore(); store = undefined;
+      await removeWindowsProbeStore({ probeId: restartState.probeId });
     }
     if (restartState.installAttempted) adb(['shell', 'rm', '-f', '/data/local/tmp/home-direct-ui.xml']);
     if (installedPackage) assert.match(adb(['uninstall', pkg]), /Success/);
