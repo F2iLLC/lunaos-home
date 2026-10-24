@@ -96,6 +96,8 @@ The separate app and synthetic Windows store were removed; cleanup passed.
 This checks one explicit End/reconnect path, not background, cold restart,
 revocation, or unavailable-host behavior in the joined Home package.
 
+The [Session 10 attended handoff](session-three-storage-pairing-handoff.md#session-10-attended-home-lock-and-sleep-results) records later joined Home checks on the same declared Samsung and Windows PC. A real Windows lock and a real suspend each ended the verified visit during an active fictional read grant; the phone cleared the record and a reconnect failed without another store read. Each run had one read, zero writes, and passing cleanup. These are lifecycle results for the read-only debug path, not a vault-key release or cold PC restart result.
+
 The private certificate and offer provisioning above is test infrastructure,
 not a reviewed onboarding path. Android's direct screen does not itself prompt
 for device credentials; the Windows verified visit gates the protected host

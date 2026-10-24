@@ -8,14 +8,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
 import { selectedUsbAdb } from './test-fixtures/usb-adb-preflight.mjs';
-import { launchNativeDirectHost } from './test-fixtures/native-direct-host.mjs';
+import { launchNativeDirectHost, requireLifecycleDuringGrant, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
 
-const [output, apk, serial, model, apiText, address] = process.argv.slice(2);
+const [output, apk, serial, model, apiText, address, scenario = 'reconnect'] = process.argv.slice(2);
+assert.ok(['reconnect', 'lock', 'sleep'].includes(scenario), 'Select a supported attended Home scenario');
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
 assert.ok(output && apk && serial && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -41,7 +42,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const wifiRoute = () => /\bdev wlan0\b/.test(adb(['shell', 'ip', '-4', 'route', 'get', address]));
 const fingerprint = certificate => certificateFingerprint(certificate);
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
-const evidence = { result: 'INCOMPLETE', model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
+const evidence = { result: 'INCOMPLETE', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
 const listed = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
 let presentDevices = [];
 if (!selectedUsbAdb(listed, serial)) {
@@ -190,6 +191,7 @@ try {
   assert.equal(connections[0].peerFingerprint, peer);
   // A separate decision grants only this connection's Alex read for 60 seconds.
   if (!await hostConsole.read(connections[0])) throw Error('Host denied selected read');
+  const grantTick = performance.now();
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.');
   const approvalStarted = Date.now();
@@ -201,58 +203,93 @@ try {
   evidence.readDisplayedWithinMs = Date.now() - approvalStarted;
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
-  if (!tapVisible('End connection', shown)) await tap('End connection');
-  const ended = await waitText('Connection ended. Reading needs fresh approval.');
-  assert.ok(ended.some(node => node.text === 'No record shown.'));
-  assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
-  assert.equal(reads, 1); assert.equal(writes, 0);
-  evidence.checks.push('End cleared displayed content and old read authority without a second store read');
-  const closedBy = Date.now() + 5_000;
-  while (visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId) &&
-      Date.now() < closedBy) await pause(20);
-  assert.ok(!visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId),
-    'Ended connection must leave the host before reconnecting');
-  await tap('Connect to test computer');
-  const reconnected = await waitText('Computer connected. Waiting for host approval...');
-  assert.ok(reconnected.some(node => node.text === 'No record shown.'));
-  assert.ok(reconnected.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
-  assert.equal(reads, 1);
-  const resumedConnections = visit.host.listConnections();
-  assert.equal(resumedConnections.length, 1);
-  assert.notEqual(resumedConnections[0].connectionId, connections[0].connectionId);
-  assert.equal(resumedConnections[0].peerFingerprint, peer);
-  if (!await hostConsole.read(resumedConnections[0])) throw Error('Host denied selected read');
-  visit.enrollment.approveRead(resumedConnections[0]);
-  const ready = await waitText('Connected. Review and allow the selected read.');
-  assert.ok(ready.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
-  assert.equal(reads, 1);
-  console.log('PHONE_RECONNECTED_READ_APPROVAL_READY: tap Allow selected read again on the phone within 45 seconds');
-  await waitEnabled("Read Alex's record");
-  await tap("Read Alex's record");
-  const shownAgain = await waitText(`${record.label}: ${record.value}`);
-  assert.ok(wifiRoute(), 'Reconnected Home read must use the phone Wi-Fi route');
-  assert.equal(reads, 2); assert.equal(writes, 0);
-  evidence.checks.push('Reconnect withheld the record until a fresh host approval and phone read approval on the new connection');
-  if (!tapVisible('End connection', shownAgain)) await tap('End connection');
-  const endedAgain = await waitText('Connection ended. Reading needs fresh approval.');
-  assert.ok(endedAgain.some(node => node.text === 'No record shown.'));
-  assert.equal(reads, 2); assert.equal(writes, 0);
-  assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
-  hostConsole.devices(visit.enrollment.enrolledDevices());
-  if (await hostConsole.removal(peer)) {
-    const removed = await visit.enrollment.removeDevice(peer);
-    hostConsole.devices(visit.enrollment.enrolledDevices());
-    if (removed.removal === 'uncertain') {
-      const checked = await visit.enrollment.reconcileRemoval(peer);
-      hostConsole.devices(visit.enrollment.enrolledDevices());
-      if (checked.removal !== 'confirmed') {
-        if (!await hostConsole.retryRemoval(peer)) throw Error('Device removal remains uncertain');
-        const retried = await visit.enrollment.retryRemoval(peer);
-        hostConsole.devices(visit.enrollment.enrolledDevices());
-        if (retried.removal !== 'confirmed') throw Error('Device removal remains uncertain; readback required before another attempt');
+  if (scenario === 'lock' || scenario === 'sleep') {
+    console.log(scenario === 'lock'
+      ? 'READY_FOR_WINDOWS_LOCK: keep Home visible on the phone; press Win+L now, then unlock Windows normally'
+      : 'READY_FOR_WINDOWS_SLEEP: keep Home visible on the phone; put Windows to sleep now, then wake and unlock it normally');
+    let timer;
+    try {
+      await Promise.race([visit.ended, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Error('No native Windows lifecycle receipt within 90 seconds')), 90_000);
+      })]);
+    } finally { clearTimeout(timer); }
+    const reason = scenario === 'lock' ? 'lock' : 'suspend';
+    await waitForNativeEvent(visit.nativeEvents, reason);
+    const event = requireLifecycleDuringGrant(visit.nativeEvents, reason, grantTick, 60_000);
+    evidence.elapsedFromGrantToEventMs = Math.round(event.tick - grantTick);
+    assert.throws(() => visit.gate.requireVerified());
+    assert.ok(await hostConsole.afterWindowsUnlock(scenario === 'sleep' ? 1_200_000 : 180_000),
+      'Operator did not confirm Windows unlock and wake');
+    if (scenario === 'sleep') {
+      const readyBy = Date.now() + 60_000;
+      for (;;) {
+        try { assert.equal(adb(['shell', 'getprop', 'ro.product.model']).trim(), model); break; }
+        catch (error) { if (Date.now() >= readyBy) throw error; await pause(1_000); }
       }
     }
-    evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
+    const lost = await waitText('No record shown.', 30_000);
+    assert.ok(lost.some(node => node.text === 'No record shown.'));
+    assert.ok(lost.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+    await tap('Connect to test computer');
+    await waitText('Connection or approval unavailable. No access remains.');
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
+    evidence.nativeEvents = visit.nativeEvents.map(({ reason, at }) => ({ reason, at }));
+    evidence.checks.push(`Native Windows ${reason} ended the verified visit during an active Home read grant; the phone cleared the displayed record and reconnect failed without a new store read`);
+  } else {
+    if (!tapVisible('End connection', shown)) await tap('End connection');
+    const ended = await waitText('Connection ended. Reading needs fresh approval.');
+    assert.ok(ended.some(node => node.text === 'No record shown.'));
+    assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    evidence.checks.push('End cleared displayed content and old read authority without a second store read');
+    const closedBy = Date.now() + 5_000;
+    while (visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId) &&
+        Date.now() < closedBy) await pause(20);
+    assert.ok(!visit.host.listConnections().some(connection => connection.connectionId === connections[0].connectionId),
+      'Ended connection must leave the host before reconnecting');
+    await tap('Connect to test computer');
+    const reconnected = await waitText('Computer connected. Waiting for host approval...');
+    assert.ok(reconnected.some(node => node.text === 'No record shown.'));
+    assert.ok(reconnected.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+    assert.equal(reads, 1);
+    const resumedConnections = visit.host.listConnections();
+    assert.equal(resumedConnections.length, 1);
+    assert.notEqual(resumedConnections[0].connectionId, connections[0].connectionId);
+    assert.equal(resumedConnections[0].peerFingerprint, peer);
+    if (!await hostConsole.read(resumedConnections[0])) throw Error('Host denied selected read');
+    visit.enrollment.approveRead(resumedConnections[0]);
+    const ready = await waitText('Connected. Review and allow the selected read.');
+    assert.ok(ready.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+    assert.equal(reads, 1);
+    console.log('PHONE_RECONNECTED_READ_APPROVAL_READY: tap Allow selected read again on the phone within 45 seconds');
+    await waitEnabled("Read Alex's record");
+    await tap("Read Alex's record");
+    const shownAgain = await waitText(`${record.label}: ${record.value}`);
+    assert.ok(wifiRoute(), 'Reconnected Home read must use the phone Wi-Fi route');
+    assert.equal(reads, 2); assert.equal(writes, 0);
+    evidence.checks.push('Reconnect withheld the record until a fresh host approval and phone read approval on the new connection');
+    if (!tapVisible('End connection', shownAgain)) await tap('End connection');
+    const endedAgain = await waitText('Connection ended. Reading needs fresh approval.');
+    assert.ok(endedAgain.some(node => node.text === 'No record shown.'));
+    assert.equal(reads, 2); assert.equal(writes, 0);
+    assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
+    hostConsole.devices(visit.enrollment.enrolledDevices());
+    if (await hostConsole.removal(peer)) {
+      const removed = await visit.enrollment.removeDevice(peer);
+      hostConsole.devices(visit.enrollment.enrolledDevices());
+      if (removed.removal === 'uncertain') {
+        const checked = await visit.enrollment.reconcileRemoval(peer);
+        hostConsole.devices(visit.enrollment.enrolledDevices());
+        if (checked.removal !== 'confirmed') {
+          if (!await hostConsole.retryRemoval(peer)) throw Error('Device removal remains uncertain');
+          const retried = await visit.enrollment.retryRemoval(peer);
+          hostConsole.devices(visit.enrollment.enrolledDevices());
+          if (retried.removal !== 'confirmed') throw Error('Device removal remains uncertain; readback required before another attempt');
+        }
+      }
+      evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
+    }
   }
   evidence.result = 'PASS';
 } catch (error) {

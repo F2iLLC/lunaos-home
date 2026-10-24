@@ -43,6 +43,9 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
       show(`Registry readback still contains Android identity: ${peerFingerprint}. Host access is stopped.`);
       return (await ask('Try removal again? Type retry, or anything else to stop: ', 60_000)) === 'retry';
     },
+    async afterWindowsUnlock(timeoutMs = 180_000) {
+      return (await ask('After Windows is unlocked and awake, type back and press Enter: ', timeoutMs)) === 'back';
+    },
     close() { terminal.close(); },
   };
 }
