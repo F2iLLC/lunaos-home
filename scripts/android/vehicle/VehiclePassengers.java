@@ -85,12 +85,12 @@ public final class VehiclePassengers {
             : new VehicleGreetings.Choice(-1, passengers.text);
     }
     public static Decision decide(Provider provider, String trip, long now, String period,
-                                  List<Profile> profiles, boolean ownerConfirmationEnabled,
+                                  List<Profile> profiles, boolean allowNames,
                                   Identity identity, boolean silenced) {
         if (silenced) return new Decision("silent", null);
         if (presence(provider, trip, now) != Occupied.TRUE) return new Decision("driver", null);
         Decision generic = new Decision("group", "Hello, passengers! Lovely to have you along for the adventure.");
-        if (!ownerConfirmationEnabled || identity == null || !"owner_confirmation".equals(identity.mechanism) ||
+        if (identity == null || !"owner_confirmation".equals(identity.mechanism) ||
             !trip.equals(identity.trip) || !fresh(identity.observed_at, now) || identity.profileIds.isEmpty() ||
             identity.profileIds.size() > 6 || profiles == null || profiles.size() > 6) return generic;
         Map<String, Profile> byId = new HashMap<>();
@@ -105,7 +105,8 @@ public final class VehiclePassengers {
             names.add(p.name);
         }
         if (silentRequested) return new Decision("silent", null);
-        if (genericRequested) return generic;
+        // Confirmation may enforce quiet without permission to speak any names.
+        if (!allowNames || genericRequested) return generic;
         if (!Arrays.asList("morning", "afternoon", "evening").contains(period)) throw new IllegalArgumentException("Invalid period");
         String joined = names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
         return new Decision("named", "Good " + period + ", " + joined + "! Lovely to have you along for the adventure.");

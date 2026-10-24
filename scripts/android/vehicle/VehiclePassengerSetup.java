@@ -35,8 +35,10 @@ final class VehiclePassengerSetup {
     private static void profiles(Activity activity) {
         VehicleState original = new VehicleState(activity);
         LinearLayout form = new LinearLayout(activity); form.setOrientation(LinearLayout.VERTICAL);
-        CheckBox consent = new CheckBox(activity); consent.setText("Allow names only after I confirm who is riding");
-        consent.setChecked(original.passengers.ownerConfirmationEnabled); form.addView(consent);
+        CheckBox consent = new CheckBox(activity); consent.setText("Speak confirmed children's names");
+        consent.setChecked(original.passengers.allowNames); form.addView(consent);
+        TextView help = new TextView(activity);
+        help.setText("You can confirm riders with names turned off. Stay quiet preferences still apply to confirmed riders."); form.addView(help);
         EditText[] names = new EditText[6]; Spinner[] preferences = new Spinner[6];
         for (int i = 0; i < 6; i++) {
             names[i] = new EditText(activity); names[i].setSingleLine(true); names[i].setHint("Child name (optional)"); form.addView(names[i]);
@@ -60,7 +62,7 @@ final class VehiclePassengerSetup {
             }
             synchronized (VehicleRuntime.class) {
                 VehicleState s = new VehicleState(activity); s.passengers.profiles.clear(); s.passengers.profiles.addAll(saved);
-                s.passengers.ownerConfirmationEnabled = consent.isChecked(); s.passengers.clearEvidence();
+                s.passengers.allowNames = consent.isChecked(); s.passengers.clearEvidence();
                 s.status = "Preferences saved. Confirm passengers again before the next greeting.";
                 if (!s.save()) return;
             }
@@ -69,8 +71,8 @@ final class VehiclePassengerSetup {
     }
     private static void children(Activity activity) {
         VehicleState s = new VehicleState(activity);
-        if (!s.passengers.ownerConfirmationEnabled || s.passengers.profiles.isEmpty()) {
-            VehicleRuntime.status(activity, "Save child names and enable owner confirmation first."); return;
+        if (s.passengers.profiles.isEmpty()) {
+            VehicleRuntime.status(activity, "Save child names and preferences first."); return;
         }
         boolean[] selected = new boolean[s.passengers.profiles.size()];
         String[] names = s.passengers.profiles.stream().map(p -> p.name).toArray(String[]::new);

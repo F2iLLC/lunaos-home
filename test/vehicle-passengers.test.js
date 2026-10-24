@@ -14,7 +14,8 @@ test('simulated passenger inputs use production Java greeting, trip and playback
   for (const scenario of ['driver', 'one', 'multiple', 'unknown', 'partial-negative', 'conflict', 'stale',
     'future', 'disconnect', 'late', 'too-late', 'reconnect', 'new-trip', 'named', 'unconfigured',
     'incorrect-identity', 'stale-identity', 'wrong-trip-identity', 'weight-identity', 'generic-preference',
-    'silent-preference', 'disabled', 'changed-before-audio', 'no-route', 'invalid-input', 'provider-failure']) {
+    'silent-preference', 'silent-no-names', 'mixed-silent-no-names', 'unconfirmed-silent', 'stale-silent-no-names',
+    'disabled', 'changed-before-audio', 'no-route', 'invalid-input', 'provider-failure']) {
     await t.test(scenario, () => {
       const result = execFileSync('java', ['-cp', directory,
         'io.github.f2illc.lunaos.home.vehicle.VehiclePassengersTest', scenario], { encoding: 'utf8', windowsHide: true });

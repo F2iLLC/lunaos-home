@@ -91,6 +91,18 @@ public final class VehiclePassengersTest {
             Decision decision = decide(f.sensor, f.trip.id, NOW, "afternoon",
                 Arrays.asList(new Profile("alex", "Alex", scenario.equals("generic-preference") ? Preference.generic : Preference.silent)), true, f.identity, false);
             check(decision.kind.equals(scenario.equals("generic-preference") ? "group" : "silent")); break;
+        case "silent-no-names": case "mixed-silent-no-names":
+            f.present(null);
+            f.profiles.set(0, new Profile("alex", "Alex", Preference.silent));
+            f.confirm("owner_confirmation", NOW, f.trip.id,
+                scenario.equals("mixed-silent-no-names") ? new String[]{"sam", "alex"} : new String[]{"alex"});
+            check(!f.configured); check(f.decision().kind.equals("silent"));
+            f.greet(); check(f.audio.isEmpty()); check(!f.trip.claimed); break;
+        case "unconfirmed-silent": case "stale-silent-no-names":
+            f.present(null); f.profiles.set(0, new Profile("alex", "Alex", Preference.silent));
+            if (scenario.equals("stale-silent-no-names")) f.confirm("owner_confirmation", NOW - MAX_AGE_MS, f.trip.id, "alex");
+            f.greet(); check(f.audio.size() == 1 && f.audio.get(0).startsWith("Hello, passengers!"));
+            check(!f.audio.get(0).contains("Alex")); break;
         case "disabled":
             f.disabled = true; f.present(null); f.greet(); check(f.audio.isEmpty()); break;
         case "changed-before-audio":

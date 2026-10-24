@@ -5,7 +5,7 @@ import org.json.*;
 
 /** Owner configuration and short-lived manual evidence in VehicleState's private file. */
 final class VehiclePassengerState implements VehiclePassengers.Provider {
-    boolean silenced, ownerConfirmationEnabled;
+    boolean silenced, allowNames;
     final List<VehiclePassengers.Profile> profiles = new ArrayList<>();
     private VehiclePassengers.Observation observation;
     private VehiclePassengers.Identity identity;
@@ -31,12 +31,13 @@ final class VehiclePassengerState implements VehiclePassengers.Provider {
     }
     VehiclePassengers.Decision decide(String trip, long now, int boot, String period) {
         return VehiclePassengers.decide(evidenceBoot == boot ? this : null, trip, now, period, profiles,
-            ownerConfirmationEnabled, evidenceBoot == boot ? identity : null, silenced);
+            allowNames, evidenceBoot == boot ? identity : null, silenced);
     }
     JSONObject json() throws JSONException {
         JSONArray children = new JSONArray();
         for (VehiclePassengers.Profile p : profiles) children.put(new JSONObject().put("id", p.id).put("name", p.name).put("preference", p.preference.name()));
-        JSONObject data = new JSONObject().put("silenced", silenced).put("ownerConfirmationEnabled", ownerConfirmationEnabled).put("profiles", children);
+        // Preserve the existing on-disk key; it governs spoken names only.
+        JSONObject data = new JSONObject().put("silenced", silenced).put("ownerConfirmationEnabled", allowNames).put("profiles", children);
         if (observation != null) data.put("manual", new JSONObject().put("occupied", observation.occupied.name())
             .put("observed_at", observation.observed_at).put("trip", observation.trip).put("boot", evidenceBoot)
             .put("confirmedProfiles", new JSONArray(identity == null ? Collections.emptyList() : identity.profileIds)));
@@ -45,7 +46,7 @@ final class VehiclePassengerState implements VehiclePassengers.Provider {
     static VehiclePassengerState read(JSONObject data) throws JSONException {
         VehiclePassengerState state = new VehiclePassengerState();
         if (data == null) return state;
-        state.silenced = data.getBoolean("silenced"); state.ownerConfirmationEnabled = data.getBoolean("ownerConfirmationEnabled");
+        state.silenced = data.getBoolean("silenced"); state.allowNames = data.getBoolean("ownerConfirmationEnabled");
         JSONArray children = data.getJSONArray("profiles");
         if (children.length() > 6) throw new JSONException("Too many profiles");
         Set<String> ids = new HashSet<>();

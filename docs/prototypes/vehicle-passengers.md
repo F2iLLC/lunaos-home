@@ -80,8 +80,12 @@ duplicate, stale, unsupported or mismatched identity falls back to the group
 greeting. No weights, calendar, appointments or free-form model speech enter the
 contract; passenger data and names are never sent to Home or model sampling.
 
-Profile preferences are named, generic, or silent. A confirmed silent preference
-suppresses the greeting; a generic preference suppresses all names in that group.
+Profile preferences are named, generic, or silent. Rider confirmation is separate
+from permission to speak names. A confirmed silent preference suppresses the
+greeting even when spoken names are disabled; a generic preference suppresses all
+names in that group. With spoken names disabled, other confirmed riders receive
+the generic group greeting. Unconfirmed or stale identity cannot apply a profile's
+preferences.
 The owner can also silence every greeting or use the existing disable control.
 Explicit confirmation can still be mistaken: the system does not verify a human's
 selection. Correct it or clear it while parked. Profiles alone are not evidence.
@@ -97,8 +101,9 @@ update nor a sensor callback resets it. No automatic replay is introduced.
 Use Home's Android debug vehicle setup, or build the isolated existing harness
 following the v0.1 guide. This increment does not install it automatically.
 
-1. While parked, save **Child names and preferences**. Optionally enable **Allow
-   names only after I confirm who is riding**. No household names ship as fixtures.
+1. While parked, save **Child names and preferences**. Optionally enable **Speak
+   confirmed children's names**. Rider confirmation and silent preferences also
+   work with this setting off. No household names ship as fixtures.
 2. Choose **Confirm rear passengers (names unknown)** for a generic greeting, or
    **Confirm children riding along** and explicitly select the riders.
 3. Choose **Next connection**, then connect within two minutes. This confirmation
