@@ -30,6 +30,10 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
       show(`Android: ${connection.peerFingerprint}\nConnection: ${connection.connectionId}`);
       return (await ask('Allow Alex / Library visit read-only for 60 seconds? Type allow: ', readTimeoutMs)) === 'allow';
     },
+    async edit(connection) {
+      show(`Android: ${connection.peerFingerprint}\nConnection: ${connection.connectionId}\nFictional proposal: change Alex / Library visit to Friday from phone. Edit only; no create, delete or read grant.`);
+      return (await ask('Allow this selected edit for 60 seconds? Type edit: ', 10_000)) === 'edit';
+    },
     devices(devices) {
       show('Enrolled fictional devices and removal state:');
       for (const device of devices) show(`${device.peerFingerprint}: ${device.removal}${device.custody ? ` (${device.custody})` : ''}`);

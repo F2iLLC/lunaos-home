@@ -170,7 +170,7 @@ export async function prepareAndroid({
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
-  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java'];
+  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'VersionedEditState.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java'];
   // Inventory traverses directories; planned file destinations need an explicit
   // type check so a later copy cannot fail after earlier files were replaced.
   for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),
