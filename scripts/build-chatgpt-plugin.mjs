@@ -9,6 +9,7 @@ const run = promisify(execFile);
 const runtimeFiles = [
   'assistant.js', 'server.js', 'package.json', 'package-lock.json',
   'lib/drafts.js', 'lib/profile-review.js', 'lib/profile-draft.js',
+  'lib/vehicle-sessions.js',
   'lib/vault-sessions.js', 'lib/vault-store-lifecycle.js', 'lib/vault-record-contract.js',
   'src/index.html', 'src/styles.css', 'src/app.js', 'src/tasks.js', 'src/vault.js', 'src/draft-client.js',
 ];

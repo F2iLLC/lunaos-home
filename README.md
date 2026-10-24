@@ -18,6 +18,8 @@ This is not a secure vault. It has no encrypted persistence, family admission, p
 
 ## Intended V1
 
+An opt-in [Fergalicious vehicle greeting slice](docs/prototypes/fergalicious.md) adds Android companion setup, Bluetooth identity confirmation, paired Home session events, brief greetings, and reconnect suppression. It is a development preview with an isolated phone test harness; CUE audio and locked-phone wake require attended verification. It adds no vehicle controls, telemetry, location, calendar access, or Android Auto dashboard UI.
+
 The [V1 roadmap](ROADMAP.md) defines the proposed scope, sequential milestones, dependencies, acceptance criteria, and release gates. Its core outcomes are:
 
 - A GUI that separates configured access, verified access, attempted actions, and observed results. It does not claim to see assistant or connector activity outside Home's observation.
