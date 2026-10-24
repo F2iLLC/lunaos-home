@@ -36,7 +36,15 @@ For a deterministic protocol check of a generated or installed copy:
 node scripts/probe-chatgpt-plugin.mjs C:/HomeDeveloperPackages/draft-preview-01/plugins/lunaos-home-preview
 ```
 
-This probe tests the actual manifest launch, three-tool inventory, static GUI assets, cross-origin denial, unavailable vault endpoints, shared draft, reply-required correction, unchanged Sam fields, separate HTTP-driven confirmation, duplicate/stale denial, listener shutdown and empty restart. It uses an MCP SDK client and synthetic HTTP review actions; it does not invoke ChatGPT or click the GUI. `npm test` also builds and relocates a package into a cache-like directory containing spaces, removes its generated source, and repeats this check.
+This probe tests the declared launch command, three-tool inventory, static GUI assets, cross-origin denial, unavailable vault endpoints, shared draft, reply-required correction, unchanged Sam fields, separate HTTP-driven confirmation, duplicate/stale denial, listener shutdown and empty restart. It uses an MCP SDK client and synthetic HTTP review actions; it does not exercise the host's plugin parser, invoke ChatGPT or click the GUI. `npm test` also builds and relocates a package into a cache-like directory containing spaces, removes its generated source, and repeats this check. The probe rejects a missing portable MCP schema declaration before launching anything.
+
+Also verify the installed plugin through the actual Codex app-server loader, using absolute paths to the native Codex executable and the registered marketplace file:
+
+```powershell
+node scripts/probe-chatgpt-plugin-discovery.mjs C:/Codex/bin/codex.exe C:/HomeDeveloperPackages/draft-preview-01/.agents/plugins/marketplace.json
+```
+
+The executable path above is illustrative; `codex app-server daemon version` reports the managed executable when a local daemon exists. This probe starts a separate stdio app-server process, reads only the named Home plugin, and queries only its MCP server's tool inventory. It requires the plugin to be installed and enabled. It makes no model request or draft-tool call, writes no client configuration, and shuts down its diagnostic process. It does not restart the running desktop daemon. Codex must be installed separately; hosted repository tests do not install it.
 
 ## Evidence and remaining acceptance
 
@@ -44,6 +52,10 @@ On October 24, 2026, the package was built on Windows with Node 24.19.0 and inst
 
 Chrome interaction against the installed MCP process showed Alex's Workplace as Willow Studio, marked it Needs review, and submitted the fictional reply. The SDK client retrieved that exact request and proposed Willow Workshop. Browser refresh showed Please check; a separate browser click changed it to Looks right. Sam's school remained Meadow School. This is automated browser plus SDK evidence, not a live ChatGPT conversation or human comprehension acceptance. The disposable process was closed after the check.
 
-Windows package metadata reports ChatGPT Desktop 1.2026.190.0 installed. That version has not yet been observed discovering this plugin or invoking its tools. The current conversation's tool inventory did not refresh after CLI installation. A fresh local ChatGPT Work conversation must demonstrate the actual three tools and the workflow above before ChatGPT integration is marked verified. The local automated checks require no public submission or partner allowlist decision; public distribution eligibility remains unverified.
+Windows package metadata reports ChatGPT Desktop 1.2026.190.0 installed. The first user-reported attempt with plugin 0.1.0 loaded the skill but exposed none of its three tools; no fictional draft was staged. A client-level diagnosis reproduced zero bundled MCP servers. The package's `mcp.json` omitted the required `$schema` declaration, so the host ignored its configuration even though the SDK could launch the server directly. Adding only `https://agent-plugins.org/schemas/1.0.0/mcp.schema.json` made Codex 0.164.0 discover the server. This supersedes the initial assumption that the absence was only a stale conversation inventory.
+
+Plugin 0.1.1 includes that declaration and is installed locally. The actual client discovery probe passed: `plugin/read` found `lunaos_home_preview`, and `mcpServerStatus/list` started it and returned exactly `home_stage_draft`, `home_review_requests`, and `home_correct_draft`, with no tool-list error. The SDK protocol check also passed against the installed 0.1.1 cache. The regression now removes the schema declaration and verifies refusal before restoring it for the relocated-package round trip.
+
+This establishes client discovery and startup, not a live ChatGPT model invocation. A fresh local Work conversation must still complete the fictional review workflow. No tunnel or public submission was used; public distribution eligibility remains unverified.
 
 Keep package assembly, CLI installation, SDK protocol checks, browser interaction, live ChatGPT calls, and independent acceptance separate. This experiment does not complete VLT-06, VLT-09, mobile automation, native embedding, encrypted-record operations, or sensitive-use acceptance. No API key or new account is required by this package. Publishing source does not publish the plugin to the universal directory or authorize a release.

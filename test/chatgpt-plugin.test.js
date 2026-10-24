@@ -28,5 +28,11 @@ test('local plugin is self-contained after cache relocation and preserves existi
   // Remove only this test's generated source, proving the copied plugin never
   // relies on its original location or an ancestor checkout's node_modules.
   await rm(output, { recursive: true });
+  const mcpPath = resolve(installed, 'mcp.json');
+  const mcp = JSON.parse(await readFile(mcpPath, 'utf8'));
+  const { $schema, ...withoutSchema } = mcp;
+  await writeFile(mcpPath, JSON.stringify(withoutSchema));
+  await assert.rejects(probeChatgptPlugin(installed), /requires the portable MCP schema/);
+  await writeFile(mcpPath, JSON.stringify(mcp));
   assert.equal((await probeChatgptPlugin(installed)).packageProtocol, 'PASS');
 });

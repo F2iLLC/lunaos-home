@@ -9,6 +9,8 @@ import { exampleProposal } from '../lib/drafts.js';
 export async function probeChatgptPlugin(pluginRoot) {
   pluginRoot = resolve(pluginRoot);
   const manifest = JSON.parse(await readFile(resolve(pluginRoot, 'mcp.json'), 'utf8'));
+  assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+    'The client requires the portable MCP schema declaration to discover these tools');
   const config = manifest.mcpServers.lunaos_home_preview;
   assert.equal(config.type, 'stdio');
   assert.equal(config.command, 'node');

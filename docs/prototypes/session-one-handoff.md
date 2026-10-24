@@ -42,7 +42,7 @@ Inference: the documented consumer mobile connector routes do not supply the dir
 
 ### Local desktop package follow-up, October 24
 
-The [local plugin experiment](chatgpt-local-plugin.md) separates local-marketplace testing from public plugin submission. A self-contained fictional draft package now installs through the local CLI and passes protocol checks against its installed cache copy, plus an automated browser/SDK correction check. The full Windows suite passed 236/236. ChatGPT Desktop 1.2026.190.0 is installed, but a fresh local Work conversation has not yet demonstrated plugin discovery or a live tool call. The earlier paragraph saying no plugin was installed describes the documentation-only refresh, not this later experiment. ChatGPT/mobile acceptance remains open; no tunnel or real records are involved.
+The [local plugin experiment](chatgpt-local-plugin.md) separates local-marketplace testing from public plugin submission. A self-contained fictional draft package now installs through the local CLI and passes protocol checks against its installed cache copy, plus an automated browser/SDK correction check. The full Windows suite passed 236/236. The first user attempt with plugin 0.1.0 exposed the skill but no tools: a missing portable MCP schema declaration prevented host discovery. Installed version 0.1.1 repairs that configuration; the actual Codex 0.164.0 loader now starts its server and lists all three tools. ChatGPT Desktop 1.2026.190.0 is installed, but a live model tool call remains unverified. The earlier paragraph saying no plugin was installed describes the documentation-only refresh, not this later experiment. ChatGPT/mobile acceptance remains open; no tunnel or real records are involved.
 
 ## Accepted next-session scope
 
