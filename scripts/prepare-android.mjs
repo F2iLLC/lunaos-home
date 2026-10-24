@@ -20,7 +20,25 @@ export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.andro
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+  <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+  <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+  <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>
   <application>
+    <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="false" />
+    <service android:name="io.github.f2illc.lunaos.home.vehicle.VehicleAudioService" android:exported="false" android:foregroundServiceType="connectedDevice|mediaPlayback" />
+    <service android:name="io.github.f2illc.lunaos.home.vehicle.VehiclePresence" android:exported="true" android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
+      <intent-filter><action android:name="android.companion.CompanionDeviceService" /></intent-filter>
+    </service>
+    <receiver android:name="io.github.f2illc.lunaos.home.vehicle.VehicleReceiver" android:exported="true">
+      <intent-filter><action android:name="android.bluetooth.device.action.ACL_CONNECTED" /><action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" /><action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" /></intent-filter>
+    </receiver>
     <activity android:name=".VaultActivity" android:exported="false" />
     <activity android:name="io.github.f2illc.lunaos.directtlsprobe.PairingActivity" android:exported="false" />
     <receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove" />
@@ -167,14 +185,18 @@ export async function prepareAndroid({
   const debugRoot = join(sourceTree, 'debug');
   const javaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/preview');
   const directJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/directtlsprobe');
+  const vehicleJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/vehicle');
+  const vehicleRoot = new URL('./android/vehicle/', import.meta.url);
+  const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java'];
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
-  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java'];
+  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java', 'VehicleTransport.java'];
   // Inventory traverses directories; planned file destinations need an explicit
   // type check so a later copy cannot fail after earlier files were replaced.
   for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),
     ...sources.map(source => join(javaRoot, source)),
+    ...vehicleSources.map(source => join(vehicleJavaRoot, source)),
     ...directSources.map(source => join(directJavaRoot, source))]) {
     let info;
     try { info = await lstat(destination); }
@@ -202,8 +224,9 @@ export async function prepareAndroid({
       generatedSources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/generated/${source}`));
     const debugVaultSource = variant === 'debug' && sources.some(source => file === `java/io/github/f2illc/lunaos/home/preview/${source}`);
     const debugDirectSource = variant === 'debug' && directSources.some(source => file === `java/io/github/f2illc/lunaos/directtlsprobe/${source}`);
+    const debugVehicleSource = variant === 'debug' && vehicleSources.some(source => file === `java/io/github/f2illc/lunaos/home/vehicle/${source}`);
     if (/\.(?:java|kt)$/i.test(file) && !mainSource &&
-        !debugVaultSource && !debugDirectSource) {
+        !debugVaultSource && !debugDirectSource && !debugVehicleSource) {
       throw new Error('Unexpected generated Android source; preserve and regenerate before building.');
     }
     if (relative.endsWith('/AndroidManifest.xml') && relative !== 'main/AndroidManifest.xml') {
@@ -213,6 +236,8 @@ export async function prepareAndroid({
   }
   await mkdir(javaRoot, { recursive: true });
   await mkdir(directJavaRoot, { recursive: true });
+  await mkdir(vehicleJavaRoot, { recursive: true });
+  for (const source of vehicleSources) await copyFile(new URL(source, vehicleRoot), join(vehicleJavaRoot, source));
   for (const source of sources) await copyFile(new URL(source, sourceRoot), join(javaRoot, source));
   for (const source of directSources) await copyFile(new URL(source, directRoot), join(directJavaRoot, source));
   await writeFile(join(debugRoot, 'AndroidManifest.xml'), vaultDebugManifest);
@@ -227,5 +252,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const softwareRendering = args[0] === '--software-rendering';
   await prepareAndroid({ softwareRendering });
-  console.log(`Prepared Android main manifest without permissions; debug adds USE_BIOMETRIC, INTERNET and ACCESS_LOCAL_NETWORK for non-exported fictional vault/connection screens. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
+  console.log(`Prepared Android main manifest without permissions; debug adds native vault/connection screens and opt-in companion vehicle services. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }
