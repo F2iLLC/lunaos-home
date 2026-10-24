@@ -8,6 +8,7 @@ import android.media.*;
 import android.os.*;
 import android.speech.tts.*;
 import java.io.File;
+import java.io.IOException;
 import java.util.Locale;
 
 /** Short speech on the selected Bluetooth output, with a visible trip service. */
@@ -21,7 +22,7 @@ public final class VehicleAudioService extends Service {
     private AudioFocusRequest focus;
     private TextToSpeech speech;
     private MediaPlayer player;
-    private File wave;
+    private File wave, preparedWave;
     private boolean stopped, attempted, generating, detected, seeking, audible;
     private long deadline, routeDeadline;
     private int audioEpoch;
@@ -112,10 +113,17 @@ public final class VehicleAudioService extends Service {
         speech = new TextToSpeech(this, status -> ui.post(() -> {
             if (stopped || generation != audioEpoch || speech == null) return;
             if (status != TextToSpeech.SUCCESS || speech.setLanguage(Locale.US) < 0) { unavailable("Offline English speech engine unavailable"); return; }
-            wave = new File(getCacheDir(), "vehicle-greeting.wav");
+            wave = new File(getCacheDir(), "vehicle-greeting-" + generation + ".wav");
+            preparedWave = new File(getCacheDir(), "vehicle-ready-" + generation + ".wav");
+            final File source = wave, ready = preparedWave;
             speech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String id) { }
-                @Override public void onDone(String id) { ui.post(() -> { if (generation == audioEpoch) play(); }); }
+                @Override public void onDone(String id) {
+                    try {
+                        VehicleLeadIn.write(source, ready);
+                        ui.post(() -> { if (generation == audioEpoch) play(); else { source.delete(); ready.delete(); } });
+                    } catch (IOException failure) { ui.post(() -> { if (generation == audioEpoch) unavailable("Speech audio preparation failed"); }); }
+                }
                 @Override public void onError(String id) { ui.post(() -> { if (generation == audioEpoch) unavailable("Speech synthesis failed"); }); }
             });
             // Local installed engine only; no cloud TTS voice or microphone.
@@ -137,7 +145,7 @@ public final class VehicleAudioService extends Service {
             focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(attributes).setOnAudioFocusChangeListener(change -> { if (change < 0) ui.post(() -> unavailable()); }).build();
             if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { unavailable("Android audio focus denied"); return; }
-            player = new MediaPlayer(); player.setAudioAttributes(attributes); player.setDataSource(wave.getPath());
+            player = new MediaPlayer(); player.setAudioAttributes(attributes); player.setDataSource(preparedWave.getPath());
             if (!player.setPreferredDevice(output)) { unavailable("Android refused the selected Bluetooth output"); return; }
             player.setVolume(0, 0); player.prepare();
             player.setOnCompletionListener(done -> {
@@ -188,6 +196,7 @@ public final class VehicleAudioService extends Service {
         if (speech != null) { speech.shutdown(); speech = null; }
         if (focus != null) { audio.abandonAudioFocusRequest(focus); focus = null; }
         if (wave != null) { wave.delete(); wave = null; }
+        if (preparedWave != null) { preparedWave.delete(); preparedWave = null; }
         if (!stopped) try { startForeground(700, notification(this, "Vehicle session active"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE); } catch (RuntimeException ignored) { stopSelf(); }
     }
     private void end() { VehicleRuntime.disconnect(this); stopSelf(); }

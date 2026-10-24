@@ -98,3 +98,10 @@ test('production phone trip state machine runs on the JVM', async t => {
   const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehicleTripTest'], { windowsHide: true, encoding: 'utf8' });
   assert.match(result, /passed/);
 });
+
+test('CUE lead-in primes audio for three seconds without dropping the first spoken samples', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-audio-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleLeadIn.java', 'test/java/VehicleLeadInTest.java'], { windowsHide: true });
+  const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehicleLeadInTest'], { windowsHide: true, encoding: 'utf8' });
+  assert.match(result, /passed/);
+});
