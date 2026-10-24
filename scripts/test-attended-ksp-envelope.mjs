@@ -57,6 +57,8 @@ assert.equal(metadata.binarySha256, binarySha256, 'Use the same executable after
 const evidence = { schema: 1, mode, sourceHead: head, binarySha256, started: new Date().toISOString(),
   result: 'INCOMPLETE', attended: true, stages: [], cleanup: 'NOT_REQUESTED' };
 const resultPath = path.join(target, 'attempt-' + randomUUID() + '.json');
+// Leave an incomplete receipt even if the operator closes the entire console.
+writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
 const terminal = createInterface({ input: process.stdin, output: process.stdout });
 const statements = {
   prepare: 'Create a disposable separate KEY password in the Windows-owned dialog, then use it for verification. Keep it locally until cleanup. Never enter your Windows account password into Home or this terminal.',
@@ -67,7 +69,12 @@ const statements = {
   cleanup: 'Remove only this attempt’s disposable protector and envelope. Result files remain outside the checkout.',
 };
 async function invoke(nativeMode) {
-  const child = spawn(executable, [nativeMode, envelope], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const receipt = { operation: nativeMode, exitCode: null, stages: [] };
+  evidence.stages.push(receipt);
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+  // This is an attended GUI owner. Hidden STARTUPINFO can hide its first window
+  // and strand foreground validation after the OS dialog returns.
+  const child = spawn(executable, [nativeMode, envelope], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
   let output = '';
   const consume = chunk => {
     output += chunk.toString('utf8');
@@ -84,7 +91,8 @@ async function invoke(nativeMode) {
   // Do not preserve arbitrary diagnostics. Only native stage vocabulary.
   const stages = output.split(/\r?\n/).filter(line =>
     /^(envelope-(result|stage): [a-zA-Z0-9-]+|fictional-envelope-prepared-locked|fresh-process-silent-decrypt-denied|disposable-key-and-envelope-removed|HOME_WINDOWS_(MONITOR_READY|SESSION_ENDED)|HOME_WINDOWS_EVENT:[a-z-]+)$/.test(line));
-  evidence.stages.push({ operation: nativeMode, exitCode: code, stages });
+  receipt.exitCode = code; receipt.stages = stages;
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
   return { code, stages };
 }
 function passed(result) { return result.code === 0 && result.stages.includes('envelope-result: PASS'); }
@@ -133,7 +141,7 @@ try {
 } finally {
   terminal.close();
   evidence.finished = new Date().toISOString();
-  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
   console.log('Do not reboot automatically. Keep this directory for explicit restart verification or cleanup.');
 }

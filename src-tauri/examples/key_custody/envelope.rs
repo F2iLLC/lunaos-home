@@ -486,7 +486,7 @@ fn prepare(path: &Path, hwnd: HWND) -> Result<()> {
 fn visit(operation: impl FnOnce(HWND) -> Result<()> + Send + 'static) -> Result<()> {
     let hwnd = unsafe {
         CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
+            WS_EX_APPWINDOW,
             w!("STATIC"),
             w!("Home fictional key test - close to end"),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -501,6 +501,12 @@ fn visit(operation: impl FnOnce(HWND) -> Result<()> + Send + 'static) -> Result<
         )
     }
     .map_err(|_| "visit-window-unavailable")?;
+    if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+        unsafe {
+            let _ = DestroyWindow(hwnd);
+        }
+        return Err("visit-window-hidden");
+    }
     let _monitor = session::install(hwnd, || std::process::exit(3))
         .map_err(|_| "visit-monitor-unavailable")?;
     unsafe {
@@ -560,6 +566,23 @@ pub(super) fn run(arguments: &[String]) -> Result<()> {
             }
             await_foreground(hwnd)?;
             println!("envelope-stage: owner-foreground-after-dialog");
+            unsafe {
+                SetWindowTextW(
+                    hwnd,
+                    w!("Focus check: click the terminal, then click this Home window"),
+                )
+            }
+            .map_err(|_| "visit-window-unavailable")?;
+            let start = Instant::now();
+            while unsafe { GetForegroundWindow() } == hwnd {
+                if start.elapsed() > Duration::from_secs(30) {
+                    return Err("focus-diagnostic-no-away-transition");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            println!("envelope-stage: owner-left-foreground");
+            await_foreground(hwnd)?;
+            println!("envelope-stage: owner-regained-foreground-by-click");
             Ok(())
         });
     }

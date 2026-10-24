@@ -38,8 +38,10 @@ registers the existing session/power monitor. Lock, suspend, session changes,
 window closure and a 120-second overall deadline end the process. While the
 worker holds its data key, the UI loop checks foreground ownership and a
 five-second key-use deadline every 10 ms; the operation also checks foreground
-before and after decryption. The CNG dialog does not reliably restore owner
-focus on the declared PC. Its first returned data-key buffer is immediately
+before and after decryption. The runner launches the native owner visibly and
+the native process refuses a hidden window before prompting. The original
+hidden-startup launcher stranded the return-to-Home step on the declared PC.
+The first OS-returned data-key buffer is immediately
 wiped without reading a record. The process retains only the protected CNG
 handle while waiting up to 30 seconds for the operator to click the Home window.
 It then attempts a silent unwrap on that already-authorized handle during the

@@ -230,7 +230,14 @@ then silently unwraps on that same authorized handle for the bounded foreground
 comparison. It never forces focus or retains a plaintext data key while
 waiting. A failed silent unwrap denies access; a fresh process still requires
 a new OS gesture. Its regression keeps the deadline strict even if focus
-arrives late. Further
+arrives late. A third preparation on 2463f21528e31e6bdc89ff2fb94c59b7959a1223
+also expired after creation; cleanup again passed without an envelope. The
+operator could not find the Home window. A subsequent password-free click
+diagnostic launched visibly exposed the separate Home window (operator
+confirmed); its launcher closed without a retained completion result, so no
+click-test pass is inferred. The runner had used hidden startup for an
+attended GUI process. It now launches visibly, and native setup refuses a
+hidden owner before any key operation. Further
 attended results are recorded on the PR against their exact source head.
 No actual restart, physical phone action or real credential reset was performed
 for this slice at this handoff revision.
