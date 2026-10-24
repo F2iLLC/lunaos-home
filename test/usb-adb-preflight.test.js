@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectedUsbAdb } from '../scripts/test-fixtures/usb-adb-preflight.mjs';
+import { selectedUsbAdb, selectedUsbAdbByCableCycle } from '../scripts/test-fixtures/usb-adb-preflight.mjs';
 
 const serial = 'FICTIONAL123';
 const adb = `List of devices attached\n${serial} device product:example model:Test transport_id:5\n`;
@@ -22,4 +22,20 @@ test('attended Wi-Fi preflight refuses wireless, disconnected, or unrelated USB 
   assert.equal(selectedUsbAdb(adb, serial, [composite, { ...interfaceDevice, InstanceId: 'ROOT\\VIRTUAL\\fixture' }]), false);
   assert.equal(selectedUsbAdb(adb.replace(' device ', ' offline '), serial, [composite, interfaceDevice]), false);
   assert.equal(selectedUsbAdb('List of devices attached\n192.168.1.5:5555 device\n', serial, [composite, interfaceDevice]), false);
+});
+
+test('attended cable cycle binds a topology-only USB interface to the selected adb serial', () => {
+  const topology = { Class: 'USB', InstanceId: 'USB\\VID_1234&PID_ABCD\\TOPOLOGY' };
+  const interfaceDevice = { Class: 'AndroidUsbDeviceClass', InstanceId: 'USB\\VID_1234&PID_ABCD&ADB\\IFACE', Parent: topology.InstanceId };
+  const before = { adbList: adb, presentDevices: [topology, interfaceDevice] };
+  const detached = { adbList: 'List of devices attached\n', presentDevices: [] };
+  const reattached = { adbList: adb, presentDevices: [topology, interfaceDevice] };
+  assert.equal(selectedUsbAdb(adb, serial, before.presentDevices), false);
+  assert.equal(selectedUsbAdbByCableCycle(before, detached, reattached, serial), true);
+  assert.equal(selectedUsbAdbByCableCycle(before, { ...detached, adbList: adb }, reattached, serial), false);
+  assert.equal(selectedUsbAdbByCableCycle(before, { ...detached, presentDevices: [topology, interfaceDevice] }, reattached, serial), false);
+  assert.equal(selectedUsbAdbByCableCycle(before, detached,
+    { ...reattached, adbList: 'List of devices attached\n192.168.1.5:5555 device\n' }, serial), false);
+  assert.equal(selectedUsbAdbByCableCycle(before, detached,
+    { ...reattached, presentDevices: [] }, serial), false);
 });

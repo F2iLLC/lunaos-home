@@ -7,16 +7,16 @@ import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
-import { selectedUsbAdb } from './test-fixtures/usb-adb-preflight.mjs';
+import { selectedUsbAdb, selectedUsbAdbByCableCycle } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost, requireLifecycleDuringGrant, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
-import { privateTestAddress, certificateFingerprint } from '../lib/direct-vault-tls.js';
+import { privateTestAddress, certificateFingerprint, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
 
 const [output, apk, serial, model, apiText, address, scenario = 'reconnect'] = process.argv.slice(2);
-assert.ok(['reconnect', 'lock', 'sleep'].includes(scenario), 'Select a supported attended Home scenario');
+assert.ok(['reconnect', 'lock', 'sleep', 'rogue'].includes(scenario), 'Select a supported attended Home scenario');
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
 assert.ok(output && apk && serial && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -42,23 +42,53 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const wifiRoute = () => /\bdev wlan0\b/.test(adb(['shell', 'ip', '-4', 'route', 'get', address]));
 const fingerprint = certificate => certificateFingerprint(certificate);
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
-const evidence = { result: 'INCOMPLETE', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
-const listed = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
-let presentDevices = [];
-if (!selectedUsbAdb(listed, serial)) {
+const evidence = { result: 'INCOMPLETE', stage: 'preflight', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
+function usbSnapshot() {
+  const adbList = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
   const present = execFileSync('powershell.exe', ['-NoProfile', '-Command',
     "Get-PnpDevice -PresentOnly | Where-Object { $_.Class -eq 'USB' -or $_.Class -like 'Android*' } | ForEach-Object { $parent = if ($_.Class -like 'Android*') { (Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName 'DEVPKEY_Device_Parent').Data } else { $null }; [pscustomobject]@{ Class = $_.Class; InstanceId = $_.InstanceId; Parent = $parent } } | ConvertTo-Json -Compress"],
     { encoding: 'utf8', timeout: 20_000, windowsHide: true, maxBuffer: 128 * 1024 });
   const parsed = JSON.parse(present);
-  presentDevices = Array.isArray(parsed) ? parsed : [parsed];
+  return { adbList, presentDevices: Array.isArray(parsed) ? parsed : [parsed] };
 }
-assert.ok(selectedUsbAdb(listed, serial, presentDevices), 'Selected phone must use USB adb');
+const listed = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
+let cableCycleProved = false;
+let usbProved = selectedUsbAdb(listed, serial);
+if (!usbProved) {
+  const before = usbSnapshot();
+  usbProved = selectedUsbAdb(before.adbList, serial, before.presentDevices);
+  if (!usbProved) {
+    console.log('USB_CABLE_PROOF: unplug the selected phone USB cable now; the runner will wait for its adb serial and Android USB interface to disappear');
+    let detached;
+    const detachBy = Date.now() + 60_000;
+    while (Date.now() < detachBy) {
+      try {
+        const sample = usbSnapshot();
+        if (!sample.adbList.split(/\r?\n/).some(line => line.trim().startsWith(`${serial} `)) &&
+            !sample.presentDevices.some(device => /^Android/i.test(device.Class || '') &&
+              typeof device.InstanceId === 'string' && device.InstanceId.toUpperCase().startsWith('USB\\'))) { detached = sample; break; }
+      } catch { /* ADB and PnP may be unavailable during physical detach. */ }
+      await pause(500);
+    }
+    assert.ok(detached, 'Selected USB adb serial and Android interface did not both disappear');
+    console.log('USB_CABLE_RECONNECT: reconnect the same phone USB cable now; the runner will wait for the exact serial and Android USB interface to return');
+    const reconnectBy = Date.now() + 60_000;
+    while (Date.now() < reconnectBy) {
+      try { if (selectedUsbAdbByCableCycle(before, detached, usbSnapshot(), serial)) { cableCycleProved = true; break; } }
+      catch { /* ADB and PnP may still be recovering after reconnect. */ }
+      await pause(500);
+    }
+    assert.ok(cableCycleProved, 'Selected USB adb serial and Android interface did not return together');
+  }
+}
+assert.ok(cableCycleProved || usbProved, 'Selected phone must use USB adb');
+if (cableCycleProved) evidence.checks.push('Operator unplugged and reconnected the selected USB phone; its exact adb serial and sole Android USB interface disappeared and returned together');
 assert.equal(adb(['shell', 'getprop', 'ro.product.model']).trim(), model);
 assert.equal(adb(['shell', 'getprop', 'ro.build.version.sdk']).trim(), apiText);
 assert.notEqual(adb(['shell', 'getprop', 'ro.hardware']).trim(), 'ranchu');
 assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never overwrite an installed Home direct test package');
 mkdirSync(evidencePath);
-const fixtures = createDirectTlsIdentities({ hostOnly: true });
+const fixtures = createDirectTlsIdentities();
 let installed = false, store, visit, registry, reads = 0, writes = 0;
 const hostConsole = openHostApprovalConsole({ readTimeoutMs: 30_000 });
 
@@ -130,6 +160,7 @@ function privateFile(name, bytes) {
 }
 
 try {
+  evidence.stage = 'phone-identity';
   assert.match(adb(['install', '-t', apk]), /Success/); installed = true;
   adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/io.github.f2illc.lunaos.home.preview.MainActivity`]);
   await waitText('What would you like to do today?');
@@ -148,7 +179,11 @@ try {
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
   store = await openWindowsProbeStore({ probeId: store.probeId });
   registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
-  visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity, ca: cert, bindAddress: address, idleMs: 60_000,
+  evidence.stage = 'host-listener';
+  // In the rogue scenario the second fictional certificate is trusted by TLS
+  // but has no enrollment. This tests pairing policy, not issuer rejection.
+  visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity,
+    ca: scenario === 'rogue' ? [cert, fixtures.ca] : cert, bindAddress: address, idleMs: 60_000,
     protectedPairing: true,
     store: { lifecycleStore: store, read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
       create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
@@ -164,9 +199,12 @@ try {
   if (visit.host.incomingTcpCount() <= beforeTcp) throw Error('Selected phone cannot reach the exact Windows test listener port');
   evidence.checks.push('Selected phone reached the exact private Windows listener port before verification');
   console.log('WINDOWS_VERIFICATION_READY: complete the trusted Windows prompt on this computer');
+  evidence.stage = 'windows-verification';
   const verifiedBy = Date.now() + 120_000;
   for (;;) { try { visit.gate.requireVerified(); break; } catch { if (Date.now() >= verifiedBy) throw Error('Windows verification not completed'); await pause(250); } }
+  console.log('WINDOWS_VERIFICATION_COMPLETE: continue with the phone and local approval prompts');
 
+  evidence.stage = 'phone-opening';
   privateFile('ca.pem', fixtures.ca);
   const config = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText),
     transportAddress: address, port: visit.host.port, hostFingerprint: visit.host.hostFingerprint, offer: 'not-approved' };
@@ -174,12 +212,14 @@ try {
   await tap('Open fictional computer connection (debug)');
   console.log('ANDROID_LOCAL_NETWORK_PERMISSION_READY: approve the Android local network prompt for this test package if shown');
   await waitText('Review the test computer identity.', 180_000);
+  evidence.stage = 'identity-review';
   if (!await hostConsole.readyForEnrollment()) throw Error('Operator did not start identity review');
   const review = visit.enrollment.review(peer);
   const screen = appNodes();
   assert.ok(screen.some(node => node.text === `Test computer identity: ${review.hostFingerprint}`));
   assert.ok(screen.some(node => node.text === `Android identity: ${peer}`));
   console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
+  evidence.stage = 'pairing';
   const offer = visit.enrollment.decide(await hostConsole.enrollment(review));
   privateFile('config.json', JSON.stringify({ ...config, ...offer }));
   console.log('PHONE_PAIRING_APPROVAL_READY: inspect both identities and scope, then tap Approve fictional computer on the phone within 45 seconds');
@@ -190,6 +230,7 @@ try {
   assert.equal(connections.length, 1);
   assert.equal(connections[0].peerFingerprint, peer);
   // A separate decision grants only this connection's Alex read for 60 seconds.
+  evidence.stage = 'selected-read';
   if (!await hostConsole.read(connections[0])) throw Error('Host denied selected read');
   const grantTick = performance.now();
   visit.enrollment.approveRead(connections[0]);
@@ -203,6 +244,7 @@ try {
   evidence.readDisplayedWithinMs = Date.now() - approvalStarted;
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
+  evidence.stage = scenario;
   if (scenario === 'lock' || scenario === 'sleep') {
     console.log(scenario === 'lock'
       ? 'READY_FOR_WINDOWS_LOCK: keep Home visible on the phone; press Win+L now, then unlock Windows normally'
@@ -236,6 +278,27 @@ try {
     assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
     evidence.nativeEvents = visit.nativeEvents.map(({ reason, at }) => ({ reason, at }));
     evidence.checks.push(`Native Windows ${reason} ended the verified visit during an active Home read grant; the phone cleared the displayed record and reconnect failed without a new store read`);
+  } else if (scenario === 'rogue') {
+    const tcpBeforeRogue = visit.host.incomingTcpCount();
+    const tlsRejectedBeforeRogue = visit.host.rejectedHandshakeCount();
+    await assert.rejects(connectDirectVaultExperiment({ address, port: visit.host.port,
+      identity: fixtures.outsiderIdentity, ca: fixtures.ca,
+      approvedHostFingerprint: visit.host.hostFingerprint }), { code: 'DENIED' });
+    await assert.rejects(connectDirectVaultExperiment({ address, port: visit.host.port,
+      identity: fixtures.outsiderIdentity, ca: fixtures.ca,
+      approvedHostFingerprint: visit.host.hostFingerprint, offer: offer.offer }), { code: 'DENIED' });
+    assert.ok(visit.host.incomingTcpCount() >= tcpBeforeRogue + 2);
+    assert.equal(visit.host.rejectedHandshakeCount(), tlsRejectedBeforeRogue,
+      'Both outsider handshakes must pass TLS so the test reaches pairing policy');
+    assert.deepEqual(visit.host.listPairedPeers(), [peer]);
+    assert.deepEqual(visit.host.listConnections().map(item => item.peerFingerprint), [peer]);
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    const retained = await waitText(`${record.label}: ${record.value}`);
+    if (!tapVisible('End connection', retained)) await tap('End connection');
+    const ended = await waitText('Connection ended. Reading needs fresh approval.');
+    assert.ok(ended.some(node => node.text === 'No record shown.'));
+    assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
+    evidence.checks.push('A separate TLS-trusted but unapproved fictional certificate on the Windows PC could neither resume nor use the phone offer on the live listener; both handshakes reached pairing policy, the selected phone stayed paired, and no extra record read occurred');
   } else {
     if (!tapVisible('End connection', shown)) await tap('End connection');
     const ended = await waitText('Connection ended. Reading needs fresh approval.');
@@ -291,7 +354,7 @@ try {
       evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
     }
   }
-  evidence.result = 'PASS';
+  evidence.result = 'PASS'; evidence.stage = 'complete';
 } catch (error) {
   evidence.error = error.name;
   evidence.connectionsAtFailure = visit?.host?.listConnections().length ?? 0;

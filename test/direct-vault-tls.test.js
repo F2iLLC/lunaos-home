@@ -22,6 +22,8 @@ test('LAN test binding rejects wildcard, public, hostnames and malformed address
   for (const address of ['0.0.0.0', '::', 'localhost', '8.8.8.8', '169.254.1.2', '192.168.1.999', '172.32.0.1', '10.01.2.3']) {
     assert.throws(() => privateTestAddress(address));
     await assert.rejects(startDirectVaultExperiment({ bindAddress: address }), /private IPv4/);
+    await assert.rejects(connectDirectVaultExperiment({ address, port: 1, identity: phoneIdentity,
+      ca, approvedHostFingerprint: hostIdentity.fingerprint }), /private IPv4/);
   }
   for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2']) assert.equal(privateTestAddress(address), address);
 });

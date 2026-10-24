@@ -20,3 +20,26 @@ export function selectedUsbAdb(adbList, serial, presentDevices = []) {
       typeof device.Parent === 'string' && compositeIds.has(device.Parent.toUpperCase());
   });
 }
+
+// Fallback when Windows assigns a topology ID instead of the phone serial to
+// its USB composite. Require an attended detach/reattach of the exact adb
+// serial and the sole Android USB interface; wireless adb stays present.
+export function selectedUsbAdbByCableCycle(before, detached, reattached, serial) {
+  const active = snapshot => snapshot.adbList.split(/\r?\n/).flatMap(line => {
+    const [id, state] = line.trim().split(/\s+/);
+    return state === 'device' ? [id] : [];
+  });
+  const physicalInterfaces = snapshot => {
+    const composites = new Set(snapshot.presentDevices.flatMap(device =>
+      device.Class === 'USB' && typeof device.InstanceId === 'string'
+        ? [device.InstanceId.toUpperCase()] : []));
+    return snapshot.presentDevices.filter(device => /^Android/i.test(device.Class || '') &&
+      typeof device.InstanceId === 'string' && device.InstanceId.toUpperCase().startsWith('USB\\') &&
+      typeof device.Parent === 'string' && composites.has(device.Parent.toUpperCase()));
+  };
+  return active(before).length === 1 && active(before)[0] === serial &&
+    !active(detached).includes(serial) &&
+    active(reattached).length === 1 && active(reattached)[0] === serial &&
+    physicalInterfaces(before).length === 1 && physicalInterfaces(detached).length === 0 &&
+    physicalInterfaces(reattached).length === 1;
+}
