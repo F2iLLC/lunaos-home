@@ -1,5 +1,10 @@
 # Attended joined Home restart runner
 
+The [attended result](session-three-storage-pairing-handoff.md#attended-joined-restart-recovery-result-2026-10-24)
+passed on the declared Samsung/Windows pair on 2026-10-24, including explicit
+cleanup. It records original preparation versus repaired runner provenance,
+unchanged build hashes, and the two incomplete attempts before success.
+
 This fictional-only VLT-05 check retains the same Android test app, Android
 Keystore transport identity, Windows DPAPI record store, protected pairing
 registry and disposable host TLS identity across an operator-initiated Windows
