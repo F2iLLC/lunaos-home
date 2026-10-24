@@ -1,11 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectedUsbAdb, selectedUsbAdbByCableCycle } from '../scripts/test-fixtures/usb-adb-preflight.mjs';
+import { selectedUsbAdb, selectedUsbAdbByCableCycle, selectedUsbAdbDetached } from '../scripts/test-fixtures/usb-adb-preflight.mjs';
 
 const serial = 'FICTIONAL123';
 const adb = `List of devices attached\n${serial} device product:example model:Test transport_id:5\n`;
 const composite = { Class: 'USB', InstanceId: `USB\\VID_1234&PID_ABCD\\${serial}` };
 const interfaceDevice = { Class: 'AndroidUsbDeviceClass', InstanceId: 'USB\\VID_1234&PID_ABCD&ADB\\fixture', Parent: composite.InstanceId };
+
+test('detach sampling rejects a still-listed serial regardless of whitespace or adb state', () => {
+  for (const separator of [' ', '\t', '  \t']) {
+    for (const state of ['device', 'offline', 'unauthorized']) {
+      const mixed = { adbList: `List of devices attached\n${serial}${separator}${state}\n`, presentDevices: [] };
+      assert.equal(selectedUsbAdbDetached(mixed, serial), false);
+    }
+  }
+  assert.equal(selectedUsbAdbDetached({ adbList: 'List of devices attached\n', presentDevices: [interfaceDevice] }, serial), false);
+  assert.equal(selectedUsbAdbDetached({ adbList: 'List of devices attached\n', presentDevices: [] }, serial), true);
+});
 
 test('attended Wi-Fi preflight accepts a selected USB adb path without a usb: label', () => {
   assert.equal(selectedUsbAdb(adb, serial, [composite, interfaceDevice]), true);

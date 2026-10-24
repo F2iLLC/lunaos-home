@@ -21,6 +21,13 @@ export function selectedUsbAdb(adbList, serial, presentDevices = []) {
   });
 }
 
+// ADB and PnP are sampled separately; either still-present signal prevents detachment.
+export function selectedUsbAdbDetached(snapshot, serial) {
+  return !snapshot.adbList.split(/\r?\n/).some(line => line.trim().split(/\s+/)[0] === serial) &&
+    !snapshot.presentDevices.some(device => /^Android/i.test(device.Class || '') &&
+      typeof device.InstanceId === 'string' && device.InstanceId.toUpperCase().startsWith('USB\\'));
+}
+
 // Fallback when Windows assigns a topology ID instead of the phone serial to
 // its USB composite. Require an attended detach/reattach of the exact adb
 // serial and the sole Android USB interface; wireless adb stays present.
@@ -38,7 +45,7 @@ export function selectedUsbAdbByCableCycle(before, detached, reattached, serial)
       typeof device.Parent === 'string' && composites.has(device.Parent.toUpperCase()));
   };
   return active(before).length === 1 && active(before)[0] === serial &&
-    !active(detached).includes(serial) &&
+    selectedUsbAdbDetached(detached, serial) &&
     active(reattached).length === 1 && active(reattached)[0] === serial &&
     physicalInterfaces(before).length === 1 && physicalInterfaces(detached).length === 0 &&
     physicalInterfaces(reattached).length === 1;

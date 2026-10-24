@@ -127,7 +127,13 @@ test('trusted CA does not admit an unapproved certificate or permit a stolen off
   const { host, connect } = await setup(t);
   await assert.rejects(connect({ identity: outsiderIdentity }), isCode('DENIED'));
   const approved = host.approvePairing(phoneIdentity.fingerprint);
+  const tcpBefore = host.incomingTcpCount();
+  const rejectedBefore = host.rejectedHandshakeCount();
   await assert.rejects(connect({ ...approved, identity: outsiderIdentity }), isCode('DENIED'));
+  assert.equal(host.incomingTcpCount(), tcpBefore + 1);
+  assert.equal(host.rejectedHandshakeCount(), rejectedBefore);
+  assert.deepEqual(host.listPairedPeers(), []);
+  assert.deepEqual(host.listConnections(), []);
   const client = await connect(approved); // Failed wrong-identity use did not burn the correct offer.
   assert.ok(client.connectionId);
   await assert.rejects(connect(approved), isCode('DENIED')); // One use only.

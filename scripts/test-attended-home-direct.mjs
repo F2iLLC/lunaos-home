@@ -7,7 +7,7 @@ import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
-import { selectedUsbAdb, selectedUsbAdbByCableCycle } from './test-fixtures/usb-adb-preflight.mjs';
+import { selectedUsbAdb, selectedUsbAdbByCableCycle, selectedUsbAdbDetached } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost, requireLifecycleDuringGrant, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
@@ -64,9 +64,7 @@ if (!usbProved) {
     while (Date.now() < detachBy) {
       try {
         const sample = usbSnapshot();
-        if (!sample.adbList.split(/\r?\n/).some(line => line.trim().startsWith(`${serial} `)) &&
-            !sample.presentDevices.some(device => /^Android/i.test(device.Class || '') &&
-              typeof device.InstanceId === 'string' && device.InstanceId.toUpperCase().startsWith('USB\\'))) { detached = sample; break; }
+        if (selectedUsbAdbDetached(sample, serial)) { detached = sample; break; }
       } catch { /* ADB and PnP may be unavailable during physical detach. */ }
       await pause(500);
     }
@@ -221,6 +219,22 @@ try {
   console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
   evidence.stage = 'pairing';
   const offer = visit.enrollment.decide(await hostConsole.enrollment(review));
+  if (scenario === 'rogue') {
+    evidence.stage = 'rogue-live-offer';
+    const tcpBefore = visit.host.incomingTcpCount();
+    const tlsRejectedBefore = visit.host.rejectedHandshakeCount();
+    // Probe before the phone consumes the offer, then let the phone prove
+    // that it remains valid and was not burned by the wrong certificate.
+    await assert.rejects(connectDirectVaultExperiment({ address, port: visit.host.port,
+      identity: fixtures.outsiderIdentity, ca: fixtures.ca,
+      approvedHostFingerprint: visit.host.hostFingerprint, offer: offer.offer }), { code: 'DENIED' });
+    assert.ok(visit.host.incomingTcpCount() >= tcpBefore + 1);
+    assert.equal(visit.host.rejectedHandshakeCount(), tlsRejectedBefore);
+    assert.deepEqual(visit.host.listPairedPeers(), []);
+    assert.deepEqual(visit.host.listConnections(), []);
+    assert.equal(reads, 0); assert.equal(writes, 0);
+    evidence.checks.push('TLS-trusted outsider was denied the unconsumed phone-bound offer before phone pairing');
+  }
   privateFile('config.json', JSON.stringify({ ...config, ...offer }));
   console.log('PHONE_PAIRING_APPROVAL_READY: inspect both identities and scope, then tap Approve fictional computer on the phone within 45 seconds');
   await waitText('Computer approved for this screen. Connect when ready.', 45_000);
@@ -229,6 +243,7 @@ try {
   const connections = visit.host.listConnections();
   assert.equal(connections.length, 1);
   assert.equal(connections[0].peerFingerprint, peer);
+  if (scenario === 'rogue') evidence.checks.push('The intended phone subsequently consumed the same offer successfully');
   // A separate decision grants only this connection's Alex read for 60 seconds.
   evidence.stage = 'selected-read';
   if (!await hostConsole.read(connections[0])) throw Error('Host denied selected read');
@@ -284,12 +299,9 @@ try {
     await assert.rejects(connectDirectVaultExperiment({ address, port: visit.host.port,
       identity: fixtures.outsiderIdentity, ca: fixtures.ca,
       approvedHostFingerprint: visit.host.hostFingerprint }), { code: 'DENIED' });
-    await assert.rejects(connectDirectVaultExperiment({ address, port: visit.host.port,
-      identity: fixtures.outsiderIdentity, ca: fixtures.ca,
-      approvedHostFingerprint: visit.host.hostFingerprint, offer: offer.offer }), { code: 'DENIED' });
-    assert.ok(visit.host.incomingTcpCount() >= tcpBeforeRogue + 2);
+    assert.ok(visit.host.incomingTcpCount() >= tcpBeforeRogue + 1);
     assert.equal(visit.host.rejectedHandshakeCount(), tlsRejectedBeforeRogue,
-      'Both outsider handshakes must pass TLS so the test reaches pairing policy');
+      'Outsider resume handshake must pass TLS so the test reaches pairing policy');
     assert.deepEqual(visit.host.listPairedPeers(), [peer]);
     assert.deepEqual(visit.host.listConnections().map(item => item.peerFingerprint), [peer]);
     assert.equal(reads, 1); assert.equal(writes, 0);
@@ -298,7 +310,7 @@ try {
     const ended = await waitText('Connection ended. Reading needs fresh approval.');
     assert.ok(ended.some(node => node.text === 'No record shown.'));
     assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
-    evidence.checks.push('A separate TLS-trusted but unapproved fictional certificate on the Windows PC could neither resume nor use the phone offer on the live listener; both handshakes reached pairing policy, the selected phone stayed paired, and no extra record read occurred');
+    evidence.checks.push('The TLS-trusted outsider could not resume while the selected phone stayed paired and connected; no extra record read occurred');
   } else {
     if (!tapVisible('End connection', shown)) await tap('End connection');
     const ended = await waitText('Connection ended. Reading needs fresh approval.');
