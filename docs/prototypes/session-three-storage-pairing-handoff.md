@@ -239,6 +239,21 @@ click-test pass is inferred. The runner had used hidden startup for an
 attended GUI process. It now launches visibly, and native setup refuses a
 hidden owner before any key operation. Further
 attended results are recorded on the PR against their exact source head.
+The fourth fixture on 27bb88703e651a02d4fa8880734bda42abb321eb prepared
+successfully with executable SHA-256
+a1c9269ad4161d2475285ae44300a41da0d9895660c3ad7273a6ec7a9a153734.
+Protected creation, the OS gesture, authenticated foreground comparison,
+encrypted commit, fresh-process silent denial and same-boot refusal passed.
+Cancellation and wrong-password-then-cancel also passed with explicit operator
+reports, unchanged ciphertext and fresh-process silent denial before and after.
+A mistyped begin attempt performed no native operation; normal read remained
+incomplete. At the operator's request to start over, cleanup initially refused
+with NTE_SILENT_CONTEXT while opening the existing protected key with the silent
+flag. The repair uses the same normal key-open flags as the existing probe,
+retains exact missing-key handling, and records only numeric failure statuses.
+Explicit cleanup on that repaired build then passed with exit 0, removing the
+key and envelope. The next attempt starts with a new fixture and one attended
+step at a time. These results do not establish a restart result.
 No actual restart, physical phone action or real credential reset was performed
 for this slice at this handoff revision.
 The previous disposable Software KSP restart result remains historical evidence

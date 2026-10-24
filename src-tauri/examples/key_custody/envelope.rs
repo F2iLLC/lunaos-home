@@ -653,16 +653,22 @@ fn cleanup(path: &Path) -> Result<()> {
             &mut handle,
             PCWSTR(wide.as_ptr()),
             CERT_KEY_SPEC(1),
-            NCRYPT_SILENT_FLAG,
+            NCRYPT_FLAGS(0),
         )
     } {
         Ok(()) => {
-            if !Key(handle).delete() {
+            let mut key = Key(handle);
+            if let Err(error) = unsafe { NCryptDeleteKey(key.0, 0) } {
+                eprintln!("cleanup-delete-status: 0x{:08x}", error.code().0 as u32);
                 return Err("key-cleanup-required");
             }
+            key.0 = NCRYPT_KEY_HANDLE(0);
         }
         Err(error) if error.code().0 as u32 == 0x80090016 => {} // NTE_BAD_KEYSET
-        Err(_) => return Err("key-cleanup-required"),
+        Err(error) => {
+            eprintln!("cleanup-open-status: 0x{:08x}", error.code().0 as u32);
+            return Err("key-cleanup-required");
+        }
     }
     if path.exists() {
         fs::remove_file(path).map_err(|_| "envelope-cleanup-required")?;
