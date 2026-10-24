@@ -12,6 +12,7 @@
     "start": "node server.js",
     "test": "node scripts/run-tests.mjs",
     "assistant": "node assistant.js",
+    "build:chatgpt-plugin": "node scripts/build-chatgpt-plugin.mjs",
     "build:native": "node scripts/build-native.mjs",
     "audit:native-licenses": "node scripts/audit-native-licenses.mjs",
     "bundle:native-notices": "node scripts/bundle-native-notices.mjs",

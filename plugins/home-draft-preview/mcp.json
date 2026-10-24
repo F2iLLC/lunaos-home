@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "lunaos_home_preview": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/runtime/assistant.js"],
+      "cwd": "${PLUGIN_ROOT}/runtime",
+      "env": { "LUNA_HOME_PREVIEW_PORT": "0" }
+    }
+  }
+}

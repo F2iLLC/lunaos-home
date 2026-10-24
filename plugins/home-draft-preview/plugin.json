@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "lunaos-home-preview",
+  "version": "0.1.0",
+  "description": "Review and correct fictional LunaOS Home drafts on this computer. No household data or record saving.",
+  "repository": "https://github.com/F2iLLC/lunaos-home",
+  "license": "Apache-2.0",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "LunaOS Home Preview",
+        "shortDescription": "Try a fictional profile review on this computer",
+        "longDescription": "Developer preview. Stage Alex and Sam's fictional profile, open Home locally, and correct a selected field. Drafts disappear when the connection ends. Selected fictional tool input and replies are visible to the hosted assistant. No vault, source connectors, or record saving.",
+        "category": "Productivity",
+        "defaultPrompt": ["Try the fictional LunaOS Home draft review with Alex and Sam."]
+      }
+    }
+  }
+}

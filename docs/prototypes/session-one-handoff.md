@@ -40,6 +40,10 @@ These pages do not establish a local stdio plugin path on ChatGPT mobile or veri
 
 Inference: the documented consumer mobile connector routes do not supply the direct private-device transport required here. This is not a claim that every future client or every possible integration is impossible. No public endpoint, tunnel or cloud relay was introduced to manufacture a pass. A locally running client also does not make its hosted model local: production disclosure must still be separately scoped and minimized.
 
+### Local desktop package follow-up, October 24
+
+The [local plugin experiment](chatgpt-local-plugin.md) separates local-marketplace testing from public plugin submission. A self-contained fictional draft package now installs through the local CLI and passes protocol checks against its installed cache copy, plus an automated browser/SDK correction check. The full Windows suite passed 236/236. ChatGPT Desktop 1.2026.190.0 is installed, but a fresh local Work conversation has not yet demonstrated plugin discovery or a live tool call. The earlier paragraph saying no plugin was installed describes the documentation-only refresh, not this later experiment. ChatGPT/mobile acceptance remains open; no tunnel or real records are involved.
+
 ## Accepted next-session scope
 
 Proceed with the tested Windows local assistant route and native Android GUI as the first experiment, while keeping phone-only manual vault operation in Session 2. Prove the protected local store, OS unlock, session grants and authenticated direct Windows/Android connection. Keep Android assistant automation and ChatGPT integration explicitly unresolved under issue 31 until a compatible client route is available or a separately reviewed interaction design is approved.
