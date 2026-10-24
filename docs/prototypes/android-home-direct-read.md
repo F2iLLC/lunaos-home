@@ -57,6 +57,13 @@ cleartext settings, exported components, signer, and ABI before installation.
    issuing a one-use offer. Separately approve the computer on Android, connect,
    approve the selected read on the Windows host, allow that read on Android,
    and read the committed fictional record.
+   When using `test-attended-home-direct.mjs`, wait for
+   `PHONE_READ_APPROVAL_READY` before tapping **Allow selected read**. The
+   runner first checks that the phone's Read control remains disabled after
+   host approval; an early phone approval prevents that observation. Respond
+   promptly to the host read prompt: the phone's socket wait is 15 seconds,
+   shorter than the terminal's 30-second input deadline. A timeout requires a
+   fresh attempt; it never supplies approval.
 3. Exercise denied or expired pairing, read without either approval, End,
    background and cold restart, host removal, and unavailable host. After each
    closure, confirm the old grant cannot read and the displayed content clears.
@@ -98,7 +105,9 @@ revocation, or unavailable-host behavior in the joined Home package.
 
 The [Session 10 attended handoff](session-three-storage-pairing-handoff.md#session-10-attended-home-lock-and-sleep-results) records later joined Home checks on the same declared Samsung and Windows PC. A real Windows lock and a real suspend each ended the verified visit during an active fictional read grant; the phone cleared the record and a reconnect failed without another store read. Each run had one read, zero writes, and passing cleanup. These are lifecycle results for the read-only debug path, not a vault-key release or cold PC restart result.
 
-The [Session 11 handoff](session-three-storage-pairing-handoff.md#session-11-attended-rogue-certificate-result) records a live listener check while the physical phone held an approved read. A second TLS-trusted but unpaired fictional certificate from the Windows PC could neither resume nor replay the already-consumed phone offer; the host made no additional record read. This did not test a still-valid stolen offer and is not a second physical-phone test. The corrected pre-consumption probe requires a new attended run.
+The [Session 11 handoff](session-three-storage-pairing-handoff.md#session-11-attended-rogue-certificate-result) records a live listener check while the physical phone held an approved read. A second TLS-trusted but unpaired fictional certificate from the Windows PC could neither resume nor replay the already-consumed phone offer; the host made no additional record read. That run did not test a still-valid stolen offer.
+
+The corrected [Session 15 attended check](session-three-storage-pairing-handoff.md#session-15-attended-still-valid-offer-binding) passed on 2026-10-24. Before phone pairing, a TLS-trusted PC outsider was denied the unconsumed phone-bound offer; the Samsung then consumed that same offer successfully. After independent host and phone approvals, Home displayed one authoritative fictional read. The outsider could not resume while the phone stayed paired and connected. End cleared the record, ciphertext stayed unchanged, and cleanup passed. This is a PC-origin outsider check with one physical phone, not the second physical rogue-phone gate. The handoff preserves both incomplete attempts, exact source/build provenance and remaining gates.
 
 The private certificate and offer provisioning above is test infrastructure,
 not a reviewed onboarding path. Android's direct screen does not itself prompt

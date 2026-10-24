@@ -134,8 +134,10 @@ across a real PC boot and fresh approvals; it does **not** prove interruption
 of an active grant by shutdown, uninterrupted phone UI behavior during reboot,
 power-loss recovery, or authentication-bound DPAPI key release.
 
-The phone version-2 stale edit, second physical rogue phone and corrected
-still-valid stolen-offer physical checks remain separate gates. This read-only
+The phone version-2 stale edit and second physical rogue phone remain separate
+gates. The corrected still-valid stolen-offer check passed with a PC-origin
+outsider in [Session 15](session-three-storage-pairing-handoff.md#session-15-attended-still-valid-offer-binding);
+it does not substitute for that second phone. This read-only
 runner issues no record mutation; any later write runner must reconcile
 `WRITE_UNKNOWN` by explicit readback without automatic replay. Guided
 installation, production identity provisioning, configurable unlock methods
