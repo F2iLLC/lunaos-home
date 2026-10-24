@@ -38,7 +38,11 @@ registers the existing session/power monitor. Lock, suspend, session changes,
 window closure and a 120-second overall deadline end the process. While the
 worker holds its data key, the UI loop checks foreground ownership and a
 five-second key-use deadline every 10 ms; the operation also checks foreground
-before and after decryption. No reusable unlocked session is persisted. A new
+before and after decryption. After the OS dialog returns, a bounded 500 ms
+activation handoff permits the owner UI thread to regain foreground. No record
+operation runs during that interval, focus is never forced, and failure wipes
+the returned buffer. Session/power and total/key deadlines remain active.
+No reusable unlocked session is persisted. A new
 process always needs a new protected operation and checks silent denial before
 and after it. These are implementation boundaries, **not attended lifecycle
 results for this new path**.

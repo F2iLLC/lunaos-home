@@ -19,9 +19,11 @@ const FIXTURE: &[u8] = b"Fictional Alex: blue paper kite";
 const MAX_FILE: u64 = 8192;
 type Result<T> = std::result::Result<T, &'static str>;
 static KEY_ACTIVE: AtomicBool = AtomicBool::new(false);
+static KEY_FOREGROUND: AtomicBool = AtomicBool::new(false);
 struct ActiveKey;
 impl ActiveKey {
     fn begin() -> Self {
+        KEY_FOREGROUND.store(false, Ordering::SeqCst);
         KEY_ACTIVE.store(true, Ordering::SeqCst);
         Self
     }
@@ -369,6 +371,37 @@ fn foreground(hwnd: HWND, start: Instant) -> Result<()> {
     }
     Ok(())
 }
+#[derive(Debug, PartialEq)]
+enum ForegroundReturn {
+    Waiting,
+    Ready,
+    Expired,
+}
+fn foreground_return(elapsed: Duration, owner_foreground: bool) -> ForegroundReturn {
+    if elapsed >= Duration::from_millis(500) {
+        ForegroundReturn::Expired
+    } else if owner_foreground {
+        ForegroundReturn::Ready
+    } else {
+        ForegroundReturn::Waiting
+    }
+}
+fn await_foreground(hwnd: HWND) -> Result<()> {
+    // NCrypt runs on a worker. Its dialog can return before the owner UI thread
+    // processes activation. No record operation is allowed during this interval;
+    // never force focus or accept a different foreground window.
+    let start = Instant::now();
+    loop {
+        match foreground_return(start.elapsed(), unsafe { GetForegroundWindow() } == hwnd) {
+            ForegroundReturn::Ready => {
+                KEY_FOREGROUND.store(true, Ordering::SeqCst);
+                return Ok(());
+            }
+            ForegroundReturn::Expired => return Err("foreground-return-expired"),
+            ForegroundReturn::Waiting => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
 fn unwrap(envelope: &Envelope, hwnd: HWND) -> Result<()> {
     envelope.silent()?;
     let (_provider, key) = open_software_key(&envelope.name)?;
@@ -376,6 +409,8 @@ fn unwrap(envelope: &Envelope, hwnd: HWND) -> Result<()> {
     let secret =
         Secret(crypt(&key, &envelope.wrapped, true, false).map_err(|_| "os-key-release-denied")?);
     let active = ActiveKey::begin();
+    println!("envelope-stage: os-key-released");
+    await_foreground(hwnd)?;
     // No key-bearing session is retained while waiting for terminal input.
     let start = Instant::now();
     foreground(hwnd, start)?;
@@ -393,9 +428,10 @@ fn prepare(path: &Path, hwnd: HWND) -> Result<()> {
     }
     let boot = current_boot_time()?;
     let (_provider, mut protector, name) = create_key(hwnd, path)?;
+    println!("envelope-stage: protector-created");
     let result = (|| {
-        foreground(hwnd, Instant::now())?;
         let active = ActiveKey::begin();
+        await_foreground(hwnd)?;
         let secret = data_key()?;
         let mut envelope = Envelope {
             name: name.clone(),
@@ -466,7 +502,9 @@ fn visit(operation: impl FnOnce(HWND) -> Result<()> + Send + 'static) -> Result<
         }
         if KEY_ACTIVE.load(Ordering::SeqCst) {
             let since = key_start.get_or_insert_with(Instant::now);
-            if since.elapsed() > Duration::from_secs(5) || unsafe { GetForegroundWindow() } != hwnd
+            if since.elapsed() > Duration::from_secs(5)
+                || (KEY_FOREGROUND.load(Ordering::SeqCst)
+                    && unsafe { GetForegroundWindow() } != hwnd)
             {
                 std::process::exit(3);
             }
@@ -750,6 +788,28 @@ mod tests {
         let mut bytes = vec![17; 32];
         wipe(&mut bytes);
         assert_eq!(bytes, vec![0; 32]);
+    }
+
+    #[test]
+    fn foreground_return_waits_for_activation_but_never_extends_deadline() {
+        assert_eq!(
+            foreground_return(Duration::ZERO, false),
+            ForegroundReturn::Waiting
+        );
+        assert_eq!(
+            foreground_return(Duration::from_millis(10), false),
+            ForegroundReturn::Waiting
+        );
+        assert_eq!(
+            foreground_return(Duration::from_millis(20), true),
+            ForegroundReturn::Ready
+        );
+        for focused in [false, true] {
+            assert_eq!(
+                foreground_return(Duration::from_millis(500), focused),
+                ForegroundReturn::Expired
+            );
+        }
     }
 
     #[test]

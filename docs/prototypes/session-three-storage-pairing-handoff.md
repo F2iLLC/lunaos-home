@@ -198,7 +198,7 @@ as an operator report alongside machine-observed denial, not inferred from a
 generic CNG failure. There is no reset, recovery, migration or method-change
 command and no DPAPI fallback.
 
-Local Windows checks: native example tests **18/18**, native library tests
+Local Windows checks: native example tests **19/19**, native library tests
 **9/9**, native example build, native frontend build, runner syntax check,
 runner noninteractive refusal tests **2/2**, full application suite **235/235**,
 and git diff --check passed. The exact pushed head/hosted outcome are recorded
@@ -213,8 +213,17 @@ physical disk exhaustion, power-loss durability or credential reset behavior.
 The hosted Ubuntu workflow runs the JavaScript suite, not Windows native CNG
 or attended tests.
 
-**New attended results: not run.** No OS password prompt, actual restart,
-physical phone action or real credential reset was performed for this slice.
+**First attended preparation: incomplete.** On source
+bfab342ca853c28f8d7d411e63436778af32ed13, the operator completed the creation
+and second OS key-password dialogs; preparation then returned
+foreground-visit-ended without committing an envelope. Explicit owned cleanup
+passed with exit 0 and both the protector receipt and envelope absent.
+The repair allows a bounded 500 ms return-to-foreground handoff after CNG
+returns, without forcing focus or using the key for records during that wait.
+Its regression keeps the deadline strict even if focus arrives late. Further
+attended results are recorded on the PR against their exact source head.
+No actual restart, physical phone action or real credential reset was performed
+for this slice at this handoff revision.
 The previous disposable Software KSP restart result remains historical evidence
 for the candidate, not evidence for this envelope or the repaired boot-marker
 path. The bounded runner and exact operator steps are ready in the linked

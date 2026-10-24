@@ -83,7 +83,7 @@ async function invoke(nativeMode) {
   } finally { clearTimeout(timer); }
   // Do not preserve arbitrary diagnostics. Only native stage vocabulary.
   const stages = output.split(/\r?\n/).filter(line =>
-    /^(envelope-result: [a-zA-Z0-9-]+|fictional-envelope-prepared-locked|fresh-process-silent-decrypt-denied|disposable-key-and-envelope-removed|HOME_WINDOWS_(MONITOR_READY|SESSION_ENDED)|HOME_WINDOWS_EVENT:[a-z-]+)$/.test(line));
+    /^(envelope-(result|stage): [a-zA-Z0-9-]+|fictional-envelope-prepared-locked|fresh-process-silent-decrypt-denied|disposable-key-and-envelope-removed|HOME_WINDOWS_(MONITOR_READY|SESSION_ENDED)|HOME_WINDOWS_EVENT:[a-z-]+)$/.test(line));
   evidence.stages.push({ operation: nativeMode, exitCode: code, stages });
   return { code, stages };
 }
