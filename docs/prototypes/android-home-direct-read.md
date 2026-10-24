@@ -98,6 +98,8 @@ revocation, or unavailable-host behavior in the joined Home package.
 
 The [Session 10 attended handoff](session-three-storage-pairing-handoff.md#session-10-attended-home-lock-and-sleep-results) records later joined Home checks on the same declared Samsung and Windows PC. A real Windows lock and a real suspend each ended the verified visit during an active fictional read grant; the phone cleared the record and a reconnect failed without another store read. Each run had one read, zero writes, and passing cleanup. These are lifecycle results for the read-only debug path, not a vault-key release or cold PC restart result.
 
+The [Session 11 handoff](session-three-storage-pairing-handoff.md#session-11-attended-rogue-certificate-result) records a live listener check while the physical phone held an approved read. A second TLS-trusted but unpaired fictional certificate from the Windows PC could neither resume nor replay the already-consumed phone offer; the host made no additional record read. This did not test a still-valid stolen offer and is not a second physical-phone test. The corrected pre-consumption probe requires a new attended run.
+
 The private certificate and offer provisioning above is test infrastructure,
 not a reviewed onboarding path. Android's direct screen does not itself prompt
 for device credentials; the Windows verified visit gates the protected host

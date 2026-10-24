@@ -22,6 +22,8 @@ test('LAN test binding rejects wildcard, public, hostnames and malformed address
   for (const address of ['0.0.0.0', '::', 'localhost', '8.8.8.8', '169.254.1.2', '192.168.1.999', '172.32.0.1', '10.01.2.3']) {
     assert.throws(() => privateTestAddress(address));
     await assert.rejects(startDirectVaultExperiment({ bindAddress: address }), /private IPv4/);
+    await assert.rejects(connectDirectVaultExperiment({ address, port: 1, identity: phoneIdentity,
+      ca, approvedHostFingerprint: hostIdentity.fingerprint }), /private IPv4/);
   }
   for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2']) assert.equal(privateTestAddress(address), address);
 });
@@ -125,7 +127,13 @@ test('trusted CA does not admit an unapproved certificate or permit a stolen off
   const { host, connect } = await setup(t);
   await assert.rejects(connect({ identity: outsiderIdentity }), isCode('DENIED'));
   const approved = host.approvePairing(phoneIdentity.fingerprint);
+  const tcpBefore = host.incomingTcpCount();
+  const rejectedBefore = host.rejectedHandshakeCount();
   await assert.rejects(connect({ ...approved, identity: outsiderIdentity }), isCode('DENIED'));
+  assert.equal(host.incomingTcpCount(), tcpBefore + 1);
+  assert.equal(host.rejectedHandshakeCount(), rejectedBefore);
+  assert.deepEqual(host.listPairedPeers(), []);
+  assert.deepEqual(host.listConnections(), []);
   const client = await connect(approved); // Failed wrong-identity use did not burn the correct offer.
   assert.ok(client.connectionId);
   await assert.rejects(connect(approved), isCode('DENIED')); // One use only.
