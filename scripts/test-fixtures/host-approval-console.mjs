@@ -32,7 +32,7 @@ export function openHostApprovalConsole({ input = process.stdin, output = proces
     },
     devices(devices) {
       show('Enrolled fictional devices and removal state:');
-      for (const device of devices) show(`${device.peerFingerprint}: ${device.removal}`);
+      for (const device of devices) show(`${device.peerFingerprint}: ${device.removal}${device.custody ? ` (${device.custody})` : ''}`);
       if (!devices.length) show('None');
     },
     async removal(peerFingerprint) {

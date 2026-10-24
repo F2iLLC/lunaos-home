@@ -1,5 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
@@ -12,6 +13,38 @@ const windows = { skip: process.platform !== 'win32', timeout: 90_000 };
 const identities = createDirectTlsIdentities();
 after(identities.cleanup);
 const example = { memberId: 'alex-example', label: 'Library visit', value: 'Monday' };
+
+test('version-1 registry reads before a pending removal upgrades custody to version 2', windows, async t => {
+  const store = await openWindowsProbeStore({ create: true });
+  const registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: identities.hostIdentity.fingerprint });
+  t.after(async () => { await registry.removeSyntheticRegistry(); await store.removeSyntheticStore(); });
+  const peer = identities.phoneIdentity.fingerprint;
+  const legacyWriter = String.raw`
+    $ErrorActionPreference = 'Stop'
+    Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
+    $request = [Console]::In.ReadToEnd() | ConvertFrom-Json -AsHashtable
+    $plain = [Text.Encoding]::UTF8.GetBytes((@{ version = 1; host = $request.host; peers = @($request.peer) } | ConvertTo-Json -Compress))
+    try {
+      $purpose = [Text.Encoding]::UTF8.GetBytes('LunaOSHome.FictionalPairing.v1:' + $request.probeId)
+      $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+      [IO.File]::WriteAllBytes($request.file, $cipher)
+    } finally { [Array]::Clear($plain, 0, $plain.Length) }
+  `;
+  execFileSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', legacyWriter], {
+    input: JSON.stringify({ probeId: store.probeId, host: identities.hostIdentity.fingerprint,
+      peer, file: path.join(store.directory, 'pairing.bin') }), windowsHide: true });
+  assert.deepEqual(await registry.inspect(), { peers: [peer], pending: [] });
+  await assert.rejects(registry.beginRemoval(identities.outsiderIdentity.fingerprint), /registry unavailable/);
+  await registry.beginRemoval(peer);
+  await registry.beginRemoval(peer); // Repeating the marker write cannot create a duplicate.
+  assert.deepEqual(await registry.inspect(), { peers: [peer], pending: [peer] });
+  assert.deepEqual(await registry.load(), []);
+  await assert.rejects(registry.add(peer), /registry unavailable/);
+  const ciphertext = await readFile(path.join(store.directory, 'pairing.bin'));
+  assert.equal(ciphertext.includes(Buffer.from(peer)), false);
+  await registry.remove(peer);
+  assert.deepEqual(await registry.inspect(), { peers: [], pending: [] });
+});
 
 test('protected enrollment resumes after restart with no old grant and revocation survives restart', windows, async t => {
   const store = await openWindowsProbeStore({ create: true, contractVersion: 2 });
@@ -85,20 +118,23 @@ test('failed durable add does not admit a peer or return a successful pairing', 
   assert.equal(host.listConnections().length, 0);
 });
 
-test('real registry readback resolves removal receipts lost before and after commit', windows, async t => {
+test('durable pending removal blocks restart admission until explicit readback and retry', windows, async t => {
   for (const committed of [false, true]) {
     const store = await openWindowsProbeStore({ create: true });
     const durable = openWindowsPairingRegistry({ probeId: store.probeId,
       hostFingerprint: identities.hostIdentity.fingerprint });
-    let host, restarted, phone;
+    let host, restarted, reenrolled, phone, nextPhone;
     t.after(async () => {
-      phone?.close();
-      try { await restarted?.close(); }
+      phone?.close(); nextPhone?.close();
+      try { await reenrolled?.close(); }
       finally {
-        try { await host?.close(); }
+        try { await restarted?.close(); }
         finally {
-          try { await durable.removeSyntheticRegistry(); }
-          finally { await store.removeSyntheticStore(); }
+          try { await host?.close(); }
+          finally {
+            try { await durable.removeSyntheticRegistry(); }
+            finally { await store.removeSyntheticStore(); }
+          }
         }
       }
     });
@@ -120,16 +156,76 @@ test('real registry readback resolves removal receipts lost before and after com
       { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'uncertain' });
     assert.deepEqual(host.listPairedPeers(), []);
     assert.deepEqual(await control.reconcileRemoval(identities.phoneIdentity.fingerprint),
-      { peerFingerprint: identities.phoneIdentity.fingerprint, removal: committed ? 'confirmed' : 'uncertain' });
+      { peerFingerprint: identities.phoneIdentity.fingerprint, removal: committed ? 'confirmed' : 'uncertain',
+        ...(!committed && { custody: 'quarantined' }) });
     assert.equal(removals, 1);
     control.close();
     phone.close();
     await host.close();
     host = undefined;
     restarted = await start(durable);
-    assert.deepEqual(restarted.listPairedPeers(), committed ? [] : [identities.phoneIdentity.fingerprint]);
+    assert.deepEqual(restarted.listPairedPeers(), []);
+    assert.deepEqual(restarted.listPendingRemovals(), committed ? [] : [identities.phoneIdentity.fingerprint]);
+    const restartedControl = createLocalEnrollment(restarted, { pairingRegistry: durable });
+    if (!committed) {
+      assert.deepEqual(restartedControl.enrolledDevices(), [
+        { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'uncertain', custody: 'quarantined' }]);
+      assert.throws(() => restarted.approvePairing(identities.phoneIdentity.fingerprint), { code: 'DENIED' });
+      await assert.rejects(connectDirectVaultExperiment({ port: restarted.port, identity: identities.phoneIdentity,
+        ca: identities.ca, approvedHostFingerprint: restarted.hostFingerprint }), { code: 'DENIED' });
+      assert.deepEqual(await restartedControl.reconcileRemoval(identities.phoneIdentity.fingerprint),
+        { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'uncertain', custody: 'quarantined' });
+      assert.deepEqual(await restartedControl.retryRemoval(identities.phoneIdentity.fingerprint),
+        { peerFingerprint: identities.phoneIdentity.fingerprint, removal: 'confirmed' });
+      assert.throws(() => restarted.approvePairing(identities.phoneIdentity.fingerprint), { code: 'DENIED' });
+    }
+    restartedControl.close();
     await restarted.close();
     restarted = undefined;
-    assert.deepEqual(await durable.load(), committed ? [] : [identities.phoneIdentity.fingerprint]);
+    assert.deepEqual(await durable.inspect(), { peers: [], pending: [] });
+    reenrolled = await start(durable);
+    const newReview = createLocalEnrollment(reenrolled, { pairingRegistry: durable });
+    const newOffer = newReview.decide({ ...newReview.review(identities.phoneIdentity.fingerprint), allow: true });
+    nextPhone = await connectDirectVaultExperiment({ port: reenrolled.port, identity: identities.phoneIdentity,
+      ca: identities.ca, approvedHostFingerprint: reenrolled.hostFingerprint, offer: newOffer.offer });
+    assert.deepEqual(reenrolled.listPairedPeers(), [identities.phoneIdentity.fingerprint]);
+    newReview.close();
+  }
+});
+
+test('lost pending-marker receipt distinguishes quarantine from restart access still possible', windows, async t => {
+  for (const markerCommitted of [false, true]) {
+    const store = await openWindowsProbeStore({ create: true });
+    const durable = openWindowsPairingRegistry({ probeId: store.probeId,
+      hostFingerprint: identities.hostIdentity.fingerprint });
+    let host, restarted;
+    t.after(async () => {
+      try { await restarted?.close(); }
+      finally {
+        try { await host?.close(); }
+        finally {
+          try { await durable.removeSyntheticRegistry(); }
+          finally { await store.removeSyntheticStore(); }
+        }
+      }
+    });
+    const peer = identities.phoneIdentity.fingerprint;
+    await durable.add(peer);
+    const registry = { ...durable, beginRemoval: async fingerprint => {
+      if (markerCommitted) await durable.beginRemoval(fingerprint);
+      throw Error('fictional lost pending-marker receipt');
+    } };
+    const start = selected => startDirectVaultExperiment({ identity: identities.hostIdentity,
+      ca: identities.ca, store, pairingRegistry: selected });
+    host = await start(registry);
+    const control = createLocalEnrollment(host, { pairingRegistry: registry });
+    assert.deepEqual(await control.removeDevice(peer), { peerFingerprint: peer, removal: 'uncertain' });
+    assert.deepEqual(await control.reconcileRemoval(peer), { peerFingerprint: peer, removal: 'uncertain',
+      custody: markerCommitted ? 'quarantined' : 'restart-access-possible' });
+    control.close();
+    await host.close(); host = undefined;
+    restarted = await start(durable);
+    assert.deepEqual(restarted.listPairedPeers(), markerCommitted ? [] : [peer]);
+    assert.deepEqual(restarted.listPendingRemovals(), markerCommitted ? [peer] : []);
   }
 });
