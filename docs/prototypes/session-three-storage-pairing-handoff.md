@@ -269,3 +269,47 @@ does not satisfy a joined Home restart. Retain separate identity/scope/read/writ
 approvals, WRITE_UNKNOWN readback without automatic replay, fictional data and
 owned cleanup when preparing each joined runner. No merge, deployment, issue
 closure or sensitive-use approval is supplied by this increment.
+
+### Native envelope restart completion, 2026-10-24
+
+The fifth fixture completed on exact source
+`d61bacbd671bd6b09202be9a32c75207a01ed06b`, executable SHA-256
+`655ea937d997e9b9bf734f71e4b9059d69ea9b0b7c7918694fbb03d71a10e2a5`.
+This supersedes the pending native results above; earlier failed/incomplete
+attempts remain part of the history.
+
+| Attended step | Result (UTC) |
+| --- | --- |
+| Preparation, authenticated comparison, encrypted commit, silent denial and same-boot refusal | PASS, 16:56:31 |
+| X-close denial, unchanged ciphertext, pre/post silent denial | PASS, 16:57:20 |
+| Reported wrong-password rejection followed by X-close, unchanged ciphertext, pre/post silent denial | PASS, 16:59:08 |
+| Normal OS-authorized foreground comparison, unchanged ciphertext, fresh-process silent denial | PASS, 16:59:41 |
+| Real Windows restart, same retained source/executable/envelope, changed boot marker, OS-authorized comparison, unchanged ciphertext, pre/post silent denial | PASS, 17:08:20 |
+| Explicit disposable-key and envelope cleanup; receipt/envelope absent | PASS, 17:08:41 |
+
+The OS reported its new boot at 17:04:28 UTC. The operator initiated Restart;
+the assistant and runner did not. The observed key dialog offered Allow and
+Don't allow; cancellation used its top-right X. Wrong-password rejection is
+an operator report, not a distinct CNG status. Don't allow was not separately
+tested. The guide and runner now describe X-close and one step at a time.
+No password, key, plaintext, raw log or local private path is published.
+
+Local results on the attended source were native example **19/19**, native
+library **9/9**, application **235/235**, plus native example/frontend builds.
+[Hosted run 40113792123](https://github.com/F2iLLC/lunaos-home/actions/runs/40113792123)
+passed on that exact head: 246 discovered, 227 passed, 19 platform skips,
+zero failures. Hosted Ubuntu tests are not Windows CNG or attended evidence.
+The follow-up changes operator wording and documentation only; its exact-head
+checks are recorded in its PR. No new native binary is attributed to it.
+
+GitHub reports PR #112 merged by the owner at 17:03:18 UTC into
+`4bdcb473dc2165a9297eee785e14c7b74b000be6`. The assistant did not merge it.
+The verification used the retained pre-merge source; native source is identical
+to that merge. Final evidence is published as a separate follow-up PR.
+
+This result supports only the bounded fictional native experiment on the
+declared Windows PC. It does not enable an app unlock method or establish
+sensitive-use acceptance. Joined cold-PC restart, phone version-2 stale edit,
+second physical rogue phone and corrected still-valid stolen-offer physical
+evidence remain outstanding. No phone action, deployment, issue closure,
+credential reset or additional merge was performed in this follow-up.

@@ -52,8 +52,10 @@ retained during the wait, focus is never forced, and the session/power and
 cached inside one short-lived process, never across visits or restarts.
 No reusable unlocked session is persisted. A new
 process always needs a new protected operation and checks silent denial before
-and after it. These are implementation boundaries, **not attended lifecycle
-results for this new path**.
+and after it. The attended results below cover preparation, denial, read and
+restart on one declared Windows PC. Lock/suspend termination on this new path
+remains an implementation boundary supported by injected tests, not a new
+attended lifecycle result.
 
 Owned key and plaintext buffers use volatile zeroing on ordinary returns.
 Abrupt termination relies on OS process teardown, and this prototype makes no
@@ -93,6 +95,7 @@ node scripts/test-attended-ksp-envelope.mjs wrong-password $fixtureDir
 node scripts/test-attended-ksp-envelope.mjs read $fixtureDir
 ~~~
 
+Run one command at a time and check its result before starting the next.
 The runner requires a TTY and a separate typed begin decision for each step.
 After each successful Windows password dialog, click the Home test window
 whose title says "click here to continue" within 30 seconds. That return is
@@ -107,8 +110,13 @@ private paths, raw OS diagnostics or passwords belong in published evidence.
 Preparation creates and verifies the protector, checks fresh-process silent
 denial, commits the encrypted fixture and confirms that a same-boot restart
 check refuses before prompting. Its result is PREPARED_NOT_RESTART_VERIFIED.
-For the cancel step, cancel the OS dialog. For wrong-password, enter a wrong
-disposable key password in the OS dialog, observe rejection, then cancel.
+The observed Windows dialog has **Allow** and **Don't allow**, with no Cancel
+button. For the cancel step, close that dialog with its top-right **X** without
+entering a password, then type `canceled` in the runner. For wrong-password,
+enter a wrong disposable key password only in the OS dialog, choose **Allow**,
+observe rejection, then close the dialog with **X** and type
+`rejected-then-canceled` in the runner. The attended denial evidence below uses
+X; it does not establish a separate Don't allow button result.
 CNG failure, unchanged ciphertext and subsequent silent denial are machine
 checks; the wrong-password/cancel distinction is an **operator report**, not an
 API-classified authentication result. Unexpected exits remain incomplete.
@@ -130,6 +138,25 @@ preserve its result and run cleanup; never label timeout, lost password,
 wrong source/binary or same-boot refusal as a passing restart. If the runner
 cannot start because its pinned binary is missing, restore that exact worktree
 and binary before cleanup; do not create a replacement protector.
+
+## Attended native result, 2026-10-24
+
+The retained fifth fixture used source
+`d61bacbd671bd6b09202be9a32c75207a01ed06b` and executable SHA-256
+`655ea937d997e9b9bf734f71e4b9059d69ea9b0b7c7918694fbb03d71a10e2a5`.
+Preparation, same-boot refusal, X-close denial, operator-reported wrong-password
+rejection followed by X-close, and a normal foreground read passed before the
+operator performed a real Windows Restart. The same source, executable and
+fictional envelope were retained across that restart.
+
+Post-restart verification passed at **17:08:20 UTC**: changed OS boot marker,
+fresh-process silent denial, OS-owned key gesture, authenticated native fixture
+comparison, unchanged ciphertext and post-read fresh-process silent denial.
+Separate explicit cleanup passed at **17:08:41 UTC**, removing the disposable
+protector and envelope; the receipt and envelope were confirmed absent.
+This establishes the bounded native experiment on this PC, not joined Home
+behavior or sensitive-use acceptance. See the [Session 3 handoff](session-three-storage-pairing-handoff.md)
+for failure history, cleanup and separate local/hosted evidence.
 
 ## Unsupported reset, recovery and method changes
 

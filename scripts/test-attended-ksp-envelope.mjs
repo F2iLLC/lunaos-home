@@ -62,8 +62,8 @@ writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx'
 const terminal = createInterface({ input: process.stdin, output: process.stdout });
 const statements = {
   prepare: 'Create a disposable separate KEY password in the Windows-owned dialog, then use it for verification. Keep it locally until cleanup. Never enter your Windows account password into Home or this terminal.',
-  cancel: 'Cancel the Windows-owned key password dialog. Do not enter a password.',
-  'wrong-password': 'Enter an intentionally wrong DISPOSABLE KEY password only in Windows. Confirm Windows rejects it, then cancel. Never send it here.',
+  cancel: 'Close the Windows-owned key password dialog with its top-right X. Do not enter a password. The observed dialog has Allow and Don\'t allow buttons, not a Cancel button.',
+  'wrong-password': 'Enter an intentionally wrong DISPOSABLE KEY password only in Windows and choose Allow. Confirm Windows rejects it, then close that dialog with its top-right X. Never send the password here.',
   read: 'Enter the disposable key password only in the Windows-owned dialog. One fictional native comparison will run; no record is displayed or returned.',
   'verify-restart': 'Use this only after a real Windows Restart and return to the same account. Enter the disposable key password only in Windows. This checks the native envelope, not joined phone behavior.',
   cleanup: 'Remove only this attempt’s disposable protector and envelope. Result files remain outside the checkout.',
@@ -118,8 +118,8 @@ try {
     assert.equal(hash(envelope), before, 'Committed envelope changed on denial');
     assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-denial lock check failed');
     const report = await terminal.question(mode === 'cancel'
-      ? 'Type canceled only if you canceled the Windows dialog: '
-      : 'Type rejected-then-canceled only if Windows visibly rejected the wrong key password before you canceled: ');
+      ? 'Type canceled only if you closed the Windows dialog with X: '
+      : 'Type rejected-then-canceled only if Windows visibly rejected the wrong key password before you closed its dialog with X: ');
     assert.equal(report, mode === 'cancel' ? 'canceled' : 'rejected-then-canceled');
     evidence.operatorReport = report; // A report, not an API-classified wrong-password status.
     evidence.result = 'PASS';
