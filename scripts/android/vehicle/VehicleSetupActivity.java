@@ -21,7 +21,7 @@ public final class VehicleSetupActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.addView(layout); setContentView(scroll);
         TextView title = new TextView(this); title.setText("LunaOS Home · Vehicle greetings"); title.setTextSize(24); layout.addView(title);
         TextView help = new TextView(this);
-        help.setText("Set up while parked. Choose the vehicle you already paired in Android. Allow companion access for automatic greetings. The Bluetooth address and names stay on this phone. No location or trip history is collected. Home receives an ephemeral session only if you separately enable its paired connection. When Home is unavailable, a local greeting uses the time of day. No appointments or vehicle condition are inferred.\n\nThis is an opt-in development preview; Android or your vehicle audio system may prevent automatic audio. Wired Android Auto audio needs a separate attended check.");
+        help.setText("Set up while parked. Choose the vehicle you already paired in Android. Allow companion access for automatic greetings. Home receives neither the Bluetooth address nor names. No location or trip history is collected. Home receives an ephemeral session only if you separately enable its paired connection. When Home is unavailable, a local greeting uses the time of day. No appointments or vehicle condition are inferred.\n\nOptional ElevenLabs speech uses clips prepared separately with your chosen voice and greeting text (including the nickname). Preparation sends that text to the provider; playback is offline. No provider key is stored on this phone.\n\nThis is an opt-in development preview; Android or your vehicle audio system may prevent automatic audio. Wired Android Auto audio needs a separate attended check.");
         layout.addView(help); status = new TextView(this); layout.addView(status);
         VehicleState initial = new VehicleState(this);
         TextView nameLabel = new TextView(this); nameLabel.setText("Vehicle name (only on this phone)"); layout.addView(nameLabel);
@@ -36,6 +36,17 @@ public final class VehicleSetupActivity extends Activity {
             synchronized (VehicleRuntime.class) {
                 VehicleState state = new VehicleState(this); state.name = display; state.nickname = spoken;
                 state.status = "Names saved on this phone. The next greeting will use your chosen name."; state.save();
+            }
+        });
+        TextView voiceLabel = new TextView(this); voiceLabel.setText("ElevenLabs voice ID (blank uses Android offline voice)"); layout.addView(voiceLabel);
+        EditText voice = new EditText(this); voice.setSingleLine(true); voice.setText(initial.voiceId); layout.addView(voice);
+        button(layout, "Save greeting voice", () -> {
+            String selected = voice.getText().toString().trim();
+            if (!VehicleVoiceCache.validVoice(selected)) { VehicleRuntime.status(this, "Enter a voice ID of 20 to 64 letters/digits, or leave it blank."); return; }
+            synchronized (VehicleRuntime.class) {
+                VehicleState state = new VehicleState(this); state.voiceId = selected;
+                state.status = selected.isEmpty() ? "Android offline voice selected." : "ElevenLabs voice selected. Its complete greeting cache must be installed separately for this nickname.";
+                state.save();
             }
         });
         button(layout, "Choose your vehicle", this::choose);
@@ -63,7 +74,7 @@ public final class VehicleSetupActivity extends Activity {
     private void refresh() {
         VehicleState state = new VehicleState(this);
         String message = state.trip.ended(SystemClock.elapsedRealtime(), VehicleRuntime.boot(this)) ? "Session ended." : state.status;
-        status.setText("\n" + message + "\nHome: " + state.backend + "\nAudio: " + state.audio + "\n");
+        status.setText("\n" + message + "\nHome: " + state.backend + "\nVoice: " + (state.voiceId.isEmpty() ? "Android offline" : "ElevenLabs cached") + "\nAudio: " + state.audio + "\n");
         ui.postDelayed(this::refresh, 1000);
     }
     private void choose() {

@@ -13,6 +13,28 @@ public final class VehicleProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             String mode = arguments == null ? "prepare" : arguments.getString("mode", "prepare");
+            if ("configure-voice".equals(mode) || "verify-voice".equals(mode)) {
+                android.util.AtomicFile settings = new android.util.AtomicFile(new java.io.File(getTargetContext().getNoBackupFilesDir(), "vehicle-session.json"));
+                org.json.JSONObject state;
+                try (java.io.InputStream in = settings.openRead()) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(); byte[] buffer = new byte[1024]; int n;
+                    while ((n = in.read(buffer)) >= 0) { out.write(buffer, 0, n); if (out.size() > 8192) throw new java.io.IOException(); }
+                    state = new org.json.JSONObject(out.toString("UTF-8"));
+                }
+                String voice = "configure-voice".equals(mode) ? arguments.getString("voiceId", "") : state.optString("voiceId", "");
+                String pack = "configure-voice".equals(mode) ? arguments.getString("voicePack", "") : state.optString("voicePack", "");
+                if (voice.isEmpty()) throw new IllegalArgumentException();
+                int count = io.github.f2illc.lunaos.home.vehicle.VehicleVoiceCache.verify(
+                    io.github.f2illc.lunaos.home.vehicle.VehicleVoiceCache.directory(getTargetContext().getNoBackupFilesDir(), pack), voice, state.optString("nickname", "LunaOS"));
+                if ("configure-voice".equals(mode)) {
+                    state.put("voiceId", voice).put("voicePack", pack).put("status", "ElevenLabs voice configured; complete offline greeting cache verified.");
+                    java.io.FileOutputStream out = settings.startWrite();
+                    try { out.write(state.toString().getBytes("UTF-8")); settings.finishWrite(out); }
+                    catch (Exception error) { settings.failWrite(out); throw error; }
+                }
+                result.putInt("verifiedVoiceClips", count); result.putString("result", "Offline voice cache verified; no playback attempted.");
+                finish(0, result); return;
+            }
             if ("configure-names".equals(mode)) {
                 String name = arguments.getString("name", ""), nickname = arguments.getString("nickname", "");
                 if (!io.github.f2illc.lunaos.home.vehicle.VehicleGreetings.validName(name) ||
@@ -65,6 +87,6 @@ public final class VehicleProbe extends Instrumentation {
             NativeIdentity.inspect(getTargetContext());
             result.putString("result", "Keystore identity prepared; public certificate in app-private no-backup directory.");
             finish(0, result);
-        } catch (Exception failure) { result.putString("result", "Identity unavailable"); finish(1, result); }
+        } catch (Exception failure) { result.putString("result", "Requested diagnostic or configuration unavailable"); finish(1, result); }
     }
 }

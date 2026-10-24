@@ -26,6 +26,13 @@ public final class VehicleGreetings {
         for (int n = 0; n < name.length(); n++) if (Character.isISOControl(name.charAt(n)) || name.charAt(n) == '{' || name.charAt(n) == '}') return false;
         return true;
     }
+    public static java.util.Set<String> all(String nickname) {
+        if (!validName(nickname)) throw new IllegalArgumentException();
+        java.util.Set<String> texts = new java.util.LinkedHashSet<>();
+        for (String period : new String[]{"morning", "afternoon", "evening"})
+            for (String line : LINES) texts.add(line.replace("{period}", period).replace("{name}", nickname.trim()));
+        return texts;
+    }
     public static Choice choose(String period, String nickname, int lastId, String preferred) {
         if (!period.equals("morning") && !period.equals("afternoon") && !period.equals("evening")) throw new IllegalArgumentException();
         if (!validName(nickname)) throw new IllegalArgumentException();

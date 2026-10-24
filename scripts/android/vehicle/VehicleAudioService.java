@@ -28,6 +28,8 @@ public final class VehicleAudioService extends Service {
     private long deadline, routeDeadline;
     private int audioEpoch;
     private int greetingId;
+    private String playbackVoice = "Android offline voice";
+    private String greetingVoiceId, greetingVoicePack, greetingNickname;
     private final BroadcastReceiver changes = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { check(); }
     };
@@ -112,8 +114,35 @@ public final class VehicleAudioService extends Service {
         final int generation = ++audioEpoch;
         VehicleRuntime.audio(this, "Preparing offline speech");
         VehicleState settings = new VehicleState(this);
+        greetingVoiceId = settings.voiceId; greetingVoicePack = settings.voicePack; greetingNickname = settings.nickname;
         VehicleGreetings.Choice choice = VehicleGreetings.choose(VehicleRuntime.period(), settings.nickname, settings.lastGreetingId, text);
         final String greeting = choice.text; greetingId = choice.id;
+        if (!settings.voiceId.isEmpty()) {
+            playbackVoice = "Cached ElevenLabs voice";
+            VehicleRuntime.audio(this, "Preparing cached ElevenLabs speech");
+            try { preparedWave = File.createTempFile("vehicle-cached-", ".wav", getCacheDir()); }
+            catch (IOException failed) { unavailable("Cached speech preparation unavailable"); return; }
+            final File ready = preparedWave;
+            new Thread(() -> {
+                try {
+                    byte[] bytes = VehicleVoiceCache.prepared(VehicleVoiceCache.directory(getNoBackupFilesDir(), settings.voicePack), settings.voiceId, greeting);
+                    try (java.io.OutputStream out = new java.io.FileOutputStream(ready)) { out.write(bytes); }
+                    ui.post(() -> {
+                        VehicleState current = new VehicleState(this);
+                        if (generation != audioEpoch || stopped) { ready.delete(); return; }
+                        if (!settings.voiceId.equals(current.voiceId) || !settings.voicePack.equals(current.voicePack) || !settings.nickname.equals(current.nickname)) {
+                            unavailable("Voice settings changed during preparation"); return;
+                        }
+                        play();
+                    });
+                } catch (Exception missing) {
+                    ui.post(() -> { if (generation == audioEpoch) unavailable("Selected voice clip unavailable. Prepare its cache or select the Android voice while parked."); });
+                }
+            }, "vehicle-cached-speech").start();
+            ui.postDelayed(() -> { if (generating && generation == audioEpoch) unavailable("Cached speech preparation timed out"); }, 15_000);
+            return;
+        }
+        playbackVoice = "Android offline voice";
         speech = new TextToSpeech(this, status -> ui.post(() -> {
             if (stopped || generation != audioEpoch || speech == null) return;
             if (status != TextToSpeech.SUCCESS || speech.setLanguage(Locale.US) < 0) { unavailable("Offline English speech engine unavailable"); return; }
@@ -156,7 +185,7 @@ public final class VehicleAudioService extends Service {
             player.setOnCompletionListener(done -> {
                 if (audible) {
                     VehicleRuntime.status(this, "Greeting playback completed on the selected Bluetooth output.");
-                    VehicleRuntime.audio(this, "Playback completed on selected Bluetooth output; confirm vehicle audibility.");
+                    VehicleRuntime.audio(this, playbackVoice + ": playback completed on selected Bluetooth output; confirm vehicle audibility.");
                     releaseAudio();
                 } else unavailable();
             });
@@ -174,12 +203,16 @@ public final class VehicleAudioService extends Service {
         boolean selected = actual != null && actual.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP && address.equalsIgnoreCase(actual.getAddress()) && connected();
         VehiclePlaybackGate.Decision decision = playback.observe(selected, SystemClock.elapsedRealtime() >= routeDeadline);
         if (decision == VehiclePlaybackGate.Decision.UNMUTE) {
+            VehicleState settings = new VehicleState(this);
+            if (!settings.voiceId.equals(greetingVoiceId) || !settings.voicePack.equals(greetingVoicePack) || !settings.nickname.equals(greetingNickname)) {
+                unavailable("Greeting settings changed before playback"); return;
+            }
             // This decision uses the current route, after the asynchronous seek.
             if (!VehicleRuntime.claim(this, trip, greetingId)) { releaseAudio(); return; }
             attempted = true; audible = true; generating = false; playback.started();
             player.setVolume(1, 1);
             getSystemService(NotificationManager.class).cancel(701);
-            VehicleRuntime.audio(this, "Playing on selected Bluetooth output");
+            VehicleRuntime.audio(this, playbackVoice + ": playing on selected Bluetooth output");
         } else if (decision == VehiclePlaybackGate.Decision.SEEK) {
             player.pause();
             player.setOnSeekCompleteListener(ready -> {

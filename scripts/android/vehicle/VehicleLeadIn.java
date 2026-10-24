@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Prime the vehicle media path with actual silent frames before the first word. */
 public final class VehicleLeadIn {
+    public static final int MILLISECONDS = 4000;
     private static final int LIMIT = 8 * 1024 * 1024;
     private static boolean tag(byte[] bytes, int at, String value) {
         return new String(bytes, at, 4, StandardCharsets.US_ASCII).equals(value);
@@ -51,7 +52,7 @@ public final class VehicleLeadIn {
                 if (bytes.size() + count > LIMIT) throw new IOException("Speech too large");
                 bytes.write(buffer, 0, count);
             }
-            try (OutputStream out = new FileOutputStream(destination)) { out.write(prepend(bytes.toByteArray(), 3000)); }
+            try (OutputStream out = new FileOutputStream(destination)) { out.write(prepend(bytes.toByteArray(), MILLISECONDS)); }
         }
     }
 }
