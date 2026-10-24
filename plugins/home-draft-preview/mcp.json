@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "lunaos_home_preview": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/runtime/assistant.js"],
+      "cwd": "${PLUGIN_ROOT}/runtime",
+      "env": { "LUNA_HOME_PREVIEW_PORT": "0" }
+    }
+  }
+}
