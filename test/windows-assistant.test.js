@@ -88,6 +88,34 @@ test('stdio assistant and GUI share one service with separate field disclosure',
   await assert.rejects(preview.request({ action: 'assistant-approve', mode: 'setup' }), error => error.code === 'DENIED');
   await gui({ action: 'assistant-disconnect' });
   await call('read', 'alex-work', 'DENIED');
+
+  // A new MCP process may reconnect, but the uncertain write must not replay or
+  // carry its previous grant into the new connection.
+  suppressEditReceipt = false;
+  const reconnected = new Client({ name: 'fictional-windows-reconnect-test', version: '1.0.0' });
+  const reconnectTransport = new StdioClientTransport({ command: process.execPath,
+    args: [fileURLToPath(new URL('../scripts/windows-vault-assistant.mjs', import.meta.url))],
+    env: { LUNA_HOME_WINDOWS_URL: base, LUNA_HOME_WINDOWS_ASSISTANT_KEY: preview.assistantKey }, stderr: 'pipe',
+  });
+  reconnectTransport.stderr?.on('data', () => {});
+  t.after(() => reconnected.close());
+  await reconnected.connect(reconnectTransport);
+  const reconnectEdit = async () => {
+    const result = await reconnected.callTool({ name: 'home_example_edit', arguments: { recordId: 'alex-work' } });
+    return { isError: result.isError, ...JSON.parse(result.content[0].text) };
+  };
+  const deniedReconnect = await reconnectEdit();
+  assert.equal(deniedReconnect.isError, true);
+  assert.equal(deniedReconnect.code, 'DENIED');
+  assert.equal(edits, beforeUnknown + 1);
+  const reviewGrant = await gui({ action: 'approve', mode: 'read' });
+  const reviewed = await gui({ action: 'record', operation: 'read', recordId: 'alex-work', grantId: reviewGrant.grantId });
+  assert.equal(reviewed.value, 'Willow Workshop');
+  await gui({ action: 'assistant-approve', mode: 'setup' });
+  const approvedReconnect = await reconnectEdit();
+  assert.notEqual(approvedReconnect.isError, true);
+  assert.equal(approvedReconnect.status, 'applied');
+  assert.equal(edits, beforeUnknown + 2);
 });
 
 test('revoking assistant sharing withholds an in-flight read; ending blocks queued writes', async () => {
