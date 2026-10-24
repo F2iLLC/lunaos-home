@@ -1,0 +1,53 @@
+# Parked vehicle conversation v0.2
+
+This extends the vehicle endpoint with an attended question-and-answer flow. It reuses Home's paired TLS transport, Android Keystore identity, host pin, MCP assistant server, voice configuration, silent lead-in and tested route gate. Greetings continue to work offline independently. This is a debug-only development slice; it does not add driving controls, location, calendars, a wake word, a background microphone, an Android Auto dashboard app, or vehicle telemetry.
+
+## Phone flow
+
+Open vehicle setup, then **Talk to Luna while parked**. Explicitly confirm you are parked and want to share this conversation. Tap **Speak to Luna**, grant microphone access, and tap again if needed after the permission dialog. The phone uses Android's on-device recognizer only. If its local English recognition model is unavailable, type a question instead; there is no silent switch to a network recognizer. The phone microphone is used, not an assumed vehicle microphone.
+
+The recognized question (at most 1,000 characters) goes to the enrolled Home host. Home asks its connected MCP sampling client for a brief answer using only the last four completed exchanges and the new question. The answer (at most 360 characters) goes to ElevenLabs in the explicitly selected voice. The provider receives answer text and the voice ID; the phone receives PCM speech through paired TLS. Four seconds of silence precede playback, and the actual selected A2DP output is checked again after seeking before unmuting. There is no phone-speaker fallback.
+
+The screen shows the recognized question, answer and conversation ID. It uses Android's secure-window flag to exclude it from ordinary screenshots/recents captures. Leaving the screen, removing the parked confirmation, tapping Stop, losing the selected media connection, or losing audio focus stops the applicable recording/playback. Cancellation attempts to stop in-flight Home work; content already sent to providers cannot be recalled. The greeting trip marker is not consumed by a conversation reply.
+
+## Host setup and disclosure
+
+`scripts/vehicle-assistant.mjs` remains the host entry point. Its existing external private configuration and enrolled public phone certificate must be configured first. Add these explicit fields to enable conversation independently of greetings:
+
+- `vehicleConversations: true`
+- `assistantDisclosure: true`
+- `speechDisclosure: true`
+- `voiceId`: the owner's selected voice ID (must match phone setup)
+- optional `speechModel`: a supported ElevenLabs model; default `eleven_multilingual_v2`
+
+Supply the speech credential through the host-only `LUNA_HOME_ELEVENLABS_API_KEY` environment variable using an authorized private credential facility. Do not put it in the phone config, checkout, command arguments, logs, model context or PR. Provider processing and retention policies apply; this preview makes no zero-retention claim. Speech is billed by the provider. There are no automatic chargeable retries.
+
+The host must run under an MCP client that advertises and handles `sampling/createMessage`. That client supplies the existing assistant/model connection. Merely launching the stdio server or signing into an unrelated chat does not provide that capability. The repository does not bundle a second model agent or silently reuse unrelated account credentials. Without a connected sampling-capable client or a configured speech provider, requests report unavailable. Tests use a synthetic sampling client; it is not evidence of a live provider answer.
+
+The enrolled phone's existing external `config.json` also needs `vehicleConversations: true`. This does not create any vault read/write grant. The host approves conversation for only its configured enrolled peer and voice. Greetings have their own permission. Existing network restrictions remain: TLS binds to loopback or a literal private IPv4 address. A reachable LAN or owner-configured private VPN is needed; this work does not publish a public endpoint or configure an away-from-home relay. No firewall or network-classification change is made automatically.
+
+## State, continuity and limits
+
+Each request has a random ID. Repeating the same ID and text returns the same job instead of generating/charging again. Reusing it with different text, concurrent new questions, or a previous completed request ID is rejected. One session permits up to 32 questions; clear the conversation to start over. At most eight explicitly granted peers can hold conversation state.
+
+Home keeps the last four completed question/answer pairs in memory. It expires the conversation after 15 minutes without a new question, clears it on explicit Clear or peer revocation, and loses it on restart. Failed turns are not appended. The most recent reply audio is bounded to 2 MiB and discarded on cancellation, replacement or session expiry. No audio/transcript is written to the host repository or disk by this service. The phone uses temporary app-private audio and deletes it after playback/cancellation; it does not archive recordings or transcripts.
+
+Home's `home_vehicle_conversation` MCP tool accepts the conversation ID shown on the phone and returns that bounded shared transcript. The owner can supply the ID to the connected Home assistant to continue discussing the same exchange at home. This is explicit context handoff, not automatic syncing with every existing chat or durable cross-device memory.
+
+The model has no tools or private records supplied by this service. Its instructions forbid invented access, vehicle condition and completed actions. This is a prompt constraint, not proof of factual accuracy; the answer remains model-generated. The MCP client's own behavior and external provider policies are outside the host's enforcement boundary.
+
+## Validation
+
+Run `node --test test/vehicle-conversations.test.js test/vehicle.test.js test/vehicle-voice.test.js test/android-vault-wiring.test.js`, then the full `npm test`. Build Home's Android debug APK and the isolated vehicle harness using the existing procedures. Install harness updates with its original signing key to preserve the selected vehicle, voice and trip state.
+
+Automated tests use only fictional content. They cover separate consent/grants, actual TLS admission, MCP sampling without inherited context, retry idempotency, bounded conversation handoff, audio chunk reconstruction, provider failures, malformed/oversized audio, expiry, revocation and late-answer suppression. Existing trip and route-gate tests remain applicable to greeting suppression and safe output selection.
+
+For attended acceptance, keep the vehicle parked:
+
+1. Confirm the host is reachable without USB and the phone says Home has acknowledged its vehicle session.
+2. Open the conversation screen and opt in. Ask a harmless question. Verify the recognized words, a real assistant answer, the chosen voice and complete playback through the selected vehicle audio.
+3. Ask a follow-up referring to the prior answer. Verify context continuity. Use the displayed ID with Home's MCP tool and verify the same exchange is available there.
+4. Stop mid-listening, leave during a pending answer, disconnect media audio, and interrupt playback with an audio-focus owner. No later answer may restart audio after cancellation or reach another output.
+5. Clear the conversation and confirm the Home tool can no longer read it. Check local expiry separately. Verify an offline trip still produces one cached greeting and a brief reconnect stays quiet.
+
+Keep live evidence private. A compiled APK or synthetic provider response does not establish speech recognition, provider access, LAN reachability, vehicle audibility, locked-phone greeting wake, or away-from-home connectivity.

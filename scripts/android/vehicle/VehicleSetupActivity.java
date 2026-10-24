@@ -9,7 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.*;
 import android.widget.*;
 
-/** One-time, attended setup. No location, microphone, calendar or vehicle control. */
+/** Attended setup and entry to a separately opted-in parked conversation. */
 public final class VehicleSetupActivity extends Activity {
     private TextView status;
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -50,6 +50,7 @@ public final class VehicleSetupActivity extends Activity {
             }
         });
         button(layout, "Choose your vehicle", this::choose);
+        button(layout, "Talk to Luna while parked", () -> startActivity(new Intent(this, VehicleConversationActivity.class)));
         button(layout, "Try greeting while parked", () -> {
             VehicleState state = new VehicleState(this);
             stopService(new Intent(this, VehicleAudioService.class));

@@ -20,6 +20,7 @@ final class SyntheticTlsClient implements AutoCloseable {
         final InputStream input;
         private OutputStream output;
         private int sequence;
+        private int messageLimit = 128;
         private final ArrayDeque<String> approvals = new ArrayDeque<>();
         SyntheticTlsClient(android.content.Context context, JSONObject config) throws Exception { this(context, config, "localhost", config.getString("hostFingerprint")); }
         SyntheticTlsClient(android.content.Context context, JSONObject config, String expectedName, String approvedPin) throws Exception {
@@ -66,13 +67,19 @@ final class SyntheticTlsClient implements AutoCloseable {
             approvals.add(message.getString("grantId")); return true;
         }
         JSONObject call(JSONObject body) throws Exception {
-            require(sequence < 128); int expected = ++sequence; body.put("seq", expected);
+            require(sequence < messageLimit); int expected = ++sequence; body.put("seq", expected);
             byte[] bytes = (body.toString() + "\n").getBytes(StandardCharsets.UTF_8); require(bytes.length <= 8192); output.write(bytes); output.flush();
             for (;;) { JSONObject message = receive(); if (receiveApproval(message)) continue; require(message.getInt("seq") == expected); return message; }
         }
         String approval() throws Exception {
             while (approvals.isEmpty()) require(receiveApproval(receive()));
             return approvals.remove();
+        }
+        void enableConversationTransfer() throws IOException {
+            require(sequence == 0);
+            // Bounded 2 MiB audio needs up to 512 chunks plus status polls.
+            // Match the server's existing 1,024-message ceiling for this scope.
+            messageLimit = 1024;
         }
         JSONObject execute(String grant, JSONObject request) throws Exception { return call(new JSONObject().put("op", "execute").put("grant", grant).put("request", request)); }
         void requirePresence(String grant) throws Exception {
