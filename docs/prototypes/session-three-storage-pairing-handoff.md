@@ -401,3 +401,71 @@ Phone version-2 stale edit, second physical rogue phone, corrected still-valid
 stolen-offer evidence, production enrollment and sensitive-use acceptance
 remain open. The assistant did not restart Windows, merge, deploy or close
 either issue.
+
+## Session 15 attended still-valid offer binding
+
+The corrected `rogue` scenario in `scripts/test-attended-home-direct.mjs`
+passed on **2026-10-24 at 20:11:16 UTC**, on Samsung SM-S938U / API 37 and
+the declared Windows PC, using USB control and private Wi-Fi transport.
+The runner source was `d0f99507af4fc7c8f97cf675b2ef3d9c14fe0763`, the owner-merged
+PR #114 result. The final evidence publication changes documentation only.
+The native and Android build inputs were unchanged from build source
+`8faf8fb94456b9a67dad5e065c9082564bf25b4a`; existing inspected artifacts were
+copied into the isolated follow-up worktree and their hashes rechecked:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Windows preview executable | `6dfd8d3711b9b3ae5563abc5d3371503e02507e7162c6a086bfcf3a7bec1e1b0` |
+| Attended Android ARM64 APK | `084f12fa82b5d4924c6bcda33f81f621955ac9e8a1d2a9540a8be0dca7e8c510` |
+
+The host trusted the selected phone certificate and a disposable test CA.
+Before delivering the approved offer to the phone, a PC-origin outsider
+certificate reached the same listener through TLS but was denied that
+still-valid, phone-bound offer. No peer or connection was admitted and no
+record was read. The intended phone then consumed the **same offer**
+successfully, proving the outsider's denial did not consume it.
+
+Before separate read approvals, the record was hidden, Read was disabled
+and the host read count was zero. After host approval, Read remained disabled
+until the phone approval. The native Home screen then displayed the committed
+Windows DPAPI fictional record. While the phone remained paired and connected,
+the same TLS-trusted outsider could not resume; no extra read occurred.
+End cleared the display and ciphertext remained byte-for-byte unchanged.
+Final counts were **1 read, 0 writes**, with **result PASS / cleanup PASS**.
+Cleanup removed the owned package, registry, store and temporary identities;
+the Android package was independently confirmed absent. Minimized receipts
+remain outside the checkout; no private paths, passwords or raw logs are
+published.
+
+Two preceding attempts on runner source
+`de17f8b8e705ecfaf7e21699d933347a7190c8ca` with the same build hashes remain
+**INCOMPLETE**, not passing full runs:
+
+| Finished UTC | Observed outcome |
+| --- | --- |
+| 20:01:50 | Both offer-binding checks passed; selected-read phase ended with `approval/SocketTimeoutException`; 0 reads / 0 writes; cleanup PASS |
+| 20:05:46 | Both offer-binding checks passed; selected-read phase ended with `AssertionError`; the operator reported approving the phone read before the readiness message; 0 reads / 0 writes; cleanup PASS |
+
+The latter receipt does not identify the exact assertion. The reported early
+approval is consistent with racing the runner's disabled-Read observation.
+The guide now states the required order and the existing 15-second phone
+socket wait versus the terminal's 30-second input deadline. No timeout or
+authorization control was relaxed. A later launcher refused a changed source
+head before beginning; the passing run used a fresh isolated worktree pinned
+to current main at preparation time.
+
+Local focused transport, USB and Windows-store regressions passed **28/28**
+on exact attended source `d0f99507af4fc7c8f97cf675b2ef3d9c14fe0763`.
+PR #114's final source `38b5b746ecb8f8386a89e935375b8d2c9e6bfcc4` had passing
+[hosted CI](https://github.com/F2iLLC/lunaos-home/actions/runs/40128328886)
+before the owner merge. The follow-up PR records its own final pushed head
+and hosted result separately; neither hosted run is attended Windows evidence.
+
+This closes the corrected still-valid-offer experiment only. The outsider
+ran on the PC, so a **second physical rogue phone** remains untested. The
+**phone version-2 stale edit** also remains open; prepare its bounded runner
+before operator action, and reconcile `WRITE_UNKNOWN` through explicit
+readback without replay. The earlier joined restart result remains a retained
+enrollment/store recovery check, not shutdown during an active read. Production
+enrollment, integrated authentication-bound key custody and sensitive-use
+acceptance remain open. The assistant did not merge, deploy or close issues.
