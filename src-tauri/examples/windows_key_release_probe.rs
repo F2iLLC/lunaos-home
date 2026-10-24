@@ -1,6 +1,8 @@
 //! Disposable Windows-only key-release feasibility probe. No vault adapter or JS path.
 //! It prints stage outcomes only; the random test key and Windows input never leave memory.
 #![cfg(target_os = "windows")]
+#[path = "key_custody/envelope.rs"]
+mod envelope;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::mem::size_of;
@@ -59,7 +61,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 fn unhex(value: &str) -> Option<Vec<u8>> {
-    if value.len() > 16384 || value.len() % 2 != 0 {
+    if value.len() > 16384 || value.len() % 2 != 0 || !value.is_ascii() {
         return None;
     }
     (0..value.len())
@@ -237,8 +239,12 @@ fn crypt(key: &Key, input: &[u8], decrypt: bool, silent: bool) -> Result<Vec<u8>
         return Err(());
     }
     let mut output = vec![0u8; size as usize];
-    call(Some(&mut output), &mut size).map_err(|_| ())?;
+    if call(Some(&mut output), &mut size).is_err() {
+        envelope::wipe(&mut output);
+        return Err(());
+    }
     if size as usize > output.len() {
+        envelope::wipe(&mut output);
         return Err(());
     }
     output.truncate(size as usize);
@@ -278,7 +284,7 @@ fn silent_child(passport: bool, name: &str, cipher: &str) -> i32 {
     let key = Key(handle);
     match crypt(&key, &cipher, true, true) {
         Ok(mut exposed) => {
-            exposed.fill(0);
+            envelope::wipe(&mut exposed);
             0
         }
         Err(()) => 3,
@@ -550,6 +556,19 @@ fn cleanup_restart(path: &Path) -> Result<(), &'static str> {
 }
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if arguments
+        .first()
+        .is_some_and(|mode| mode.starts_with("--envelope-"))
+    {
+        match envelope::run(&arguments) {
+            Ok(()) => println!("envelope-result: PASS"),
+            Err(stage) => {
+                eprintln!("envelope-result: {stage}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     if let [mode, provider, name, cipher] = arguments.as_slice() {
         if mode == "--silent-existing" && name.starts_with("LunaOSHome.FictionalKeyRelease.") {
             let passport = provider == "passport";

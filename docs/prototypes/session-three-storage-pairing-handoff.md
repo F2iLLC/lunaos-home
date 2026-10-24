@@ -167,3 +167,64 @@ Preparation and verification now query the documented Windows `Win32_OperatingSy
 New state files use version 2. Version 1 files remain readable by `--attended-cleanup-restart`; verification returns `restart-state-reprepare-required` because those files contain no boot marker. Clean up the old disposable fixture and prepare a new one; do not upgrade its uptime into reboot evidence. Version 2 retains uptime only as diagnostic metadata.
 
 Unattended regression coverage checks same-boot rejection, changed boot acceptance independently of saved uptime (including zero and less than one minute), malformed markers, versioned round trips, legacy cleanup compatibility, and stable repeated queries on Windows. The attended results above belong to the original guard; no new attended restart or key-release result is claimed for this repair.
+
+
+## Session 13 native fictional wrapping envelope
+
+Reconciled current remote state before choosing an isolated worktree:
+origin/main was a8d5c9fca72b8302e7696b70223987fe0572ef6a.
+PR #107 is merged with exact head 24c408633d75e809d6116ab291ad831907e5d450
+(merge d07e075a167c00fd1aa7715a9369a82399fcbc97); PR #108 is merged with
+exact head 3bf670f984b5be6921041b0cd4f4d752a17d85cf (merge a8d5c9f).
+Issues #6 and #8 remain open. This increment starts from that main head.
+
+The [native KSP envelope prototype](windows-ksp-envelope.md) now wraps a random
+fictional AES data key using the disposable Software KSP candidate, authenticates
+a versioned fixed-record envelope, and commits ciphertext with flush, same-volume
+rename and readback. The native owner window bounds each key use; fresh-process
+silent-decrypt checks surround attended reads. Passwords remain entirely in the
+OS dialog; keys and plaintext never leave the native comparison. This is an
+isolated example path, not a change to Home's DPAPI adapter, an enabled supported
+unlock method or sensitive-use acceptance.
+
+The implementation includes exclusive operation leases, a pre-prompt disposable
+key ownership receipt for interrupted preparation cleanup, bounded parsing,
+tamper denial and explicit unknown-write readback without retry. The separate
+runner pins a clean source head and freshly built executable SHA-256, records
+each attempt outside the checkout, and prepares cancel, wrong-key-password,
+read, true-restart verification and cleanup steps. A same-boot check fails
+before opening the native window or a key. Wrong-password rejection is recorded
+as an operator report alongside machine-observed denial, not inferred from a
+generic CNG failure. There is no reset, recovery, migration or method-change
+command and no DPAPI fallback.
+
+Local Windows checks: native example tests **18/18**, native library tests
+**9/9**, native example build, native frontend build, runner syntax check,
+runner noninteractive refusal tests **2/2**, full application suite **235/235**,
+and git diff --check passed. The exact pushed head/hosted outcome are recorded
+on this increment's PR. Native tests include a CNG AES-256-GCM known-answer
+check, a nonpersistent unprotected Software KSP RSA wrapping round trip,
+authenticated metadata/ciphertext/tag tamper, wrong data key, malformed/versioned
+envelopes, missing protector, aborted-preparation cleanup, same-boot refusal,
+injected partial-disk-full/interruption/lost-receipt preservation, and the
+existing injected session/power event regressions. Unprotected test-key success
+does not establish password protection. Injected failures do not establish
+physical disk exhaustion, power-loss durability or credential reset behavior.
+The hosted Ubuntu workflow runs the JavaScript suite, not Windows native CNG
+or attended tests.
+
+**New attended results: not run.** No OS password prompt, actual restart,
+physical phone action or real credential reset was performed for this slice.
+The previous disposable Software KSP restart result remains historical evidence
+for the candidate, not evidence for this envelope or the repaired boot-marker
+path. The bounded runner and exact operator steps are ready in the linked
+prototype document; keep cancellation, wrong-password, native cold restart and
+cleanup pending until their separate results exist.
+
+VLT-05 remains unchanged: joined cold-PC restart, phone version-2 stale edit and
+a second physical rogue phone are still open gates; corrected still-valid
+stolen-offer denial also has no new physical result. A native envelope restart
+does not satisfy a joined Home restart. Retain separate identity/scope/read/write
+approvals, WRITE_UNKNOWN readback without automatic replay, fictional data and
+owned cleanup when preparing each joined runner. No merge, deployment, issue
+closure or sensitive-use approval is supplied by this increment.
