@@ -100,4 +100,3 @@ test('terminal edit approval is independent, fixed and denied by EOF or a read a
     const eof = terminal.edit(connection); input.end(); assert.equal(await eof, false);
   } finally { terminal.close(); }
 });
-
