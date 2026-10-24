@@ -2,28 +2,42 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, X509Certificate } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline/promises';
 import { createDirectTlsIdentities } from './test-fixtures/direct-tls-identities.mjs';
 import { selectedUsbAdb, selectedUsbAdbByCableCycle, selectedUsbAdbDetached } from './test-fixtures/usb-adb-preflight.mjs';
 import { launchNativeDirectHost, requireLifecycleDuringGrant, waitForNativeEvent } from './test-fixtures/native-direct-host.mjs';
 import { newExternalEvidencePath } from './test-fixtures/attended-output.mjs';
 import { privateTestAddress, certificateFingerprint, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
-import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsProbeStore, removeWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
+import { fileHash, windowsBootMarker, requireRestart, restartDirectory, lockRestartDirectory,
+  saveRestartState, readRestartState, removeRestartState, newRestartProbeId, reviewedRunnerContinuation } from './test-fixtures/joined-restart-state.mjs';
 
-const [output, apk, serial, model, apiText, address, scenario = 'reconnect'] = process.argv.slice(2);
-assert.ok(['reconnect', 'lock', 'sleep', 'rogue'].includes(scenario), 'Select a supported attended Home scenario');
+let releaseRestartLock = () => {};
+let activeReceipt;
+try {
+const [output, apk, serial, model, apiText, address, scenario = 'reconnect', repairFlag] = process.argv.slice(2);
+assert.ok(process.argv.length <= 10 && (repairFlag === undefined || repairFlag === '--repair-runner'));
+assert.ok(['reconnect', 'lock', 'sleep', 'rogue', 'restart-prepare', 'restart-verify', 'restart-cleanup'].includes(scenario), 'Select a supported attended Home scenario');
+const restart = scenario.startsWith('restart-');
+const resuming = scenario === 'restart-verify';
+const cleaning = scenario === 'restart-cleanup';
+assert.ok(repairFlag === undefined || resuming || cleaning);
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
 assert.ok(output && apk && serial && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
 assert.ok(Object.values(networkInterfaces()).flat().some(item => item?.address === address && !item.internal),
   'Host address must be assigned to a private local interface');
 const repo = fileURLToPath(new URL('..', import.meta.url));
-const evidencePath = newExternalEvidencePath(output, repo);
+const evidencePath = restart ? restartDirectory(output, scenario === 'restart-prepare') : newExternalEvidencePath(output, repo);
+const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', windowsHide: true }).trim();
+const sourceHead = git('rev-parse', 'HEAD');
+if (restart) assert.equal(git('status', '--porcelain'), '', 'Commit reviewed source before retained device tests');
 assert.ok(existsSync(apk));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.home.preview.issue14direct.debug';
@@ -43,6 +57,44 @@ const wifiRoute = () => /\bdev wlan0\b/.test(adb(['shell', 'ip', '-4', 'route', 
 const fingerprint = certificate => certificateFingerprint(certificate);
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const evidence = { result: 'INCOMPLETE', stage: 'preflight', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
+const resultPath = path.join(evidencePath, restart ? `${scenario}-${Date.now()}.json` : 'result.json');
+let restartState;
+let repairPending = false;
+if (restart) {
+  releaseRestartLock = lockRestartDirectory(evidencePath);
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+  activeReceipt = { evidence, resultPath };
+  const current = { sourceHead, apkSha256: evidence.apkSha256,
+    nativeSha256: fileHash(path.join(repo, 'src-tauri/target/debug/lunaos-home-preview.exe')),
+    boot: windowsBootMarker(), serial, model, api: apiText };
+  evidence.sourceHead = sourceHead; evidence.nativeSha256 = current.nativeSha256;
+  if (resuming || cleaning) {
+    restartState = readRestartState(evidencePath);
+    for (const key of ['nativeSha256', 'apkSha256', 'serial', 'model', 'api']) {
+      assert.equal(restartState[key], current[key], `Retained fixture mismatch: ${key}`);
+    }
+    if (repairFlag && restartState.runnerHead !== sourceHead) {
+      git('merge-base', '--is-ancestor', restartState.sourceHead, sourceHead);
+      restartState = reviewedRunnerContinuation(restartState, sourceHead,
+        git('diff', '--name-only', restartState.sourceHead, sourceHead).split(/\r?\n/));
+      repairPending = true;
+      console.log(`Reviewed runner-only repair: prepared source ${restartState.sourceHead}; continuing runner ${sourceHead}. Native executable and APK hashes are unchanged. Type begin below only to continue with this repair.`);
+    }
+    assert.equal(restartState.runnerHead ?? restartState.sourceHead, sourceHead, 'Use the pinned runner source');
+    evidence.preparedSourceHead = restartState.sourceHead;
+    if (restartState.runnerHead) evidence.checks.push('Explicit reviewed runner-only continuation; original preparation source, boot marker and both build hashes retained');
+    if (resuming) requireRestart(restartState, current); // Before USB, UI, listener or store access.
+  } else {
+    restartState = { schema: 1, fictional: true, phase: 'starting', ...current,
+      probeId: newRestartProbeId(), installAttempted: false };
+  }
+  const start = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    assert.equal(await start.question(`Run ${scenario} for the retained fictional setup? Type begin: `), 'begin', 'Not started');
+  } finally { start.close(); }
+  if (repairPending) saveRestartState(evidencePath, restartState);
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+}
 function usbSnapshot() {
   const adbList = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
   const present = execFileSync('powershell.exe', ['-NoProfile', '-Command',
@@ -84,9 +136,27 @@ if (cableCycleProved) evidence.checks.push('Operator unplugged and reconnected t
 assert.equal(adb(['shell', 'getprop', 'ro.product.model']).trim(), model);
 assert.equal(adb(['shell', 'getprop', 'ro.build.version.sdk']).trim(), apiText);
 assert.notEqual(adb(['shell', 'getprop', 'ro.hardware']).trim(), 'ranchu');
-assert.equal(adb(['shell', 'pm', 'list', 'packages', pkg]).trim(), '', 'Never overwrite an installed Home direct test package');
-mkdirSync(evidencePath);
-const fixtures = createDirectTlsIdentities();
+const installedPackage = adb(['shell', 'pm', 'list', 'packages', pkg]).trim();
+if (resuming || (cleaning && installedPackage)) {
+  assert.equal(installedPackage, `package:${pkg}`, 'The retained Home package is required');
+  const paths = adb(['shell', 'pm', 'path', pkg]).trim().split(/\r?\n/);
+  assert.equal(paths.length, 1, 'Expected one retained base APK');
+  assert.match(paths[0], /^package:\/data\/app\/[^\r\n]+\/base\.apk$/);
+  evidence.stage = 'installed-apk-check';
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+  const expectedSize = statSync(apk).size;
+  const bytes = execFileSync(adbPath, ['-s', serial, 'exec-out', 'cat', paths[0].slice(8)],
+    { timeout: 30000, windowsHide: true, maxBuffer: expectedSize });
+  assert.equal(bytes.length, expectedSize, 'Installed package size changed');
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), restartState.apkSha256, 'Installed package changed');
+} else if (!cleaning) assert.equal(installedPackage, '', 'Never overwrite an installed Home direct test package');
+if (!restart) mkdirSync(evidencePath);
+if (!restart) writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+if (!restart) activeReceipt = { evidence, resultPath };
+const fixtures = restartState?.hostKey ? {
+  ca: Buffer.from(restartState.ca), hostIdentity: { key: Buffer.from(restartState.hostKey),
+    cert: Buffer.from(restartState.hostCert), fingerprint: fingerprint(restartState.hostCert) }, cleanup() {},
+} : createDirectTlsIdentities({ hostOnly: restart });
 let installed = false, store, visit, registry, reads = 0, writes = 0;
 const hostConsole = openHostApprovalConsole({ readTimeoutMs: 30_000 });
 
@@ -158,25 +228,64 @@ function privateFile(name, bytes) {
 }
 
 try {
+  if (restart && !restartState.hostKey) {
+    Object.assign(restartState, { hostKey: fixtures.hostIdentity.key.toString(),
+      hostCert: fixtures.hostIdentity.cert.toString(), ca: fixtures.ca.toString() });
+    saveRestartState(evidencePath, restartState); // Ownership receipt precedes store/install mutations.
+    fixtures.cleanup(); // No plaintext TLS key survives this setup step on disk.
+  }
+  if (cleaning) {
+    assert.ok(!installedPackage || restartState.installAttempted, 'No owned installation receipt');
+    const ownedStore = path.join(process.env.LOCALAPPDATA, 'LunaOSHome', 'FictionalVaultAdapters', restartState.probeId);
+    if (existsSync(ownedStore)) {
+      registry = openWindowsPairingRegistry({ probeId: restartState.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
+      await registry.removeSyntheticRegistry(); registry = undefined;
+      await removeWindowsProbeStore({ probeId: restartState.probeId });
+    }
+    if (restartState.installAttempted) adb(['shell', 'rm', '-f', '/data/local/tmp/home-direct-ui.xml']);
+    if (installedPackage) assert.match(adb(['uninstall', pkg]), /Success/);
+    removeRestartState(evidencePath);
+    evidence.result = 'PASS'; evidence.stage = 'complete';
+    evidence.checks.push('Owned test package, protected restart custody, pairing registry and fictional store removed');
+  } else {
   evidence.stage = 'phone-identity';
-  assert.match(adb(['install', '-t', apk]), /Success/); installed = true;
+  if (!resuming) {
+    if (restart) { restartState.installAttempted = true; saveRestartState(evidencePath, restartState); }
+    assert.match(adb(['install', '-t', apk]), /Success/); installed = true;
+  } else {
+    // Foreground authority is not restored by relaunch. Never renew the retained identity.
+    adb(['shell', 'am', 'force-stop', pkg]);
+  }
   adb(['shell', 'am', 'start', '-W', '-n', `${pkg}/io.github.f2illc.lunaos.home.preview.MainActivity`]);
   await waitText('What would you like to do today?');
   await tap('What would you like to do today?');
-  await tap('Prepare or renew fictional computer identity (debug)');
-  await waitText('Test identity prepared or renewed. Re-pair with the computer before connecting.');
+  if (!resuming) {
+    await tap('Prepare or renew fictional computer identity (debug)');
+    await waitText('Test identity prepared or renewed. Re-pair with the computer before connecting.');
+  }
   const cert = adb(['exec-out', 'run-as', pkg, 'cat', 'no_backup/client-public.pem']);
   const certificate = new X509Certificate(cert);
   assert.ok(certificate.verify(certificate.publicKey));
   const peer = fingerprint(cert);
-  evidence.checks.push('Home explicitly prepared an Android Keystore transport identity and exported only its public certificate');
+    evidence.checks.push(resuming ? 'Home retained its Android Keystore transport identity; only the public certificate was read'
+      : 'Home explicitly prepared an Android Keystore transport identity and exported only its public certificate');
 
-  store = await openWindowsProbeStore({ create: true });
-  await store.create('alex-library', record);
+  if (resuming) {
+    assert.equal(peer, restartState.peer, 'Retained Android identity changed');
+    assert.equal(cert, restartState.phoneCert);
+  }
+  store = await openWindowsProbeStore({ ...(restart && { probeId: restartState.probeId }), create: !resuming });
+  if (!resuming) await store.create('alex-library', record);
   const ciphertext = readFileSync(path.join(store.directory, 'records.bin'));
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
   store = await openWindowsProbeStore({ probeId: store.probeId });
   registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
+  if (resuming) {
+    assert.equal(fileHash(path.join(store.directory, 'records.bin')), restartState.ciphertextSha256);
+    assert.equal(fileHash(path.join(store.directory, 'pairing.bin')), restartState.registrySha256);
+    assert.deepEqual(await registry.load(), [peer]);
+    evidence.checks.push('Changed Windows boot; same source/builds, Android identity, ciphertext and protected enrollment reopened');
+  }
   evidence.stage = 'host-listener';
   // In the rogue scenario the second fictional certificate is trusted by TLS
   // but has no enrollment. This tests pairing policy, not issuer rejection.
@@ -218,7 +327,14 @@ try {
   assert.ok(screen.some(node => node.text === `Android identity: ${peer}`));
   console.log('IDENTITY_REVIEW: matched full host and Android fingerprints on the Home screen');
   evidence.stage = 'pairing';
-  const offer = visit.enrollment.decide(await hostConsole.enrollment(review));
+  // Resumption never issues/replays a pairing offer. Human identity/scope review stays separate.
+  const decision = await hostConsole.enrollment(review);
+  let offer;
+  if (resuming) {
+    assert.equal(decision.allow, true);
+    visit.enrollment.cancel(review.requestId);
+    offer = { offer: 'resume' };
+  } else offer = visit.enrollment.decide(decision);
   if (scenario === 'rogue') {
     evidence.stage = 'rogue-live-offer';
     const tcpBefore = visit.host.incomingTcpCount();
@@ -243,6 +359,10 @@ try {
   const connections = visit.host.listConnections();
   assert.equal(connections.length, 1);
   assert.equal(connections[0].peerFingerprint, peer);
+  const awaitingGrant = appNodes();
+  assert.ok(awaitingGrant.some(node => node.text === 'No record shown.'));
+  assert.ok(awaitingGrant.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+  assert.equal(reads, 0);
   if (scenario === 'rogue') evidence.checks.push('The intended phone subsequently consumed the same offer successfully');
   // A separate decision grants only this connection's Alex read for 60 seconds.
   evidence.stage = 'selected-read';
@@ -250,6 +370,8 @@ try {
   const grantTick = performance.now();
   visit.enrollment.approveRead(connections[0]);
   await waitText('Connected. Review and allow the selected read.');
+  assert.ok(appNodes().some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+  assert.equal(reads, 0);
   const approvalStarted = Date.now();
   console.log('PHONE_READ_APPROVAL_READY: tap Allow selected read on the phone within 45 seconds');
   await waitEnabled("Read Alex's record");
@@ -260,7 +382,21 @@ try {
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
   evidence.stage = scenario;
-  if (scenario === 'lock' || scenario === 'sleep') {
+  if (restart) {
+    if (!tapVisible('End connection', shown)) await tap('End connection');
+    const ended = await waitText('Connection ended. Reading needs fresh approval.');
+    assert.ok(ended.some(node => node.text === 'No record shown.'));
+    assert.ok(ended.some(node => node.text === "Read Alex's record" && node.enabled === 'false'));
+    assert.equal(reads, 1); assert.equal(writes, 0);
+    assert.deepEqual(readFileSync(path.join(store.directory, 'records.bin')), ciphertext);
+    assert.deepEqual(await registry.load(), [peer]);
+    await visit.close(); visit = undefined;
+    Object.assign(restartState, { phase: resuming ? 'verified' : 'prepared', phoneCert: cert, peer,
+      ciphertextSha256: fileHash(path.join(store.directory, 'records.bin')),
+      registrySha256: fileHash(path.join(store.directory, 'pairing.bin')) });
+    saveRestartState(evidencePath, restartState);
+    evidence.checks.push('Fresh independent host/phone read approvals required; one read, zero writes; End cleared authority; host stopped');
+  } else if (scenario === 'lock' || scenario === 'sleep') {
     console.log(scenario === 'lock'
       ? 'READY_FOR_WINDOWS_LOCK: keep Home visible on the phone; press Win+L now, then unlock Windows normally'
       : 'READY_FOR_WINDOWS_SLEEP: keep Home visible on the phone; put Windows to sleep now, then wake and unlock it normally');
@@ -366,7 +502,8 @@ try {
       evidence.checks.push('Local device removal was confirmed by registry commit or explicit readback');
     }
   }
-  evidence.result = 'PASS'; evidence.stage = 'complete';
+  evidence.result = scenario === 'restart-prepare' ? 'PREPARED_NOT_RESTART_VERIFIED' : 'PASS'; evidence.stage = 'complete';
+  }
 } catch (error) {
   evidence.error = error.name;
   evidence.connectionsAtFailure = visit?.host?.listConnections().length ?? 0;
@@ -378,22 +515,39 @@ try {
     const matched = [...diagnostic.matchAll(/(?:connect=(config|tls|resume|pair|approval)|\b(read))\/([A-Za-z]+(?:Exception|Error))/g)].at(-1);
     if (matched) evidence.androidConnectionDiagnostic = `${matched[1] || matched[2]}/${matched[3]}`;
   } catch { /* ADB may be unavailable during cleanup; preserve the primary failure. */ }
-  console.error('PRIMARY_RUN_FAILURE', error);
-  throw error;
+  console.error('PRIMARY_RUN_FAILURE', error.name);
+  process.exitCode = 1;
 }
 finally {
   const failures = [];
   try { await visit?.close(); } catch (error) { failures.push(error); }
-  try { await registry?.removeSyntheticRegistry(); } catch (error) { failures.push(error); }
-  try { await store?.removeSyntheticStore(); } catch (error) { failures.push(error); }
+  if (!restart) {
+    try { await registry?.removeSyntheticRegistry(); } catch (error) { failures.push(error); }
+    try { await store?.removeSyntheticStore(); } catch (error) { failures.push(error); }
+  }
   hostConsole.close();
-  try { if (installed) {
+  try { if (installed && !restart) {
     adb(['shell', 'rm', '-f', '/data/local/tmp/home-direct-ui.xml']);
     assert.match(adb(['uninstall', pkg]), /Success/);
   } } catch (error) { failures.push(error); }
   fixtures.cleanup();
-  evidence.reads = reads; evidence.writes = writes; evidence.cleanup = failures.length ? 'FAILED' : 'PASS';
-  writeFileSync(path.join(evidencePath, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
+  evidence.reads = reads; evidence.writes = writes;
+  evidence.cleanup = failures.length || (cleaning && evidence.result !== 'PASS') ? 'FAILED' : restart && !cleaning ? 'RETAINED_FOR_EXPLICIT_CLEANUP' : 'PASS';
+  evidence.finished = new Date().toISOString();
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence));
+  if (restart && !cleaning) console.log('Retained fictional setup. Never reboot automatically. Use restart-verify after an operator Restart, then separate restart-cleanup.');
   if (failures.length) throw new AggregateError(failures, 'Owned fictional cleanup failed');
 }
+} catch (error) {
+  if (activeReceipt) {
+    const { evidence, resultPath } = activeReceipt;
+    evidence.result = 'INCOMPLETE'; evidence.error = error.name;
+    if (typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code)) evidence.errorCode = error.code;
+    evidence.finished = new Date().toISOString();
+    writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+  }
+  console.error('RUNNER_REFUSED', error.name, typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code) ? error.code : '');
+  if (['Attended Windows terminal required', 'cold-restart-not-observed', 'Not started'].includes(error.message)) console.error(error.message);
+  process.exitCode = 1;
+} finally { releaseRestartLock(); }

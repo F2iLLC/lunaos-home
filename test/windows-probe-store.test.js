@@ -1,9 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink, access } from 'node:fs/promises';
 import path from 'node:path';
-import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsProbeStore, removeWindowsProbeStore } from '../lib/windows-probe-store.js';
+import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { createVaultSessionService } from '../lib/vault-sessions.js';
+
+for (const damage of ['missing', 'corrupt']) {
+  test(`owned cleanup removes a ${damage} record store without opening it`,
+    { skip: process.platform !== 'win32' }, async t => {
+      const store = await openWindowsProbeStore({ create: true });
+      t.after(async () => {
+        try { await access(store.directory); } catch { return; }
+        await removeWindowsProbeStore({ probeId: store.probeId });
+      });
+      const neighbor = await openWindowsProbeStore({ create: true });
+      t.after(() => neighbor.removeSyntheticStore());
+      const neighborFile = path.join(neighbor.directory, 'records.bin');
+      const neighborBytes = await readFile(neighborFile);
+      const registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: 'a'.repeat(64) });
+      if (damage === 'corrupt') await registry.add('b'.repeat(64));
+      const file = path.join(store.directory, 'records.bin');
+      if (damage === 'missing') await unlink(file);
+      else await writeFile(file, 'damaged fictional ciphertext');
+      await assert.rejects(openWindowsProbeStore({ probeId: store.probeId }), /synthetic storage operation failed/);
+      // Same order as retained restart cleanup; absent enrollment is also valid
+      // when preparation failed before the first record envelope was committed.
+      await registry.removeSyntheticRegistry();
+      await removeWindowsProbeStore({ probeId: store.probeId });
+      await assert.rejects(access(store.directory), { code: 'ENOENT' });
+      assert.deepEqual(await readFile(neighborFile), neighborBytes);
+    });
+}
+
+test('direct fictional cleanup requires a UUID and preserves locks and unknown files',
+  { skip: process.platform !== 'win32' }, async t => {
+    await assert.rejects(removeWindowsProbeStore());
+    await assert.rejects(removeWindowsProbeStore({ probeId: '../outside' }));
+    const store = await openWindowsProbeStore({ create: true });
+    t.after(() => removeWindowsProbeStore({ probeId: store.probeId }));
+    const lock = path.join(store.directory, '.lock');
+    const file = path.join(store.directory, 'records.bin');
+    const bytes = await readFile(file);
+    await writeFile(lock, 'fictional existing controller', { flag: 'wx' });
+    try {
+      await assert.rejects(removeWindowsProbeStore({ probeId: store.probeId }), /synthetic storage operation failed/);
+      assert.deepEqual(await readFile(file), bytes);
+      assert.equal(await readFile(lock, 'utf8'), 'fictional existing controller');
+    } finally { await unlink(lock); }
+    const unknown = path.join(store.directory, 'unknown.txt');
+    await writeFile(unknown, 'must survive', { flag: 'wx' });
+    try {
+      await assert.rejects(removeWindowsProbeStore({ probeId: store.probeId }), /synthetic storage operation failed/);
+      assert.equal(await readFile(unknown, 'utf8'), 'must survive');
+    } finally { await unlink(unknown); }
+  });
 
 test('explicit deletion persists through reopen and preserves other family records',
   { skip: process.platform !== 'win32' }, async t => {

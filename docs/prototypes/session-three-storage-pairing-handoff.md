@@ -313,3 +313,91 @@ sensitive-use acceptance. Joined cold-PC restart, phone version-2 stale edit,
 second physical rogue phone and corrected still-valid stolen-offer physical
 evidence remain outstanding. No phone action, deployment, issue closure,
 credential reset or additional merge was performed in this follow-up.
+
+### Joined retained-fixture restart runner
+
+After PR #113 merged, the next bounded VLT-05 increment starts from
+`8aa2155b97b5221dfd9fa4406eceab4a01663e88`. The joined Home runner now has
+separate `restart-prepare`, `restart-verify`, and `restart-cleanup` modes;
+[the dedicated guide](joined-home-restart.md) describes the operator sequence.
+The prepare step retains the same test package and Android identity, encrypted
+Windows record, protected enrollment and a DPAPI-protected disposable host TLS
+identity. Verification requires a changed OS boot marker, identical clean
+source/builds and installed APK, matching certificates and ciphertext, and fresh
+identity/scope/read approvals. It never recreates the store, renews the phone
+identity, issues a new pairing offer or replays a mutation. Cleanup is separate.
+
+Local preparation tests include same-boot/incomplete-state/build mismatch
+refusal, output path isolation, real Windows DPAPI state reopen in another
+process, tamper denial, interrupted pending-state write preservation and an
+exclusive controller lock. These are automated results, not phone evidence.
+Exact source/build hashes, local totals, hosted checks and attended outcomes
+are recorded on this increment's PR before any acceptance claim.
+
+This read-only sequence deliberately ends the connection and host before the
+operator's Restart and relaunches the phone app afterward. It tests persisted
+pairing/store recovery and fresh grants, not an active read interrupted by
+shutdown or uninterrupted phone foreground behavior during reboot. The
+Windows app still uses its DPAPI access gate; this does not integrate the native
+KSP envelope. Until attended results are recorded, joined restart remains
+unproved. Phone version-2 stale edit, a second physical rogue phone, corrected
+still-valid stolen-offer evidence, production enrollment and sensitive-use
+acceptance remain separate open gates. No automatic restart, merge, deployment
+or issue closure is authorized by this runner.
+
+### Attended joined restart recovery result, 2026-10-24
+
+Preparation passed at **19:26:11 UTC** on
+`8faf8fb94456b9a67dad5e065c9082564bf25b4a`, using the Samsung SM-S938U at
+API 37 with USB control and private Wi-Fi transport. Separate Windows
+verification, host/phone identity review and selected-read approvals produced
+one authoritative fictional read and zero record writes. End hid the record,
+disabled Read and stopped the host. Same-boot refusal passed against the
+retained fixture without another native prompt or phone operation.
+
+The operator restarted Windows; its new boot marker was **19:34:00 UTC**.
+The first verification remained **INCOMPLETE**: installed-APK capture hit
+`ENOBUFS` before native verification or record access because the APK was
+135,324,589 bytes and the runner allowed 100 MiB. The repaired check uses the
+inspected APK's exact size bound and requires matching length and SHA-256.
+The installed-package read-only recheck passed. A subsequent local launcher
+argument error also stopped before fixture operations; correcting the
+PowerShell array passed the argument-boundary check. Neither attempt is
+counted as a passing verification.
+
+Verification then passed at **19:49:15 UTC**, followed by separate explicit
+cleanup at **19:49:49 UTC**, with runner source
+`bf97af1faa59ed83c7fc03537cef5bb3a24083c0`. The operator selected the explicit
+runner-only continuation; the original preparation source and boot marker
+were retained. The native executable and APK were not rebuilt or replaced:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Windows preview executable | `6dfd8d3711b9b3ae5563abc5d3371503e02507e7162c6a086bfcf3a7bec1e1b0` |
+| Attended Android ARM64 APK | `084f12fa82b5d4924c6bcda33f81f621955ac9e8a1d2a9540a8be0dca7e8c510` |
+
+The same Android Keystore transport identity, host identity, encrypted record
+and protected enrollment reopened after the changed boot. No pairing offer
+was recreated. Before fresh read approvals, the record remained hidden, Read
+was disabled and the host read count was zero. Separate host and phone read
+approvals produced one authoritative read and zero record writes; ciphertext
+stayed unchanged. End cleared access and stopped the host. Cleanup removed
+the owned package, protected resume custody, registry and synthetic store;
+the package and resume file were independently confirmed absent. Minimized
+result files remain outside the checkout.
+
+The preparation source passed **240/240** local Windows application tests and
+both builds. The repair passed **6/6** focused regressions, including refusal
+of native/Android/transport/dependency changes during continuation. Hosted
+[preparation CI](https://github.com/F2iLLC/lunaos-home/actions/runs/40124625662)
+and [repair CI](https://github.com/F2iLLC/lunaos-home/actions/runs/40126567496)
+passed on their respective exact heads. These Ubuntu runs are separate from
+the Windows and attended results. PR #114 records final publication checks.
+
+This completes one retained-fixture joined restart recovery check on the
+declared devices. It does not test shutdown interrupting an active read: the
+grant/host ended before Restart and the phone app was relaunched afterward.
+Phone version-2 stale edit, second physical rogue phone, corrected still-valid
+stolen-offer evidence, production enrollment and sensitive-use acceptance
+remain open. The assistant did not restart Windows, merge, deploy or close
+either issue.
