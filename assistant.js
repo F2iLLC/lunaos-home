@@ -12,7 +12,7 @@ export function createAssistantServer(drafts, reviewUrl, { vehicleSessions, assi
   if (vehicleSessions && assistantStyleSelection) vehicleSessions.setGreetingSelector(async ({ period, style }) => {
     if (!server.server.getClientCapabilities()?.sampling) throw Error('Assistant sampling unavailable');
     const result = await server.server.createMessage({
-      messages: [{ role: 'user', content: { type: 'text', text: `Choose a brief LunaOS vehicle greeting expression for ${period}. Preferred style: ${style}. Return only JSON with style (warm, witty, dramatic) and variant (0 or 1). Do not request tools or personal context.` } }],
+      messages: [{ role: 'user', content: { type: 'text', text: `Choose a brief LunaOS vehicle greeting expression for ${period}. Preferred style: ${style}. Return only JSON with style (warm, witty, dramatic) and variant (integer 0 through 3). Do not request tools or personal context.` } }],
       maxTokens: 80, includeContext: 'none',
     }, { timeout: 1400 });
     if (result.content.type !== 'text') throw Error('Unsupported greeting selection');
@@ -27,7 +27,7 @@ export function createAssistantServer(drafts, reviewUrl, { vehicleSessions, assi
   };
   if (vehicleSessions) server.registerTool('home_vehicle_style', {
     title: 'Choose LunaOS vehicle greeting style',
-    description: 'Choose warm, witty or dramatic wording for the next Fergalicious greeting. No separate AI identity, arbitrary spoken text, calendar access, location, vehicle controls, or permission grants. Uses only the local time period supplied by the enrolled phone.',
+    description: 'Choose warm, witty or dramatic wording for the next vehicle greeting. No separate AI identity, arbitrary spoken text, calendar access, location, vehicle controls, or permission grants. Uses only the local time period supplied by the enrolled phone. Names are substituted locally on the phone.',
     inputSchema: vehicleStyleSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   }, call(input => vehicleSessions.setStyle(input)));

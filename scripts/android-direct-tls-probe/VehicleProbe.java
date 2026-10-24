@@ -13,6 +13,24 @@ public final class VehicleProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             String mode = arguments == null ? "prepare" : arguments.getString("mode", "prepare");
+            if ("configure-names".equals(mode)) {
+                String name = arguments.getString("name", ""), nickname = arguments.getString("nickname", "");
+                if (!io.github.f2illc.lunaos.home.vehicle.VehicleGreetings.validName(name) ||
+                    !io.github.f2illc.lunaos.home.vehicle.VehicleGreetings.validName(nickname)) throw new IllegalArgumentException();
+                android.util.AtomicFile settings = new android.util.AtomicFile(new java.io.File(getTargetContext().getNoBackupFilesDir(), "vehicle-session.json"));
+                org.json.JSONObject state;
+                try (java.io.InputStream in = settings.openRead()) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(); byte[] buffer = new byte[1024]; int n;
+                    while ((n = in.read(buffer)) >= 0) { out.write(buffer, 0, n); if (out.size() > 8192) throw new java.io.IOException(); }
+                    state = new org.json.JSONObject(out.toString("UTF-8"));
+                }
+                state.put("name", name.trim()).put("nickname", nickname.trim());
+                java.io.FileOutputStream out = settings.startWrite();
+                try { out.write(state.toString().getBytes("UTF-8")); settings.finishWrite(out); }
+                catch (Exception error) { settings.failWrite(out); throw error; }
+                result.putString("result", "Vehicle names configured locally; no names returned or sent to Home.");
+                finish(0, result); return;
+            }
             if ("network".equals(mode)) {
                 String phase = "config";
                 try {

@@ -12,19 +12,17 @@ final class VehicleRuntime {
         new ArrayBlockingQueue<Runnable>(4), new ThreadPoolExecutor.DiscardPolicy());
     static int boot(Context c) { return Settings.Global.getInt(c.getContentResolver(), Settings.Global.BOOT_COUNT, 0); }
     static String period() { int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY); return hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"; }
-    static String fallback() {
-        String[] lines = { "Excellent company. Impeccable taste.", "Your entrance was almost as good as mine.", "A Cadillac entrance deserves a proper hello." };
-        return "Good " + period() + ". Fergie here. " + lines[new java.security.SecureRandom().nextInt(lines.length)];
-    }
     static synchronized VehicleState connected(Context c) {
         VehicleState s = new VehicleState(c); if (s.address.isEmpty()) return s;
         s.trip.connect(SystemClock.elapsedRealtime(), boot(c));
         s.status = s.trip.claimed ? "Greeting already attempted this trip. Reconnects will stay quiet." : "Vehicle connected.";
         s.save(); return s;
     }
-    static synchronized boolean claim(Context c, String trip) {
+    static synchronized boolean claim(Context c, String trip, int greetingId) {
         VehicleState s = new VehicleState(c);
-        return s.trip.id.equals(trip) && !s.address.isEmpty() && s.trip.claim() && s.save();
+        if (!s.trip.id.equals(trip) || s.address.isEmpty() || !s.trip.claim()) return false;
+        s.lastGreetingId = greetingId;
+        return s.save();
     }
     static synchronized void status(Context c, String value) { VehicleState s = new VehicleState(c); s.status = value; s.save(); }
     static synchronized void audio(Context c, String value) { VehicleState s = new VehicleState(c); s.audio = value; s.save(); }

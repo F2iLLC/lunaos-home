@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
-/** Prime CUE's media path with actual silent frames before the first word. */
+/** Prime the vehicle media path with actual silent frames before the first word. */
 public final class VehicleLeadIn {
     private static final int LIMIT = 8 * 1024 * 1024;
     private static boolean tag(byte[] bytes, int at, String value) {

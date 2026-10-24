@@ -23,9 +23,11 @@ public final class VehicleAudioService extends Service {
     private TextToSpeech speech;
     private MediaPlayer player;
     private File wave, preparedWave;
-    private boolean stopped, attempted, generating, detected, seeking, audible;
+    private boolean stopped, attempted, generating, detected, audible;
+    private VehiclePlaybackGate playback = new VehiclePlaybackGate();
     private long deadline, routeDeadline;
     private int audioEpoch;
+    private int greetingId;
     private final BroadcastReceiver changes = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { check(); }
     };
@@ -34,7 +36,7 @@ public final class VehicleAudioService extends Service {
         manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Vehicle greetings", NotificationManager.IMPORTANCE_LOW));
         PendingIntent tap = PendingIntent.getActivity(c, 1, new Intent(c, VehicleSetupActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(c, CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("LunaOS · Fergalicious").setContentText(text).setContentIntent(tap).setOnlyAlertOnce(true).build();
+            .setContentTitle("LunaOS · Vehicle").setContentText(text).setContentIntent(tap).setOnlyAlertOnce(true).build();
     }
     static void notifyTap(Context c) {
         try { c.getSystemService(NotificationManager.class).notify(701, notification(c, "Park, then tap to enable or retry the greeting.")); }
@@ -109,7 +111,9 @@ public final class VehicleAudioService extends Service {
         generating = true;
         final int generation = ++audioEpoch;
         VehicleRuntime.audio(this, "Preparing offline speech");
-        final String greeting = text.isEmpty() ? VehicleRuntime.fallback() : text;
+        VehicleState settings = new VehicleState(this);
+        VehicleGreetings.Choice choice = VehicleGreetings.choose(VehicleRuntime.period(), settings.nickname, settings.lastGreetingId, text);
+        final String greeting = choice.text; greetingId = choice.id;
         speech = new TextToSpeech(this, status -> ui.post(() -> {
             if (stopped || generation != audioEpoch || speech == null) return;
             if (status != TextToSpeech.SUCCESS || speech.setLanguage(Locale.US) < 0) { unavailable("Offline English speech engine unavailable"); return; }
@@ -139,19 +143,20 @@ public final class VehicleAudioService extends Service {
         if (stopped || !connected() || SystemClock.elapsedRealtime() >= deadline) { unavailable(); return; }
         AudioDeviceInfo output = route(); if (output == null) { unavailable(); return; }
         try {
-            startForeground(700, notification(this, "Greeting Fergalicious"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            startForeground(700, notification(this, "Vehicle greeting"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
             AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
             focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(attributes).setOnAudioFocusChangeListener(change -> { if (change < 0) ui.post(() -> unavailable()); }).build();
             if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { unavailable("Android audio focus denied"); return; }
             player = new MediaPlayer(); player.setAudioAttributes(attributes); player.setDataSource(preparedWave.getPath());
+            playback = new VehiclePlaybackGate();
             if (!player.setPreferredDevice(output)) { unavailable("Android refused the selected Bluetooth output"); return; }
             player.setVolume(0, 0); player.prepare();
             player.setOnCompletionListener(done -> {
                 if (audible) {
                     VehicleRuntime.status(this, "Greeting playback completed on the selected Bluetooth output.");
-                    VehicleRuntime.audio(this, "Playback completed on selected Bluetooth output; confirm CUE audibility.");
+                    VehicleRuntime.audio(this, "Playback completed on selected Bluetooth output; confirm vehicle audibility.");
                     releaseAudio();
                 } else unavailable();
             });
@@ -166,23 +171,30 @@ public final class VehicleAudioService extends Service {
     private void verifyRoute() {
         if (player == null || stopped) return;
         AudioDeviceInfo actual = player.getRoutedDevice();
-        if (actual != null && actual.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP && address.equalsIgnoreCase(actual.getAddress()) && connected()) {
-            if (audible || seeking) return;
-            seeking = true; player.pause();
+        boolean selected = actual != null && actual.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP && address.equalsIgnoreCase(actual.getAddress()) && connected();
+        VehiclePlaybackGate.Decision decision = playback.observe(selected, SystemClock.elapsedRealtime() >= routeDeadline);
+        if (decision == VehiclePlaybackGate.Decision.UNMUTE) {
+            // This decision uses the current route, after the asynchronous seek.
+            if (!VehicleRuntime.claim(this, trip, greetingId)) { releaseAudio(); return; }
+            attempted = true; audible = true; generating = false; playback.started();
+            player.setVolume(1, 1);
+            getSystemService(NotificationManager.class).cancel(701);
+            VehicleRuntime.audio(this, "Playing on selected Bluetooth output");
+        } else if (decision == VehiclePlaybackGate.Decision.SEEK) {
+            player.pause();
             player.setOnSeekCompleteListener(ready -> {
                 if (stopped || player != ready) return;
                 if (!connected()) { unavailable(); return; }
-                // Commit at-most-once immediately before the first audible side effect.
-                if (!VehicleRuntime.claim(this, trip)) { releaseAudio(); return; }
-                attempted = true; audible = true; seeking = false; generating = false;
-                ready.setVolume(1, 1); ready.start();
-                getSystemService(NotificationManager.class).cancel(701);
-                VehicleRuntime.audio(this, "Playing on selected Bluetooth output");
+                playback.seekCompleted(); routeDeadline = SystemClock.elapsedRealtime() + 2000;
+                ready.start(); // Still muted; a fresh route observation must allow sound.
+                verifyRoute();
             });
             player.seekTo(0);
-        } else if (!audible && SystemClock.elapsedRealtime() < routeDeadline) {
+        } else if (decision == VehiclePlaybackGate.Decision.WAIT && !audible) {
             ui.postDelayed(this::verifyRoute, 50);
-        } else { VehicleRuntime.audio(this, "Selected Bluetooth output was not the active route"); unavailable(); }
+        } else if (decision == VehiclePlaybackGate.Decision.STOP) {
+            VehicleRuntime.audio(this, "Selected Bluetooth output was not the active route"); unavailable();
+        }
     }
     private void unavailable() {
         if (stopped) return;
@@ -191,7 +203,7 @@ public final class VehicleAudioService extends Service {
     }
     private void unavailable(String reason) { VehicleRuntime.audio(this, reason); unavailable(); }
     private void releaseAudio() {
-        audioEpoch++; generating = false; seeking = false; audible = false;
+        audioEpoch++; generating = false; audible = false; playback.stop();
         if (player != null) { player.release(); player = null; }
         if (speech != null) { speech.shutdown(); speech = null; }
         if (focus != null) { audio.abandonAudioFocusRequest(focus); focus = null; }

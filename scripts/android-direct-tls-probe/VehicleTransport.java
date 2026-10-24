@@ -12,7 +12,7 @@ public final class VehicleTransport {
         if (!config.optBoolean("vehicleGreetings", false)) throw new SecurityException();
         try (SyntheticTlsClient client = new SyntheticTlsClient(context, config)) {
             if (!client.call(new JSONObject().put("op", "resume")).getBoolean("ok")) throw new SecurityException();
-            JSONObject event = new JSONObject().put("endpoint", "fergalicious").put("trip", trip)
+            JSONObject event = new JSONObject().put("endpoint", "vehicle").put("trip", trip)
                 .put("sequence", sequence).put("event", connected ? "connected" : "disconnected").put("period", period);
             JSONObject result = client.call(new JSONObject().put("op", "vehicle").put("event", event));
             if (!result.getBoolean("ok")) throw new SecurityException();

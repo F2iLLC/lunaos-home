@@ -32,6 +32,7 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.match(vaultDebugManifest, /<receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove"\s*\/>/);
   assert.match(vaultDebugManifest, /android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"/);
   assert.match(vaultDebugManifest, /VehicleAudioService" android:exported="false"/);
+  assert.match(vaultDebugManifest, /VehicleReceiver[\s\S]*android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED/);
   assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION|RECORD_AUDIO/);
 });
 

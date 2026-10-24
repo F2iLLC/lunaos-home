@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createVehicleSessions } from '../lib/vehicle-sessions.js';
+import { vehicleGreetings } from '../lib/vehicle-greetings.js';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 import { startDirectVaultExperiment, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
 import { createAssistantServer } from '../assistant.js';
@@ -13,7 +14,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { CreateMessageRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-const event = (trip = crypto.randomUUID(), sequence = 1, kind = 'connected') => ({ endpoint: 'fergalicious', trip, sequence, event: kind, period: 'morning' });
+const event = (trip = crypto.randomUUID(), sequence = 1, kind = 'connected') => ({ endpoint: 'vehicle', trip, sequence, event: kind, period: 'morning' });
 test('vehicle grants are separate, replies are idempotent, stale events cannot reopen disconnect, grace and lease expire', () => {
   let time = 0; const sessions = createVehicleSessions({ now: () => time });
   const first = event(); assert.throws(() => sessions.receive('phone', first));
@@ -28,13 +29,13 @@ test('vehicle grants are separate, replies are idempotent, stale events cannot r
   assert.equal(sessions.receive('phone', event(first.trip, 3)).greeting, greeting.greeting);
   time += 180_000; assert.equal(sessions.inspect().activeSessions, 0);
   sessions.setStyle({ style: 'dramatic' });
-  assert.match(sessions.receive('phone', event()).greeting, /Cadillac|Naturally/);
+  assert.match(sessions.receive('phone', event()).greeting, /grand entrance|Naturally/);
   sessions.revoke('phone'); assert.throws(() => sessions.receive('phone', event()));
 });
 
 test('vehicle wire contract rejects location, controls, arbitrary context and wrong vehicle', () => {
   const sessions = createVehicleSessions(); sessions.approve('phone');
-  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { endpoint: 'other' }, { period: 'fake' }])
+  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { name: 'Example' }, { nickname: 'Example' }, { endpoint: 'other' }, { period: 'fake' }])
     assert.throws(() => sessions.receive('phone', { ...event(), ...extra }));
   assert.throws(() => sessions.setStyle({ style: 'invent appointments' }));
 });
@@ -84,7 +85,7 @@ test('real paired TLS reports vehicle events without granting any vault access',
   await assert.rejects(client.vehicle(event())); client.close();
   sessions.approve(fixture.phoneIdentity.fingerprint);
   client = await connect(); t.after(() => client.close());
-  const first = event(); assert.match((await client.vehicle(first)).greeting, /Fergie/);
+  const first = event(); assert.match((await client.vehicle(first)).greeting, /\{name\}/);
   await assert.rejects(client.execute(crypto.randomUUID(), { action: 'read', recordId: 'alex-library' }));
   assert.equal((await client.vehicle(event(first.trip, 2, 'disconnected'))).state, 'reconnecting');
   await host.revokePeer(fixture.phoneIdentity.fingerprint);
@@ -99,9 +100,26 @@ test('production phone trip state machine runs on the JVM', async t => {
   assert.match(result, /passed/);
 });
 
-test('CUE lead-in primes audio for three seconds without dropping the first spoken samples', async t => {
+test('vehicle audio lead-in primes the route for three seconds without dropping the first spoken samples', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-audio-')); t.after(() => rm(directory, { recursive: true, force: true }));
   execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleLeadIn.java', 'test/java/VehicleLeadInTest.java'], { windowsHide: true });
   const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehicleLeadInTest'], { windowsHide: true, encoding: 'utf8' });
+  assert.match(result, /passed/);
+});
+
+test('all twelve greetings match across phone/backend and never repeat on consecutive trips', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-greetings-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleGreetings.java', 'test/java/VehicleGreetingsTest.java'], { windowsHide: true });
+  const catalog = Object.values(vehicleGreetings).flat();
+  assert.equal(new Set(catalog).size, 12);
+  const examples = ['morning', 'afternoon', 'evening'].flatMap(period => catalog.map(line => line.replace('{period}', period)));
+  const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehicleGreetingsTest', ...examples], { windowsHide: true, encoding: 'utf8' });
+  assert.match(result, /passed/);
+});
+
+test('route changes during async seek cannot authorize unmuting or survive cancellation', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-route-')); t.after(() => rm(directory, { recursive: true, force: true }));
+  execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehiclePlaybackGate.java', 'test/java/VehiclePlaybackGateTest.java'], { windowsHide: true });
+  const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehiclePlaybackGateTest'], { windowsHide: true, encoding: 'utf8' });
   assert.match(result, /passed/);
 });

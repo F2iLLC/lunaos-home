@@ -19,11 +19,26 @@ public final class VehicleSetupActivity extends Activity {
         if (Build.VERSION.SDK_INT < 31) { finish(); return; }
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(28, 48, 28, 28);
         ScrollView scroll = new ScrollView(this); scroll.addView(layout); setContentView(scroll);
-        TextView title = new TextView(this); title.setText("Fergalicious · Call me Fergie\nLunaOS Home · 2018 Cadillac XT5 · 3.6L V6"); title.setTextSize(24); layout.addView(title);
+        TextView title = new TextView(this); title.setText("LunaOS Home · Vehicle greetings"); title.setTextSize(24); layout.addView(title);
         TextView help = new TextView(this);
-        help.setText("Set up while parked. Choose the Cadillac you already paired in Android. Allow companion access for automatic greetings. The Bluetooth address stays on this phone. No location or trip history is collected. Home receives an ephemeral session only if you separately enable its paired connection. When Home is unavailable, a local greeting uses the time of day. No appointments or vehicle condition are inferred.\n\nThis is an opt-in development preview; Android or CUE may prevent automatic audio. Wired Android Auto audio needs a separate attended check.");
+        help.setText("Set up while parked. Choose the vehicle you already paired in Android. Allow companion access for automatic greetings. The Bluetooth address and names stay on this phone. No location or trip history is collected. Home receives an ephemeral session only if you separately enable its paired connection. When Home is unavailable, a local greeting uses the time of day. No appointments or vehicle condition are inferred.\n\nThis is an opt-in development preview; Android or your vehicle audio system may prevent automatic audio. Wired Android Auto audio needs a separate attended check.");
         layout.addView(help); status = new TextView(this); layout.addView(status);
-        button(layout, "Choose Fergalicious", this::choose);
+        VehicleState initial = new VehicleState(this);
+        TextView nameLabel = new TextView(this); nameLabel.setText("Vehicle name (only on this phone)"); layout.addView(nameLabel);
+        EditText name = new EditText(this); name.setSingleLine(true); name.setText(initial.name); layout.addView(name);
+        TextView nicknameLabel = new TextView(this); nicknameLabel.setText("Name used in greetings"); layout.addView(nicknameLabel);
+        EditText nickname = new EditText(this); nickname.setSingleLine(true); nickname.setText(initial.nickname); layout.addView(nickname);
+        button(layout, "Save greeting names", () -> {
+            String display = name.getText().toString().trim(), spoken = nickname.getText().toString().trim();
+            if (!VehicleGreetings.validName(display) || !VehicleGreetings.validName(spoken)) {
+                VehicleRuntime.status(this, "Use names of 1 to 40 characters without control characters or braces."); return;
+            }
+            synchronized (VehicleRuntime.class) {
+                VehicleState state = new VehicleState(this); state.name = display; state.nickname = spoken;
+                state.status = "Names saved on this phone. The next greeting will use your chosen name."; state.save();
+            }
+        });
+        button(layout, "Choose your vehicle", this::choose);
         button(layout, "Try greeting while parked", () -> {
             VehicleState state = new VehicleState(this);
             stopService(new Intent(this, VehicleAudioService.class));
@@ -59,12 +74,12 @@ public final class VehicleSetupActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 2); return;
         }
         BluetoothAdapter adapter = getSystemService(BluetoothManager.class).getAdapter();
-        if (adapter == null || !adapter.isEnabled()) { VehicleRuntime.status(this, "Turn on Bluetooth and pair Cadillac CUE in Android first."); return; }
+        if (adapter == null || !adapter.isEnabled()) { VehicleRuntime.status(this, "Turn on Bluetooth and pair your vehicle in Android first."); return; }
         java.util.List<BluetoothDevice> devices = new java.util.ArrayList<>(adapter.getBondedDevices());
-        if (devices.isEmpty()) { VehicleRuntime.status(this, "Pair Cadillac CUE in Android first."); return; }
+        if (devices.isEmpty()) { VehicleRuntime.status(this, "Pair your vehicle in Android first."); return; }
         String[] labels = new String[devices.size()];
         for (int n = 0; n < devices.size(); n++) labels[n] = devices.get(n).getName() + " · " + devices.get(n).getAddress();
-        new AlertDialog.Builder(this).setTitle("Which paired device is Fergalicious?").setItems(labels, (dialog, which) -> associate(devices.get(which).getAddress())).show();
+        new AlertDialog.Builder(this).setTitle("Which paired device is your vehicle?").setItems(labels, (dialog, which) -> associate(devices.get(which).getAddress())).show();
     }
     private void associate(String address) {
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP)) {
@@ -89,7 +104,7 @@ public final class VehicleSetupActivity extends Activity {
             if (!manager.getAssociations().contains(address)) throw new SecurityException();
             manager.startObservingDevicePresence(address);
             synchronized (VehicleRuntime.class) {
-                VehicleState state = new VehicleState(this); state.address = address; state.status = "Automatic greetings enabled for the selected Cadillac.";
+                VehicleState state = new VehicleState(this); state.address = address; state.status = "Automatic greetings enabled for the selected vehicle.";
                 if (!state.save()) throw new IllegalStateException();
             }
             VehicleReceiver.start(this, address, true);

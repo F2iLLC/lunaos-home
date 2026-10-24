@@ -37,7 +37,7 @@ export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.andro
       <intent-filter><action android:name="android.companion.CompanionDeviceService" /></intent-filter>
     </service>
     <receiver android:name="io.github.f2illc.lunaos.home.vehicle.VehicleReceiver" android:exported="true">
-      <intent-filter><action android:name="android.bluetooth.device.action.ACL_CONNECTED" /><action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" /></intent-filter>
+      <intent-filter><action android:name="android.bluetooth.device.action.ACL_CONNECTED" /><action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" /><action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" /></intent-filter>
     </receiver>
     <activity android:name=".VaultActivity" android:exported="false" />
     <activity android:name="io.github.f2illc.lunaos.directtlsprobe.PairingActivity" android:exported="false" />
@@ -187,7 +187,7 @@ export async function prepareAndroid({
   const directJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/directtlsprobe');
   const vehicleJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/vehicle');
   const vehicleRoot = new URL('./android/vehicle/', import.meta.url);
-  const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java'];
+  const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java'];
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
