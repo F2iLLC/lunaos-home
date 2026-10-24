@@ -118,7 +118,7 @@ public final class VehicleAudioService extends Service {
         VehicleState settings = new VehicleState(this);
         greetingPeriod = VehicleRuntime.period();
         passengerDecision = settings.passengers.decide(trip, System.currentTimeMillis(), VehicleRuntime.boot(this), greetingPeriod);
-        VehicleGreetings.Choice choice = VehicleGreetings.withPassengers(greetingPeriod, settings.nickname, settings.lastGreetingId, text, passengerDecision);
+        VehicleGreetings.Choice choice = VehiclePassengers.choose(greetingPeriod, settings.nickname, settings.lastGreetingId, text, passengerDecision);
         if (choice == null) { attempted = true; VehicleRuntime.audio(this, "Greetings silenced by your preferences."); return; }
         generating = true;
         final int generation = ++audioEpoch;

@@ -28,7 +28,7 @@ public final class VehiclePassengersTest {
         // Exercise the same selection -> route check -> durable trip claim order as Android,
         // with the final speaker replaced by an in-memory sink.
         void deliver(Decision prepared, boolean route) {
-            VehicleGreetings.Choice choice = VehicleGreetings.withPassengers("afternoon", "Example", -1, "", prepared);
+            VehicleGreetings.Choice choice = VehiclePassengers.choose("afternoon", "Example", -1, "", prepared);
             if (choice == null || !prepared.same(decision())) return;
             VehiclePlaybackGate gate = new VehiclePlaybackGate();
             gate.observe(route, false); gate.seekCompleted();

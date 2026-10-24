@@ -79,6 +79,11 @@ public final class VehiclePassengers {
         Decision(String kind, String text) { this.kind = kind; this.text = text; }
         public boolean same(Decision other) { return other != null && kind.equals(other.kind) && Objects.equals(text, other.text); }
     }
+    public static VehicleGreetings.Choice choose(String period, String nickname, int lastId, String preferred, Decision passengers) {
+        if ("silent".equals(passengers.kind)) return null;
+        return passengers.text == null ? VehicleGreetings.choose(period, nickname, lastId, preferred)
+            : new VehicleGreetings.Choice(-1, passengers.text);
+    }
     public static Decision decide(Provider provider, String trip, long now, String period,
                                   List<Profile> profiles, boolean ownerConfirmationEnabled,
                                   Identity identity, boolean silenced) {

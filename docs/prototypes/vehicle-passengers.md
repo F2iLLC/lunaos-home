@@ -5,6 +5,14 @@ Bluetooth output, offline speech, atomic trip claim, reconnect grace, local
 configuration and Node/JVM test infrastructure. It does not install or access
 vehicle sensors. The dependency is PR #117; this change is reviewed separately.
 
+The dependency's cached ElevenLabs voice and four-second lead-in are preserved.
+For this manual increment, select the Android offline voice to hear new group and
+named greetings. Existing imported driver voice packs do not contain passenger
+phrases. If a cached voice is selected and the exact passenger clip is absent,
+playback reports unavailable and stays quiet; it never substitutes a different
+voice or sends children's names to a speech provider. Passenger voice-pack
+generation/provisioning is not implemented here.
+
 ## Capability investigation and decision
 
 Target: 2018 Cadillac XT5 with factory CUE and wired Android Auto. Sources checked

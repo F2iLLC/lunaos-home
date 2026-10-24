@@ -19,7 +19,7 @@ public final class VehicleGreetings {
     public static final class Choice {
         public final int id;
         public final String text;
-        private Choice(int id, String text) { this.id = id; this.text = text; }
+        Choice(int id, String text) { this.id = id; this.text = text; }
     }
     public static boolean validName(String name) {
         if (name == null || name.trim().isEmpty() || name.length() > 40) return false;
@@ -46,9 +46,5 @@ public final class VehicleGreetings {
         int selected = new java.security.SecureRandom().nextInt(LINES.length - (previousKnown ? 1 : 0));
         if (previousKnown && selected >= lastId) selected++;
         return new Choice(selected, LINES[selected].replace("{period}", period).replace("{name}", nickname.trim()));
-    }
-    public static Choice withPassengers(String period, String nickname, int lastId, String preferred, VehiclePassengers.Decision passengers) {
-        if ("silent".equals(passengers.kind)) return null;
-        return passengers.text == null ? choose(period, nickname, lastId, preferred) : new Choice(-1, passengers.text);
     }
 }

@@ -35,7 +35,7 @@ test('vehicle grants are separate, replies are idempotent, stale events cannot r
 
 test('vehicle wire contract rejects location, controls, arbitrary context and wrong vehicle', () => {
   const sessions = createVehicleSessions(); sessions.approve('phone');
-  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { name: 'Example' }, { nickname: 'Example' }, { endpoint: 'other' }, { period: 'fake' }])
+  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { name: 'Example' }, { nickname: 'Example' }, { children: ['Alex'] }, { occupied: true }, { identity: 'Alex' }, { endpoint: 'other' }, { period: 'fake' }])
     assert.throws(() => sessions.receive('phone', { ...event(), ...extra }));
   assert.throws(() => sessions.setStyle({ style: 'invent appointments' }));
 });
@@ -109,7 +109,7 @@ test('vehicle audio lead-in primes the route for four seconds without dropping t
 
 test('all twelve greetings match across phone/backend and never repeat on consecutive trips', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-greetings-')); t.after(() => rm(directory, { recursive: true, force: true }));
-  execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleGreetings.java', 'scripts/android/vehicle/VehiclePassengers.java', 'test/java/VehicleGreetingsTest.java'], { windowsHide: true });
+  execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleGreetings.java', 'test/java/VehicleGreetingsTest.java'], { windowsHide: true });
   const catalog = Object.values(vehicleGreetings).flat();
   assert.equal(new Set(catalog).size, 12);
   const examples = ['morning', 'afternoon', 'evening'].flatMap(period => catalog.map(line => line.replace('{period}', period)));
