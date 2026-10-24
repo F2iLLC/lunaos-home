@@ -96,6 +96,25 @@ do not recreate identities or infer cleanup success. `restart-state.pending`
 also remains encrypted and may be removed only as part of explicit owned
 cleanup after the committed state has been read successfully.
 
+### Explicit runner-only repair
+
+The first post-restart attempt hit `ENOBUFS` while reading the installed APK:
+the inspected debug package was 135,324,589 bytes, larger than the original
+100 MiB capture limit. The check now bounds its output by the exact inspected
+APK size and still requires matching byte count and SHA-256. Preflight failures
+save a minimized failure result instead of dumping child output buffers.
+
+For this reviewed harness repair, append `--repair-runner` to the verification
+command. The terminal shows the original prepared source and the new runner
+source before `begin`. The original preparation source, boot marker, identities,
+record/enrollment hashes and both build hashes are preserved; a separate
+`runnerHead` pins the continuation. A clean descendant commit may differ only
+in the named runner/state helper, their test, and the two restart handoff/guide
+documents. Native, Android, transport and dependency changes are refused.
+Existing state cannot silently adopt a new head, and a second repair transition
+is refused. Normal verification/cleanup then uses that pinned continuation.
+This is explicit test-harness provenance, not a production migration mechanism.
+
 ## Evidence boundary
 
 This sequence deliberately ends the grant and host before Restart and

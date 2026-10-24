@@ -13,6 +13,7 @@ const schema = z.object({
   schema: z.literal(1), fictional: z.literal(true),
   phase: z.enum(['starting', 'prepared', 'verified', 'cleaned']),
   sourceHead: z.string().regex(/^[a-f0-9]{40}$/), nativeSha256: sha, apkSha256: sha,
+  runnerHead: z.string().regex(/^[a-f0-9]{40}$/).optional(),
   boot: z.string().regex(/^[0-9]{18}$/), probeId: z.string().uuid(),
   serial: z.string().min(1).max(120), model: z.string().min(1).max(100), api: z.string().regex(/^\d+$/),
   hostKey: pem, hostCert: pem, ca: pem, phoneCert: pem.optional(), peer: sha.optional(),
@@ -31,11 +32,26 @@ export function requireRestart(state, current) {
   assert.equal(state.phase, 'prepared', 'Only a completed preparation can verify restart');
   assert.match(current.boot, /^[0-9]{18}$/);
   assert.notEqual(state.boot, current.boot, 'cold-restart-not-observed');
-  for (const key of ['sourceHead', 'nativeSha256', 'apkSha256', 'serial', 'model', 'api']) {
+  assert.equal(current.sourceHead, state.runnerHead ?? state.sourceHead, 'Restart fixture mismatch: sourceHead');
+  for (const key of ['nativeSha256', 'apkSha256', 'serial', 'model', 'api']) {
     assert.equal(current[key], state[key], `Restart fixture mismatch: ${key}`);
   }
   assert.ok(state.phoneCert && state.peer && state.ciphertextSha256 && state.registrySha256,
     'Completed preparation receipts are required');
+}
+export function reviewedRunnerContinuation(state, head, changedFiles) {
+  schema.parse(state);
+  assert.match(head, /^[a-f0-9]{40}$/);
+  assert.equal(state.phase, 'prepared');
+  assert.equal(state.runnerHead, undefined, 'A runner continuation is already pinned');
+  assert.notEqual(head, state.sourceHead);
+  const allowed = new Set(['scripts/test-attended-home-direct.mjs',
+    'scripts/test-fixtures/joined-restart-state.mjs', 'test/joined-restart-state.test.js',
+    'docs/prototypes/joined-home-restart.md', 'docs/prototypes/session-three-storage-pairing-handoff.md']);
+  assert.ok(changedFiles.includes('scripts/test-attended-home-direct.mjs') &&
+    changedFiles.every(file => allowed.has(file)), 'Only the reviewed runner/test/docs repair may continue this fixture');
+  // Original source, boot marker, protected identities, hashes and preparation remain unchanged.
+  return { ...state, runnerHead: head };
 }
 function transform(operation, bytes) {
   const worker = fileURLToPath(new URL('../windows-attended-state-worker.ps1', import.meta.url));

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, X509Certificate } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,15 +16,18 @@ import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
 import { fileHash, windowsBootMarker, requireRestart, restartDirectory, lockRestartDirectory,
-  saveRestartState, readRestartState, removeRestartState, newRestartProbeId } from './test-fixtures/joined-restart-state.mjs';
+  saveRestartState, readRestartState, removeRestartState, newRestartProbeId, reviewedRunnerContinuation } from './test-fixtures/joined-restart-state.mjs';
 
 let releaseRestartLock = () => {};
+let activeReceipt;
 try {
-const [output, apk, serial, model, apiText, address, scenario = 'reconnect'] = process.argv.slice(2);
+const [output, apk, serial, model, apiText, address, scenario = 'reconnect', repairFlag] = process.argv.slice(2);
+assert.ok(process.argv.length <= 10 && (repairFlag === undefined || repairFlag === '--repair-runner'));
 assert.ok(['reconnect', 'lock', 'sleep', 'rogue', 'restart-prepare', 'restart-verify', 'restart-cleanup'].includes(scenario), 'Select a supported attended Home scenario');
 const restart = scenario.startsWith('restart-');
 const resuming = scenario === 'restart-verify';
 const cleaning = scenario === 'restart-cleanup';
+assert.ok(repairFlag === undefined || resuming || cleaning);
 assert.ok(process.platform === 'win32' && process.stdin.isTTY, 'Attended Windows terminal required');
 assert.ok(output && apk && serial && model && /^\d+$/.test(apiText));
 privateTestAddress(address);
@@ -56,18 +59,30 @@ const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thurs
 const evidence = { result: 'INCOMPLETE', stage: 'preflight', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
 const resultPath = path.join(evidencePath, restart ? `${scenario}-${Date.now()}.json` : 'result.json');
 let restartState;
+let repairPending = false;
 if (restart) {
   releaseRestartLock = lockRestartDirectory(evidencePath);
   writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+  activeReceipt = { evidence, resultPath };
   const current = { sourceHead, apkSha256: evidence.apkSha256,
     nativeSha256: fileHash(path.join(repo, 'src-tauri/target/debug/lunaos-home-preview.exe')),
     boot: windowsBootMarker(), serial, model, api: apiText };
   evidence.sourceHead = sourceHead; evidence.nativeSha256 = current.nativeSha256;
   if (resuming || cleaning) {
     restartState = readRestartState(evidencePath);
-    for (const key of ['sourceHead', 'nativeSha256', 'apkSha256', 'serial', 'model', 'api']) {
+    for (const key of ['nativeSha256', 'apkSha256', 'serial', 'model', 'api']) {
       assert.equal(restartState[key], current[key], `Retained fixture mismatch: ${key}`);
     }
+    if (repairFlag && restartState.runnerHead !== sourceHead) {
+      git('merge-base', '--is-ancestor', restartState.sourceHead, sourceHead);
+      restartState = reviewedRunnerContinuation(restartState, sourceHead,
+        git('diff', '--name-only', restartState.sourceHead, sourceHead).split(/\r?\n/));
+      repairPending = true;
+      console.log(`Reviewed runner-only repair: prepared source ${restartState.sourceHead}; continuing runner ${sourceHead}. Native executable and APK hashes are unchanged. Type begin below only to continue with this repair.`);
+    }
+    assert.equal(restartState.runnerHead ?? restartState.sourceHead, sourceHead, 'Use the pinned runner source');
+    evidence.preparedSourceHead = restartState.sourceHead;
+    if (restartState.runnerHead) evidence.checks.push('Explicit reviewed runner-only continuation; original preparation source, boot marker and both build hashes retained');
     if (resuming) requireRestart(restartState, current); // Before USB, UI, listener or store access.
   } else {
     restartState = { schema: 1, fictional: true, phase: 'starting', ...current,
@@ -77,6 +92,8 @@ if (restart) {
   try {
     assert.equal(await start.question(`Run ${scenario} for the retained fictional setup? Type begin: `), 'begin', 'Not started');
   } finally { start.close(); }
+  if (repairPending) saveRestartState(evidencePath, restartState);
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
 }
 function usbSnapshot() {
   const adbList = execFileSync(adbPath, ['devices', '-l'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
@@ -125,12 +142,17 @@ if (resuming || (cleaning && installedPackage)) {
   const paths = adb(['shell', 'pm', 'path', pkg]).trim().split(/\r?\n/);
   assert.equal(paths.length, 1, 'Expected one retained base APK');
   assert.match(paths[0], /^package:\/data\/app\/[^\r\n]+\/base\.apk$/);
+  evidence.stage = 'installed-apk-check';
+  writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+  const expectedSize = statSync(apk).size;
   const bytes = execFileSync(adbPath, ['-s', serial, 'exec-out', 'cat', paths[0].slice(8)],
-    { timeout: 30000, windowsHide: true, maxBuffer: 100 * 1024 * 1024 });
+    { timeout: 30000, windowsHide: true, maxBuffer: expectedSize });
+  assert.equal(bytes.length, expectedSize, 'Installed package size changed');
   assert.equal(createHash('sha256').update(bytes).digest('hex'), restartState.apkSha256, 'Installed package changed');
 } else if (!cleaning) assert.equal(installedPackage, '', 'Never overwrite an installed Home direct test package');
 if (!restart) mkdirSync(evidencePath);
 if (!restart) writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+if (!restart) activeReceipt = { evidence, resultPath };
 const fixtures = restartState?.hostKey ? {
   ca: Buffer.from(restartState.ca), hostIdentity: { key: Buffer.from(restartState.hostKey),
     cert: Buffer.from(restartState.hostCert), fingerprint: fingerprint(restartState.hostCert) }, cleanup() {},
@@ -518,4 +540,15 @@ finally {
   if (restart && !cleaning) console.log('Retained fictional setup. Never reboot automatically. Use restart-verify after an operator Restart, then separate restart-cleanup.');
   if (failures.length) throw new AggregateError(failures, 'Owned fictional cleanup failed');
 }
+} catch (error) {
+  if (activeReceipt) {
+    const { evidence, resultPath } = activeReceipt;
+    evidence.result = 'INCOMPLETE'; evidence.error = error.name;
+    if (typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code)) evidence.errorCode = error.code;
+    evidence.finished = new Date().toISOString();
+    writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
+  }
+  console.error('RUNNER_REFUSED', error.name, typeof error.code === 'string' && /^[A-Z_]{1,40}$/.test(error.code) ? error.code : '');
+  if (['Attended Windows terminal required', 'cold-restart-not-observed', 'Not started'].includes(error.message)) console.error(error.message);
+  process.exitCode = 1;
 } finally { releaseRestartLock(); }

@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { requireRestart, restartDirectory, saveRestartState, readRestartState,
-  lockRestartDirectory, windowsBootMarker, removeRestartState } from '../scripts/test-fixtures/joined-restart-state.mjs';
+  lockRestartDirectory, windowsBootMarker, removeRestartState, reviewedRunnerContinuation } from '../scripts/test-fixtures/joined-restart-state.mjs';
 
 function fixture() {
   return { schema: 1, fictional: true, phase: 'prepared', sourceHead: 'a'.repeat(40),
@@ -45,6 +45,23 @@ test('restart output refuses reuse, descendants and redirected paths', t => {
   const linked = path.join(root, 'linked');
   symlinkSync(output, linked, process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(() => restartDirectory(linked, false, root), /linked/);
+});
+test('reviewed runner continuation preserves preparation and refuses native or unrelated changes', () => {
+  const original = fixture(), head = '1'.repeat(40);
+  const changed = ['scripts/test-attended-home-direct.mjs', 'scripts/test-fixtures/joined-restart-state.mjs'];
+  const continued = reviewedRunnerContinuation(original, head, changed);
+  assert.deepEqual(continued, { ...original, runnerHead: head });
+  assert.equal(original.runnerHead, undefined);
+  const current = { ...original, sourceHead: head, boot: '638000001000000000' };
+  requireRestart(continued, current);
+  assert.throws(() => requireRestart(original, current), /sourceHead/);
+  assert.throws(() => requireRestart(continued, { ...current, boot: original.boot }), /cold-restart/);
+  assert.throws(() => requireRestart(continued, { ...current, nativeSha256: '2'.repeat(64) }), /nativeSha256/);
+  assert.throws(() => reviewedRunnerContinuation(continued, '2'.repeat(40), changed), /already pinned/);
+  for (const file of ['src-tauri/src/lib.rs', 'scripts/android-direct-tls-probe/PairingActivity.java', 'package-lock.json', 'lib/direct-vault-tls.js']) {
+    assert.throws(() => reviewedRunnerContinuation(original, head, [...changed, file]), /Only the reviewed/);
+  }
+  assert.throws(() => reviewedRunnerContinuation(original, head, []));
 });
 test('all joined restart modes refuse noninteractive execution before device access', () => {
   for (const mode of ['restart-prepare', 'restart-verify', 'restart-cleanup']) {
