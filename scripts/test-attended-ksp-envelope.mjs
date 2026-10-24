@@ -90,6 +90,9 @@ async function invoke(nativeMode) {
 function passed(result) { return result.code === 0 && result.stages.includes('envelope-result: PASS'); }
 try {
   console.log(statements[mode]);
+  if (['prepare', 'read', 'verify-restart'].includes(mode)) {
+    console.log('After each successful OS password dialog, click the Home test window within 30 seconds. Never enter a password in Home or this terminal.');
+  }
   assert.equal(await terminal.question('Type begin to run this bounded attended step: '), 'begin', 'Not started');
   const before = existsSync(envelope) ? hash(envelope) : null;
   if (mode === 'prepare') {

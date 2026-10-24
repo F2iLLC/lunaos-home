@@ -38,10 +38,16 @@ registers the existing session/power monitor. Lock, suspend, session changes,
 window closure and a 120-second overall deadline end the process. While the
 worker holds its data key, the UI loop checks foreground ownership and a
 five-second key-use deadline every 10 ms; the operation also checks foreground
-before and after decryption. After the OS dialog returns, a bounded 500 ms
-activation handoff permits the owner UI thread to regain foreground. No record
-operation runs during that interval, focus is never forced, and failure wipes
-the returned buffer. Session/power and total/key deadlines remain active.
+before and after decryption. The CNG dialog does not reliably restore owner
+focus on the declared PC. Its first returned data-key buffer is immediately
+wiped without reading a record. The process retains only the protected CNG
+handle while waiting up to 30 seconds for the operator to click the Home window.
+It then attempts a silent unwrap on that already-authorized handle during the
+same bounded visit; failure denies access without another prompt or fallback.
+The new buffer is used only in foreground and wiped. No plaintext data key is
+retained during the wait, focus is never forced, and the session/power and
+120-second overall deadlines remain active. This uses provider authorization
+cached inside one short-lived process, never across visits or restarts.
 No reusable unlocked session is persisted. A new
 process always needs a new protected operation and checks silent denial before
 and after it. These are implementation boundaries, **not attended lifecycle
@@ -86,6 +92,9 @@ node scripts/test-attended-ksp-envelope.mjs read $fixtureDir
 ~~~
 
 The runner requires a TTY and a separate typed begin decision for each step.
+After each successful Windows password dialog, click the Home test window
+whose title says "click here to continue" within 30 seconds. That return is
+required; do not enter a password into the Home window or terminal.
 Preparation builds the executable from the clean source and records its commit
 and SHA-256. Retain the same worktree, executable and fixture directory through
 restart. The only operator input collected by the runner is fixed approval or

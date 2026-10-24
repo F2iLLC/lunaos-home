@@ -218,9 +218,19 @@ bfab342ca853c28f8d7d411e63436778af32ed13, the operator completed the creation
 and second OS key-password dialogs; preparation then returned
 foreground-visit-ended without committing an envelope. Explicit owned cleanup
 passed with exit 0 and both the protector receipt and envelope absent.
-The repair allows a bounded 500 ms return-to-foreground handoff after CNG
-returns, without forcing focus or using the key for records during that wait.
-Its regression keeps the deadline strict even if focus arrives late. Further
+The first repair on 2f7e34827f57cc9af3156d031272a2f659e8f032 allowed a bounded
+500 ms return-to-foreground handoff. A second attended preparation still failed
+after protector creation with foreground-return-expired; explicit owned cleanup
+again passed, with no committed envelope. A password-free owned-dialog focus
+diagnostic passed before/after its dialog, isolating the observed problem to
+the CNG prompt handoff rather than ordinary worker-dialog ownership.
+The revised flow wipes the OS-returned data key immediately, waits up to
+30 seconds with only the protected CNG handle for an explicit click on Home,
+then silently unwraps on that same authorized handle for the bounded foreground
+comparison. It never forces focus or retains a plaintext data key while
+waiting. A failed silent unwrap denies access; a fresh process still requires
+a new OS gesture. Its regression keeps the deadline strict even if focus
+arrives late. Further
 attended results are recorded on the PR against their exact source head.
 No actual restart, physical phone action or real credential reset was performed
 for this slice at this handoff revision.

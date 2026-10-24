@@ -378,7 +378,7 @@ enum ForegroundReturn {
     Expired,
 }
 fn foreground_return(elapsed: Duration, owner_foreground: bool) -> ForegroundReturn {
-    if elapsed >= Duration::from_millis(500) {
+    if elapsed >= Duration::from_secs(30) {
         ForegroundReturn::Expired
     } else if owner_foreground {
         ForegroundReturn::Ready
@@ -387,9 +387,15 @@ fn foreground_return(elapsed: Duration, owner_foreground: bool) -> ForegroundRet
     }
 }
 fn await_foreground(hwnd: HWND) -> Result<()> {
-    // NCrypt runs on a worker. Its dialog can return before the owner UI thread
-    // processes activation. No record operation is allowed during this interval;
-    // never force focus or accept a different foreground window.
+    // The Software KSP dialog does not reliably restore owner focus. Wait for
+    // explicit user return with NO plaintext data key retained. Never force focus.
+    unsafe {
+        SetWindowTextW(
+            hwnd,
+            w!("Home fictional key test - click here to continue (30 seconds)"),
+        )
+    }
+    .map_err(|_| "visit-window-unavailable")?;
     let start = Instant::now();
     loop {
         match foreground_return(start.elapsed(), unsafe { GetForegroundWindow() } == hwnd) {
@@ -406,11 +412,19 @@ fn unwrap(envelope: &Envelope, hwnd: HWND) -> Result<()> {
     envelope.silent()?;
     let (_provider, key) = open_software_key(&envelope.name)?;
     property(&key, NCRYPT_WINDOW_HANDLE_PROPERTY, &(hwnd.0 as usize))?;
-    let secret =
-        Secret(crypt(&key, &envelope.wrapped, true, false).map_err(|_| "os-key-release-denied")?);
-    let active = ActiveKey::begin();
-    println!("envelope-stage: os-key-released");
+    // The OS gesture may finish with a different foreground window. Immediately
+    // wipe its returned data key, then wait with only the protected CNG handle.
+    // This is one process-bounded authorized visit, never an unlocked disk state.
+    drop(Secret(
+        crypt(&key, &envelope.wrapped, true, false).map_err(|_| "os-key-release-denied")?,
+    ));
+    println!("envelope-stage: os-key-gesture-completed");
     await_foreground(hwnd)?;
+    let active = ActiveKey::begin();
+    KEY_FOREGROUND.store(true, Ordering::SeqCst);
+    let secret = Secret(
+        crypt(&key, &envelope.wrapped, true, true).map_err(|_| "foreground-key-release-denied")?,
+    );
     // No key-bearing session is retained while waiting for terminal input.
     let start = Instant::now();
     foreground(hwnd, start)?;
@@ -430,8 +444,9 @@ fn prepare(path: &Path, hwnd: HWND) -> Result<()> {
     let (_provider, mut protector, name) = create_key(hwnd, path)?;
     println!("envelope-stage: protector-created");
     let result = (|| {
-        let active = ActiveKey::begin();
         await_foreground(hwnd)?;
+        let active = ActiveKey::begin();
+        KEY_FOREGROUND.store(true, Ordering::SeqCst);
         let secret = data_key()?;
         let mut envelope = Envelope {
             name: name.clone(),
@@ -531,6 +546,23 @@ fn visit(operation: impl FnOnce(HWND) -> Result<()> + Send + 'static) -> Result<
 }
 
 pub(super) fn run(arguments: &[String]) -> Result<()> {
+    if arguments == ["--envelope-attended-foreground-check"] {
+        return visit(|hwnd| {
+            await_foreground(hwnd)?;
+            println!("envelope-stage: owner-foreground-before-dialog");
+            unsafe {
+                MessageBoxW(
+                    Some(hwnd),
+                    w!("Focus diagnostic only. No key or password is involved. Click OK."),
+                    w!("Home focus diagnostic"),
+                    MB_OK,
+                );
+            }
+            await_foreground(hwnd)?;
+            println!("envelope-stage: owner-foreground-after-dialog");
+            Ok(())
+        });
+    }
     let [mode, file] = arguments else {
         return Err("envelope-arguments-invalid");
     };
@@ -806,7 +838,7 @@ mod tests {
         );
         for focused in [false, true] {
             assert_eq!(
-                foreground_return(Duration::from_millis(500), focused),
+                foreground_return(Duration::from_secs(30), focused),
                 ForegroundReturn::Expired
             );
         }
