@@ -56,6 +56,27 @@ test('setup can create and edit selected records; read-only and setup both rejec
   assert.deepEqual(rows.get('sam-school'), sam);
 });
 
+test('assistant deletion requires an explicit grant limited to selected records', async () => {
+  const { service, rows, calls } = setup();
+  const assistant = service.openConnection({ deviceId: 'windows-example', destination: 'claude' });
+  const grant = service.approveDelete(assistant, { recordIds: ['alex-work'], lifetimeMs: 1000 });
+
+  for (const action of ['read', 'create', 'edit']) {
+    await assert.rejects(assistant.execute(grant, {
+      action, recordId: 'alex-work', ...(action === 'read' ? {} : { data: alex }),
+    }), denied('DENIED'));
+  }
+  await assert.rejects(assistant.execute(grant, { action: 'delete', recordId: 'sam-school' }), denied('DENIED'));
+  assert.deepEqual(calls, []);
+
+  assert.deepEqual(await assistant.execute(grant, { action: 'delete', recordId: 'alex-work' }), {
+    status: 'applied', recordId: 'alex-work', accessEnded: false,
+  });
+  assert.equal(rows.has('alex-work'), false);
+  assert.deepEqual(rows.get('sam-school'), sam);
+  assert.deepEqual(calls, [['delete', 'alex-work']]);
+});
+
 for (const end of ['expire', 'revoke', 'disconnect', 'remove-device', 'shutdown']) {
   test(`${end} blocks queued writes and a pending read response`, async () => {
     const { service, store, rows, calls, setTime } = setup();
