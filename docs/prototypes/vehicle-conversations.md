@@ -24,6 +24,8 @@ Supply the speech credential through the host-only `LUNA_HOME_ELEVENLABS_API_KEY
 
 The host must run under an MCP client that advertises and handles `sampling/createMessage`. That client supplies the existing assistant/model connection. Merely launching the stdio server or signing into an unrelated chat does not provide that capability. The repository does not bundle a second model agent or silently reuse unrelated account credentials. Without a connected sampling-capable client or a configured speech provider, requests report unavailable. Tests use a synthetic sampling client; it is not evidence of a live provider answer.
 
+This currently reuses Home's existing MCP v1 sampling hook. [Sampling is deprecated in MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/client/sampling); the specification recommends direct provider integration for new implementations. Treat the hook as a legacy compatibility path, not the recommended long-term runtime. A direct model adapter and its authorized credential configuration remain required work for standalone hosting.
+
 The enrolled phone's existing external `config.json` also needs `vehicleConversations: true`. This does not create any vault read/write grant. The host approves conversation for only its configured enrolled peer and voice. Greetings have their own permission. Existing network restrictions remain: TLS binds to loopback or a literal private IPv4 address. A reachable LAN or owner-configured private VPN is needed; this work does not publish a public endpoint or configure an away-from-home relay. No firewall or network-classification change is made automatically.
 
 ## State, continuity and limits
@@ -51,3 +53,5 @@ For attended acceptance, keep the vehicle parked:
 5. Clear the conversation and confirm the Home tool can no longer read it. Check local expiry separately. Verify an offline trip still produces one cached greeting and a brief reconnect stays quiet.
 
 Keep live evidence private. A compiled APK or synthetic provider response does not establish speech recognition, provider access, LAN reachability, vehicle audibility, locked-phone greeting wake, or away-from-home connectivity.
+
+The isolated harness supports an additional read-only diagnostic: `adb -s <selected-phone> shell am instrument -w -e mode conversation-capability io.github.f2illc.lunaos.home.vehicleprobe/io.github.f2illc.lunaos.directtlsprobe.VehicleProbe`. It reports on-device recognition availability, microphone permission and whether Home conversation is configured. It does not start the microphone, capture speech, or contact a provider. Availability alone does not establish that the local English model recognizes a spoken question.

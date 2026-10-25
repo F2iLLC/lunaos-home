@@ -13,6 +13,16 @@ public final class VehicleProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             String mode = arguments == null ? "prepare" : arguments.getString("mode", "prepare");
+            if ("conversation-capability".equals(mode)) {
+                android.content.Context context = getTargetContext();
+                result.putBoolean("onDeviceRecognitionAvailable", android.os.Build.VERSION.SDK_INT >= 31 && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(context));
+                result.putBoolean("microphonePermissionGranted", context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED);
+                boolean configured = false;
+                try { configured = FixtureConfig.read(context).optBoolean("vehicleConversations", false); } catch (Exception unavailable) { }
+                result.putBoolean("homeConversationConfigured", configured);
+                result.putString("result", "Capability check only; microphone not started and no text shared.");
+                finish(0, result); return;
+            }
             if ("configure-voice".equals(mode) || "verify-voice".equals(mode)) {
                 android.util.AtomicFile settings = new android.util.AtomicFile(new java.io.File(getTargetContext().getNoBackupFilesDir(), "vehicle-session.json"));
                 org.json.JSONObject state;
