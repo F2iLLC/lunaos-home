@@ -18,6 +18,7 @@ final class VehicleState {
     String voiceId = "";
     String voicePack = "";
     VehicleTrip trip = new VehicleTrip();
+    VehiclePassengerState passengers = new VehiclePassengerState();
     VehicleState(Context context) {
         file = new AtomicFile(new File(context.getNoBackupFilesDir(), "vehicle-session.json"));
         try (InputStream in = file.openRead()) {
@@ -35,6 +36,7 @@ final class VehicleState {
             if (!VehicleGreetings.validName(name) || !VehicleGreetings.validName(nickname)) throw new IOException("Invalid names");
             trip.id = data.getString("trip"); trip.claimed = data.getBoolean("claimed");
             trip.boot = data.getInt("boot"); trip.sequence = data.getInt("sequence"); trip.disconnectedAt = data.getLong("disconnected");
+            passengers = VehiclePassengerState.read(data.optJSONObject("passengers"));
         } catch (FileNotFoundException absent) { }
         catch (Exception corrupt) { address = ""; status = "Setup unavailable. Choose the vehicle again."; }
     }
@@ -43,7 +45,7 @@ final class VehicleState {
         try {
             JSONObject data = new JSONObject().put("address", address).put("status", status).put("backend", backend).put("audio", audio).put("lastGreetingId", lastGreetingId).put("name", name).put("nickname", nickname)
                 .put("voiceId", voiceId).put("voicePack", voicePack).put("trip", trip.id).put("claimed", trip.claimed).put("boot", trip.boot)
-                .put("sequence", trip.sequence).put("disconnected", trip.disconnectedAt);
+                .put("sequence", trip.sequence).put("disconnected", trip.disconnectedAt).put("passengers", passengers.json());
             out = file.startWrite(); out.write(data.toString().getBytes("UTF-8")); file.finishWrite(out); return true;
         } catch (Exception failure) { if (out != null) file.failWrite(out); return false; }
     }

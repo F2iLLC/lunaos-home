@@ -35,7 +35,7 @@ test('vehicle grants are separate, replies are idempotent, stale events cannot r
 
 test('vehicle wire contract rejects location, controls, arbitrary context and wrong vehicle', () => {
   const sessions = createVehicleSessions(); sessions.approve('phone');
-  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { name: 'Example' }, { nickname: 'Example' }, { endpoint: 'other' }, { period: 'fake' }])
+  for (const extra of [{ location: [1, 2] }, { command: 'accelerate' }, { appointments: 2 }, { name: 'Example' }, { nickname: 'Example' }, { children: ['Alex'] }, { occupied: true }, { identity: 'Alex' }, { endpoint: 'other' }, { period: 'fake' }])
     assert.throws(() => sessions.receive('phone', { ...event(), ...extra }));
   assert.throws(() => sessions.setStyle({ style: 'invent appointments' }));
 });

@@ -15,12 +15,13 @@ final class VehicleRuntime {
     static synchronized VehicleState connected(Context c) {
         VehicleState s = new VehicleState(c); if (s.address.isEmpty()) return s;
         s.trip.connect(SystemClock.elapsedRealtime(), boot(c));
+        s.passengers.connect(s.trip.id, System.currentTimeMillis(), boot(c));
         s.status = s.trip.claimed ? "Greeting already attempted this trip. Reconnects will stay quiet." : "Vehicle connected.";
         s.save(); return s;
     }
     static synchronized boolean claim(Context c, String trip, int greetingId) {
         VehicleState s = new VehicleState(c);
-        if (!s.trip.id.equals(trip) || s.address.isEmpty() || !s.trip.claim()) return false;
+        if (!s.trip.id.equals(trip) || s.address.isEmpty() || s.passengers.silenced || !s.trip.claim()) return false;
         s.lastGreetingId = greetingId;
         return s.save();
     }

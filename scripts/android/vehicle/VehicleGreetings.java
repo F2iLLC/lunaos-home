@@ -19,7 +19,7 @@ public final class VehicleGreetings {
     public static final class Choice {
         public final int id;
         public final String text;
-        private Choice(int id, String text) { this.id = id; this.text = text; }
+        Choice(int id, String text) { this.id = id; this.text = text; }
     }
     public static boolean validName(String name) {
         if (name == null || name.trim().isEmpty() || name.length() > 40) return false;
