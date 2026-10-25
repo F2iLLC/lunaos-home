@@ -15,6 +15,7 @@ import { privateTestAddress, certificateFingerprint, connectDirectVaultExperimen
 import { openWindowsProbeStore, removeWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { openWindowsPairingRegistry } from '../lib/windows-pairing-registry.js';
 import { openHostApprovalConsole } from './test-fixtures/host-approval-console.mjs';
+import { runAttendedVersionedEdit } from './test-fixtures/attended-versioned-edit.mjs';
 import { fileHash, windowsBootMarker, requireRestart, restartDirectory, lockRestartDirectory,
   saveRestartState, readRestartState, removeRestartState, newRestartProbeId, reviewedRunnerContinuation } from './test-fixtures/joined-restart-state.mjs';
 
@@ -23,7 +24,8 @@ let activeReceipt;
 try {
 const [output, apk, serial, model, apiText, address, scenario = 'reconnect', repairFlag] = process.argv.slice(2);
 assert.ok(process.argv.length <= 10 && (repairFlag === undefined || repairFlag === '--repair-runner'));
-assert.ok(['reconnect', 'lock', 'sleep', 'rogue', 'restart-prepare', 'restart-verify', 'restart-cleanup'].includes(scenario), 'Select a supported attended Home scenario');
+assert.ok(['reconnect', 'lock', 'sleep', 'rogue', 'stale-edit', 'write-unknown', 'restart-prepare', 'restart-verify', 'restart-cleanup'].includes(scenario), 'Select a supported attended Home scenario');
+const versionedEdit = ['stale-edit', 'write-unknown'].includes(scenario);
 const restart = scenario.startsWith('restart-');
 const resuming = scenario === 'restart-verify';
 const cleaning = scenario === 'restart-cleanup';
@@ -37,7 +39,14 @@ const repo = fileURLToPath(new URL('..', import.meta.url));
 const evidencePath = restart ? restartDirectory(output, scenario === 'restart-prepare') : newExternalEvidencePath(output, repo);
 const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', windowsHide: true }).trim();
 const sourceHead = git('rev-parse', 'HEAD');
-if (restart) assert.equal(git('status', '--porcelain'), '', 'Commit reviewed source before retained device tests');
+if (restart || versionedEdit) assert.equal(git('status', '--porcelain'), '', 'Commit reviewed source before retained or edit device tests');
+if (versionedEdit) {
+  const start = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    console.log(`Fictional ${scenario} check: separate host and phone approvals. The runner creates a competing Thursday edit or loses one Friday save receipt. No automatic retry or restart. Source: ${sourceHead}`);
+    assert.equal(await start.question('Type begin for this fictional edit test: '), 'begin', 'Not started');
+  } finally { start.close(); }
+}
 assert.ok(existsSync(apk));
 const adbPath = path.join(process.env.ANDROID_HOME, 'platform-tools/adb.exe');
 const pkg = 'io.github.f2illc.lunaos.home.preview.issue14direct.debug';
@@ -57,6 +66,7 @@ const wifiRoute = () => /\bdev wlan0\b/.test(adb(['shell', 'ip', '-4', 'route', 
 const fingerprint = certificate => certificateFingerprint(certificate);
 const record = { memberId: 'alex-example', label: 'Library visit', value: 'Thursday from protected storage' };
 const evidence = { result: 'INCOMPLETE', stage: 'preflight', scenario, model, api: Number(apiText), apkSha256: createHash('sha256').update(readFileSync(apk)).digest('hex'), checks: [] };
+if (versionedEdit) Object.assign(evidence, { sourceHead, nativeSha256: fileHash(path.join(repo, 'src-tauri/target/debug/lunaos-home-preview.exe')), contractVersion: 2 });
 const resultPath = path.join(evidencePath, restart ? `${scenario}-${Date.now()}.json` : 'result.json');
 let restartState;
 let repairPending = false;
@@ -157,7 +167,7 @@ const fixtures = restartState?.hostKey ? {
   ca: Buffer.from(restartState.ca), hostIdentity: { key: Buffer.from(restartState.hostKey),
     cert: Buffer.from(restartState.hostCert), fingerprint: fingerprint(restartState.hostCert) }, cleanup() {},
 } : createDirectTlsIdentities({ hostOnly: restart });
-let installed = false, store, visit, registry, reads = 0, writes = 0;
+let installed = false, store, visit, registry, editBaseRevision, reads = 0, writes = 0, editAttempts = 0;
 const hostConsole = openHostApprovalConsole({ readTimeoutMs: 30_000 });
 
 function appNodes() {
@@ -274,11 +284,11 @@ try {
     assert.equal(peer, restartState.peer, 'Retained Android identity changed');
     assert.equal(cert, restartState.phoneCert);
   }
-  store = await openWindowsProbeStore({ ...(restart && { probeId: restartState.probeId }), create: !resuming });
+  store = await openWindowsProbeStore({ ...(restart && { probeId: restartState.probeId }), create: !resuming, contractVersion: versionedEdit ? 2 : 1 });
   if (!resuming) await store.create('alex-library', record);
   const ciphertext = readFileSync(path.join(store.directory, 'records.bin'));
   assert.equal(ciphertext.includes(Buffer.from(record.value)), false);
-  store = await openWindowsProbeStore({ probeId: store.probeId });
+  store = await openWindowsProbeStore({ probeId: store.probeId, contractVersion: versionedEdit ? 2 : 1 });
   registry = openWindowsPairingRegistry({ probeId: store.probeId, hostFingerprint: fixtures.hostIdentity.fingerprint });
   if (resuming) {
     assert.equal(fileHash(path.join(store.directory, 'records.bin')), restartState.ciphertextSha256);
@@ -291,9 +301,18 @@ try {
   // but has no enrollment. This tests pairing policy, not issuer rejection.
   visit = await launchNativeDirectHost({ identity: fixtures.hostIdentity,
     ca: scenario === 'rogue' ? [cert, fixtures.ca] : cert, bindAddress: address, idleMs: 60_000,
-    protectedPairing: true,
-    store: { lifecycleStore: store, read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
-      create: async () => { writes++; throw Error('Unexpected write'); }, edit: async () => { writes++; throw Error('Unexpected write'); } } });
+    protectedPairing: true, fictionalEdits: versionedEdit, contractVersion: versionedEdit ? 2 : 1,
+    store: { lifecycleStore: store, contractVersion: versionedEdit ? 2 : 1,
+      read: async id => { assert.equal(id, 'alex-library'); reads++; return store.read(id); },
+      create: async () => { throw Error('Unexpected create'); },
+      edit: async (id, data, expectedRevision) => {
+        assert.ok(versionedEdit); assert.equal(id, 'alex-library');
+        assert.deepEqual(data, { ...record, value: 'Friday from phone' }); editAttempts++;
+        editBaseRevision = expectedRevision;
+        const receipt = await store.edit(id, data, expectedRevision); writes++;
+        if (scenario === 'write-unknown') throw Error('Synthetic lost commit acknowledgement');
+        return receipt;
+      } } });
   // The empty preflight connection proves this exact listener port is reachable
   // from the phone. It sends no application data and cannot authenticate.
   assert.ok(wifiRoute(), 'Selected phone must route to the private Windows host over Wi-Fi');
@@ -314,6 +333,7 @@ try {
   evidence.stage = 'phone-opening';
   privateFile('ca.pem', fixtures.ca);
   const config = { physicalOptIn: 'attended-fictional-lan-only', expectedModel: model, expectedApi: Number(apiText),
+    ...(versionedEdit && { experiment: 'versioned-edit-v1' }),
     transportAddress: address, port: visit.host.port, hostFingerprint: visit.host.hostFingerprint, offer: 'not-approved' };
   privateFile('config.json', JSON.stringify(config));
   await tap('Open fictional computer connection (debug)');
@@ -382,7 +402,12 @@ try {
   assert.equal(reads, 1); assert.equal(writes, 0);
   evidence.checks.push('Home native screen read the committed Windows DPAPI record over directly authenticated TLS with separate host and phone approvals');
   evidence.stage = scenario;
-  if (restart) {
+  if (versionedEdit) {
+    await runAttendedVersionedEdit({ scenario, evidence, store, visit, hostConsole, peer,
+      appNodes, tap, waitText, waitEnabled, privateFile, config,
+      counts: () => ({ reads, writes, editAttempts, editBaseRevision }),
+      checkpoint: () => writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n') });
+  } else if (restart) {
     if (!tapVisible('End connection', shown)) await tap('End connection');
     const ended = await waitText('Connection ended. Reading needs fresh approval.');
     assert.ok(ended.some(node => node.text === 'No record shown.'));
@@ -532,6 +557,7 @@ finally {
   } } catch (error) { failures.push(error); }
   fixtures.cleanup();
   evidence.reads = reads; evidence.writes = writes;
+  if (versionedEdit) evidence.editAttempts = editAttempts;
   evidence.cleanup = failures.length || (cleaning && evidence.result !== 'PASS') ? 'FAILED' : restart && !cleaning ? 'RETAINED_FOR_EXPLICIT_CLEANUP' : 'PASS';
   evidence.finished = new Date().toISOString();
   writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');

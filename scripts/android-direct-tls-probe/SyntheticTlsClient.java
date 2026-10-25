@@ -21,9 +21,11 @@ final class SyntheticTlsClient implements AutoCloseable {
         private OutputStream output;
         private int sequence;
         private int messageLimit = 128;
-        private final ArrayDeque<String> approvals = new ArrayDeque<>();
+        private final ArrayDeque<JSONObject> approvals = new ArrayDeque<>();
+        private final boolean versioned;
         SyntheticTlsClient(android.content.Context context, JSONObject config) throws Exception { this(context, config, "localhost", config.getString("hostFingerprint")); }
         SyntheticTlsClient(android.content.Context context, JSONObject config, String expectedName, String approvedPin) throws Exception {
+            versioned = "versioned-edit-v1".equals(config.optString("experiment"));
             KeyStore keys = NativeIdentity.requireIdentity();
             KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             km.init(keys, null);
@@ -62,9 +64,11 @@ final class SyntheticTlsClient implements AutoCloseable {
         }
         private boolean receiveApproval(JSONObject message) throws Exception {
             if (!"approval".equals(message.optString("event"))) return false;
-            require(approvals.size() < 8 && "read-only".equals(message.getString("mode")));
+            require(approvals.size() < 8 && ("read-only".equals(message.getString("mode"))
+                || (versioned && "edit".equals(message.getString("mode")))));
             require(message.getJSONArray("recordIds").length() == 1 && "alex-library".equals(message.getJSONArray("recordIds").getString(0)));
-            approvals.add(message.getString("grantId")); return true;
+            require(VersionedEditState.validRevision(message.getString("grantId")));
+            approvals.add(message); return true;
         }
         JSONObject call(JSONObject body) throws Exception {
             require(sequence < messageLimit); int expected = ++sequence; body.put("seq", expected);
@@ -72,8 +76,13 @@ final class SyntheticTlsClient implements AutoCloseable {
             for (;;) { JSONObject message = receive(); if (receiveApproval(message)) continue; require(message.getInt("seq") == expected); return message; }
         }
         String approval() throws Exception {
+            return approval("read-only");
+        }
+        String approval(String mode) throws Exception {
             while (approvals.isEmpty()) require(receiveApproval(receive()));
-            return approvals.remove();
+            JSONObject message = approvals.remove();
+            require(mode.equals(message.getString("mode")));
+            return message.getString("grantId");
         }
         void enableConversationTransfer() throws IOException {
             require(sequence == 0);
@@ -90,12 +99,41 @@ final class SyntheticTlsClient implements AutoCloseable {
         }
         void denied(JSONObject result) throws Exception { require(!result.getBoolean("ok") && "DENIED".equals(result.getString("code"))); }
         JSONObject readRecord(String grant) throws Exception {
+            require(!versioned);
             JSONObject result = execute(grant, new JSONObject().put("action", "read").put("recordId", "alex-library"));
             require(result.getBoolean("ok")); JSONObject record = result.getJSONObject("value");
+            validateRecord(record);
+            return record;
+        }
+        private void validateRecord(JSONObject record) throws Exception {
             require(record.length() == 3 && "alex-example".equals(record.getString("memberId")));
+            require(record.get("label") instanceof String && record.get("value") instanceof String);
             require(record.getString("label").length() > 0 && record.getString("label").length() <= 80);
             require(record.getString("value").length() > 0 && record.getString("value").length() <= 240);
-            return record;
+        }
+        JSONObject readVersioned(String grant) throws Exception {
+            require(versioned);
+            JSONObject reply = execute(grant, new JSONObject().put("version", 2).put("action", "read").put("recordId", "alex-library"));
+            require(reply.getBoolean("ok"));
+            JSONObject value = reply.getJSONObject("value");
+            require(value.length() == 4 && Integer.valueOf(2).equals(value.get("version")) && "alex-library".equals(value.getString("recordId"))
+                && VersionedEditState.validRevision(value.getString("revision")));
+            validateRecord(value.getJSONObject("data")); return value;
+        }
+        String editFriday(String grant, String expectedRevision) throws Exception {
+            require(versioned && VersionedEditState.validRevision(expectedRevision));
+            JSONObject data = new JSONObject().put("memberId", "alex-example").put("label", "Library visit").put("value", "Friday from phone");
+            JSONObject reply = execute(grant, new JSONObject().put("version", 2).put("action", "edit")
+                .put("recordId", "alex-library").put("expectedRevision", expectedRevision).put("data", data));
+            if (!reply.getBoolean("ok")) {
+                String code = reply.getString("code");
+                require("CONFLICT".equals(code) || "WRITE_UNKNOWN".equals(code) || "DENIED".equals(code)); return code;
+            }
+            JSONObject receipt = reply.getJSONObject("value");
+            require(receipt.length() == 5 && Integer.valueOf(2).equals(receipt.get("version")) && "alex-library".equals(receipt.getString("recordId"))
+                && receipt.get("accessEnded") instanceof Boolean && "applied".equals(receipt.getString("status"))
+                && VersionedEditState.validRevision(receipt.getString("revision")) && !expectedRevision.equals(receipt.getString("revision")));
+            return receipt.getBoolean("accessEnded") ? "APPLIED_ENDED" : "APPLIED";
         }
         void readMonday(String grant) throws Exception {
             JSONObject record = readRecord(grant);
