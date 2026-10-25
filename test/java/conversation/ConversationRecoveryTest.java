@@ -15,7 +15,8 @@ public class ConversationRecoveryTest {
                 }
                 check(SyntheticTlsClient.asks == (fault.equals("cancel") ? 0 : 1));
                 check(SyntheticTlsClient.connections <= 4);
-                if (fault.equals("security") || fault.equals("restart")) check(SyntheticTlsClient.connections == 1);
+                if (fault.equals("security")) check(SyntheticTlsClient.connections == 1);
+                if (fault.equals("ambiguous") || fault.equals("status") || fault.equals("audio") || fault.equals("restart")) check(SyntheticTlsClient.connections == 2);
                 if (fault.equals("outage")) check(SyntheticTlsClient.connections == 4);
             }
         }

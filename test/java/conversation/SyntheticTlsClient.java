@@ -6,27 +6,29 @@ final class SyntheticTlsClient {
     static String fault;
     static int connections, asks, reads, closes;
     static boolean fired;
+    private boolean broken;
     static final byte[] audio = new byte[9000];
     static void reset(String value) { fault=value; connections=asks=reads=closes=0; fired=false; }
     SyntheticTlsClient(Context context, JSONObject config) throws IOException { connections++; }
     void enableConversationTransfer() {}
     JSONObject call(JSONObject body) throws Exception {
+        if (broken) throw new IOException("socket lost");
         if ("resume".equals(body.getString("op"))) return new JSONObject().put("ok", true);
         JSONObject request = body.getJSONObject("request"); String action = request.getString("action");
         if ("ask".equals(action)) {
             asks++;
             if ("security".equals(fault)) throw new javax.net.ssl.SSLHandshakeException("untrusted");
-            if ("ambiguous".equals(fault) || "restart".equals(fault)) throw new IOException("response lost");
+            if ("ambiguous".equals(fault) || "restart".equals(fault)) { broken=true; throw new IOException("response lost"); }
         } else {
             reads++;
             if ("restart".equals(fault)) return new JSONObject().put("ok", false);
             if ("outage".equals(fault)) throw new IOException("offline");
-            if ("status".equals(fault) && !fired) { fired=true; throw new IOException("handoff"); }
+            if ("status".equals(fault) && !fired) { fired=true; broken=true; throw new IOException("handoff"); }
         }
         JSONObject value;
         if ("audio".equals(action)) {
             int offset=request.getInt("offset");
-            if ("audio".equals(fault) && offset == 4096 && !fired) { fired=true; throw new IOException("chunk lost"); }
+            if ("audio".equals(fault) && offset == 4096 && !fired) { fired=true; broken=true; throw new IOException("chunk lost"); }
             int next=Math.min(offset+4096,audio.length);
             value=new JSONObject().put("offset",offset).put("next",next).put("done",next==audio.length)
                 .put("data",java.util.Base64.getEncoder().encodeToString(java.util.Arrays.copyOfRange(audio,offset,next)));
