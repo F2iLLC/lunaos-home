@@ -51,5 +51,32 @@ Use `remote-readiness` immediately before the comparison: Wi-Fi must be disabled
 
 - A live host-only fictional request using the existing privately configured providers measured **1,226 ms model generation**, **1,817 ms speech generation**, 91 answer characters and 323,266 audio bytes. This is one provider sample, not a phone or end-to-end result.
 - All **309 local Windows tests passed**. The JVM recovery tests execute the production conversation client with interrupted windows, outage, cancellation, trust failure and corrupted chunks. A real enrolled TLS test transfers the entire 2 MiB limit with eight outstanding reads, verifies every frame/offset and reconstructs identical audio with exactly one answer and speech generation.
-- Full Home ARM64 and isolated harness Android builds succeeded. The timing/faster-download build must be installed with the existing signing key before physical comparisons.
-- Cellular serial/windowed measurements and attended recognition/route timing remain pending phone reconnection. No numerical phone speedup or improved audible latency is claimed from provider timings or local tests alone.
+- Full Home ARM64 and isolated harness Android builds succeeded. The signed timing/faster-download harness was subsequently installed with its existing signing key, and all 28 cached voice clips verified. Home was restarted to load its numeric timing fields.
+
+## Physical cellular comparison
+
+The installed build was tested on the enrolled Android phone with Wi-Fi disabled, cellular and Tailscale active, successful enrolled TLS and no adb reverse. USB carried instrumentation only. Wi-Fi was already disabled on arrival and was left in that state.
+
+One fixed fictional paid turn produced 289,830 bytes of speech. Every subsequent comparison downloaded that same completed audio and verified byte equality; no model or speech generation was repeated by those reads.
+
+| Stage | Measured time |
+| --- | ---: |
+| TCP/TLS plus enrolled resume | 276 ms |
+| Model generation | 2,372 ms |
+| Speech generation | 1,859 ms |
+| Ask to ready observed on phone, including providers | 4,597 ms |
+| Initial eight-request audio download | 906 ms |
+| Connection through fully downloaded reply, excluding recognition/playback | 5,779 ms |
+
+The cached-audio comparison used the documented counterbalanced order:
+
+| Sample | Requests per window | Download time |
+| --- | ---: | ---: |
+| 1 | 1 | 4,402 ms |
+| 2 | 8 | 778 ms |
+| 3 | 8 | 723 ms |
+| 4 | 1 | 4,488 ms |
+
+Mean serial transfer was **4,445 ms**, versus **750.5 ms** with eight-request windows: approximately **83% less transfer time**, saving **3.69 seconds** for this clip and connection. This is a paired transfer-stage comparison, not an observed before/after spoken-turn latency or a representative carrier benchmark. The serial comparison already used buffered TLS input, so this number does not quantify any additional buffering benefit over the older app.
+
+A separate post-update cellular two-turn check passed bounded follow-up context and downloaded 73,604 and 55,772 bytes of speech. The selected vehicle Bluetooth output was absent, and the trip claimed flag remained true. Recognition finalization, route preparation, acoustic first sound and subjective improvement still require an attended parked spoken turn; the new app records the software timing boundaries for that next check. No microphone or playback was started by these diagnostics.
