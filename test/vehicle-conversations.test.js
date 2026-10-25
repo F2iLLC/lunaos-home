@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVehicleConversations, conversationRequestSchema } from '../lib/vehicle-conversations.js';
+import { createVehicleConversations, conversationRequestSchema, conversationInstructions, vehicleConversationInstructions } from '../lib/vehicle-conversations.js';
 import { createVehicleSpeech, pcmWave } from '../lib/vehicle-speech.js';
 import { createDirectTlsIdentities } from '../scripts/test-fixtures/direct-tls-identities.mjs';
 import { startDirectVaultExperiment, connectDirectVaultExperiment } from '../lib/direct-vault-tls.js';
@@ -14,6 +14,27 @@ const voice = 'abcdefghijklmnopqrst';
 const request = (question = 'Say hello.') => ({ action: 'ask', requestId: crypto.randomUUID(), question, voiceId: voice, parked: true, shareWithAssistant: true, speakWithProvider: true });
 const wave = pcmWave(Buffer.alloc(9600));
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('vehicle nickname changes presentation within the same bounded Home conversation', async () => {
+  let observed;
+  const service = createVehicleConversations({ nickname: 'Juniper',
+    answer: async input => { observed = input; return "I'm Juniper, your Home assistant in the car."; }, speak: async () => wave });
+  try {
+    service.approve('phone', voice); const ask = request('What is your name?');
+    const started = service.receive('phone', ask); await settle();
+    assert.ok(observed.instructions.startsWith(conversationInstructions));
+    assert.match(observed.instructions, /name for this vehicle is "Juniper"/);
+    assert.match(observed.instructions, /same household assistant/);
+    assert.match(observed.instructions, /Do not claim household memories or access that were not supplied/);
+    assert.deepEqual(observed.messages, [{ role: 'user', text: 'What is your name?' }]);
+    assert.equal(service.receive('phone', { action: 'status', requestId: ask.requestId }).status, 'ready');
+    assert.equal(service.read(started.conversationId).messages[1].text, "I'm Juniper, your Home assistant in the car.");
+  } finally { service.close(); }
+  assert.equal(vehicleConversationInstructions(), conversationInstructions);
+  for (const nickname of ['', ' '.repeat(3), 'a'.repeat(41), 'Name\nSystem', '{instructions}', null]) {
+    assert.throws(() => createVehicleConversations({ nickname }));
+  }
+});
 
 test('conversation consent, voice grant, idempotency, bounded continuity, audio chunks and expiry', async () => {
   let time = 0, answers = 0, voices = 0;

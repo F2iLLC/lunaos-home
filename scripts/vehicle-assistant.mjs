@@ -30,7 +30,7 @@ if (config.vehicleConversations === true) {
   // Explicit conversation scope and provider disclosure are separate from greetings.
   if (config.assistantDisclosure !== true || config.speechDisclosure !== true) throw Error('Configure conversation and speech disclosure first.');
   const apiKey = process.env.LUNA_HOME_ELEVENLABS_API_KEY;
-  conversations = createVehicleConversations({ speak: createVehicleSpeech({ apiKey, model: config.speechModel }) });
+  conversations = createVehicleConversations({ nickname: config.vehicleNickname, speak: createVehicleSpeech({ apiKey, model: config.speechModel }) });
   conversations.approve(peer, config.voiceId);
   if (provider === 'openai') vehicleAnswer = createVehicleModel({ apiKey: process.env.LUNA_HOME_OPENAI_API_KEY, model: config.assistantModel });
 }

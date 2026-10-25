@@ -31,20 +31,22 @@ public final class VehicleConversationActivity extends Activity {
     private boolean visible, busy, destroyed;
     private int epoch;
     private String requestId;
+    private String speakerName;
     private final BroadcastReceiver connectionChanges = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { if (busy && !connected()) cancel(); }
     };
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        speakerName = new VehicleState(this).nickname;
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(28, 48, 28, 28);
         ScrollView scroll = new ScrollView(this); scroll.addView(layout); setContentView(scroll);
-        TextView title = new TextView(this); title.setText("Talk to Luna · while parked"); title.setTextSize(24); layout.addView(title);
+        TextView title = new TextView(this); title.setText("Talk to " + speakerName + " · while parked"); title.setTextSize(24); layout.addView(title);
         TextView help = new TextView(this); help.setText("Your words and this short conversation go to your Home assistant. Answers go to ElevenLabs for speech. Their privacy and retention policies apply. The phone recognizes speech on-device; this preview saves no microphone recordings. Home keeps the last four exchanges in memory for up to 15 minutes. No calendar, location or vehicle controls are connected."); layout.addView(help);
         parked = new CheckBox(this); parked.setText("I'm parked and want to share this conversation with my assistant and ElevenLabs."); layout.addView(parked);
         parked.setOnCheckedChangeListener((button, checked) -> { if (!checked) cancel(); });
         status = new TextView(this); status.setText("Confirm above, then speak or type a question. Keep this screen open."); layout.addView(status);
-        button(layout, "Speak to Luna", this::listen);
+        button(layout, "Speak to " + speakerName, this::listen);
         question = new EditText(this); question.setHint("Or type a question"); question.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(1000)}); layout.addView(question);
         button(layout, "Send question", () -> send(question.getText().toString().trim()));
         button(layout, "Stop", this::cancel);
@@ -124,7 +126,7 @@ public final class VehicleConversationActivity extends Activity {
         VehicleState settings = new VehicleState(this);
         if (settings.voiceId.isEmpty()) { status.setText("Choose an ElevenLabs voice and configure Home conversation access first."); return; }
         busy = true; final int generation = ++epoch; requestId = UUID.randomUUID().toString(); final String id = requestId;
-        status.setText("Asking Luna…"); transcript.setText("You: " + text);
+        status.setText("Asking " + speakerName + "…"); transcript.setText("You: " + text);
         pending = worker.submit(() -> {
             File file = null;
             try (VehicleConversationClient c = new VehicleConversationClient(this)) {
@@ -133,12 +135,12 @@ public final class VehicleConversationActivity extends Activity {
                 VehicleConversationClient.Reply reply = c.ask(id, text, settings.voiceId);
                 file = File.createTempFile("vehicle-reply-", ".wav", getCacheDir());
                 preparingFile = file;
-                try (OutputStream out = new FileOutputStream(file)) { out.write(VehicleLeadIn.prepend(reply.wave, VehicleLeadIn.MILLISECONDS)); }
+                try (OutputStream out = new FileOutputStream(file)) { out.write(VehicleLeadIn.prepend(reply.wave, VehicleLeadIn.REPLY_MILLISECONDS)); }
                 final File complete = file;
                 ui.post(() -> {
                     if (generation != epoch || !connected() || !settings.voiceId.equals(new VehicleState(this).voiceId)) { complete.delete(); if (generation == epoch) { busy = false; status.setText("Reply stopped because the connection or settings changed."); } return; }
-                    ready = complete; preparingFile = null; transcript.setText("You: " + text + "\n\nLuna: " + reply.text + "\n\nHome conversation: " + reply.conversationId);
-                    status.setText("Playing Luna's reply…");
+                    ready = complete; preparingFile = null; transcript.setText("You: " + text + "\n\n" + speakerName + ": " + reply.text + "\n\nHome conversation: " + reply.conversationId);
+                    status.setText("Playing the reply…");
                     player = new VehicleReplyPlayer(this, settings.address, () -> generation == epoch && connected() && settings.address.equalsIgnoreCase(new VehicleState(this).address) && settings.voiceId.equals(new VehicleState(this).voiceId), message -> {
                         if (generation != epoch) return;
                         busy = false; status.setText(message); if (ready != null) { ready.delete(); ready = null; }
@@ -167,7 +169,7 @@ public final class VehicleConversationActivity extends Activity {
     @Override protected void onPause() { visible = false; cancel(); super.onPause(); }
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] grants) {
         super.onRequestPermissionsResult(request, permissions, grants);
-        if (request == 8) status.setText(grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED ? "Microphone allowed. Tap Speak to Luna when ready." : "Microphone declined. You can type a question.");
+        if (request == 8) status.setText(grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED ? "Microphone allowed. Tap Speak to " + speakerName + " when ready." : "Microphone declined. You can type a question.");
     }
     @Override protected void onDestroy() {
         destroyed = true; cancel(); ui.removeCallbacksAndMessages(null); worker.shutdown();

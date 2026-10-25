@@ -74,7 +74,7 @@ test('standalone model uses the existing enrolled TLS conversation and history w
   const vehicleAnswer = createVehicleModel({ apiKey: 'fictional-key', fetchImpl: async (_url, options) => {
     seen.push(JSON.parse(options.body).input); return Response.json(response());
   } });
-  const conversations = createVehicleConversations({ speak: async () => pcmWave(Buffer.alloc(200)) });
+  const conversations = createVehicleConversations({ nickname: 'Juniper', speak: async () => pcmWave(Buffer.alloc(200)) });
   const assistant = createAssistantServer(createDraftStore(), 'synthetic', { vehicleConversations: conversations, vehicleAnswer });
   t.after(() => assistant.close());
   const voiceId = 'abcdefghijklmnopqrst'; conversations.approve(fixture.phoneIdentity.fingerprint, voiceId);

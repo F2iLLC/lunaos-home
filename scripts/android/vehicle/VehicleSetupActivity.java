@@ -51,7 +51,7 @@ public final class VehicleSetupActivity extends Activity {
         });
         button(layout, "Choose your vehicle", this::choose);
         button(layout, "Allow Home connection", this::allowHome);
-        button(layout, "Talk to Luna while parked", () -> {
+        button(layout, "Talk while parked", () -> {
             if (localNetworkRequired()) { allowHome(); return; }
             startActivity(new Intent(this, VehicleConversationActivity.class));
         });
@@ -143,7 +143,7 @@ public final class VehicleSetupActivity extends Activity {
         super.onRequestPermissionsResult(request, permissions, grants);
         if (request == 3) {
             VehicleRuntime.status(this, grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED
-                ? "Home network access allowed. You can open Talk to Luna while parked."
+                ? "Home network access allowed. You can open Talk while parked."
                 : "Home network access declined. Offline greetings remain available.");
             return;
         }
