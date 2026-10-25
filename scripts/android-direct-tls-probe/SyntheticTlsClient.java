@@ -40,7 +40,11 @@ final class SyntheticTlsClient implements AutoCloseable {
             SSLContext tls = SSLContext.getInstance("TLSv1.3"); tls.init(km.getKeyManagers(), tm.getTrustManagers(), new SecureRandom());
             Socket tcp = new Socket();
             try {
-                tcp.connect(new InetSocketAddress(FixtureConfig.transportAddress(config), config.getInt("port")), 5000);
+                // Only the disposable vehicle harness may use an explicit adb
+                // reverse tunnel. Home's normal private-address policy is intact.
+                String address = "io.github.f2illc.lunaos.home.vehicleprobe".equals(context.getPackageName())
+                    && config.optBoolean("vehicleHarnessAdbReverse", false) ? "127.0.0.1" : FixtureConfig.transportAddress(config);
+                tcp.connect(new InetSocketAddress(address, config.getInt("port")), 5000);
                 socket = (SSLSocket) tls.getSocketFactory().createSocket(tcp, expectedName, config.getInt("port"), true);
                 socket.setSoTimeout(15000); socket.setEnabledProtocols(new String[]{"TLSv1.3"});
                 SSLParameters parameters = socket.getSSLParameters(); parameters.setEndpointIdentificationAlgorithm("HTTPS"); socket.setSSLParameters(parameters);

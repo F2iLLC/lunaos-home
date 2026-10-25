@@ -515,3 +515,16 @@ The second physical rogue phone, shutdown during an active read, production
 enrollment, integrated key custody and sensitive-use acceptance remain open.
 Prepare and inspect the runner/builds before requesting operator action;
 never infer an attended pass from a local test or hosted CI result.
+
+The PR #120 conflict repair integrates `origin/main` at
+`325474e436c65f637c7e91623c5fd892ed9264b7`, preserving both the versioned-edit
+helper and main's vehicle transport in Android preparation. The vehicle test
+package now compiles the edit-state dependency required by their shared TLS
+client. All **97/97** focused Android preparation, source-boundary, edit,
+transport, vehicle and authorization regressions passed. Direct TLS Java/dex
+compilation and the isolated vehicle APK build/signature verification also
+passed; nothing was installed. These checks do not refresh the earlier Home
+APK or Windows executable evidence: rebuild and inspect the combined source
+and repin the attended launcher before a device run. The old launcher remains
+pinned to its earlier source and must refuse the changed head. The PR records
+the exact repaired head and its hosted result separately.
