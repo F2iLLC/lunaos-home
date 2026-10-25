@@ -25,7 +25,8 @@ public final class VehicleLeadInTest {
         tag(input, "data"); input.putInt(4); input.putShort((short) 1234); input.putShort((short) -1234);
         byte[] original = input.array();
         checkLeadIn(original, VehicleLeadIn.MILLISECONDS, 192000);
-        checkLeadIn(original, VehicleLeadIn.REPLY_MILLISECONDS, 48000);
+        checkLeadIn(original, VehicleLeadIn.REPLY_MILLISECONDS, 0);
+        check(Arrays.equals(original, VehicleLeadIn.prepend(original, VehicleLeadIn.REPLY_MILLISECONDS)));
         check(Arrays.equals(original, VehicleLeadIn.prepend(original, 0)));
         for (int mode = 0; mode < 4; mode++) {
             byte[] bad = original.clone(); ByteBuffer data = ByteBuffer.wrap(bad).order(ByteOrder.LITTLE_ENDIAN);
@@ -36,6 +37,6 @@ public final class VehicleLeadInTest {
             boolean denied = false; try { VehicleLeadIn.prepend(bad, 4000); } catch (java.io.IOException expected) { denied = true; }
             check(denied);
         }
-        System.out.println("VehicleLeadIn: four-second greeting and one-second reply silence, complete first samples, extra chunks and malformed audio passed");
+        System.out.println("VehicleLeadIn: four-second greeting, unpadded reply, complete first samples, extra chunks and malformed audio passed");
     }
 }

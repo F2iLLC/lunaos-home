@@ -100,7 +100,7 @@ test('production phone trip state machine runs on the JVM', async t => {
   assert.match(result, /passed/);
 });
 
-test('greeting and reply audio use separate four-second and one-second lead-ins without dropping speech', async t => {
+test('greetings retain four-second lead-in while replies preserve unpadded audio and first speech samples', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'home-vehicle-audio-')); t.after(() => rm(directory, { recursive: true, force: true }));
   execFileSync('javac', ['-d', directory, 'scripts/android/vehicle/VehicleLeadIn.java', 'test/java/VehicleLeadInTest.java'], { windowsHide: true });
   const result = execFileSync('java', ['-cp', directory, 'io.github.f2illc.lunaos.home.vehicle.VehicleLeadInTest'], { windowsHide: true, encoding: 'utf8' });
