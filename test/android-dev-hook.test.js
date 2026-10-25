@@ -16,7 +16,7 @@ const directPkg = 'java/io/github/f2illc/lunaos/directtlsprobe';
 // new helper cannot be omitted from both the implementation and its test.
 const sources = (await readdir(join(root, 'scripts/android/vault')))
   .filter(name => /\.(java|kt)$/.test(name));
-const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java'];
+const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'VersionedEditState.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'VehicleTransport.java'];
 const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET" /><application android:usesCleartextTraffic="false"><activity android:name=".MainActivity" /></application></manifest>';
 
 async function fixture(context) {

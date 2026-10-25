@@ -116,3 +116,9 @@ in this slice. The phone-only record and the Windows record are independent.
 This read-only client does not demonstrate the phone write/unknown-acknowledgement
 flow, durable enrollment, phone-hosted service, clean-device recovery,
 authentication-bound Windows key release, or independent security acceptance.
+
+The separately configured [versioned edit experiment](android-home-versioned-edit.md)
+adds one fixed fictional proposal with an independent edit-only grant and
+revision-checked save. It reuses this screen's connection and lifecycle
+controls; ordinary read-only configuration does not enable editing. Its
+prepared stale-edit and lost-receipt runners need their own attended evidence.

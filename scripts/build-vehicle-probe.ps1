@@ -51,7 +51,7 @@ $manifest = & node --input-type=module -e $manifestCode $manifestUrl
 if ($LASTEXITCODE -ne 0) { throw 'Manifest generation failed.' }
 [IO.File]::WriteAllText($manifestPath, ($manifest -join "`n"))
 $sources = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'android/vehicle') -Filter '*.java' | ForEach-Object FullName)
-$sources += @('VehicleTransport.java', 'SyntheticTlsClient.java', 'NativeIdentity.java', 'FixtureConfig.java', 'VehicleProbe.java') | ForEach-Object { Join-Path $PSScriptRoot "android-direct-tls-probe/$_" }
+$sources += @('VehicleTransport.java', 'SyntheticTlsClient.java', 'VersionedEditState.java', 'NativeIdentity.java', 'FixtureConfig.java', 'VehicleProbe.java') | ForEach-Object { Join-Path $PSScriptRoot "android-direct-tls-probe/$_" }
 $savedJava = $env:JAVA_HOME
 $savedPassword = $env:LUNA_VEHICLE_SIGNING_PASSWORD
 try {

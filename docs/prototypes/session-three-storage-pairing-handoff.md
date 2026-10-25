@@ -469,3 +469,62 @@ readback without replay. The earlier joined restart result remains a retained
 enrollment/store recovery check, not shutdown during an active read. Production
 enrollment, integrated authentication-bound key custody and sensitive-use
 acceptance remain open. The assistant did not merge, deploy or close issues.
+
+## Session 16 phone revision-check implementation and runner preparation
+
+Started in a fresh isolated worktree from `origin/main`
+`99d48997f63a533203e858e319bfd46dfebc02b2`, after the owner merged PR #116 at
+`535fc588b8ae8aca91265109cf319977572984e6`. VLT-03 and VLT-05 remain open.
+
+The [versioned edit guide](android-home-versioned-edit.md) describes a separate
+app-private fictional configuration of the native connection screen. It reads
+the version-2 envelope, retains the observed revision in native memory and
+sends only the fixed Friday proposal after independent host edit permission
+and the person's Save action. Host grants are edit-only for Alex / Library
+visit, up to 60 seconds, with explicit local opt-in; no remote approval or
+create/delete authority is added. Ordinary read-only configuration stays
+read-only. All existing identity and foreground lifecycle checks still apply.
+
+A stale revision produces a conflict without overwriting the committed record.
+Every edit attempt consumes the local draft and edit permission. Missing or
+malformed receipts and `WRITE_UNKNOWN` close access; End/background/restart
+also discard the revision. There is no automatic mutation replay. Fresh
+connection and read approvals are required to reconcile uncertainty before
+another separately approved edit.
+
+The prepared `stale-edit` scenario simulates one competing Windows author
+after the physical phone's read, then checks the exact original revision,
+conflict, unchanged winning ciphertext and fresh readback. The separate
+`write-unknown` scenario deliberately loses the adapter receipt after one
+commit and checks that fresh readback reveals the committed change with no
+second attempt. The controller never presses Save or approval buttons. A
+PowerShell launcher pins a clean source head and both build hashes, offers a
+password-free preflight, and writes minimized results outside the checkout.
+The runner reports phone edit attempts, committed phone writes and the
+simulated competing commit separately; cleanup is required on every result.
+
+Local loopback TLS tests cover grant scope, connection binding, expiry,
+stale conflicts, conditional success and lost acknowledgement/readback. JVM
+tests execute the actual Java draft state for conflicts, duplicate saves,
+malformed revisions, interrupted saves and restart. These controlled tests
+are separate from APK compilation, Windows DPAPI tests and attended device
+evidence; the PR records exact commands, source/build hashes and results.
+
+Physical stale edit and lost-receipt checks remain unrun at preparation.
+The second physical rogue phone, shutdown during an active read, production
+enrollment, integrated key custody and sensitive-use acceptance remain open.
+Prepare and inspect the runner/builds before requesting operator action;
+never infer an attended pass from a local test or hosted CI result.
+
+The PR #120 conflict repair integrates `origin/main` at
+`325474e436c65f637c7e91623c5fd892ed9264b7`, preserving both the versioned-edit
+helper and main's vehicle transport in Android preparation. The vehicle test
+package now compiles the edit-state dependency required by their shared TLS
+client. All **97/97** focused Android preparation, source-boundary, edit,
+transport, vehicle and authorization regressions passed. Direct TLS Java/dex
+compilation and the isolated vehicle APK build/signature verification also
+passed; nothing was installed. These checks do not refresh the earlier Home
+APK or Windows executable evidence: rebuild and inspect the combined source
+and repin the attended launcher before a device run. The old launcher remains
+pinned to its earlier source and must refuse the changed head. The PR records
+the exact repaired head and its hosted result separately.

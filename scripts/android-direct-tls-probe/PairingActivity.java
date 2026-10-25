@@ -15,6 +15,10 @@ public final class PairingActivity extends Activity {
     private JSONObject config;
     private TextView status, contents;
     private Button approveHost, connect, approveRead, read, end;
+    private Button reviewEdit, saveEdit;
+    private boolean editExperiment;
+    private String editGrant;
+    private final VersionedEditState draft = new VersionedEditState();
     private boolean identityApproved, scopeApproved, busy;
     private String pendingGrant, displayedHost, displayedPeer;
     private volatile long generation;
@@ -33,6 +37,7 @@ public final class PairingActivity extends Activity {
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
             | android.view.WindowManager.LayoutParams.FLAG_SECURE);
         try { config = FixtureConfig.read(this); displayedHost = config.getString("hostFingerprint"); displayedPeer = NativeIdentity.fingerprint(); } catch (Exception error) { finish(); return; }
+        editExperiment = "versioned-edit-v1".equals(config.optString("experiment"));
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(24, 24, 24, 24);
         scroll.addView(layout); setContentView(scroll);
@@ -40,7 +45,9 @@ public final class PairingActivity extends Activity {
         label(layout, "Test only. No family data. This device keeps its connection key in Android Keystore. This does not unlock a vault or replace Android verification.");
         label(layout, "Test computer identity: " + config.optString("hostFingerprint"));
         label(layout, "Android identity: " + displayedPeer);
-        label(layout, "Selected information: Alex / Library visit. Read only, up to 60 seconds. The host separately approves this fixed test scope.");
+        label(layout, editExperiment
+            ? "Selected information: Alex / Library visit. Read and edit permissions are separate, each up to 60 seconds. The only proposed change is Friday from phone. No create or delete."
+            : "Selected information: Alex / Library visit. Read only, up to 60 seconds. The host separately approves this fixed test scope.");
         status = label(layout, "Review the test computer identity."); contents = label(layout, "No record shown.");
         approveHost = button(layout, "Approve fictional computer", () -> { identityApproved = true; status.setText("Computer approved for this screen. Connect when ready."); render(); });
         connect = button(layout, "Connect to test computer", this::connect);
@@ -48,6 +55,10 @@ public final class PairingActivity extends Activity {
             scopeApproved = true; status.setText("Selected read allowed. Nothing read yet."); render();
         });
         read = button(layout, "Read Alex's record", this::readRecord);
+        if (editExperiment) {
+            reviewEdit = button(layout, "Review Friday change", this::awaitEditApproval);
+            saveEdit = button(layout, "Save Friday from phone", this::saveFriday);
+        }
         end = button(layout, "End connection", () -> closeAccess("Connection ended. Reading needs fresh approval."));
         render();
         if (!localNetworkReady()) {
@@ -79,6 +90,10 @@ public final class PairingActivity extends Activity {
         approveRead.setEnabled(!busy && pendingGrant != null && !scopeApproved);
         read.setEnabled(!busy && scopeApproved && pendingGrant != null && activeClient != null);
         end.setEnabled(busy || activeClient != null || pendingGrant != null);
+        if (editExperiment) {
+            reviewEdit.setEnabled(!busy && activeClient != null && draft.canEdit() && editGrant == null);
+            saveEdit.setEnabled(!busy && activeClient != null && draft.canEdit() && editGrant != null);
+        }
     }
     private void closeAccess(String message) {
         generation++; displayGeneration++; ui.removeCallbacksAndMessages(null);
@@ -89,6 +104,8 @@ public final class PairingActivity extends Activity {
         // independently of the worker which may currently be blocked in a read.
         if (old != null) new Thread(() -> { try { old.close(); } catch (IOException ignored) { } }, "fictional-tls-close").start();
         pendingGrant = null; scopeApproved = false; busy = false;
+        editGrant = null; draft.clear();
+        if (editExperiment && draft.unknown()) message = "Change not confirmed. Reconnect and read latest. Do not repeat the save.";
         if (contents != null) { contents.setText("No record shown."); status.setText(message); render(); }
     }
     private void schedule(Runnable task) {
@@ -130,6 +147,7 @@ public final class PairingActivity extends Activity {
             try {
                 if (generation != token) return;
                 config = FixtureConfig.read(this);
+                if (editExperiment != "versioned-edit-v1".equals(config.optString("experiment"))) throw new IOException("Experiment changed; reopen");
                 if (!displayedHost.equals(config.getString("hostFingerprint")) || !displayedPeer.equals(NativeIdentity.fingerprint())) throw new IOException("Identity changed; review again");
                 phase = "tls";
                 client = new SyntheticTlsClient(this, config);
@@ -180,11 +198,15 @@ public final class PairingActivity extends Activity {
         schedule(() -> {
             try {
                 if (generation != token) return;
-                JSONObject record = client.readRecord(grant);
+                JSONObject snapshot = editExperiment ? client.readVersioned(grant) : null;
+                JSONObject record = editExperiment ? snapshot.getJSONObject("data") : client.readRecord(grant);
                 final String display = record.getString("label") + ": " + record.getString("value");
                 runOnUiThread(() -> {
                     if (generation != token) return;
-                    busy = false; contents.setText(display); status.setText("Fictional record read. No changes allowed."); render();
+                    if (editExperiment) draft.observed(snapshot.optString("revision"));
+                    busy = false; contents.setText(display); status.setText(editExperiment
+                        ? "Latest fictional record read. Review Friday change separately."
+                        : "Fictional record read. No changes allowed."); render();
                     watchDisplayedRecord(token, displayToken, client, grant);
                 });
             } catch (Exception error) {
@@ -192,6 +214,54 @@ public final class PairingActivity extends Activity {
                 android.util.Log.w("HomeDirectProbe", "read/" + error.getClass().getSimpleName());
                 runOnUiThread(() -> { if (generation == token) closeAccess("Read unavailable. No access remains."); });
             }
+        });
+    }
+    private void awaitEditApproval() {
+        if (!editExperiment || busy || activeClient == null || !draft.canEdit() || editGrant != null) return;
+        cancelQueuedPresence(); ++displayGeneration;
+        // Presence polling pauses while awaiting permission. Hide the record
+        // immediately rather than leaving displayed data without that watch.
+        contents.setText("No record shown.");
+        busy = true; status.setText("Waiting for the computer to allow editing Alex / Library visit."); render();
+        final long token = generation; final SyntheticTlsClient client = activeClient;
+        schedule(() -> {
+            try {
+                if (generation != token) return;
+                String grant = client.approval("edit");
+                runOnUiThread(() -> {
+                    if (generation != token) return;
+                    editGrant = grant; busy = false;
+                    status.setText("Computer allowed this edit. Review: change Library visit to Friday from phone. Tap Save only to approve it."); render();
+                    ui.postDelayed(() -> { if (generation == token && grant.equals(editGrant)) {
+                        editGrant = null; status.setText("Edit permission expired. Review again."); render();
+                    } }, 60_000);
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> { if (generation == token) closeAccess("Edit permission unavailable. No change sent."); });
+            }
+        });
+    }
+    private void saveFriday() {
+        if (!editExperiment || busy || activeClient == null || !draft.canEdit() || editGrant == null) return;
+        final String expected = draft.begin(), grant = editGrant;
+        editGrant = null; busy = true; cancelQueuedPresence(); ++displayGeneration;
+        contents.setText("No record shown."); status.setText("Saving the approved Friday change once..."); render();
+        final long token = generation; final SyntheticTlsClient client = activeClient;
+        schedule(() -> {
+            String result;
+            try { if (generation != token) return; result = client.editFriday(grant, expected); }
+            catch (Exception lost) { result = "WRITE_UNKNOWN"; }
+            final String outcome = result;
+            runOnUiThread(() -> {
+                if (generation != token) return;
+                draft.finished("WRITE_UNKNOWN".equals(outcome)); busy = false;
+                if (draft.unknown()) { closeAccess("Change not confirmed."); return; }
+                if ("APPLIED_ENDED".equals(outcome)) { closeAccess("Friday change saved; access ended. Reconnect and read latest."); return; }
+                status.setText("CONFLICT".equals(outcome) ? "Record changed. Your edit was not saved. Read latest before another edit."
+                    : "APPLIED".equals(outcome) ? "Friday change saved. Read latest to review."
+                    : "Edit was not allowed. Read latest and request new permission.");
+                render();
+            });
         });
     }
     @Override protected void onResume() { super.onResume(); if (connect != null) render(); }
