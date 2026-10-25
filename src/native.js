@@ -50,5 +50,17 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     } finally { openDirect.disabled = false; }
   });
   document.querySelector('#home-actions').append(prepareDirect, openDirect, directStatus);
+  const vehicle = document.createElement('button');
+  vehicle.type = 'button';
+  vehicle.textContent = 'Set up vehicle greetings (parked, debug)';
+  vehicle.addEventListener('click', async () => {
+    vehicle.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'vehicle' });
+      directStatus.textContent = 'Vehicle setup requested. Choose your paired vehicle on the native screen.';
+    } catch { directStatus.textContent = 'Vehicle setup unavailable. Requires Android 12 or later.'; }
+    finally { vehicle.disabled = false; }
+  });
+  document.querySelector('#home-actions').append(vehicle);
 }
 await import('./app.js');

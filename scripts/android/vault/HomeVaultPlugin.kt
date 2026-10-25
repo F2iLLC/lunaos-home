@@ -12,6 +12,17 @@ import io.github.f2illc.lunaos.directtlsprobe.HomeDirectEntry
 @TauriPlugin
 class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
+    fun openVehicle(invoke: Invoke) {
+        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 31) {
+            invoke.reject("Vehicle preview requires an Android API31+ debug build.")
+            return
+        }
+        activity.runOnUiThread {
+            activity.startActivity(Intent(activity, io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity::class.java))
+            invoke.resolve()
+        }
+    }
+    @Command
     fun open(invoke: Invoke) {
         if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 30) {
             invoke.reject("Fictional vault requires an Android API30+ debug build.")
