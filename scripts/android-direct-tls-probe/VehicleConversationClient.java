@@ -13,16 +13,22 @@ public final class VehicleConversationClient implements AutoCloseable {
     private volatile boolean closed;
     private long deadline;
     private int reconnects;
+    private final long connectionMs;
     public static final class Reply {
         public final String text, conversationId;
         public final byte[] wave;
-        Reply(String text, String id, byte[] wave) { this.text = text; this.conversationId = id; this.wave = wave; }
+        public final long connectionMs, readyMs, transferMs, modelMs, speechMs;
+        Reply(String text, String id, byte[] wave, long connection, long ready, long transfer, long model, long speech) {
+            this.text = text; this.conversationId = id; this.wave = wave;
+            connectionMs = connection; readyMs = ready; transferMs = transfer; modelMs = model; speechMs = speech;
+        }
     }
     public VehicleConversationClient(Context context) throws Exception {
         this.context = context.getApplicationContext();
         config = FixtureConfig.read(context);
         if (!config.optBoolean("vehicleConversations", false)) throw new SecurityException("Conversation not configured");
-        connect();
+        long started = android.os.SystemClock.elapsedRealtime();
+        connect(); connectionMs = android.os.SystemClock.elapsedRealtime() - started;
     }
     private void connect() throws Exception {
         checkActive();
@@ -60,19 +66,29 @@ public final class VehicleConversationClient implements AutoCloseable {
         for (;;) {
             try { return call(request); }
             catch (javax.net.ssl.SSLException security) { throw security; }
-            catch (IOException outage) {
-                for (;;) {
-                    try { reconnect(); break; }
-                    catch (javax.net.ssl.SSLException security) { throw security; }
-                    catch (IOException unavailable) { checkActive(); if (reconnects >= 3) throw unavailable; }
-                }
-            }
+            catch (IOException outage) { recoverConnection(); }
+        }
+    }
+    private void recoverConnection() throws Exception {
+        for (;;) {
+            try { reconnect(); return; }
+            catch (javax.net.ssl.SSLException security) { throw security; }
+            catch (IOException unavailable) { checkActive(); if (reconnects >= 3) throw unavailable; }
+        }
+    }
+    private JSONObject[] readAudioWindow(String id, int offset, int size, int window) throws Exception {
+        for (;;) {
+            checkActive();
+            try { return client.audioWindow(id, offset, size, window); }
+            catch (javax.net.ssl.SSLException security) { throw security; }
+            catch (IOException outage) { recoverConnection(); }
         }
     }
     public void clear() throws Exception { call(new JSONObject().put("action", "clear")); }
     public void cancel(String requestId) throws Exception { call(new JSONObject().put("action", "cancel").put("requestId", requestId)); }
     public Reply ask(String requestId, String question, String voiceId) throws Exception {
-        deadline = android.os.SystemClock.elapsedRealtime() + 90_000;
+        long started = android.os.SystemClock.elapsedRealtime();
+        deadline = started + 90_000;
         reconnects = 0;
         JSONObject status = new JSONObject().put("action", "status").put("requestId", requestId);
         JSONObject state;
@@ -91,20 +107,38 @@ public final class VehicleConversationClient implements AutoCloseable {
         java.util.UUID.fromString(id);
         int size = state.getInt("audioBytes");
         if (text.isEmpty() || text.length() > 360 || size < 44 || size > 2 * 1024 * 1024) throw new IOException("Invalid reply");
+        long transferStarted = android.os.SystemClock.elapsedRealtime();
+        byte[] audio = downloadAudio(requestId, size, 8);
+        JSONObject timing = state.optJSONObject("timing");
+        long model = timing == null ? -1 : timing.optLong("modelMs", -1), speech = timing == null ? -1 : timing.optLong("speechMs", -1);
+        if (model < -1 || model > 60_000 || speech < -1 || speech > 60_000) throw new IOException("Invalid timing");
+        return new Reply(text, id, audio, connectionMs, transferStarted - started,
+            android.os.SystemClock.elapsedRealtime() - transferStarted, model, speech);
+    }
+    // Package-local diagnostic can compare serial/windowed reads of the SAME
+    // completed audio without repeating model or speech requests.
+    byte[] downloadAudio(String requestId, int size, int window) throws Exception {
+        if (size < 44 || size > 2 * 1024 * 1024 || window < 1 || window > 8) throw new IOException("Invalid audio request");
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         while (bytes.size() < size) {
             if (android.os.SystemClock.elapsedRealtime() >= deadline) throw new IOException("Audio timed out");
-            int offset = bytes.size();
-            JSONObject chunk = read(new JSONObject().put("action", "audio").put("requestId", requestId).put("offset", offset));
-            String data = chunk.getString("data");
-            if (data.length() > 5464 || !data.matches("[A-Za-z0-9+/]*={0,2}")) throw new IOException("Invalid audio chunk");
-            byte[] decoded = Base64.decode(data, Base64.NO_WRAP);
-            int count = Math.min(4096, size - offset);
-            if (decoded.length != count || chunk.getInt("offset") != offset || chunk.getInt("next") != offset + count || chunk.getBoolean("done") != (offset + count == size)) throw new IOException("Audio chunk mismatch");
-            bytes.write(decoded);
+            JSONObject[] chunks = readAudioWindow(requestId, bytes.size(), size, window);
+            if (chunks.length != Math.min(window, (size - bytes.size() + 4095) / 4096)) throw new IOException("Invalid window");
+            for (JSONObject response : chunks) {
+                checkActive();
+                if (!response.getBoolean("ok")) throw new SecurityException("Conversation unavailable");
+                JSONObject chunk = response.getJSONObject("value");
+                int offset = bytes.size();
+                String data = chunk.getString("data");
+                if (data.length() > 5464 || !data.matches("[A-Za-z0-9+/]*={0,2}")) throw new IOException("Invalid audio chunk");
+                byte[] decoded = Base64.decode(data, Base64.NO_WRAP);
+                int count = Math.min(4096, size - offset);
+                if (decoded.length != count || chunk.getInt("offset") != offset || chunk.getInt("next") != offset + count || chunk.getBoolean("done") != (offset + count == size)) throw new IOException("Audio chunk mismatch");
+                bytes.write(decoded);
+            }
         }
         checkActive();
-        return new Reply(text, id, bytes.toByteArray());
+        return bytes.toByteArray();
     }
     @Override public synchronized void close() {
         closed = true;

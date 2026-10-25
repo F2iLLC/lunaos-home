@@ -32,6 +32,7 @@ public final class VehicleConversationActivity extends Activity {
     private int epoch;
     private String requestId;
     private String speakerName;
+    private long speechEnded;
     private final BroadcastReceiver connectionChanges = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { if (busy && !connected()) cancel(); }
     };
@@ -53,6 +54,7 @@ public final class VehicleConversationActivity extends Activity {
         button(layout, "Clear shared conversation", () -> {
             cancel(); transcript.setText(""); question.setText("");
             worker.execute(() -> {
+                VehicleLatency.clear(this);
                 try (VehicleConversationClient c = new VehicleConversationClient(this)) { c.clear(); ui.post(() -> status.setText("Conversation cleared at Home.")); }
                 catch (Exception error) { ui.post(() -> status.setText("Couldn't reach Home to clear it. It will expire automatically.")); }
             });
@@ -94,7 +96,7 @@ public final class VehicleConversationActivity extends Activity {
         if (!begin()) return;
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 8); return; }
         if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) { status.setText("On-device speech recognition isn't available. You can type a question."); return; }
-        busy = true; final int generation = ++epoch;
+        busy = true; speechEnded = 0; final int generation = ++epoch;
         try { recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this); }
         catch (RuntimeException unavailable) { busy = false; status.setText("On-device speech unavailable. Type your question instead."); return; }
         recognizer.setRecognitionListener(new RecognitionListener() {
@@ -102,7 +104,7 @@ public final class VehicleConversationActivity extends Activity {
             public void onBeginningOfSpeech() { }
             public void onRmsChanged(float value) { }
             public void onBufferReceived(byte[] bytes) { }
-            public void onEndOfSpeech() { status.setText("Recognizing your question…"); }
+            public void onEndOfSpeech() { if (generation == epoch) { speechEnded = SystemClock.elapsedRealtime(); status.setText("Recognizing your question…"); } }
             public void onPartialResults(Bundle b) { }
             public void onEvent(int type, Bundle b) { }
             public void onError(int error) { if (generation == epoch) { stopRecognition(); busy = false; status.setText("Speech wasn't recognized. Try again or type your question."); } }
@@ -111,7 +113,7 @@ public final class VehicleConversationActivity extends Activity {
                 ArrayList<String> lines = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 stopRecognition(); busy = false;
                 if (lines == null || lines.isEmpty()) { status.setText("No speech recognized."); return; }
-                question.setText(lines.get(0)); send(lines.get(0).trim());
+                question.setText(lines.get(0)); send(lines.get(0).trim(), speechEnded == 0 ? -1 : SystemClock.elapsedRealtime() - speechEnded, speechEnded);
             }
         });
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -121,6 +123,9 @@ public final class VehicleConversationActivity extends Activity {
         ui.postDelayed(() -> { if (generation == epoch && recognizer != null) cancel(); }, 30_000);
     }
     private void send(String text) {
+        send(text, -1, 0);
+    }
+    private void send(String text, long recognitionMs, long speechEnd) {
         if (!begin()) return;
         if (text.isEmpty() || text.length() > 1000) { status.setText("Use a question of 1 to 1,000 characters."); return; }
         VehicleState settings = new VehicleState(this);
@@ -128,6 +133,7 @@ public final class VehicleConversationActivity extends Activity {
         busy = true; final int generation = ++epoch; requestId = UUID.randomUUID().toString(); final String id = requestId;
         status.setText("Asking " + speakerName + "… Brief network changes reconnect automatically. Keep Home and your private VPN online."); transcript.setText("You: " + text);
         pending = worker.submit(() -> {
+            VehicleLatency.clear(this);
             File file = null;
             try (VehicleConversationClient c = new VehicleConversationClient(this)) {
                 client = c;
@@ -141,7 +147,12 @@ public final class VehicleConversationActivity extends Activity {
                     if (generation != epoch || !connected() || !settings.voiceId.equals(new VehicleState(this).voiceId)) { complete.delete(); if (generation == epoch) { busy = false; status.setText("Reply stopped because the connection or settings changed."); } return; }
                     ready = complete; preparingFile = null; transcript.setText("You: " + text + "\n\n" + speakerName + ": " + reply.text + "\n\nHome conversation: " + reply.conversationId);
                     status.setText("Playing the reply…");
-                    player = new VehicleReplyPlayer(this, settings.address, () -> generation == epoch && connected() && settings.address.equalsIgnoreCase(new VehicleState(this).address) && settings.voiceId.equals(new VehicleState(this).voiceId), message -> {
+                    player = new VehicleReplyPlayer(this, settings.address, () -> generation == epoch && connected() && settings.address.equalsIgnoreCase(new VehicleState(this).address) && settings.voiceId.equals(new VehicleState(this).voiceId),
+                        routeMs -> {
+                            if (generation != epoch) return;
+                            long total = speechEnd == 0 ? -1 : SystemClock.elapsedRealtime() - speechEnd;
+                            worker.execute(() -> VehicleLatency.record(this, reply, recognitionMs, routeMs, total));
+                        }, message -> {
                         if (generation != epoch) return;
                         busy = false; status.setText(message); if (ready != null) { ready.delete(); ready = null; }
                     });

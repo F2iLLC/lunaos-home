@@ -9,4 +9,6 @@ public class JSONObject {
     public String optString(String key) { return values.containsKey(key) ? getString(key) : ""; }
     public int getInt(String key) { return (Integer)values.get(key); }
     public JSONObject getJSONObject(String key) { return (JSONObject)values.get(key); }
+    public JSONObject optJSONObject(String key) { return values.get(key) instanceof JSONObject ? getJSONObject(key) : null; }
+    public long optLong(String key, long fallback) { return values.containsKey(key) ? ((Number)values.get(key)).longValue() : fallback; }
 }

@@ -47,6 +47,8 @@ The model has no tools or private records supplied by this service. Its instruct
 
 ## Validation
 
+For stage timings and the bounded audio download window, see [latency measurement](vehicle-latency.md). Provider models and the selected voice are preserved; the phone can compare serial/windowed downloads of identical cached reply audio without additional paid asks.
+
 Run `node --test test/vehicle-model.test.js test/vehicle-conversations.test.js test/vehicle.test.js test/vehicle-voice.test.js test/android-vault-wiring.test.js`, then the full `npm test`. Build Home's Android debug APK and the isolated vehicle harness using the existing procedures. Install harness updates with its original signing key to preserve the selected vehicle, voice and trip state.
 
 Automated tests use only fictional content. They cover separate consent/grants, actual TLS admission, MCP sampling without inherited context, retry idempotency, bounded conversation handoff, audio chunk reconstruction, provider failures, malformed/oversized audio, expiry, revocation and late-answer suppression. Existing trip and route-gate tests remain applicable to greeting suppression and safe output selection.

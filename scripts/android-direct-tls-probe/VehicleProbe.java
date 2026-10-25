@@ -37,7 +37,10 @@ public final class VehicleProbe extends Instrumentation {
                 result.putString("result", "Readiness only; no provider request, microphone or playback. Does not establish vehicle audibility.");
                 finish(0, result); return;
             }
-            if ("conversation-check".equals(mode)) {
+            if ("last-conversation-timing".equals(mode)) {
+                finish(0, io.github.f2illc.lunaos.home.vehicle.VehicleLatency.read(getTargetContext())); return;
+            }
+            if ("conversation-check".equals(mode) || "conversation-latency".equals(mode)) {
                 if (!"true".equals(arguments.getString("allowProviderTest", "false"))) throw new SecurityException();
                 org.json.JSONObject state;
                 try (java.io.InputStream in = new java.io.FileInputStream(new java.io.File(getTargetContext().getNoBackupFilesDir(), "vehicle-session.json"))) {
@@ -47,13 +50,31 @@ public final class VehicleProbe extends Instrumentation {
                 }
                 try (VehicleConversationClient client = new VehicleConversationClient(getTargetContext())) {
                     try {
-                        VehicleConversationClient.Reply reply = client.ask(java.util.UUID.randomUUID().toString(), "Remember this fictional test color: cobalt. Acknowledge briefly.", state.getString("voiceId"));
-                        result.putInt("answerCharacters", reply.text.length()); result.putInt("waveBytes", reply.wave.length);
-                        VehicleConversationClient.Reply followup = client.ask(java.util.UUID.randomUUID().toString(), "What fictional test color did I just ask you to remember?", state.getString("voiceId"));
-                        boolean continuity = reply.conversationId.equals(followup.conversationId) && followup.text.toLowerCase(java.util.Locale.ROOT).contains("cobalt");
-                        if (!continuity) throw new java.io.IOException("Follow-up context check failed");
-                        result.putBoolean("followupContextVerified", true); result.putInt("followupWaveBytes", followup.wave.length);
-                        result.putString("result", "Two fixed test questions answered with bounded context and speech downloaded. No microphone or playback; no car interaction tested.");
+                        if ("conversation-latency".equals(mode)) {
+                            String id = java.util.UUID.randomUUID().toString();
+                            VehicleConversationClient.Reply reply = client.ask(id, "In one short sentence, explain why the sky looks blue.", state.getString("voiceId"));
+                            result.putLong("connectionMs", reply.connectionMs); result.putLong("modelMs", reply.modelMs);
+                            result.putLong("speechMs", reply.speechMs); result.putLong("readyMs", reply.readyMs);
+                            result.putLong("initialTransferMs", reply.transferMs); result.putInt("audioBytes", reply.wave.length);
+                            int sample = 0;
+                            // Counterbalanced order, identical cached bytes, no additional paid asks.
+                            for (int window : new int[]{1, 8, 8, 1}) {
+                                long start = android.os.SystemClock.elapsedRealtime();
+                                byte[] downloaded = client.downloadAudio(id, reply.wave.length, window);
+                                long elapsed = android.os.SystemClock.elapsedRealtime() - start;
+                                if (!java.util.Arrays.equals(downloaded, reply.wave)) throw new java.io.IOException("Audio changed");
+                                result.putLong("window" + window + "Sample" + (++sample) + "Ms", elapsed);
+                            }
+                            result.putString("result", "One paid fictional turn; identical audio compared with serial and eight-request windows. No microphone or playback.");
+                        } else {
+                            VehicleConversationClient.Reply reply = client.ask(java.util.UUID.randomUUID().toString(), "Remember this fictional test color: cobalt. Acknowledge briefly.", state.getString("voiceId"));
+                            result.putInt("answerCharacters", reply.text.length()); result.putInt("waveBytes", reply.wave.length);
+                            VehicleConversationClient.Reply followup = client.ask(java.util.UUID.randomUUID().toString(), "What fictional test color did I just ask you to remember?", state.getString("voiceId"));
+                            boolean continuity = reply.conversationId.equals(followup.conversationId) && followup.text.toLowerCase(java.util.Locale.ROOT).contains("cobalt");
+                            if (!continuity) throw new java.io.IOException("Follow-up context check failed");
+                            result.putBoolean("followupContextVerified", true); result.putInt("followupWaveBytes", followup.wave.length);
+                            result.putString("result", "Two fixed test questions answered with bounded context and speech downloaded. No microphone or playback; no car interaction tested.");
+                        }
                     } finally { client.clear(); }
                 }
                 finish(0, result); return;

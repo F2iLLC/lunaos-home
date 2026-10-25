@@ -9,11 +9,64 @@ import { createDraftStore } from '../lib/drafts.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { CreateMessageRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import tls from 'node:tls';
+import { once } from 'node:events';
 
 const voice = 'abcdefghijklmnopqrst';
 const request = (question = 'Say hello.') => ({ action: 'ask', requestId: crypto.randomUUID(), question, voiceId: voice, parked: true, shareWithAssistant: true, speakWithProvider: true });
 const wave = pcmWave(Buffer.alloc(9600));
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('eight queued audio reads preserve frame bounds, ordering and full 2 MiB audio over enrolled TLS', async t => {
+  const fixture = createDirectTlsIdentities(); t.after(fixture.cleanup);
+  const completeAudio = pcmWave(Buffer.alloc(2 * 1024 * 1024 - 44, 86));
+  let generated = 0, spoken = 0;
+  const service = createVehicleConversations({ answer: async () => { generated++; return 'Fictional audio test.'; },
+    speak: async () => { spoken++; return completeAudio; } });
+  service.approve(fixture.phoneIdentity.fingerprint, voice);
+  const host = await startDirectVaultExperiment({ identity: fixture.hostIdentity, ca: fixture.ca,
+    vehicleConversations: service, store: { read() { throw Error('No records'); }, create() {}, edit() {} } });
+  t.after(() => host.close());
+  const client = await connectDirectVaultExperiment({ port: host.port, identity: fixture.phoneIdentity, ca: fixture.ca,
+    approvedHostFingerprint: host.hostFingerprint, offer: host.approvePairing(fixture.phoneIdentity.fingerprint).offer });
+  const ask = request(); await client.conversation(ask); await settle();
+  const ready = await client.conversation({ action: 'status', requestId: ask.requestId }); client.close();
+  assert.deepEqual(Object.keys(ready.timing).sort(), ['modelMs', 'speechMs']);
+  for (const value of Object.values(ready.timing)) assert.ok(Number.isInteger(value) && value >= 0 && value <= 60_000);
+  const socket = tls.connect({ host: '127.0.0.1', port: host.port, servername: 'localhost',
+    cert: fixture.phoneIdentity.cert, key: fixture.phoneIdentity.key, ca: fixture.ca, minVersion: 'TLSv1.3', maxVersion: 'TLSv1.3' });
+  t.after(() => socket.destroy());
+  await once(socket, 'secureConnect'); assert.equal(socket.authorized, true);
+  assert.equal(socket.getPeerCertificate().fingerprint256.replaceAll(':', '').toLowerCase(), host.hostFingerprint);
+  let buffer = ''; const frames = [], readers = [];
+  socket.on('data', bytes => {
+    buffer += bytes.toString('utf8'); let newline;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);
+      assert.ok(Buffer.byteLength(line) < 8192);
+      const message = JSON.parse(line); if (readers.length) readers.shift().resolve(message); else frames.push(message);
+    }
+  });
+  socket.on('error', error => { for (const reader of readers.splice(0)) reader.reject(error); });
+  socket.setTimeout(5000, () => socket.destroy(Error('Test socket timed out')));
+  const read = () => frames.length ? Promise.resolve(frames.shift()) : new Promise((resolve, reject) => readers.push({ resolve, reject }));
+  socket.write(JSON.stringify({ seq: 1, op: 'resume' }) + '\n'); assert.equal((await read()).ok, true);
+  let sequence = 1, offset = 0; const audio = [];
+  while (offset < completeAudio.length) {
+    const queries = [];
+    for (let i = 0; i < 8 && offset + i * 4096 < completeAudio.length; i++) queries.push({ seq: ++sequence, op: 'conversation',
+      request: { action: 'audio', requestId: ask.requestId, offset: offset + i * 4096 } });
+    const wire = queries.map(query => JSON.stringify(query) + '\n').join(''); assert.ok(Buffer.byteLength(wire) < 8192);
+    socket.write(wire);
+    for (const query of queries) {
+      const response = await read(); assert.equal(response.seq, query.seq); assert.equal(response.ok, true);
+      assert.equal(response.value.offset, offset);
+      const chunk = Buffer.from(response.value.data, 'base64'); audio.push(chunk); offset += chunk.length;
+      assert.equal(response.value.next, offset); assert.equal(response.value.done, offset === completeAudio.length);
+    }
+  }
+  assert.deepEqual(Buffer.concat(audio), completeAudio); assert.equal(generated, 1); assert.equal(spoken, 1);
+});
 
 test('enrolled TLS reconnect reads the original job and retains bounded follow-up context without new charges', async t => {
   const fixture = createDirectTlsIdentities(); t.after(fixture.cleanup);

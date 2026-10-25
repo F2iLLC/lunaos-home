@@ -4,13 +4,24 @@ import org.json.JSONObject;
 import java.io.IOException;
 final class SyntheticTlsClient {
     static String fault;
-    static int connections, asks, reads, closes;
+    static int connections, asks, reads, closes, largestWindow;
     static boolean fired;
     private boolean broken;
-    static final byte[] audio = new byte[9000];
-    static void reset(String value) { fault=value; connections=asks=reads=closes=0; fired=false; }
+    static final byte[] audio = new byte[70000];
+    static { for (int i=0;i<audio.length;i++) audio[i]=(byte)(i * 13); }
+    static void reset(String value) { fault=value; connections=asks=reads=closes=largestWindow=0; fired=false; }
     SyntheticTlsClient(Context context, JSONObject config) throws IOException { connections++; }
     void enableConversationTransfer() {}
+    JSONObject[] audioWindow(String requestId, int offset, int size, int window) throws Exception {
+        if (window < 1 || window > 8) throw new AssertionError();
+        largestWindow=Math.max(largestWindow,window);
+        int count=Math.min(window,(size-offset+4095)/4096);
+        JSONObject[] result=new JSONObject[count];
+        for(int i=0;i<count;i++) result[i]=call(new JSONObject().put("op","conversation").put("request",
+            new JSONObject().put("action","audio").put("requestId",requestId).put("offset",offset+i*4096)));
+        if ("corrupt".equals(fault)) result[0].getJSONObject("value").put("offset",4096);
+        return result;
+    }
     JSONObject call(JSONObject body) throws Exception {
         if (broken) throw new IOException("socket lost");
         if ("resume".equals(body.getString("op"))) return new JSONObject().put("ok", true);

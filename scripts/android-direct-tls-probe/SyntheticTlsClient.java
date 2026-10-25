@@ -53,7 +53,7 @@ final class SyntheticTlsClient implements AutoCloseable {
                 byte[] digest = MessageDigest.getInstance("SHA-256").digest(socket.getSession().getPeerCertificates()[0].getEncoded());
                 StringBuilder hex = new StringBuilder(); for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
                 if (!hex.toString().equals(approvedPin)) throw new SSLPeerUnverifiedException("Approved host differs");
-                input = socket.getInputStream(); output = socket.getOutputStream();
+                input = new BufferedInputStream(socket.getInputStream(), 8192); output = socket.getOutputStream();
                 Runnable checkpoint = constructionCheckpoint; if (checkpoint != null) checkpoint.run();
             } catch (Exception failure) { if (socket != null) socket.close(); else tcp.close(); throw failure; }
         }
@@ -74,6 +74,33 @@ final class SyntheticTlsClient implements AutoCloseable {
             require(sequence < messageLimit); int expected = ++sequence; body.put("seq", expected);
             byte[] bytes = (body.toString() + "\n").getBytes(StandardCharsets.UTF_8); require(bytes.length <= 8192); output.write(bytes); output.flush();
             for (;;) { JSONObject message = receive(); if (receiveApproval(message)) continue; require(message.getInt("seq") == expected); return message; }
+        }
+        JSONObject[] audioWindow(String requestId, int offset, int audioBytes, int window) throws Exception {
+            // Only idempotent audio reads can pipeline. Eight is the host's
+            // existing queue ceiling; each reply still obeys its 8 KiB limit.
+            require(window >= 1 && window <= 8 && offset >= 0 && offset % 4096 == 0
+                && audioBytes >= 44 && audioBytes <= 2 * 1024 * 1024 && offset < audioBytes);
+            int count = Math.min(window, (audioBytes - offset + 4095) / 4096);
+            require(sequence + count <= messageLimit);
+            int firstSequence = sequence + 1;
+            ByteArrayOutputStream outgoing = new ByteArrayOutputStream();
+            try {
+                for (int i = 0; i < count; i++) {
+                    JSONObject request = new JSONObject().put("action", "audio").put("requestId", requestId).put("offset", offset + i * 4096);
+                    JSONObject body = new JSONObject().put("op", "conversation").put("request", request).put("seq", ++sequence);
+                    outgoing.write((body.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+                }
+                require(outgoing.size() <= 8192); output.write(outgoing.toByteArray()); output.flush();
+                JSONObject[] replies = new JSONObject[count];
+                for (int i = 0; i < count;) {
+                    JSONObject message = receive(); if (receiveApproval(message)) continue;
+                    require(message.getInt("seq") == firstSequence + i); replies[i++] = message;
+                }
+                return replies;
+            } catch (Exception failure) {
+                // A partial window leaves unread frames. Never reuse that stream.
+                close(); throw failure;
+            }
         }
         String approval() throws Exception {
             return approval("read-only");

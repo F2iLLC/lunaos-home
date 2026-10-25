@@ -14,15 +14,18 @@ final class VehicleReplyPlayer implements AutoCloseable {
     private final String address;
     private final BooleanSupplier allowed;
     private final Consumer<String> finished;
+    private final java.util.function.LongConsumer started;
     private final VehiclePlaybackGate gate = new VehiclePlaybackGate();
     private MediaPlayer player;
     private AudioFocusRequest focus;
-    private long deadline, preparationDeadline;
+    private long deadline, preparationDeadline, playbackStarted;
     private boolean closed, audible;
-    VehicleReplyPlayer(Context context, String address, BooleanSupplier allowed, Consumer<String> finished) {
+    VehicleReplyPlayer(Context context, String address, BooleanSupplier allowed, java.util.function.LongConsumer started, Consumer<String> finished) {
         audio = context.getSystemService(AudioManager.class); this.address = address; this.allowed = allowed; this.finished = finished;
+        this.started = started;
     }
     void play(File wave) {
+        playbackStarted = SystemClock.elapsedRealtime();
         try {
             if (!allowed.getAsBoolean()) { end("Keep the conversation open while parked and connected."); return; }
             AudioDeviceInfo output = null;
@@ -57,7 +60,9 @@ final class VehicleReplyPlayer implements AutoCloseable {
                 ready.start(); verify();
             });
             player.seekTo(0);
-        } else if (decision == VehiclePlaybackGate.Decision.UNMUTE) { gate.started(); audible = true; player.setVolume(1, 1); }
+        } else if (decision == VehiclePlaybackGate.Decision.UNMUTE) {
+            gate.started(); audible = true; player.setVolume(1, 1); started.accept(SystemClock.elapsedRealtime() - playbackStarted);
+        }
         else if (decision == VehiclePlaybackGate.Decision.STOP) { end("Reply stopped because the selected output changed."); return; }
         if (!closed) ui.postDelayed(this::verify, 50);
     }
