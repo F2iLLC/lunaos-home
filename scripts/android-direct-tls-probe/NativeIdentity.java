@@ -71,5 +71,42 @@ final class NativeIdentity {
         for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
         return hex.toString();
     }
+    /** Explicit operator renewal only. Retains the enrolled non-exportable key.
+     * The certificate fingerprint changes and must be approved again on Home. */
+    static void renewVehicleCertificate(Context context) throws Exception {
+        if (!"io.github.f2illc.lunaos.home.vehicleprobe".equals(context.getPackageName())) throw new SecurityException();
+        KeyStore keys = requireIdentity();
+        PrivateKey key = (PrivateKey) keys.getKey(ALIAS, null);
+        X509Certificate previous = (X509Certificate) keys.getCertificate(ALIAS);
+        byte[] algorithm = der(0x30, new byte[]{0x06, 0x08, 0x2a, (byte)0x86, 0x48, (byte)0xce, 0x3d, 0x04, 0x03, 0x02});
+        java.text.SimpleDateFormat utc = new java.text.SimpleDateFormat("yyMMddHHmmss'Z'", java.util.Locale.ROOT);
+        utc.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        long now = System.currentTimeMillis();
+        byte[] validity = der(0x30, join(der(0x17, utc.format(new Date(now - 60_000)).getBytes(StandardCharsets.US_ASCII)),
+            der(0x17, utc.format(new Date(now + 90L * 86_400_000)).getBytes(StandardCharsets.US_ASCII))));
+        byte[] name = previous.getSubjectX500Principal().getEncoded();
+        byte[] tbs = der(0x30, join(der(0xa0, der(0x02, new byte[]{2})),
+            der(0x02, new BigInteger(128, new SecureRandom()).add(BigInteger.ONE).toByteArray()),
+            algorithm, name, validity, name, previous.getPublicKey().getEncoded()));
+        Signature signer = Signature.getInstance("SHA256withECDSA"); signer.initSign(key); signer.update(tbs);
+        byte[] encoded = der(0x30, join(tbs, algorithm, der(0x03, join(new byte[]{0}, signer.sign()))));
+        X509Certificate renewed = (X509Certificate) java.security.cert.CertificateFactory.getInstance("X.509")
+            .generateCertificate(new ByteArrayInputStream(encoded));
+        renewed.checkValidity(); renewed.verify(previous.getPublicKey());
+        if (!java.util.Arrays.equals(previous.getPublicKey().getEncoded(), renewed.getPublicKey().getEncoded())) throw new SecurityException();
+        // AndroidKeyStore updates only the certificate chain for the existing alias/key.
+        keys.setKeyEntry(ALIAS, key, null, new java.security.cert.Certificate[]{renewed});
+        inspect(context);
+    }
+    private static byte[] join(byte[]... values) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(); for (byte[] value : values) out.write(value); return out.toByteArray();
+    }
+    private static byte[] der(int tag, byte[] value) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(); out.write(tag);
+        if (value.length < 128) out.write(value.length);
+        else if (value.length < 256) { out.write(0x81); out.write(value.length); }
+        else { out.write(0x82); out.write(value.length >> 8); out.write(value.length); }
+        out.write(value); return out.toByteArray();
+    }
     static void remove() throws Exception { store().deleteEntry(ALIAS); }
 }

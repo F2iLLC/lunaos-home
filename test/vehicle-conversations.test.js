@@ -15,6 +15,45 @@ const request = (question = 'Say hello.') => ({ action: 'ask', requestId: crypto
 const wave = pcmWave(Buffer.alloc(9600));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+test('enrolled TLS reconnect reads the original job and retains bounded follow-up context without new charges', async t => {
+  const fixture = createDirectTlsIdentities(); t.after(fixture.cleanup);
+  let answers = 0, speeches = 0, complete;
+  const service = createVehicleConversations({
+    answer: async ({ messages }) => {
+      answers++;
+      if (answers === 1) return new Promise(resolve => { complete = resolve; });
+      assert.deepEqual(messages.map(m => m.text), ['Remember fictional blue.', 'Fictional blue.', 'What color?']);
+      return 'Blue.';
+    },
+    speak: async () => { speeches++; return wave; },
+  });
+  service.approve(fixture.phoneIdentity.fingerprint, voice);
+  const host = await startDirectVaultExperiment({ identity: fixture.hostIdentity, ca: fixture.ca,
+    vehicleConversations: service, store: { read() { throw Error('No record grant'); }, create() {}, edit() {} } });
+  t.after(() => host.close());
+  const connect = offer => connectDirectVaultExperiment({ port: host.port, identity: fixture.phoneIdentity,
+    ca: fixture.ca, approvedHostFingerprint: host.hostFingerprint, offer });
+  let client = await connect(host.approvePairing(fixture.phoneIdentity.fingerprint).offer);
+  t.after(() => client.close());
+  const ask = request('Remember fictional blue.');
+  const start = await client.conversation(ask);
+  client.close(); // Response/audio channel lost while the paid job is running.
+  complete('Fictional blue.'); await settle();
+  client = await connect();
+  const status = await client.conversation({ action: 'status', requestId: ask.requestId });
+  assert.equal(status.conversationId, start.conversationId); assert.equal(status.status, 'ready');
+  const first = await client.conversation({ action: 'audio', requestId: ask.requestId, offset: 0 });
+  client.close(); client = await connect();
+  assert.deepEqual(await client.conversation({ action: 'audio', requestId: ask.requestId, offset: 0 }), first);
+  assert.equal(answers, 1); assert.equal(speeches, 1);
+  await client.conversation(request('What color?')); await settle();
+  assert.equal(answers, 2); assert.equal(speeches, 2);
+  assert.equal(service.read(start.conversationId).messages.length, 4);
+  await client.conversation({ action: 'clear' });
+  await assert.rejects(client.conversation({ action: 'status', requestId: ask.requestId }));
+  assert.equal(answers, 2); // No status lookup can recreate an expired/cleared paid job.
+});
+
 test('vehicle nickname changes presentation within the same bounded Home conversation', async () => {
   let observed;
   const service = createVehicleConversations({ nickname: 'Juniper',

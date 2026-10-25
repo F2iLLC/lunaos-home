@@ -13,6 +13,30 @@ public final class VehicleProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             String mode = arguments == null ? "prepare" : arguments.getString("mode", "prepare");
+            if ("renew-vehicle-identity".equals(mode)) {
+                if (!"true".equals(arguments.getString("allowIdentityRenewal", "false"))) throw new SecurityException();
+                NativeIdentity.renewVehicleCertificate(getTargetContext());
+                result.putString("result", "Transport certificate renewed for 90 days with the same non-exportable key. Approve the renewed public certificate on Home before connecting.");
+                finish(0, result); return;
+            }
+            if ("remote-readiness".equals(mode)) {
+                android.content.Context context = getTargetContext();
+                android.net.ConnectivityManager manager = context.getSystemService(android.net.ConnectivityManager.class);
+                android.net.NetworkCapabilities active = manager.getNetworkCapabilities(manager.getActiveNetwork());
+                result.putBoolean("defaultNetworkAvailable", active != null);
+                result.putBoolean("defaultNetworkVpn", active != null && active.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN));
+                result.putBoolean("defaultNetworkCellular", active != null && active.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR));
+                result.putBoolean("wifiEnabled", context.getSystemService(android.net.wifi.WifiManager.class).isWifiEnabled());
+                org.json.JSONObject config = FixtureConfig.read(context);
+                result.putBoolean("adbReverseConfigured", config.optBoolean("vehicleHarnessAdbReverse", false));
+                java.security.cert.X509Certificate cert = (java.security.cert.X509Certificate) NativeIdentity.requireIdentity().getCertificate(NativeIdentity.ALIAS);
+                result.putLong("phoneCertificateDaysRemaining", (cert.getNotAfter().getTime() - System.currentTimeMillis()) / 86_400_000);
+                try (SyntheticTlsClient client = new SyntheticTlsClient(context, config)) {
+                    result.putBoolean("enrolledTlsReachable", client.call(new org.json.JSONObject().put("op", "resume")).getBoolean("ok"));
+                } catch (Exception unavailable) { result.putBoolean("enrolledTlsReachable", false); }
+                result.putString("result", "Readiness only; no provider request, microphone or playback. Does not establish vehicle audibility.");
+                finish(0, result); return;
+            }
             if ("conversation-check".equals(mode)) {
                 if (!"true".equals(arguments.getString("allowProviderTest", "false"))) throw new SecurityException();
                 org.json.JSONObject state;
@@ -23,9 +47,13 @@ public final class VehicleProbe extends Instrumentation {
                 }
                 try (VehicleConversationClient client = new VehicleConversationClient(getTargetContext())) {
                     try {
-                        VehicleConversationClient.Reply reply = client.ask(java.util.UUID.randomUUID().toString(), "Say hello in one short sentence.", state.getString("voiceId"));
+                        VehicleConversationClient.Reply reply = client.ask(java.util.UUID.randomUUID().toString(), "Remember this fictional test color: cobalt. Acknowledge briefly.", state.getString("voiceId"));
                         result.putInt("answerCharacters", reply.text.length()); result.putInt("waveBytes", reply.wave.length);
-                        result.putString("result", "Fixed test question answered and speech downloaded. No microphone or playback; no car interaction tested.");
+                        VehicleConversationClient.Reply followup = client.ask(java.util.UUID.randomUUID().toString(), "What fictional test color did I just ask you to remember?", state.getString("voiceId"));
+                        boolean continuity = reply.conversationId.equals(followup.conversationId) && followup.text.toLowerCase(java.util.Locale.ROOT).contains("cobalt");
+                        if (!continuity) throw new java.io.IOException("Follow-up context check failed");
+                        result.putBoolean("followupContextVerified", true); result.putInt("followupWaveBytes", followup.wave.length);
+                        result.putString("result", "Two fixed test questions answered with bounded context and speech downloaded. No microphone or playback; no car interaction tested.");
                     } finally { client.clear(); }
                 }
                 finish(0, result); return;

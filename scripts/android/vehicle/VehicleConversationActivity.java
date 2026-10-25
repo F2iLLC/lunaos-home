@@ -126,7 +126,7 @@ public final class VehicleConversationActivity extends Activity {
         VehicleState settings = new VehicleState(this);
         if (settings.voiceId.isEmpty()) { status.setText("Choose an ElevenLabs voice and configure Home conversation access first."); return; }
         busy = true; final int generation = ++epoch; requestId = UUID.randomUUID().toString(); final String id = requestId;
-        status.setText("Asking " + speakerName + "…"); transcript.setText("You: " + text);
+        status.setText("Asking " + speakerName + "… Brief network changes reconnect automatically. Keep Home and your private VPN online."); transcript.setText("You: " + text);
         pending = worker.submit(() -> {
             File file = null;
             try (VehicleConversationClient c = new VehicleConversationClient(this)) {
@@ -149,7 +149,7 @@ public final class VehicleConversationActivity extends Activity {
                 });
             } catch (Exception unavailable) {
                 if (file != null) file.delete();
-                ui.post(() -> { if (generation == epoch) { busy = false; status.setText("Home conversation unavailable. Check the connection and provider setup; your greeting still works offline."); } });
+                ui.post(() -> { if (generation == epoch) { busy = false; status.setText("Home couldn't complete this reply. Check cellular data, your private VPN and that Home is awake. The question wasn't automatically resent; it may already have reached Home. Once connected, send a new question. Cached greetings still work offline."); } });
             } finally { client = null; }
         });
     }

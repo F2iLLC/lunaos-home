@@ -19,6 +19,8 @@ const initializationGuidance = 'Initialize Android first: npm run native:android
 export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
   <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
   <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />

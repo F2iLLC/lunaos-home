@@ -89,6 +89,7 @@ final class SyntheticTlsClient implements AutoCloseable {
             // Bounded 2 MiB audio needs up to 512 chunks plus status polls.
             // Match the server's existing 1,024-message ceiling for this scope.
             messageLimit = 1024;
+            socket.setSoTimeout(5000);
         }
         JSONObject execute(String grant, JSONObject request) throws Exception { return call(new JSONObject().put("op", "execute").put("grant", grant).put("request", request)); }
         void requirePresence(String grant) throws Exception {

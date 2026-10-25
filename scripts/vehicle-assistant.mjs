@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { X509Certificate } from 'node:crypto';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createAssistantServer } from '../assistant.js';
 import { createDraftStore } from '../lib/drafts.js';
@@ -21,6 +22,12 @@ function external(path) {
 const config = JSON.parse(await readFile(external(process.argv[2]), 'utf8'));
 if (config.vehicleGreetings !== true) throw Error('Explicit vehicle endpoint configuration required.');
 const [cert, key, ca, peerCert] = await Promise.all(['hostCert', 'hostKey', 'ca', 'approvedPhoneCert'].map(name => readFile(external(config[name]))));
+for (const pem of [cert, ca, peerCert]) {
+  const certificate = new X509Certificate(pem);
+  const remaining = Date.parse(certificate.validTo) - Date.now();
+  if (Date.parse(certificate.validFrom) > Date.now() || remaining <= 0) throw Error('TLS identity is not currently valid. Renew through trusted enrollment; never disable verification.');
+  if (remaining < 7 * 86400_000) console.error('A configured TLS certificate expires within seven days. Schedule trusted renewal before remote use.');
+}
 const peer = certificateFingerprint(peerCert);
 const vehicles = createVehicleSessions(); vehicles.approve(peer);
 const provider = config.assistantProvider ?? 'mcp';
