@@ -13,10 +13,29 @@ public final class VehicleProbe extends Instrumentation {
         Bundle result = new Bundle();
         try {
             String mode = arguments == null ? "prepare" : arguments.getString("mode", "prepare");
+            if ("conversation-check".equals(mode)) {
+                if (!"true".equals(arguments.getString("allowProviderTest", "false"))) throw new SecurityException();
+                org.json.JSONObject state;
+                try (java.io.InputStream in = new java.io.FileInputStream(new java.io.File(getTargetContext().getNoBackupFilesDir(), "vehicle-session.json"))) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(); byte[] buffer = new byte[1024]; int n;
+                    while ((n = in.read(buffer)) >= 0) { out.write(buffer, 0, n); if (out.size() > 8192) throw new java.io.IOException(); }
+                    state = new org.json.JSONObject(out.toString("UTF-8"));
+                }
+                try (VehicleConversationClient client = new VehicleConversationClient(getTargetContext())) {
+                    try {
+                        VehicleConversationClient.Reply reply = client.ask(java.util.UUID.randomUUID().toString(), "Say hello in one short sentence.", state.getString("voiceId"));
+                        result.putInt("answerCharacters", reply.text.length()); result.putInt("waveBytes", reply.wave.length);
+                        result.putString("result", "Fixed test question answered and speech downloaded. No microphone or playback; no car interaction tested.");
+                    } finally { client.clear(); }
+                }
+                finish(0, result); return;
+            }
             if ("conversation-capability".equals(mode)) {
                 android.content.Context context = getTargetContext();
                 result.putBoolean("onDeviceRecognitionAvailable", android.os.Build.VERSION.SDK_INT >= 31 && android.speech.SpeechRecognizer.isOnDeviceRecognitionAvailable(context));
                 result.putBoolean("microphonePermissionGranted", context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED);
+                result.putBoolean("localNetworkPermissionGranted", android.os.Build.VERSION.SDK_INT < 37 || context.getApplicationInfo().targetSdkVersion < 37
+                    || context.checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") == android.content.pm.PackageManager.PERMISSION_GRANTED);
                 boolean configured = false;
                 try { configured = FixtureConfig.read(context).optBoolean("vehicleConversations", false); } catch (Exception unavailable) { }
                 result.putBoolean("homeConversationConfigured", configured);

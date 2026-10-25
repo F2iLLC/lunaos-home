@@ -39,7 +39,7 @@ $manifestPath = Join-Path $output 'AndroidManifest.xml'
 $manifestCode = @'
 const { vaultDebugManifest } = await import(process.argv[1]);
 let xml = vaultDebugManifest.replace('<manifest ', '<manifest package="io.github.f2illc.lunaos.home.vehicleprobe" ')
-  .replace('<application>', '<uses-sdk android:minSdkVersion="31" android:targetSdkVersion="36" /><application android:label="Vehicle Preview" android:debuggable="true" android:allowBackup="false" android:usesCleartextTraffic="false">')
+  .replace('<application>', '<uses-sdk android:minSdkVersion="31" android:targetSdkVersion="37" /><application android:label="Vehicle Preview" android:debuggable="true" android:allowBackup="false" android:usesCleartextTraffic="false">')
   .replace(/\s*<activity android:name="(?:\.VaultActivity|io.github.f2illc.lunaos.directtlsprobe.PairingActivity)"[^>]*\/>/g, '')
   .replace(/\s*<receiver android:name="androidx.profileinstaller.ProfileInstallReceiver"[^>]*\/>/g, '')
   .replace('<activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="false" />', '<activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity>')

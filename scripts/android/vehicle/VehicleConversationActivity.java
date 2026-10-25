@@ -81,6 +81,10 @@ public final class VehicleConversationActivity extends Activity {
     }
     private boolean begin() {
         if (busy) { status.setText("Finish or stop the current question first."); return false; }
+        if (Build.VERSION.SDK_INT >= 37 && getApplicationInfo().targetSdkVersion >= 37
+            && checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != PackageManager.PERMISSION_GRANTED) {
+            status.setText("Allow Home connection in vehicle setup first."); return false;
+        }
         if (!connected()) { status.setText("Confirm you're parked and connect the selected vehicle's Bluetooth media audio."); return false; }
         return true;
     }
