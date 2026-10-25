@@ -25,6 +25,12 @@ export function createAssistantServer(drafts, reviewUrl, { vehicleSessions, assi
       return { isError: true, content: [{ type: 'text', text: error instanceof DraftError ? error.message : 'Invalid fictional draft request.' }] };
     }
   };
+  server.registerTool('home_open_home', {
+    title: 'Open the local Home preview',
+    description: 'Return the current local Home link. Does not read saved records, approve a save, or change the draft. Fictional data only. Windows saves require separate local approval.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, call(() => ({ reviewUrl, status: 'Open Home locally to review drafts or view saved fictional examples.' })));
   if (vehicleSessions) server.registerTool('home_vehicle_style', {
     title: 'Choose LunaOS vehicle greeting style',
     description: 'Choose warm, witty or dramatic wording for the next vehicle greeting. No separate AI identity, arbitrary spoken text, calendar access, location, vehicle controls, or permission grants. Uses only the local time period supplied by the enrolled phone. Names are substituted locally on the phone.',
@@ -62,14 +68,23 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const port = Number(process.env.LUNA_HOME_PREVIEW_PORT ?? 4183);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid preview port.');
   const drafts = createDraftStore();
-  const http = createAppServer({ drafts });
+  let draftVault;
+  if (process.env.LUNA_HOME_FICTIONAL_SAVE === '1' && process.platform === 'win32') {
+    const { createReviewedDraftVault, createWindowsReviewedDraftStore } = await import('./lib/reviewed-draft-vault.js');
+    // A privileged launcher may select a disposable fictional store for tests.
+    // No MCP argument can choose a store or filesystem path.
+    draftVault = createReviewedDraftVault({ drafts, store: createWindowsReviewedDraftStore({
+      ...(process.env.LUNA_HOME_FICTIONAL_STORE_ID ? { probeId: process.env.LUNA_HOME_FICTIONAL_STORE_ID } : {}),
+    }) });
+  }
+  const http = createAppServer({ drafts, draftVault });
   http.listen(port, '127.0.0.1');
   await once(http, 'listening');
-  const reviewUrl = `http://127.0.0.1:${http.address().port}/#vault`;
+  const reviewUrl = `http://127.0.0.1:${http.address().port}/#vault${draftVault ? `?save=${draftVault.key}` : ''}`;
   const mcp = createAssistantServer(drafts, reviewUrl);
-  mcp.server.onclose = () => http.close();
+  mcp.server.onclose = () => { http.close(); void draftVault?.close(); };
   await mcp.connect(new StdioServerTransport());
   // stdout is reserved for MCP messages; no record values are logged.
-  console.error(`Luna OS Home fictional draft preview: ${reviewUrl}`);
+  console.error('Luna OS Home fictional preview ready. Use home_open_home for the local link.');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => { await mcp.close(); http.close(); });
 }

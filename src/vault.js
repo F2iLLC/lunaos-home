@@ -1,4 +1,5 @@
 import { requestDraft, canRequestAssistantReview } from './draft-client.js';
+import { canSaveDraft, prepareSave, resetSave } from './draft-storage.js';
 
 let draft = null;
 let personId;
@@ -38,6 +39,7 @@ async function request(path, input) {
     const changed = data.draft?.id !== draft?.id || data.draft?.revision !== draft?.revision;
     draft = data.draft;
     if (changed || !draft) {
+      resetSave();
       render();
       if (hadEditorFocus && draft) $('#field-title').focus();
     }
@@ -128,6 +130,11 @@ function render() {
   const confirm = button('Looks right', () => review(person, field, 'confirm', revision));
   confirm.disabled = field.status === 'needs-review' || field.value === null;
   actions.append(confirm, button('Needs review', () => review(person, field, 'flag', revision)), button('Skip this detail', () => review(person, field, 'skip', revision)));
+  if (canSaveDraft()) {
+    const save = button('Save this detail', () => prepareSave({ draftId: draft.id, personId: person.id, itemId: field.id, revision }));
+    save.disabled = field.status !== 'confirmed';
+    actions.append(save);
+  }
   editor.append(actions);
   if (field.status === 'needs-review' && !canRequestAssistantReview()) {
     editor.append(element('p', 'An assistant is not connected to this app preview. You can change this detail yourself below.', 'section-help'));

@@ -13,9 +13,10 @@ const routes = new Map([
   ['/tasks.js', ['tasks.js', 'text/javascript']],
   ['/vault.js', ['vault.js', 'text/javascript']],
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
+  ['/draft-storage.js', ['draft-storage.js', 'text/javascript']],
 ]);
 
-export function createAppServer({ drafts = createDraftStore(), windowsPreview } = {}) {
+export function createAppServer({ drafts = createDraftStore(), windowsPreview, draftVault } = {}) {
   return createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -38,6 +39,20 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
         return;
       }
       try {
+        if (request.url === '/api/draft-storage' && draftVault) {
+          if (!draftVault.acceptsKey(request.headers['x-home-save-key'])) { send(403, { error: 'Open Home using the current plugin link.' }); return; }
+          if (request.method !== 'POST') { send(405, { error: 'Choose a local storage action.' }); return; }
+          if (request.headers['content-type'] !== 'application/json') { send(415, { error: 'Unsupported request.' }); return; }
+          const chunks = [];
+          let bytes = 0;
+          for await (const chunk of request) {
+            bytes += chunk.length;
+            if (bytes > 2048) { send(413, { error: 'That request is too large.' }); return; }
+            chunks.push(chunk);
+          }
+          send(200, await draftVault.request(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+          return;
+        }
         if (['/api/windows-preview', '/api/windows-assistant'].includes(request.url) && windowsPreview) {
           const assistantRequest = request.url === '/api/windows-assistant';
           const accepted = assistantRequest ? windowsPreview.acceptsAssistantKey(request.headers['x-home-assistant-key'])
@@ -103,6 +118,12 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview } 
     }
     try {
       let content = await readFile(new URL(`./src/${route[0]}`, import.meta.url));
+      if (route[0] === 'index.html' && draftVault) {
+        content = content.toString('utf8')
+          .replace('Fictional preview · Nothing saved', 'Fictional preview · Saving available on Windows')
+          .replace('Use made-up details only. This is a draft, not a secure vault. It clears when the local preview stops or you discard it.', 'Use made-up details only. Drafts clear when the preview stops. Separately approved saves stay encrypted under your Windows account on this computer. This prototype has no separate vault unlock and is not ready for personal information.')
+          .replace('Reviewed details stay in this draft. Saving to a protected vault is coming in a later step.', 'Looks right checks a detail. Save this detail opens a separate approval to keep an Alex or Sam example on this computer. Discarding a draft does not delete saved examples.');
+      }
       if (route[0] === 'windows-vault.html' && windowsPreview.nativeVerification) {
         content = content.toString('utf8').replace('It does not unlock a vault or connect your phone.',
           'Windows verification is required for this visit. Closing the app or reaching five minutes ends all access. This test does not connect your phone.');
