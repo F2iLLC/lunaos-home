@@ -30,6 +30,9 @@ public final class VehicleAudioService extends Service {
     private int greetingId;
     private String playbackVoice = "Android offline voice";
     private String greetingVoiceId, greetingVoicePack, greetingNickname;
+    private long passengerReadyAt;
+    private String preferred = "", greetingPeriod;
+    private VehiclePassengers.Decision passengerDecision;
     private final BroadcastReceiver changes = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { check(); }
     };
@@ -95,8 +98,9 @@ public final class VehicleAudioService extends Service {
         if (!detected) {
             detected = true; VehicleState state = VehicleRuntime.connected(this); trip = state.trip.id;
             attempted = state.trip.claimed;
-            VehicleRuntime.notifyBackend(this, true, text -> ui.post(() -> begin(text)));
-            ui.postDelayed(() -> begin(""), 2500);
+            passengerReadyAt = SystemClock.elapsedRealtime() + VehiclePassengers.SETTLE_MS;
+            VehicleRuntime.notifyBackend(this, true, text -> ui.post(() -> { preferred = text; begin(preferred); }));
+            ui.postDelayed(() -> begin(preferred), VehiclePassengers.SETTLE_MS);
             ui.postDelayed(this::heartbeat, 60_000);
         }
     }
@@ -108,14 +112,18 @@ public final class VehicleAudioService extends Service {
     }
     private void begin(String text) {
         if (stopped || attempted || generating || !connected()) return;
+        if (SystemClock.elapsedRealtime() < passengerReadyAt) return;
         if (SystemClock.elapsedRealtime() >= deadline) { unavailable(); return; }
         if (route() == null) { ui.postDelayed(() -> begin(text), 1000); return; }
+        VehicleState settings = new VehicleState(this);
+        greetingPeriod = VehicleRuntime.period();
+        passengerDecision = settings.passengers.decide(trip, System.currentTimeMillis(), VehicleRuntime.boot(this), greetingPeriod);
+        VehicleGreetings.Choice choice = VehiclePassengers.choose(greetingPeriod, settings.nickname, settings.lastGreetingId, text, passengerDecision);
+        if (choice == null) { attempted = true; VehicleRuntime.audio(this, "Greetings silenced by your preferences."); return; }
         generating = true;
         final int generation = ++audioEpoch;
         VehicleRuntime.audio(this, "Preparing offline speech");
-        VehicleState settings = new VehicleState(this);
         greetingVoiceId = settings.voiceId; greetingVoicePack = settings.voicePack; greetingNickname = settings.nickname;
-        VehicleGreetings.Choice choice = VehicleGreetings.choose(VehicleRuntime.period(), settings.nickname, settings.lastGreetingId, text);
         final String greeting = choice.text; greetingId = choice.id;
         if (!settings.voiceId.isEmpty()) {
             playbackVoice = "Cached ElevenLabs voice";
@@ -206,6 +214,10 @@ public final class VehicleAudioService extends Service {
             VehicleState settings = new VehicleState(this);
             if (!settings.voiceId.equals(greetingVoiceId) || !settings.voicePack.equals(greetingVoicePack) || !settings.nickname.equals(greetingNickname)) {
                 unavailable("Greeting settings changed before playback"); return;
+            }
+            // Evidence may expire, disconnect or be corrected during TTS/route setup.
+            if (!passengerDecision.same(settings.passengers.decide(trip, System.currentTimeMillis(), VehicleRuntime.boot(this), greetingPeriod))) {
+                attempted = true; unavailable("Passenger information changed; greeting skipped. Retry while parked."); return;
             }
             // This decision uses the current route, after the asynchronous seek.
             if (!VehicleRuntime.claim(this, trip, greetingId)) { releaseAudio(); return; }

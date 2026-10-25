@@ -50,6 +50,7 @@ public final class VehicleSetupActivity extends Activity {
             }
         });
         button(layout, "Choose your vehicle", this::choose);
+        VehiclePassengerSetup.add(this, layout);
         button(layout, "Try greeting while parked", () -> {
             VehicleState state = new VehicleState(this);
             stopService(new Intent(this, VehicleAudioService.class));
@@ -63,7 +64,7 @@ public final class VehicleSetupActivity extends Activity {
                 if (!state.address.isEmpty()) { manager.stopObservingDevicePresence(state.address); manager.disassociate(state.address); }
             } catch (Exception ignored) { }
             synchronized (VehicleRuntime.class) {
-                state = new VehicleState(this); state.address = ""; state.trip = new VehicleTrip(); state.status = "Vehicle greetings disabled."; state.save();
+                state = new VehicleState(this); state.address = ""; state.trip = new VehicleTrip(); state.passengers.clearEvidence(); state.status = "Vehicle greetings disabled."; state.save();
             }
         });
         refresh();
