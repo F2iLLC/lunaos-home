@@ -17,7 +17,7 @@ test('direct model sends only bounded supplied context to fixed endpoint with st
     calls++; assert.equal(url, 'https://api.openai.com/v1/responses');
     assert.equal(options.redirect, 'error'); assert.equal(options.headers.Authorization, 'Bearer fictional-key');
     const body = JSON.parse(options.body);
-    assert.deepEqual(body, { model: 'gpt-5.4-mini', instructions: conversationInstructions,
+    assert.deepEqual(body, { model: 'gpt-6-luna', instructions: conversationInstructions,
       input: [{ role: 'user', content: 'Hello.' }], store: false, tools: [], max_output_tokens: 256,
       reasoning: { effort: 'none' }, text: { verbosity: 'low' } });
     assert.doesNotMatch(options.body, /fictional-key|voiceId|trip|fingerprint/);
