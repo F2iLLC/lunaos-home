@@ -96,13 +96,28 @@ test('unknown writes are cached and never blindly replayed; request ledger satur
 });
 
 test('query requires selected-content disclosure for an assistant and returns no content on denial', async () => {
-  const assistant = { ...allow, async withSessionAuthority(_requirement, run) {
-    return run({ householdId: list.householdId, listId: list.id, actor: { kind: 'assistant', id: 'assistant-demo' }, assistant: true, selectedContentDisclosed: false });
-  } };
-  const service = createGroceryCommandService({ withSessionAuthority: assistant.withSessionAuthority, execute: async () => list });
-  const denied = await service.execute(query(crypto.randomUUID()));
-  assert.deepEqual(denied, { version: 1, status: 'denied', requestId: denied.requestId, code: 'DISCLOSURE_REQUIRED' });
-  assert.equal('list' in denied, false);
+  let executions = 0;
+  const contexts = [
+    { actor: { kind: 'assistant', id: 'assistant-demo' }, selectedContentDisclosed: false }, // no redundant assistant flag
+    { actor: { kind: 'assistant', id: 'assistant-demo' }, assistant: true, selectedContentDisclosed: false },
+    { actor: { kind: 'assistant', id: 'assistant-demo' }, assistant: false, selectedContentDisclosed: true },
+    { actor, assistant: true, selectedContentDisclosed: false },
+    { actor, selectedContentDisclosed: true },
+    { actor, assistant: 'true', selectedContentDisclosed: false },
+    { actor, selectedContentDisclosed: 'true' },
+  ];
+  for (const context of contexts) {
+    const service = createGroceryCommandService({
+      withSessionAuthority: async (_requirement, run) => run({ householdId: list.householdId, listId: list.id, ...context }),
+      execute: async () => { executions++; return list; },
+    });
+    const denied = await service.execute(query(crypto.randomUUID()));
+    assert.equal(denied.status, 'denied');
+    assert.equal('list' in denied, false);
+    if (context.actor.kind === 'assistant' && context.assistant !== false) assert.equal(denied.code, 'DISCLOSURE_REQUIRED');
+    else assert.equal(denied.code, 'DENIED');
+  }
+  assert.equal(executions, 0);
   const allowed = createGroceryCommandService({ withSessionAuthority: async (_requirement, run) => run({
     householdId: list.householdId, listId: list.id, actor: { kind: 'assistant', id: 'assistant-demo' }, assistant: true,
     selectedContentDisclosed: true,
