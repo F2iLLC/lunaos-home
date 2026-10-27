@@ -43,10 +43,15 @@ test('post-wake content remains local until one-shot destination and field conse
   const active = listening();
   const pending = step(active, { type: 'COMMAND_CAPTURED', generation: active.generation, fields: ['spoken-command'] });
   assert.equal(pending.snapshot.state, 'processing');
-  assert.deepEqual(pending.effects.at(-1), { type: 'PROMPT_FOR_POST_WAKE_DISCLOSURE', fields: ['spoken-command'] });
+  assert.deepEqual(pending.effects.at(-1), { type: 'PROMPT_FOR_POST_WAKE_DISCLOSURE', generation: active.generation, fields: ['spoken-command'] });
   assert.equal(wakeDataPathPolicy(pending.snapshot).network, 'none');
-  assert.equal(step(pending.snapshot, { type: 'POST_WAKE_DISCLOSURE_APPROVED', destination: 'assistant-choice', fields: ['spoken-command', 'vault'] }).accepted, false);
-  const approved = step(pending.snapshot, { type: 'POST_WAKE_DISCLOSURE_APPROVED', destination: 'assistant-choice', fields: ['spoken-command'] });
+  const selected = step(pending.snapshot, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: active.generation, destination: 'assistant-choice' });
+  assert.equal(step(selected.snapshot, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: active.generation,
+    destination: 'other-assistant', fields: ['spoken-command'] }).accepted, false);
+  assert.equal(step(selected.snapshot, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: active.generation,
+    destination: 'assistant-choice', fields: ['spoken-command', 'vault'] }).accepted, false);
+  const approved = step(selected.snapshot, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: active.generation,
+    destination: 'assistant-choice', fields: ['spoken-command'] });
   assert.deepEqual(approved.effects, [{ type: 'FORWARD_SELECTED_CONTENT', destination: 'assistant-choice',
     purpose: 'respond-to-this-command', fields: ['spoken-command'], generation: active.generation }]);
   assert.deepEqual(wakeDataPathPolicy(approved.snapshot), { microphone: 'off', network: 'approved-selected-fields-only',
@@ -71,6 +76,20 @@ test('silence and cancel clear transient input and invalidate late results', () 
   const cancelled = step(pending, { type: 'CANCEL' });
   assert.equal(cancelled.snapshot.state, 'waiting-for-wake');
   assert.equal(step(cancelled.snapshot, { type: 'RESPONSE_READY', generation: pending.generation }).accepted, false);
+
+  const prompt1 = step(active, { type: 'COMMAND_CAPTURED', generation: active.generation, fields: ['spoken-command'] }).snapshot;
+  const cancelled1 = step(prompt1, { type: 'CANCEL' }).snapshot;
+  const generation3 = step(cancelled1, { type: 'WAKE_DETECTED', eventId: 'wake-fixture-2' }).snapshot;
+  const prompt3 = step(generation3, { type: 'COMMAND_CAPTURED', generation: generation3.generation, fields: ['spoken-command'] }).snapshot;
+  assert.equal(generation3.generation, 3);
+  assert.equal(step(prompt3, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: prompt1.generation,
+    destination: 'assistant-choice' }).accepted, false);
+  const selected3 = step(prompt3, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: generation3.generation,
+    destination: 'assistant-choice' }).snapshot;
+  const delayedApproval = step(selected3, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: prompt1.generation,
+    destination: 'assistant-choice', fields: ['spoken-command'] });
+  assert.equal(delayedApproval.accepted, false);
+  assert.equal(delayedApproval.effects.some(effect => effect.type === 'FORWARD_SELECTED_CONTENT'), false);
 });
 
 test('security lock forces mute; unlocking never restarts the microphone without a new action', () => {
@@ -96,8 +115,16 @@ test('local-consent revocation, OS permission loss and host failure fail closed'
   assert.equal(step(permissionLost.snapshot, { type: 'MICROPHONE_PERMISSION_GRANTED' }).snapshot.state, 'muted');
   const hostDown = step(optedIn(), { type: 'HOST_UNAVAILABLE' }).snapshot;
   assert.equal(hostDown.state, 'unavailable');
-  assert.equal(step(hostDown, { type: 'MICROPHONE_PERMISSION_GRANTED' }).snapshot.state, 'unavailable');
-  const hostBack = step(hostDown, { type: 'HOST_AVAILABLE' }).snapshot;
+  const permissionRevoked = step(hostDown, { type: 'MICROPHONE_PERMISSION_REVOKED' }).snapshot;
+  assert.equal(permissionRevoked.hostAvailable, false);
+  const permissionRestored = step(permissionRevoked, { type: 'MICROPHONE_PERMISSION_GRANTED' }).snapshot;
+  assert.equal(permissionRestored.state, 'unavailable');
+  assert.equal(step(permissionRestored, { type: 'START_LOCAL_WAITING' }).accepted, false);
+  const consentRevoked = step(permissionRestored, { type: 'LOCAL_LISTEN_CONSENT_REVOKED' }).snapshot;
+  const consentRestored = step(consentRevoked, { type: 'LOCAL_LISTEN_CONSENT_GRANTED' }).snapshot;
+  assert.equal(consentRestored.state, 'unavailable');
+  assert.equal(step(consentRestored, { type: 'START_LOCAL_WAITING' }).accepted, false);
+  const hostBack = step(consentRestored, { type: 'HOST_AVAILABLE' }).snapshot;
   assert.equal(hostBack.state, 'muted');
   assert.equal(step(hostBack, { type: 'START_LOCAL_WAITING' }).snapshot.state, 'waiting-for-wake');
 });
@@ -106,7 +133,9 @@ test('revoking disclosure stops future work and reports that already-forwarded c
   const active = listening();
   const pending = step(active, { type: 'COMMAND_CAPTURED', generation: active.generation, fields: ['spoken-command'] }).snapshot;
   assert.equal(step(pending, { type: 'POST_WAKE_DISCLOSURE_REVOKED' }).snapshot.state, 'waiting-for-wake');
-  const forwarded = step(pending, { type: 'POST_WAKE_DISCLOSURE_APPROVED', destination: 'assistant-choice', fields: ['spoken-command'] }).snapshot;
+  const selected = step(pending, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: active.generation, destination: 'assistant-choice' }).snapshot;
+  const forwarded = step(selected, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: active.generation,
+    destination: 'assistant-choice', fields: ['spoken-command'] }).snapshot;
   const revoked = step(forwarded, { type: 'POST_WAKE_DISCLOSURE_REVOKED' });
   assert.ok(revoked.effects.some(effect => effect.type === 'CANCEL_REMOTE_WORK'));
   assert.ok(revoked.effects.some(effect => effect.type === 'EXPLAIN_CONTENT_MAY_ALREADY_BE_SENT'));

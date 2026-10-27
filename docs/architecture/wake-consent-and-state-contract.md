@@ -17,7 +17,7 @@ The owner must decide whether V1 includes always-on local activation, relies on 
 1. **Local waiting opt-in:** off by default. A separate explicit choice enables local wake detection. An OS microphone permission result is a distinct prerequisite, not consent by itself. Wake phrases never authenticate a person or unlock vault records.
 2. **Pre-wake:** microphone use, if eventually approved, is local detector input only. The proposal caps any rolling RAM buffer at 2 seconds and discards it on overwrite, mute, cancel, lock, unavailable state, and session end. No pre-wake audio persistence, upload, telemetry, or network access.
 3. **Post-wake command capture:** local command capture is visible and cancellable. Silence timeout or cancel ends capture and clears transient input. Detector signals carry stable event IDs; a bounded 64-ID recent window suppresses duplicate delivery, including after later sessions.
-4. **Post-wake disclosure:** a separate, explicit approval names the destination, purpose, and selected content for this command. The mock contract forwards only approved field names; raw audio is not part of this contract and would require its own explicit content/destination decision. Without approval, processing stays local and no network effect is emitted.
+4. **Post-wake disclosure:** a separate, explicit approval names the destination, purpose, and selected content for this command. The prompt and destination selection are bound to the current session generation; stale approval callbacks cannot authorize a later command. The mock contract forwards only approved field names; raw audio is not part of this contract and would require its own explicit content/destination decision. Without approval, processing stays local and no network effect is emitted.
 5. **Response and revocation:** a response is accepted only for the current session generation. Revocation cancels future work and returns to a safe state. If content was already sent, Home must say it may not be retractable.
 6. **Security lock:** forces muted state, stops capture, clears transient audio, and invalidates callbacks. Unlock alone never restarts listening; a new explicit user action is required.
 
@@ -35,7 +35,7 @@ The 2-second cap is a proposed testable bound, not a measured or owner-approved 
 | Muted | Off | None | Never | User mute or security lock; unlock does not resume automatically. |
 | Unavailable | Off | None | Never | Missing/revoked microphone permission or unavailable host; restoring a prerequisite does not restart listening. |
 
-The synthetic transition API emits named effects such as `START_LOCAL_DETECTOR`, `PROMPT_FOR_POST_WAKE_DISCLOSURE`, and `FORWARD_SELECTED_CONTENT`. The forwarding effect carries only destination, purpose, selected field names, and session generation—never audio or transcript values. It is not connected to production adapters.
+The synthetic transition API emits named effects such as `START_LOCAL_DETECTOR`, `PROMPT_FOR_POST_WAKE_DISCLOSURE`, and `FORWARD_SELECTED_CONTENT`. The forwarding effect carries only destination, purpose, selected field names, and session generation—never audio or transcript values. Host availability is an independent prerequisite and cannot be restored by changing local consent or microphone permission. The reducer is not connected to production adapters.
 
 ## Validation boundary
 
