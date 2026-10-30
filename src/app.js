@@ -1,5 +1,8 @@
 import { categories, createTask, toggleTask, removeTask } from './tasks.js';
 import { refreshDraft } from './vault.js';
+import { preserveSaveRoutes } from './draft-storage.js';
+
+preserveSaveRoutes();
 
 let tasks = [];
 const form = document.querySelector('#task-form');
