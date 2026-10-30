@@ -19,13 +19,13 @@ const readAlex = { action: 'read', recordId: 'alex-library' };
 const editAlex = { action: 'edit', recordId: 'alex-library', data: { ...alex, value: 'Wednesday' } };
 const isCode = code => error => error instanceof DirectVaultError && error.code === code;
 test('LAN test binding rejects wildcard, public, hostnames and malformed addresses before listening', async () => {
-  for (const address of ['0.0.0.0', '::', 'localhost', '8.8.8.8', '169.254.1.2', '192.168.1.999', '172.32.0.1', '10.01.2.3']) {
+  for (const address of ['0.0.0.0', '::', 'localhost', '8.8.8.8', '169.254.1.2', '192.168.1.999', '172.32.0.1', '10.01.2.3', '100.63.255.255', '100.128.0.0', '100.064.1.1']) {
     assert.throws(() => privateTestAddress(address));
     await assert.rejects(startDirectVaultExperiment({ bindAddress: address }), /private IPv4/);
     await assert.rejects(connectDirectVaultExperiment({ address, port: 1, identity: phoneIdentity,
       ca, approvedHostFingerprint: hostIdentity.fingerprint }), /private IPv4/);
   }
-  for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2']) assert.equal(privateTestAddress(address), address);
+  for (const address of ['10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.2', '100.64.0.1', '100.127.255.254']) assert.equal(privateTestAddress(address), address);
 });
 test('failed TLS listen releases the synthetic store registration', async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'lunaos-tls-refusal-'));

@@ -6,9 +6,30 @@ import { fileURLToPath } from 'node:url';
 import { createAppServer } from './server.js';
 import { createDraftStore, proposalSchema, correctionSchema, DraftError } from './lib/drafts.js';
 import { vehicleStyleSchema } from './lib/vehicle-sessions.js';
+import { z } from 'zod';
 
-export function createAssistantServer(drafts, reviewUrl, { vehicleSessions, assistantStyleSelection = false } = {}) {
+export function createAssistantServer(drafts, reviewUrl, { vehicleSessions, vehicleConversations, vehicleAnswer, assistantStyleSelection = false } = {}) {
   const server = new McpServer({ name: 'lunaos-home-draft-preview', version: '0.1.0' });
+  if (vehicleConversations) {
+    vehicleConversations.setAnswer(vehicleAnswer ?? (async ({ messages, instructions, signal }) => {
+      if (!server.server.getClientCapabilities()?.sampling) throw Error('Assistant sampling unavailable');
+      const result = await server.server.createMessage({ systemPrompt: instructions,
+        messages: messages.map(({ role, text }) => ({ role, content: { type: 'text', text } })),
+        maxTokens: 160, includeContext: 'none',
+      }, { timeout: 30_000, signal });
+      if (result.role !== 'assistant' || result.content.type !== 'text') throw Error('Unsupported conversation reply');
+      return result.content.text;
+    }));
+    server.registerTool('home_vehicle_conversation', {
+      title: 'Read a shared vehicle conversation at Home',
+      description: 'Read the bounded recent conversation explicitly shared with Home by the enrolled phone. Requires its conversation ID from the phone. In-memory only, expires after fifteen minutes. No vault, calendar, location, vehicle controls or general history access.',
+      inputSchema: { conversationId: z.string().uuid() },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    }, ({ conversationId }) => {
+      try { return { content: [{ type: 'text', text: JSON.stringify(vehicleConversations.read(conversationId)) }] }; }
+      catch { return { isError: true, content: [{ type: 'text', text: 'Shared conversation unavailable or expired.' }] }; }
+    });
+  }
   if (vehicleSessions && assistantStyleSelection) vehicleSessions.setGreetingSelector(async ({ period, style }) => {
     if (!server.server.getClientCapabilities()?.sampling) throw Error('Assistant sampling unavailable');
     const result = await server.server.createMessage({

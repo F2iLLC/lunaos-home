@@ -23,7 +23,8 @@ final class FixtureConfig {
             if (octets[i] > 255) throw new IOException("Invalid IPv4");
         }
         if (!(octets[0] == 10 || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
-            || (octets[0] == 192 && octets[1] == 168))) throw new IOException("Private IPv4 required");
+            || (octets[0] == 192 && octets[1] == 168)
+            || (octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127))) throw new IOException("Private IPv4 required");
         return address;
     }
     static JSONObject read(Context context) throws Exception {

@@ -23,8 +23,9 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.match(vaultDebugManifest, /<activity android:name="\.VaultActivity" android:exported="false"\s*\/>/);
   assert.match(vaultDebugManifest, /<activity android:name="io\.github\.f2illc\.lunaos\.directtlsprobe\.PairingActivity" android:exported="false"\s*\/>/);
   assert.deepEqual([...vaultDebugManifest.matchAll(/<uses-permission android:name="([^"]+)"/g)].map(match => match[1]),
-    ['android.permission.USE_BIOMETRIC', 'android.permission.INTERNET', 'android.permission.ACCESS_LOCAL_NETWORK',
-      'android.permission.BLUETOOTH_CONNECT', 'android.permission.POST_NOTIFICATIONS',
+    ['android.permission.USE_BIOMETRIC', 'android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE',
+    'android.permission.ACCESS_WIFI_STATE', 'android.permission.ACCESS_LOCAL_NETWORK',
+    'android.permission.BLUETOOTH_CONNECT', 'android.permission.RECORD_AUDIO', 'android.permission.POST_NOTIFICATIONS',
       'android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE',
       'android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND',
       'android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND', 'android.permission.FOREGROUND_SERVICE',
@@ -33,7 +34,9 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.match(vaultDebugManifest, /android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"/);
   assert.match(vaultDebugManifest, /VehicleAudioService" android:exported="false"/);
   assert.match(vaultDebugManifest, /VehicleReceiver[\s\S]*android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED/);
-  assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION|RECORD_AUDIO/);
+  assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION|FOREGROUND_SERVICE_MICROPHONE/);
+  assert.match(vaultDebugManifest, /android.permission.RECORD_AUDIO/);
+  assert.match(vaultDebugManifest, /VehicleConversationActivity" android:exported="false"/);
 });
 
 test('bundled launcher sends only open, disables while pending, and stays absent outside Android debug', async () => {

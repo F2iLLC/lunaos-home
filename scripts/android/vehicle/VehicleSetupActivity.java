@@ -9,7 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.*;
 import android.widget.*;
 
-/** One-time, attended setup. No location, microphone, calendar or vehicle control. */
+/** Attended setup and entry to a separately opted-in parked conversation. */
 public final class VehicleSetupActivity extends Activity {
     private TextView status;
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -50,6 +50,11 @@ public final class VehicleSetupActivity extends Activity {
             }
         });
         button(layout, "Choose your vehicle", this::choose);
+        button(layout, "Allow Home connection", this::allowHome);
+        button(layout, "Talk while parked", () -> {
+            if (localNetworkRequired()) { allowHome(); return; }
+            startActivity(new Intent(this, VehicleConversationActivity.class));
+        });
         VehiclePassengerSetup.add(this, layout);
         button(layout, "Try greeting while parked", () -> {
             VehicleState state = new VehicleState(this);
@@ -93,6 +98,14 @@ public final class VehicleSetupActivity extends Activity {
         for (int n = 0; n < devices.size(); n++) labels[n] = devices.get(n).getName() + " · " + devices.get(n).getAddress();
         new AlertDialog.Builder(this).setTitle("Which paired device is your vehicle?").setItems(labels, (dialog, which) -> associate(devices.get(which).getAddress())).show();
     }
+    private boolean localNetworkRequired() {
+        return Build.VERSION.SDK_INT >= 37 && getApplicationInfo().targetSdkVersion >= 37
+            && checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != PackageManager.PERMISSION_GRANTED;
+    }
+    private void allowHome() {
+        if (localNetworkRequired()) requestPermissions(new String[]{"android.permission.ACCESS_LOCAL_NETWORK"}, 3);
+        else VehicleRuntime.status(this, "Android allows the Home connection. The paired Home host must also be running.");
+    }
     private void associate(String address) {
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP)) {
             VehicleRuntime.status(this, "This phone does not support Android companion setup."); return;
@@ -128,6 +141,12 @@ public final class VehicleSetupActivity extends Activity {
     }
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] grants) {
         super.onRequestPermissionsResult(request, permissions, grants);
+        if (request == 3) {
+            VehicleRuntime.status(this, grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED
+                ? "Home network access allowed. You can open Talk while parked."
+                : "Home network access declined. Offline greetings remain available.");
+            return;
+        }
         if (grants.length > 0 && grants[0] == PackageManager.PERMISSION_GRANTED) choose();
         else VehicleRuntime.status(this, "Permission declined. Automatic greetings remain unavailable.");
     }

@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 /** Prime the vehicle media path with actual silent frames before the first word. */
 public final class VehicleLeadIn {
     public static final int MILLISECONDS = 4000;
+    public static final int REPLY_MILLISECONDS = 0;
     private static final int LIMIT = 8 * 1024 * 1024;
     private static boolean tag(byte[] bytes, int at, String value) {
         return new String(bytes, at, 4, StandardCharsets.US_ASCII).equals(value);

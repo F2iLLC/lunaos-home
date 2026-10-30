@@ -99,6 +99,8 @@ Do not publish raw device logs, Bluetooth identifiers, network addresses, or hou
 
 ## Limits and extension points
 
+The separate [parked conversation slice](vehicle-conversations.md) adds an explicit phone-screen microphone flow and shared Home conversation. It does not enable microphone access from automatic greeting events. Greeting configuration and conversation permission remain separate.
+
 This is a development slice using Home's existing prototype transport, not a production vault or remotely reachable cloud service. It needs reachable private Home hosting for backend context; away from that network it uses a local fallback. It provides at-most-once **attempts**, not transactional exactly-once sound: a crash after the durable claim can omit a greeting. An unobserved disconnect during process death or reboot is deliberately treated as uncertain and can suppress a later greeting until an observed disconnect ends the trip. No unattended test can certify vehicle audio audibility.
 
 The endpoint capability list currently contains only `greeting`. Future navigation handoff, selected-calendar context, conversational voice, home routines, and isolated read-only diagnostics need their own implemented permissions and validation. Location/history remain off and absent from the event schema. Do not add CAN writes or safety-critical control capabilities. Read-only telemetry must stay isolated from control networks. The current schema deliberately rejects unknown fields rather than silently accepting future sensitive data.

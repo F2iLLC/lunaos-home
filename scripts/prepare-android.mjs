@@ -19,9 +19,12 @@ const initializationGuidance = 'Initialize Android first: npm run native:android
 export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
   <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
   <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
   <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
@@ -29,9 +32,10 @@ export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.andro
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>
+  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
   <application>
     <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="false" />
+    <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleConversationActivity" android:exported="false" />
     <service android:name="io.github.f2illc.lunaos.home.vehicle.VehicleAudioService" android:exported="false" android:foregroundServiceType="connectedDevice|mediaPlayback" />
     <service android:name="io.github.f2illc.lunaos.home.vehicle.VehiclePresence" android:exported="true" android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
       <intent-filter><action android:name="android.companion.CompanionDeviceService" /></intent-filter>
@@ -187,11 +191,11 @@ export async function prepareAndroid({
   const directJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/directtlsprobe');
   const vehicleJavaRoot = join(debugRoot, 'java/io/github/f2illc/lunaos/home/vehicle');
   const vehicleRoot = new URL('./android/vehicle/', import.meta.url);
-  const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java', 'VehicleVoiceCache.java', 'VehiclePassengers.java', 'VehiclePassengerState.java', 'VehiclePassengerSetup.java'];
+  const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java', 'VehicleVoiceCache.java', 'VehicleConversationActivity.java', 'VehicleReplyPlayer.java', 'VehicleLatency.java', 'VehiclePassengers.java', 'VehiclePassengerState.java', 'VehiclePassengerSetup.java'];
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
-  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'VersionedEditState.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java', 'VehicleTransport.java'];
+  const directSources = ['PairingActivity.java', 'SyntheticTlsClient.java', 'VersionedEditState.java', 'NativeIdentity.java', 'FixtureConfig.java', 'HomeDirectEntry.java', 'PhoneHostServer.java', 'VehicleTransport.java', 'VehicleConversationClient.java'];
   // Inventory traverses directories; planned file destinations need an explicit
   // type check so a later copy cannot fail after earlier files were replaced.
   for (const destination of [path, activityPath, join(debugRoot, 'AndroidManifest.xml'),
