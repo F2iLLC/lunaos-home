@@ -6,7 +6,7 @@
       "command": "node",
       "args": ["${PLUGIN_ROOT}/runtime/assistant.js"],
       "cwd": "${PLUGIN_ROOT}/runtime",
-      "env": { "LUNA_HOME_PREVIEW_PORT": "0" }
+      "env": { "LUNA_HOME_PREVIEW_PORT": "0", "LUNA_HOME_FICTIONAL_SAVE": "1" }
     }
   }
 }

@@ -15,7 +15,7 @@ test('real stdio protocol and HTTP GUI share one draft and correction state', { 
   t.after(() => client.close());
   await client.connect(transport);
   const tools = await client.listTools();
-  assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['home_correct_draft', 'home_review_requests', 'home_stage_draft']);
+  assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ['home_correct_draft', 'home_open_home', 'home_review_requests', 'home_stage_draft']);
   const call = async (name, args = {}) => {
     const result = await client.callTool({ name, arguments: args });
     assert.notEqual(result.isError, true, result.content[0]?.text);

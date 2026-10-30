@@ -50,6 +50,20 @@
         <aside class="preview-note"><strong>Fictional preview · Nothing saved</strong><p>Use made-up details only. This is a draft, not a secure vault. It clears when the local preview stops or you discard it.</p></aside>
         <div class="vault-toolbar"><p id="draft-status" role="status" aria-live="polite"></p><button id="refresh-draft" class="quiet-button">Check for updates</button></div>
         <p id="vault-error" role="alert"></p>
+        <section id="draft-storage" class="list-panel" hidden aria-labelledby="storage-heading">
+          <h2 id="storage-heading">Saved examples on this computer</h2>
+          <p>Only Alex's workplace and library and Sam's school can be saved in this test. Saving does not share stored records with the assistant. Anyone using this Windows account may be able to access these examples.</p>
+          <button id="view-saved" class="quiet-button">View saved examples</button>
+          <button id="hide-saved" class="quiet-button">Hide saved details</button>
+          <div id="saved-details"></div>
+          <p id="save-status" role="status" aria-live="polite"></p>
+          <div id="save-approval" class="preview-note" hidden>
+            <p id="save-summary"></p>
+            <p>This approval saves only the detail shown, encrypted on this computer. It expires in one minute. Closing Home keeps saved examples. Stopping a save already in progress cannot undo it.</p>
+            <button id="confirm-save" class="primary-button">Save on this computer</button>
+            <button id="cancel-save" class="quiet-button">Cancel</button>
+          </div>
+        </section>
         <div id="draft-empty" class="list-panel empty-draft">
           <span class="empty-star" aria-hidden="true">✧</span>
           <h2>Your family's story starts here.</h2>

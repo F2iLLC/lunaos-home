@@ -58,7 +58,7 @@ export async function probePluginDiscovery(codexExecutable, marketplacePath) {
     assert.equal(server.toolsError, null, 'The host could not list the Home tools.');
     assert.equal(server.serverInfo?.name, 'lunaos-home-draft-preview');
     const tools = Object.keys(server.tools).sort();
-    assert.deepEqual(tools, ['home_correct_draft', 'home_review_requests', 'home_stage_draft']);
+    assert.deepEqual(tools, ['home_correct_draft', 'home_open_home', 'home_review_requests', 'home_stage_draft']);
     return { clientDiscovery: 'PASS', installedVersion: plugin.summary.localVersion, tools, draftToolCalls: 0, liveChatgpt: 'NOT TESTED' };
   } finally {
     child.stdin.end();

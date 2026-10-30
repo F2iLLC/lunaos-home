@@ -11,7 +11,8 @@ const welcome = document.querySelector('#welcome');
 const checklist = document.querySelector('#checklist');
 
 function showPage(moveFocus = true) {
-  const page = ['#checklist', '#vault'].includes(location.hash) ? location.hash.slice(1) : 'welcome';
+  const hash = location.hash.split('?')[0];
+  const page = ['#checklist', '#vault'].includes(hash) ? hash.slice(1) : 'welcome';
   welcome.hidden = page !== 'welcome';
   checklist.hidden = page !== 'checklist';
   document.querySelector('#vault').hidden = page !== 'vault';

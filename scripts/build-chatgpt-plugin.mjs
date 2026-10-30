@@ -12,6 +12,8 @@ const runtimeFiles = [
   'lib/vehicle-sessions.js',
   'lib/vehicle-greetings.js',
   'lib/vault-sessions.js', 'lib/vault-store-lifecycle.js', 'lib/vault-record-contract.js',
+  'lib/reviewed-draft-vault.js', 'lib/windows-probe-store.js', 'scripts/windows-vault-worker.ps1',
+  'src/draft-storage.js',
   'src/index.html', 'src/styles.css', 'src/app.js', 'src/tasks.js', 'src/vault.js', 'src/draft-client.js',
 ];
 const pluginFiles = ['plugin.json', 'mcp.json', 'skills/home-draft-review/SKILL.md'];

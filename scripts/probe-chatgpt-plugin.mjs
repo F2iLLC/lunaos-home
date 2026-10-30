@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { exampleProposal } from '../lib/drafts.js';
+import { removeWindowsProbeStore } from '../lib/windows-probe-store.js';
 
 export async function probeChatgptPlugin(pluginRoot) {
   pluginRoot = resolve(pluginRoot);
@@ -16,12 +17,14 @@ export async function probeChatgptPlugin(pluginRoot) {
   assert.equal(config.command, 'node');
   assert.deepEqual(config.args, ['${PLUGIN_ROOT}/runtime/assistant.js']);
   assert.equal(config.cwd, '${PLUGIN_ROOT}/runtime');
-  assert.deepEqual(config.env, { LUNA_HOME_PREVIEW_PORT: '0' });
+  assert.deepEqual(config.env, { LUNA_HOME_PREVIEW_PORT: '0', LUNA_HOME_FICTIONAL_SAVE: '1' });
+  const probeId = crypto.randomUUID();
+  let saved = false;
   const launch = async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: config.args.map(arg => arg.replaceAll('${PLUGIN_ROOT}', pluginRoot)),
-      cwd: config.cwd.replaceAll('${PLUGIN_ROOT}', pluginRoot), env: config.env, stderr: 'pipe',
+      cwd: config.cwd.replaceAll('${PLUGIN_ROOT}', pluginRoot), env: { ...config.env, LUNA_HOME_FICTIONAL_STORE_ID: probeId }, stderr: 'pipe',
     });
     const client = new Client({ name: 'home-installed-package-probe', version: '1.0.0' });
     try { await client.connect(transport); }
@@ -38,16 +41,16 @@ export async function probeChatgptPlugin(pluginRoot) {
   let staleCorrection;
   try {
     const inventory = (await client.listTools()).tools.map(tool => tool.name).sort();
-    assert.deepEqual(inventory, ['home_correct_draft', 'home_review_requests', 'home_stage_draft']);
+    assert.deepEqual(inventory, ['home_correct_draft', 'home_open_home', 'home_review_requests', 'home_stage_draft']);
     assert.deepEqual(await call(client, 'home_review_requests'), { draftId: null, revision: null, requests: [] });
     const staged = await call(client, 'home_stage_draft', exampleProposal);
     const reviewUrl = new URL(staged.reviewUrl);
     assert.equal(reviewUrl.hostname, '127.0.0.1');
-    assert.equal(reviewUrl.hash, '#vault');
+    assert.equal(reviewUrl.hash.split('?')[0], '#vault');
     assert.equal(reviewUrl.search, '');
     origin = reviewUrl.origin;
     const headers = { 'X-Home-Preview': '1', 'Content-Type': 'application/json', Origin: origin };
-    for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js', '/draft-client.js']) {
+    for (const path of ['/', '/styles.css', '/app.js', '/tasks.js', '/vault.js', '/draft-client.js', '/draft-storage.js']) {
       const response = await fetch(`${origin}${path}`);
       assert.equal(response.status, 200, path);
       assert.ok((await response.text()).length > 0);
@@ -83,7 +86,28 @@ export async function probeChatgptPlugin(pluginRoot) {
     assert.equal((await client.callTool({ name: 'home_correct_draft', arguments: staleCorrection })).isError, true);
     const confirmed = await review({ ...ref, revision: corrected.revision, action: 'confirm' });
     assert.equal(confirmed.people[0].fields[0].status, 'confirmed');
+    assert.equal((await call(client, 'home_open_home')).reviewUrl, staged.reviewUrl);
+    if (process.platform === 'win32') {
+      const key = new URLSearchParams(reviewUrl.hash.split('?')[1]).get('save');
+      assert.match(key, /^[a-f0-9]{64}$/);
+      const storage = async input => {
+        const response = await fetch(`${origin}/api/draft-storage`, { method: 'POST',
+          headers: { ...headers, 'X-Home-Save-Key': key }, body: JSON.stringify(input) });
+        assert.equal(response.status, 200);
+        return response.json();
+      };
+      assert.deepEqual((await storage({ action: 'view' })).records, []);
+      const prepared = await storage({ action: 'prepare', ...ref, revision: confirmed.revision });
+      saved = true; // Own cleanup even if the write receipt is lost.
+      assert.equal((await storage({ action: 'save', approval: prepared.approval })).status, 'saved');
+      assert.deepEqual((await storage({ action: 'view' })).records,
+        [{ name: 'Alex Example', label: 'Workplace', value: 'Willow Workshop' }]);
+    }
     assert.equal((await client.callTool({ name: 'home_stage_draft', arguments: exampleProposal })).isError, true);
+  } catch (error) {
+    await client.close();
+    if (saved) await removeWindowsProbeStore({ probeId });
+    throw error;
   } finally { await client.close(); }
   // Client close must stop the listener, not leave a detached preview behind.
   let stopped = false;
@@ -97,8 +121,17 @@ export async function probeChatgptPlugin(pluginRoot) {
   try {
     assert.deepEqual(await call(restarted, 'home_review_requests'), { draftId: null, revision: null, requests: [] });
     assert.equal((await restarted.callTool({ name: 'home_correct_draft', arguments: staleCorrection })).isError, true);
-  } finally { await restarted.close(); }
-  return { packageProtocol: 'PASS', staticAssets: 'PASS', correctionIsolation: 'PASS', localConfirmation: 'HTTP harness only', restart: 'empty draft; old IDs denied', liveChatgpt: 'NOT TESTED' };
+    if (saved) {
+      const reopened = new URL((await call(restarted, 'home_open_home')).reviewUrl);
+      const response = await fetch(`${reopened.origin}/api/draft-storage`, { method: 'POST',
+        headers: { 'X-Home-Preview': '1', 'Content-Type': 'application/json',
+          'X-Home-Save-Key': new URLSearchParams(reopened.hash.split('?')[1]).get('save') }, body: JSON.stringify({ action: 'view' }) });
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).records, [{ name: 'Alex Example', label: 'Workplace', value: 'Willow Workshop' }]);
+      assert.ok(!JSON.stringify(await call(restarted, 'home_review_requests')).includes('Willow Workshop'));
+    }
+  } finally { await restarted.close(); if (saved) await removeWindowsProbeStore({ probeId }); }
+  return { packageProtocol: 'PASS', staticAssets: 'PASS', correctionIsolation: 'PASS', localConfirmation: 'HTTP harness only', restart: 'empty draft; old IDs denied', savedExampleRestart: saved ? 'PASS' : 'Windows only', liveChatgpt: 'NOT TESTED' };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

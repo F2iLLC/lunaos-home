@@ -20,7 +20,7 @@ test('local plugin is self-contained after cache relocation and preserves existi
   assert.equal(manifest.extensions['com.openai'].requires_local_executor, true);
   const catalog = JSON.parse(await readFile(resolve(output, '.agents/plugins/marketplace.json'), 'utf8'));
   assert.equal(resolve(output, catalog.plugins[0].source.path), plugin);
-  assert.deepEqual((await readdir(resolve(plugin, 'runtime'))).sort(), ['assistant.js', 'lib', 'node_modules', 'package-lock.json', 'package.json', 'server.js', 'src']);
+  assert.deepEqual((await readdir(resolve(plugin, 'runtime'))).sort(), ['assistant.js', 'lib', 'node_modules', 'package-lock.json', 'package.json', 'scripts', 'server.js', 'src']);
   assert.ok((await readFile(resolve(plugin, 'runtime/node_modules/@modelcontextprotocol/sdk/LICENSE'), 'utf8')).includes('MIT'));
   assert.ok((await readFile(resolve(plugin, 'runtime/node_modules/zod/LICENSE'), 'utf8')).includes('MIT'));
   const installed = resolve(temp, 'cache with spaces', 'lunaos-home-preview', 'local');

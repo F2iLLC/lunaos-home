@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "lunaos-home-preview",
-  "version": "0.1.1",
-  "description": "Review and correct fictional LunaOS Home drafts on this computer. No household data or record saving.",
+  "version": "0.2.0",
+  "description": "Review fictional drafts and separately approve encrypted example saves on Windows. No real household data.",
   "repository": "https://github.com/F2iLLC/lunaos-home",
   "license": "Apache-2.0",
   "extensions": {
@@ -11,7 +11,7 @@
       "interface": {
         "displayName": "LunaOS Home Preview",
         "shortDescription": "Try a fictional profile review on this computer",
-        "longDescription": "Developer preview. Stage Alex and Sam's fictional profile, open Home locally, and correct a selected field. Drafts disappear when the connection ends. Selected fictional tool input and replies are visible to the hosted assistant. No vault, source connectors, or record saving.",
+        "longDescription": "Developer preview. Review Alex and Sam's fictional profile locally. On Windows with PowerShell 7, separately approve saving a checked workplace, library or school detail encrypted under your Windows account. Saved examples survive restart; unfinished drafts do not. No separate vault unlock or production protection. Tool input and replies reach the hosted assistant; saved records are not exposed by these tools. No personal data or source connectors.",
         "category": "Productivity",
         "defaultPrompt": ["Try the fictional LunaOS Home draft review with Alex and Sam."]
       }
