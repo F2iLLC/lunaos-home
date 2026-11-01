@@ -75,5 +75,16 @@ The preceding foreground two-stage recognition and opted-in Clock countdown /
 audible expiry were operator-confirmed on version 0.3. They do not verify this
 new service or the refactored version 0.4 foreground adapter.
 
-Version 0.4 passes all 74 policy checks and builds a signature-verified APK with portable model paths. Installation and launch succeeded on the selected API 30 ARM32 device. The inspected UI showed microphone off, real timers unchecked and timer review disabled; AppOps showed no new capture, and no service was running. Background speech, display-off
-operation, lock cancellation and explicit timer review await attended testing.
+Version 0.4 passes all 74 policy checks and builds a signature-verified APK with
+portable model paths. Installation and launch succeeded on the selected API 30
+ARM32 device. The inspected UI showed microphone off, real timers unchecked and
+timer review disabled; AppOps showed no new capture, and no service was running.
+
+In the first attended background recognition trial, the operator varied the
+synthetic command to five seconds and confirmed that the recognized duration
+was correct. Fixed-code runtime evidence showed waiting, wake match, command
+match and background review ready with no timer started. AppOps showed that
+capture had completed. This establishes one attended background recognition
+case; it does not establish display-off operation, lock cancellation, explicit
+timer review/alert delivery, repeated reliability or acoustic qualification.
+Those scenarios remain pending.
