@@ -71,17 +71,18 @@ single installed launch emitted `INTENT_DISPATCHED_ALERT_UNVERIFIED`. ADB's acti
 wait timed out after about ten seconds; no automatic retry was made. The later
 Clock activity was `.timer.ExpiredTimersActivity`, and audio diagnostics mentioned
 Clock as an audio-focus client. No Clock crash appeared in the recent crash buffer.
-These observations establish dispatch and native expiry, not audible sound.
+These device observations establish dispatch and native expiry. The attended
+tester subsequently confirmed audible output; that is separate human evidence.
 
 After `KEYCODE_SLEEP`, power diagnostics reported `Dozing` with display `ON`;
 after expiry they reported `Awake` with display `ON`. The screen-off condition
-therefore did not pass. Audible output requires the attended user's separate
-observation. Restart/reboot, security lock, cancellation races, duration accuracy,
+therefore did not pass. Audible output was separately confirmed by the attended
+tester. Restart/reboot, security lock, cancellation races, duration accuracy,
 offline cold start, resource use and wake recognition were not tested. This is
 partial feasibility evidence for #136/#149, not completion or supported delivery.
 
 A second activity launch emitted `ALREADY_ATTEMPTED_NO_RETRY`; the scoped probe log
 still contained exactly one dispatch event. The test app was then uninstalled and
 package absence verified. Clock owns the expired timer independently; removing
-the probe does not dismiss its alert. Audible confirmation and visible dismissal
-remain attended checks.
+the probe does not dismiss its alert. Audible confirmation passed; visible
+dismissal was not independently observed by this probe.
