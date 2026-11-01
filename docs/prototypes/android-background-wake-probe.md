@@ -285,3 +285,14 @@ No command match, review-ready event or timer dispatch occurred; readback
 showed capture off and no service. The fallback category does not reveal the
 decoder's exact interpretation. This verifies rejection in this deliberately
 incomplete trial, not the cause of earlier complete-command failures.
+
+A subsequent fresh session reached command match and review ready without
+timer dispatch. The operator confirmed five seconds recognized and Stop
+afterward; follow-up readback showed capture off and no wake service. Between
+the deliberate incomplete trial and this success, the retained codes contain
+one additional wake/cue/`TIMER_WORDING_MISMATCH`/timeout sequence. The operator
+subsequently confirmed attempting the complete five-second command and
+reported disrupted delivery during the duration. This is an attended rejected
+complete-command attempt followed by a successful fresh retry. The fixed
+category does not identify the decoder output or establish an acoustic cause;
+no speech or audio was retained.
