@@ -196,8 +196,11 @@ attended verification.
 
 The separate foreground wake waiting increment has synthetic transition coverage
 for exact wake matching, rejection before wake, command gating, duplicate wake,
-overall/command deadlines and duplicate command rejection. Its attended wake,
-command and lifecycle scenarios are pending. The increment builds a verified APK
+overall/command deadlines and duplicate command rejection. One attended
+recognition-only trial logged waiting, wake match and command match; the operator
+confirmed Awake followed by the ten-second duration. AppOps showed capture
+completed. Real-timer handoff through this two-stage route and its remaining
+acoustic/lifecycle scenarios are pending. The increment builds a verified APK
 and has been installed on the same attended device. Launch showed listening off
 and real timers unchecked; AppOps showed no new capture from launch. Controls,
 including Stop and the status area, fit the inspected screen. The preceding full-phrase timer
