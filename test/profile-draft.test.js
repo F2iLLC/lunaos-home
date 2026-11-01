@@ -79,6 +79,16 @@ test('ambiguous identity is not assigned to either matching person', () => {
   assert.equal(draft.fields[0].uncertainty, 'ambiguous-identity');
 });
 
+test('exported schema rejects ambiguous identity candidates absent from retained people', () => {
+  const draft = createProfileDraft(input([observation()], { people: [...people, { id: 'alex-b', name: 'Alex Example' }] }));
+  assert.equal(profileDraftSchema.safeParse(draft).success, true);
+  const invalid = structuredClone(draft);
+  invalid.fields[0].identity.candidatePersonIds[1] = 'unknown-person';
+  const result = profileDraftSchema.safeParse(invalid);
+  assert.equal(result.success, false);
+  assert.deepEqual(result.error.issues[0].path, ['fields', 0, 'identity', 'candidatePersonIds', 1]);
+});
+
 test('family/person candidates with no field observations remain in the draft', () => {
   const candidates = [...people, { id: 'sam-a', name: 'Sam Example' }];
   const draft = createProfileDraft(input([], { people: candidates }));
