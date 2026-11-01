@@ -131,6 +131,12 @@ button:disabled { opacity: .5; cursor: default; }
 .empty-draft p { max-width: 440px; margin: 12px auto 24px; font-size: 14px; line-height: 1.7; color: #e8ddeb; }
 .empty-draft h2 { font: 30px Georgia, serif; }
 .empty-star { font-size: 32px; }
+.manual-start { max-width: 440px; margin: 32px auto 0; padding-top: 20px; border-top: 1px solid #c9bdd244; text-align: left; }
+.manual-start h3 { font-size: 17px; font-weight: 500; }
+.manual-start p { margin: 8px 0 16px; }
+.manual-start label, .manual-start input { display: block; width: 100%; }
+.manual-start label { margin: 12px 0 6px; }
+.manual-start button { margin-top: 16px; }
 .family-heading { margin: 30px 0 16px; }
 .family-heading h2 { font-size: 18px; margin-bottom: 8px; }
 .family-heading p { margin: 0; }

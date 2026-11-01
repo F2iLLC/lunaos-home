@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { createDraftStore, DraftError } from './lib/drafts.js';
-import { createProfileReviewProposal } from './lib/profile-review.js';
+import { createProfileReviewProposal, createManualProfileReviewProposal } from './lib/profile-review.js';
 import { VaultAccessError } from './lib/vault-sessions.js';
 
 const routes = new Map([
@@ -78,7 +78,7 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
           send(200, { draft: drafts.read() });
           return;
         }
-        if (!['/api/example', '/api/review', '/api/discard'].includes(request.url)) {
+        if (!['/api/example', '/api/manual', '/api/review', '/api/discard'].includes(request.url)) {
           send(404, { error: 'That preview action is not available.' });
           return;
         }
@@ -93,6 +93,7 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
         if (bytes > 65536) { send(413, { error: 'That change is too large for this preview.' }); return; }
         const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const draft = request.url === '/api/example' ? drafts.stage(createProfileReviewProposal())
+          : request.url === '/api/manual' ? drafts.stage(createManualProfileReviewProposal(input))
           : request.url === '/api/review' ? drafts.review(input) : drafts.discard(input);
         send(200, { draft });
       } catch (error) {

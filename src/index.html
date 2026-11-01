@@ -69,12 +69,23 @@
           <h2>Your family's story starts here.</h2>
           <p>Explore a fictional profile with sample source notes. Nothing here connects to email or calendars.</p>
           <button id="example-draft" class="primary-button">Review the fictional example</button>
+          <form id="manual-draft-form" class="manual-start">
+            <h3>Or enter a made-up detail</h3>
+            <p>Use fictional information only in this preview. This starts one detail for review; it does not open an account.</p>
+            <label for="manual-person-name">Person's name</label>
+            <input id="manual-person-name" name="name" type="text" maxlength="240" required autocomplete="off" placeholder="Alex Example">
+            <label for="manual-detail-label">Detail name</label>
+            <input id="manual-detail-label" name="label" type="text" maxlength="240" required autocomplete="off" placeholder="Favorite activity">
+            <label for="manual-detail-value">Detail</label>
+            <input id="manual-detail-value" name="value" type="text" maxlength="240" required autocomplete="off" placeholder="Gardening">
+            <button type="submit" class="quiet-button">Review this detail</button>
+          </form>
         </div>
         <div id="draft-content" hidden>
           <div class="family-heading"><h2>One family, one shared space</h2><p>People keep things organized. Family access covers everyone.</p></div>
           <section id="source-coverage-panel" class="list-panel" aria-labelledby="source-coverage-heading" hidden>
-            <h2 id="source-coverage-heading">Sources in this example</h2>
-            <p class="section-help">This fictional preview shows which sample sources were used or unavailable. It has not opened your accounts.</p>
+            <h2 id="source-coverage-heading">Sources for this draft</h2>
+            <p class="section-help">This preview shows which sources were used or unavailable. It has not opened your accounts.</p>
             <ul id="source-coverage"></ul>
           </section>
           <nav id="family-members" class="family-members" aria-label="Family members"></nav>
