@@ -264,3 +264,14 @@ the review deadline. Readback after the deadline showed `BACKGROUND_STOPPED`,
 no active microphone operation, no wake service and no timer dispatch. The
 operator's confirmation distinguishes this attended automatic-expiry case
 from a Stop action; the stopped code alone does not identify the stop reason.
+
+For the next attended trial, the operator waited for the wake cue, requested
+one minute and confirmed recognition of one minute / 60 seconds. Fresh fixed
+codes again showed waiting, wake match, cue requested, command match and review
+ready without timer dispatch. Capture was off while the service retained the
+pending review. This adds an operator-confirmed minute-unit case; the fixed
+runtime codes do not encode or independently verify the recognized duration.
+The operator then confirmed Stop/Discard cleared that result and disabled the
+Clock button. Follow-up readback showed capture off and no wake service, with
+no timer dispatch in the retained sequence. No stop-reason code was observed
+for this action; the cleared result is operator-confirmed.
