@@ -208,8 +208,16 @@ background stopped, with no timer dispatch. This supplies delayed runtime
 corroboration for recognition and the current stopped state; the exact duration
 remains operator-confirmed because these codes do not include it.
 
-For the next attended trial, first install and verify the diagnostic revision
-without starting capture. The operator must then start a fresh background
+In another attended version 0.7 trial, the operator reported five seconds
+recognized. Fresh fixed codes showed waiting, wake match, cue requested,
+command match and background review ready without a timer dispatch. Microphone
+capture was off; the service remained present for pending review. Duration is
+operator-confirmed, and cue requested does not establish cue audibility. This
+completes the small attended repeatability check with successful version 0.7
+recognition cases, but no failed version 0.7 trial was captured for the narrower
+diagnostics. The earlier intermittent timeout cause remains unresolved.
+
+For a future attended trial, the operator must start a fresh background
 session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
 codes before considering any recognition change. Leave Clock review untouched
 for recognition-only trials. Stop remains an explicit operator action; no ADB
