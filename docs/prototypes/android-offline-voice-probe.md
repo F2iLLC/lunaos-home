@@ -1,5 +1,10 @@
 # Android offline voice probe
 
+Version 0.4 adds a separate [background wake test](android-background-wake-probe.md)
+and shares its capture worker with the foreground controls. This document records
+the preceding foreground design and evidence; use the new document for current
+controls, the API 26 minimum and background limitations.
+
 This isolated development APK evaluates a complete spoken phrase on an ARM32
 Android device. It does not add voice control to Home. It can optionally hand a
 recognized duration to Android Clock after explicit on-screen opt-in. It follows
