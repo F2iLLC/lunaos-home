@@ -19,6 +19,7 @@ public final class BackgroundWakeService extends Service {
     private static final int LISTENING = 41, RESULT = 42;
     private static final PendingTimerRequest pending = new PendingTimerRequest();
     static boolean running;
+    static LunaFace.State visual = LunaFace.State.OFF;
     static String latest = "Microphone off. Nothing starts automatically.";
     private final Handler handler = new Handler();
     private ProbeCapture capture;
@@ -43,6 +44,7 @@ public final class BackgroundWakeService extends Service {
         return pending.claim(SystemClock.elapsedRealtime(), !ProbeCapture.blocked(context));
     }
     static void revoke(android.content.Context context) {
+        visual = LunaFace.State.OFF;
         pending.clear();
         ((NotificationManager) context.getSystemService(NOTIFICATION_SERVICE)).cancel(RESULT);
         context.stopService(new Intent(context, BackgroundWakeService.class));
@@ -66,6 +68,8 @@ public final class BackgroundWakeService extends Service {
     }
     private void end(String text) {
         latest = text;
+        visual = text.startsWith("Command timed out") || text.startsWith("Listening time limit")
+            ? LunaFace.State.RETRY : LunaFace.State.OFF;
         pending.clear();
         if (capture != null) capture.stop();
         capture = null; running = false;
@@ -88,6 +92,7 @@ public final class BackgroundWakeService extends Service {
         channel.setSound(null, null); channel.enableVibration(false);
         notifications.createNotificationChannel(channel); notifications.cancel(RESULT);
         latest = "Loading local model. Microphone off; please wait.";
+        visual = LunaFace.State.PREPARING;
         startForeground(LISTENING, notification(latest, true));
         if (ProbeCapture.blocked(this) || ProbeCapture.busy()) {
             end("Could not start: unlock, unmute and wait for the previous worker to finish. Microphone off.");
@@ -98,6 +103,9 @@ public final class BackgroundWakeService extends Service {
             wakeLock = ((PowerManager) getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HomeVoiceProbe:finiteWakeTest");
             wakeLock.acquire(WakeSession.WAIT_MS + 1000);
             capture = new ProbeCapture(this, true, true, new ProbeCapture.Listener() {
+                @Override public void visual(LunaFace.State state) {
+                    if (!destroyed && capture != null) visual = state;
+                }
                 @Override public void status(String text) {
                     if (destroyed || capture == null) return;
                     if (text.startsWith("Listening stopped") || text.startsWith("Command timed out")
@@ -112,6 +120,7 @@ public final class BackgroundWakeService extends Service {
                     if (!canceled && !ProbeCapture.blocked(BackgroundWakeService.this)
                             && SystemClock.elapsedRealtime() < Math.min(maximum, deadline) && seconds > 0) {
                         pending.offer(seconds, SystemClock.elapsedRealtime());
+                        visual = LunaFace.State.REVIEW;
                         latest = "Recognized " + seconds + " seconds. Microphone off. Tap notification, then Start recognized timer in Clock within 60 seconds. NO timer started.";
                         notifications.notify(RESULT, notification(latest, false));
                         Log.i("HomeVoiceProbe", "BACKGROUND_REVIEW_READY_NO_TIMER");
@@ -128,8 +137,10 @@ public final class BackgroundWakeService extends Service {
     }
     @Override public void onDestroy() {
         destroyed = true;
-        if (capture != null || pending.peek(SystemClock.elapsedRealtime(), true) > 0)
+        if (capture != null || pending.peek(SystemClock.elapsedRealtime(), true) > 0) {
             latest = "Background test stopped. Microphone off. No timer started.";
+            visual = LunaFace.State.OFF;
+        }
         if (capture != null) capture.stop();
         capture = null; running = false; pending.clear();
         handler.removeCallbacks(watch); releaseWakeLock(); stopForeground(true);

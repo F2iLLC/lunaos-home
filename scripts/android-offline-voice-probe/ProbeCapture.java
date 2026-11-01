@@ -29,6 +29,7 @@ final class ProbeCapture {
     private static final AtomicBoolean BUSY = new AtomicBoolean();
     static boolean busy() { return BUSY.get(); }
     interface Listener {
+        void visual(LunaFace.State state);
         void status(String text);
         void finished(String code, String text, int seconds, long deadline, boolean canceled);
     }
@@ -50,6 +51,7 @@ final class ProbeCapture {
             if (accessLost || SystemClock.elapsedRealtime() >= deadline) {
                 stop();
                 String code = accessLost ? "ACCESS_STOP" : awake ? "COMMAND_WINDOW_EXPIRED" : "LISTENING_DEADLINE";
+                listener.visual(accessLost ? LunaFace.State.OFF : LunaFace.State.RETRY);
                 listener.status(accessLost ? "Listening stopped: lock, mute or permission change. Microphone off."
                     : timeoutMessage());
                 Log.i("HomeVoiceProbe", code);
@@ -102,8 +104,8 @@ final class ProbeCapture {
             closeCue(); Log.i("HomeVoiceProbe", "WAKE_CUE_UNAVAILABLE");
         }
     }
-    private void show(String text) {
-        main.post(() -> { if (!canceled && !closed) listener.status(text); });
+    private void show(String text, LunaFace.State state) {
+        main.post(() -> { if (!canceled && !closed) { listener.visual(state); listener.status(text); } });
     }
     private void copyAsset(String asset, File destination) throws Exception {
         String[] children = context.getAssets().list(asset);
@@ -153,7 +155,8 @@ final class ProbeCapture {
                     WakeSession wake = wait ? new WakeSession(SystemClock.elapsedRealtime()) : null;
                     Log.i("HomeVoiceProbe", wait ? "WAITING_FOR_WAKE" : "LISTENING");
                     show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna (up to 5 minutes). Pause after the wake phrase."
-                        : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.");
+                        : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.",
+                        wait ? LunaFace.State.WAITING : LunaFace.State.AWAKE);
                     code = "NO_COMPLETE_COMMAND"; message = "Test ended without a complete command. No timer started.";
                     while (!closed && SystemClock.elapsedRealtime() < deadline) {
                         if (blocked(context)) { code = "ACCESS_STOP"; message = "Lock, mute or permission changed. No timer started."; return; }
@@ -173,18 +176,18 @@ final class ProbeCapture {
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
-                                show("Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.");
+                                show("Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.", LunaFace.State.AWAKE);
                                 main.post(this::wakeCue);
                             } else if (seconds > 0) {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
                             } else if (wake != null && wake.awaitingCommand()) {
-                                String diagnostic = TimerPhrase.commandDiagnostic(text);
+                                String diagnostic = TimerPhrase.commandDetail(text);
                                 if (!"NO_SPEECH".equals(diagnostic) || "NO_FINAL_RESULT".equals(commandDiagnostic))
                                     commandDiagnostic = diagnostic;
                                 Log.i("HomeVoiceProbe", "COMMAND_FINAL_" + diagnostic);
-                                show("Awake. Decoder: " + commandDiagnostic + ". No supported timer yet. MICROPHONE ON until the command deadline.");
+                                show("Awake. Decoder: " + commandDiagnostic + ". No supported timer yet. MICROPHONE ON until the command deadline.", LunaFace.State.AWAKE);
                             }
                         }
                         SystemClock.sleep(10);

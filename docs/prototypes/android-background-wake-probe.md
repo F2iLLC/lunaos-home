@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.6 extends the [foreground probe](android-offline-voice-probe.md) with
+Version 0.8 extends the [foreground probe](android-offline-voice-probe.md) with
 an explicitly started microphone foreground service. It evaluates leaving the
 activity and turning off an unlocked display on the selected converted Android
 device. This finite engineering probe is not the Home application or an
@@ -47,12 +47,25 @@ remain #148 and #149.
   Toggling the checkbox stops tests and discards pending requests.
 - No network permission, saved audio or transcript. Do not publish raw device
   logs, identifiers, screenshots, household audio or human-derived measurements.
+- While the probe screen is visible, an oversized locally drawn chibi Luna
+  provides visual feedback: sleepy eyes while waiting, wide eyes with a slow
+  mint halo while the command window is open, happy eyes for pending review,
+  and a distinct retry expression after timeout. Large labels and accessible
+  descriptions supplement expression and color. Review explicitly says no
+  timer started. Fixed visual states are supplied by capture/service callbacks;
+  recognized speech is never used to draw the face.
+- The visible activity keeps its display on only during preparation, waiting,
+  command capture and pending review. Stop, timeout, review expiry and leaving
+  the activity release that flag. The face does not turn a dark display on,
+  launch from the background, change brightness or bypass a lock. Keep the
+  probe open to use the visual cue; the existing finite listening limits and
+  explicit Clock tap remain in force.
 
 ## Build and attended test
 
 Use the offline builder and pinned inputs documented with the foreground probe.
-This version requires API 26+, targets API 30 and packages ARM32 only. Its 81
-policy checks cover parser and fixed diagnostics (23), handoff (11), wake transitions (32), and timer
+This version requires API 26+, targets API 30 and packages ARM32 only. Its 338
+policy checks cover parser and fixed diagnostics (280), handoff (11), wake transitions (32), and timer
 review expiry, revocation, range and one-use claim (15).
 
 1. Verify installation, launch and permission leave the microphone off and no
@@ -141,3 +154,205 @@ instrumented. This verifies an attended screen-off recognition and explicit
 Clock handoff case; it does not establish repeated reliability, cue audibility,
 security-lock cancellation or a hands-free background timer. The earlier
 command-rejection cause remains unresolved.
+
+Subsequent attended version 0.6 retries again produced both a successful
+recognition/review path and command timeouts. The failed paths reached wake
+match and a finalized `INCOMPLETE_TIMER_PHRASE` before the command deadline;
+neither failure dispatched a timer. That category means only that rejected text
+contained `timer`, not that a particular word was omitted. It cannot identify
+the decoding error. The operator's successful-result report does not separately
+confirm cue audibility or a new countdown/alert result.
+
+The operator subsequently reported Stop and the stopped UI. Readback confirmed
+no active microphone operation and no wake service. In a separate lock-screen
+trial, capture was verified active before the operator reported locking. The
+device showed its keyguard but reported no secure lock, and capture continued.
+This does not test `isDeviceLocked()` cancellation on a securely locked device.
+After unlocking and the operator's Stop action, readback again showed capture
+off and no wake service. Lock settings were not changed. Post-unlock
+non-restart following a genuine security-lock cancellation remains unverified.
+
+Version 0.7 narrows rejected-command diagnostics without changing recognition,
+grammar, strict parsing, deadlines or timer authorization. The fixed details are
+`MISSING_DURATION_AND_UNIT`, `MISSING_DURATION`, `MISSING_UNIT`,
+`MISSING_ARTICLE`, `UNIT_NUMBER_MISMATCH`, `EXTRA_WORDS_AFTER_TIMER` and
+`TIMER_WORDING_MISMATCH`. The first six identify exact structural patterns;
+the last is the fallback for other rejected timer wording. Existing silence,
+unclear-speech, wake-only and other-speech categories remain. The UI and log
+show only these codes, never recognized text. A rejected phrase is never
+completed, joined to a later utterance or accepted based on its diagnostic.
+This is investigation instrumentation, not a demonstrated acoustic repair.
+
+Version 0.7 passes 338 policy/diagnostic cases and the complete offline
+Java/DEX/APK build, portable-entry checks and signature verification. These
+checks use synthetic inputs; they do not establish device recognition recovery.
+The new APK was subsequently re-signed with the existing disposable test
+identity, signature-verified and installed as an update without uninstalling
+the probe. Package readback confirmed version 0.7. Launch inspection showed
+microphone off, foreground timer opt-in unchecked and Clock review disabled.
+No wake service or active microphone operation was present; AppOps still
+reported only the preceding capture operation, before this update/launch.
+No capture was started through ADB. All APKs, models and signing material remain
+outside Git.
+
+In the first subsequent attended version 0.7 trial, fixed-code readback showed
+waiting, wake match, command match and background review ready without a timer
+dispatch. Microphone capture was off at readback; the service remained present
+for pending review. The operator reported choosing a ten-second command rather
+than the suggested five-second command. The fixed codes do not encode duration,
+and a structured-duration UI readback was unavailable, so exact-duration
+correctness is not independently established for this trial. No countdown or
+audible expiry is claimed. This successful recognition case does not resolve
+the preceding intermittent rejections; a failed version 0.7 trial is still
+needed to inspect the narrower diagnostic categories.
+
+In a later version 0.7 attempt, the operator confirmed speaking five seconds
+and seeing five seconds recognized. The device was no longer connected over
+ADB when follow-up inspection was attempted. This is operator-confirmed
+duration correctness only; fresh fixed codes, capture shutdown, review state
+and timer dispatch were not verified for this attempt. No countdown, sound or
+recognition-reliability qualification is inferred.
+
+After the operator reported Stop and reconnected the device, fresh package
+readback again confirmed version 0.7, with no active microphone operation and
+no wake service. Retained fixed codes from the intervening period showed an
+additional waiting/wake-match/command-match/review-ready sequence followed by
+background stopped, with no timer dispatch. This supplies delayed runtime
+corroboration for recognition and the current stopped state; the exact duration
+remains operator-confirmed because these codes do not include it.
+
+In another attended version 0.7 trial, the operator reported five seconds
+recognized. Fresh fixed codes showed waiting, wake match, cue requested,
+command match and background review ready without a timer dispatch. Microphone
+capture was off; the service remained present for pending review. Duration is
+operator-confirmed, and cue requested does not establish cue audibility. This
+completes the small attended repeatability check with successful version 0.7
+recognition cases, but no failed version 0.7 trial was captured for the narrower
+diagnostics. The earlier intermittent timeout cause remains unresolved.
+
+In the next attended version 0.7 recognition attempt, fresh fixed codes again
+showed waiting, wake match, cue requested, command match and review ready with
+no timer dispatch. Capture was off with review pending. For a subsequent
+dedicated Stop test, readback verified active microphone capture and the wake
+service after the operator started listening locally. After the requested
+Stop/Discard action and operator acknowledgement, fresh readback showed no
+active microphone capture and no wake service. This establishes the attended
+active-to-stopped transition; it does not establish security-lock cancellation.
+
+The operator subsequently confirmed hearing the soft wake cue during the
+successful attended attempt. Cue audibility is therefore operator-confirmed
+for that trial, without establishing repeatability or measured loudness. The
+operator also confirmed this device has no secure lock. Security-lock
+cancellation and post-unlock non-restart remain untested; lock settings were
+left unchanged.
+
+For a future attended trial, the operator must start a fresh background
+session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
+codes before considering any recognition change. Leave Clock review untouched
+for recognition-only trials. Stop remains an explicit operator action; no ADB
+capture start or lock-setting change is authorized by this procedure.
+
+A subsequent [offline synthetic decoder experiment](android-synthetic-decoder.md)
+reproduced a separate timing failure in both a Windows decoder and the pinned
+Android native library. Fast commands with no added gap could begin before the
+wake decoder finalized; adding silence or feeding the same command directly
+avoided those failures in the tested fixtures. Each native matrix completed 72
+cases, with four zero-added-gap `UNCLEAR_SPEECH` rejections and 68 expected
+matches. This is not a reliability rate or a demonstrated cause of the earlier
+human `INCOMPLETE_TIMER_PHRASE` results. The operator could not recall the
+earlier command/cue timing. No human audio was recorded, capture was not started
+through ADB, and the APK behavior was left unchanged.
+
+In the subsequent attended timing comparison, the operator spoke the wake
+phrase and five-second command continuously without waiting for the cue and
+reported five seconds recognized. Fresh fixed codes showed waiting, wake match,
+cue requested, command match and review ready, with capture off and no timer
+dispatch. This successful human case shows that the synthetic timing failure
+does not occur on every continuous-phrase attempt; it does not resolve the
+earlier human rejection cause or establish recognition reliability.
+
+The operator then left that review result untouched and confirmed that the
+screen displayed `Timer review expired` with the Clock button disabled after
+the review deadline. Readback after the deadline showed `BACKGROUND_STOPPED`,
+no active microphone operation, no wake service and no timer dispatch. The
+operator's confirmation distinguishes this attended automatic-expiry case
+from a Stop action; the stopped code alone does not identify the stop reason.
+
+For the next attended trial, the operator waited for the wake cue, requested
+one minute and confirmed recognition of one minute / 60 seconds. Fresh fixed
+codes again showed waiting, wake match, cue requested, command match and review
+ready without timer dispatch. Capture was off while the service retained the
+pending review. This adds an operator-confirmed minute-unit case; the fixed
+runtime codes do not encode or independently verify the recognized duration.
+The operator then confirmed Stop/Discard cleared that result and disabled the
+Clock button. Follow-up readback showed capture off and no wake service, with
+no timer dispatch in the retained sequence. No stop-reason code was observed
+for this action; the cleared result is operator-confirmed.
+
+In an intentional incomplete-command trial, the operator was asked to wait
+for the cue and say only `Set a timer`, omitting duration, then Stop/Discard
+after the result or deadline. The operator reported `TIMER_WORDING_MISMATCH`.
+Fresh fixed codes corroborated `COMMAND_FINAL_TIMER_WORDING_MISMATCH`, then
+`COMMAND_FINAL_NO_SPEECH`, `BACKGROUND_STOPPED` and `COMMAND_WINDOW_EXPIRED`.
+No command match, review-ready event or timer dispatch occurred; readback
+showed capture off and no service. The fallback category does not reveal the
+decoder's exact interpretation. This verifies rejection in this deliberately
+incomplete trial, not the cause of earlier complete-command failures.
+
+A subsequent fresh session reached command match and review ready without
+timer dispatch. The operator confirmed five seconds recognized and Stop
+afterward; follow-up readback showed capture off and no wake service. Between
+the deliberate incomplete trial and this success, the retained codes contain
+one additional wake/cue/`TIMER_WORDING_MISMATCH`/timeout sequence. The operator
+subsequently confirmed attempting the complete five-second command and
+reported disrupted delivery during the duration. This is an attended rejected
+complete-command attempt followed by a successful fresh retry. The fixed
+category does not identify the decoder output or establish an acoustic cause;
+no speech or audio was retained.
+
+In the next cue-separated trial, the operator requested two minutes, confirmed
+120 seconds recognized and reported Stop afterward. Fresh fixed codes showed
+waiting, wake match, cue requested, command match and review ready without
+timer dispatch; follow-up state showed capture off and no wake service. This
+adds an operator-confirmed plural-minute case, with duration still not encoded
+in the runtime codes.
+
+In the subsequent version 0.7 trial, the operator reported five seconds
+recognized with the display off, then Stop afterward. Fresh fixed codes
+corroborated waiting, wake match, cue requested, command match and review ready
+without timer dispatch. Follow-up readback showed no active microphone
+operation and no wake service. Display state and exact duration are
+operator-confirmed; this display-off success does not test secure-lock
+cancellation or establish recognition reliability.
+
+For an attended microphone-permission revocation check, the operator was
+instructed to start listening locally, revoke microphone permission in Android
+settings and return to the probe. The operator reported the microphone-off,
+nothing-starts-automatically screen. Package readback confirmed runtime
+microphone permission denied; AppOps and service readback showed no active
+capture and no wake service. The latest session had logged
+`WAITING_FOR_WAKE`, with no subsequent match, review or timer dispatch.
+Capture was not independently sampled before revocation, and no stop-reason
+code was retained. This corroborates the denied-permission stopped state,
+without distinguishing Android process termination from the probe's own
+permission-cancellation path. Permission was not changed through ADB.
+
+Version 0.8 adds the chibi visual indicator and responsive face/control layout.
+All 338 policy/diagnostic cases, offline Java/DEX/APK build, portable-entry
+checks and signature verification passed. The update was re-signed using the
+existing disposable identity and installed without uninstalling. Package
+readback confirmed 0.8, with microphone permission still denied, no active
+capture and no wake service. Launch did not activate capture. Local UI
+inspection and the operator confirmed the large face and microphone-off state.
+The full repository suite also passed: 344 tests, zero failures or skips.
+
+In the attended visual trial, the operator granted microphone permission and
+started listening locally, then confirmed the awake face was obvious from the
+kitchen viewing distance. The operator clarified that Stop was pressed after
+seeing the awake face, before a recognized-duration result. Fresh codes showed
+waiting, wake match, cue requested and a no-speech command final, without
+command match, review ready or timer dispatch. Follow-up readback showed
+capture off, no wake service, the face's accessible microphone-off description
+and Clock review disabled. This confirms operator-assessed awake visibility
+and the stopped visual state, not timer recognition or visual qualification
+of review/timeout/expiry transitions. No recognition repair is claimed.
