@@ -60,3 +60,21 @@ test('draft API rejects foreign sites, rebinding hosts, bad input and stale edit
   assert.equal((await post('/api/discard', { draftId: draft.id, revision: 2 })).status, 200);
   assert.equal((await (await fetch(base + '/api/draft', { headers })).json()).draft, null);
 });
+
+test('local manual start observes the same origin boundary and stages a review draft', async t => {
+  const server = createAppServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = { 'X-Home-Preview': '1', 'Content-Type': 'application/json', Origin: base };
+  const input = { name: 'Mira Example', label: 'Favorite activity', value: 'Gardening' };
+  const post = (value, extra = {}) => fetch(base + '/api/manual', { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(value) });
+  assert.equal((await post(input, { Origin: 'https://foreign.example' })).status, 403);
+  assert.equal((await post({ ...input, value: '' })).status, 400);
+  const response = await post(input);
+  assert.equal(response.status, 200);
+  const { draft } = await response.json();
+  assert.equal(draft.people[0].fields[0].value, 'Gardening');
+  assert.equal((await post(input)).status, 409);
+});

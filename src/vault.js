@@ -7,7 +7,7 @@ let fieldId;
 let busy = false;
 const $ = selector => document.querySelector(selector);
 const labels = { proposed: 'Please check', 'needs-review': 'Needs review', confirmed: 'Looks right', skipped: 'Skipped', accepted: 'Yes, later', declined: 'Not now' };
-const sourceLabels = { 'assistant-memory': 'Assistant memory example', calendar: 'Calendar example', email: 'Email example', manual: 'Manual example' };
+const sourceLabels = { 'assistant-memory': 'Assistant memory example', calendar: 'Calendar example', email: 'Email example', manual: 'Entered manually' };
 const uncertaintyLabels = {
   'single-source': 'One source · unverified',
   corroborated: 'Sources agree · still needs review',
@@ -28,7 +28,7 @@ function button(text, action, className = 'quiet-button') {
   return node;
 }
 async function request(path, input) {
-  if (busy) return;
+  if (busy) return false;
   const hadEditorFocus = $('#draft-content').contains(document.activeElement);
   busy = true;
   const controls = [...$('#vault').querySelectorAll('button, input')]
@@ -48,10 +48,12 @@ async function request(path, input) {
     }
     const checked = draft?.people.flatMap(person => person.fields).filter(field => field.status === 'confirmed').length;
     $('#draft-status').textContent = draft ? `${checked} ${checked === 1 ? 'detail' : 'details'} checked · Draft only` : 'Ready for a fictional draft';
+    return true;
   } catch (error) {
     $('#vault-error').textContent = ['TypeError', 'TimeoutError'].includes(error.name)
       ? 'The local preview is unavailable. A change may not have arrived. Reconnect and check for updates before trying again.' : error.message;
     $('#draft-status').textContent = 'Update not confirmed';
+    return false;
   } finally {
     busy = false;
     for (const { node, disabled } of controls) if (node.isConnected) node.disabled = disabled;
@@ -81,7 +83,7 @@ function render() {
   const sources = draft.sourceCoverage ?? [];
   $('#source-coverage-panel').hidden = sources.length === 0;
   $('#source-coverage').replaceChildren(...sources.map(source => {
-    const status = source.status === 'available' ? 'Sample available'
+    const status = source.status === 'available' ? (source.kind === 'manual' ? 'Entered in this draft' : 'Sample available')
       : source.status === 'unavailable' ? `Unavailable: ${source.reason}` : 'Not authorized';
     return element('li', `${sourceLabels[source.kind]} · ${status}`);
   }));
@@ -170,6 +172,12 @@ function render() {
 }
 $('#refresh-draft').addEventListener('click', refreshDraft);
 $('#example-draft').addEventListener('click', () => request('/api/example', {}));
+$('#manual-draft-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = Object.fromEntries(new FormData(form));
+  if (await request('/api/manual', input)) form.reset();
+});
 $('#discard-draft').addEventListener('click', () => { $('#discard-confirmation').hidden = false; $('#confirm-discard').focus(); });
 $('#cancel-discard').addEventListener('click', () => { $('#discard-confirmation').hidden = true; $('#discard-draft').focus(); });
 $('#confirm-discard').addEventListener('click', async () => {
