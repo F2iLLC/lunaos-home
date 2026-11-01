@@ -173,9 +173,14 @@ This is investigation instrumentation, not a demonstrated acoustic repair.
 Version 0.7 passes 338 policy/diagnostic cases and the complete offline
 Java/DEX/APK build, portable-entry checks and signature verification. These
 checks use synthetic inputs; they do not establish device recognition recovery.
-The new APK has not been installed or acoustically tested. Version 0.6 remains
-the last verified installed revision. All APKs, models and signing material
-remain outside Git.
+The new APK was subsequently re-signed with the existing disposable test
+identity, signature-verified and installed as an update without uninstalling
+the probe. Package readback confirmed version 0.7. Launch inspection showed
+microphone off, foreground timer opt-in unchecked and Clock review disabled.
+No wake service or active microphone operation was present; AppOps still
+reported only the preceding capture operation, before this update/launch.
+No capture was started through ADB. Acoustic behavior on version 0.7 remains
+untested. All APKs, models and signing material remain outside Git.
 
 For the next attended trial, first install and verify the diagnostic revision
 without starting capture. The operator must then start a fresh background
