@@ -7,6 +7,13 @@ let needsReadback = false;
 let generation = 0;
 let expiry;
 export const canSaveDraft = () => canRequestAssistantReview() && /^[a-f0-9]{64}$/.test(key ?? '');
+export function preserveSaveRoutes() {
+  if (!canSaveDraft()) return;
+  for (const link of document.querySelectorAll('a[href^="#"]')) {
+    const route = link.getAttribute('href');
+    if (['#welcome', '#vault', '#checklist'].includes(route)) link.setAttribute('href', `${route}?save=${key}`);
+  }
+}
 export function resetSave() {
   generation++;
   approval = null;

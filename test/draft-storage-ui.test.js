@@ -5,19 +5,22 @@ import { runInNewContext } from 'node:vm';
 
 const source = (await readFile(new URL('../src/draft-storage.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\n/m, '').replaceAll('export ', '');
-function screen(fetch, connected = true) {
+function screen(fetch, connected = true, hash = '#vault?save=' + 'a'.repeat(64)) {
   const elements = new Map(); const timers = new Map(); const listeners = {}; let sequence = 0;
+  const links = ['#welcome', '#vault', '#checklist'].map(href => ({
+    href, getAttribute() { return this.href; }, setAttribute(_name, value) { this.href = value; },
+  }));
   const node = () => ({ textContent: '', hidden: false, disabled: false, children: [], listeners: {},
     addEventListener(type, fn) { this.listeners[type] = fn; },
     replaceChildren(...children) { this.children = children; }, append(child) { this.children.push(child); }, focus() {},
     querySelectorAll() { return ['#confirm-save', '#cancel-save', '#view-saved', '#hide-saved'].map(element); },
   });
   function element(id) { if (!elements.has(id)) elements.set(id, node()); return elements.get(id); }
-  const document = { querySelector: element, createElement: node, hidden: false, addEventListener(type, fn) { listeners[type] = fn; } };
-  const context = { document, location: { hash: '#vault?save=' + 'a'.repeat(64) }, fetch, AbortSignal, URLSearchParams,
+  const document = { querySelector: element, querySelectorAll: () => links, createElement: node, hidden: false, addEventListener(type, fn) { listeners[type] = fn; } };
+  const context = { document, location: { hash }, fetch, AbortSignal, URLSearchParams,
     canRequestAssistantReview: () => connected, setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); } };
-  runInNewContext(source + '\nglobalThis.prepare = prepareSave;', context);
-  return { element, timers, document, listeners, prepare: context.prepare, click: id => element(id).listeners.click() };
+  runInNewContext(source + '\nglobalThis.prepare = prepareSave; globalThis.preserveRoutes = preserveSaveRoutes;', context);
+  return { element, links, timers, document, listeners, prepare: context.prepare, preserveRoutes: context.preserveRoutes, click: id => element(id).listeners.click() };
 }
 const ok = data => ({ ok: true, json: async () => data });
 const prepared = { approval: crypto.randomUUID(), name: 'Alex Example', label: 'Workplace', value: 'Willow Workshop', previousValue: 'Willow Studio' };
@@ -58,4 +61,23 @@ test('offline preview never enables save or makes storage requests even with a f
   assert.equal(ui.element('#draft-storage').hidden, true);
   await ui.prepare({ revision: 1 }); await ui.click('#view-saved');
   assert.equal(calls, 0);
+});
+test('internal navigation retains the save capability through a reload', async () => {
+  const first = screen(async () => ok({ records: [] }));
+  first.preserveRoutes();
+  const backHome = first.links[0].href;
+  const home = screen(async () => ok({ records: [] }), true, backHome);
+  home.preserveRoutes();
+  const exploreVault = home.links[1].href;
+  const reloadedVault = screen(async () => ok({ records: [] }), true, exploreVault);
+  assert.equal(reloadedVault.element('#draft-storage').hidden, false);
+  assert.match(exploreVault, /^#vault\?save=[a-f0-9]{64}$/);
+  await reloadedVault.click('#view-saved');
+  assert.match(reloadedVault.element('#save-status').textContent, /No examples saved/);
+});
+test('offline and unkeyed navigation does not add a save capability', () => {
+  for (const ui of [screen(async () => {}, false), screen(async () => {}, true, '#vault')]) {
+    ui.preserveRoutes();
+    assert.deepEqual(ui.links.map(link => link.href), ['#welcome', '#vault', '#checklist']);
+  }
 });

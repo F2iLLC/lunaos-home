@@ -30,7 +30,9 @@ async function request(path, input) {
   if (busy) return;
   const hadEditorFocus = $('#draft-content').contains(document.activeElement);
   busy = true;
-  const controls = [...$('#vault').querySelectorAll('button, input')].map(node => ({ node, disabled: node.disabled }));
+  const controls = [...$('#vault').querySelectorAll('button, input')]
+    .filter(node => !node.closest('#draft-storage'))
+    .map(node => ({ node, disabled: node.disabled }));
   for (const { node } of controls) node.disabled = true;
   $('#vault-error').textContent = '';
   $('#vault').setAttribute('aria-busy', 'true');
