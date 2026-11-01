@@ -1,0 +1,17 @@
+[
+  {
+    "file": "vosk.aar",
+    "url": "https://repo.maven.apache.org/maven2/com/alphacephei/vosk-android/0.3.75/vosk-android-0.3.75.aar",
+    "sha256": "AB2F8B91AC8051561AA325546B35FED9A68B36B8121BAC5C6FB927525C4ADFAD"
+  },
+  {
+    "file": "jna.aar",
+    "url": "https://repo.maven.apache.org/maven2/net/java/dev/jna/jna/5.18.1/jna-5.18.1.aar",
+    "sha256": "7F053E3EC99E14DD71259C82C1C8A02738D64A13C31226B2ACC170F3060951E0"
+  },
+  {
+    "file": "model.zip",
+    "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+    "sha256": "30F26242C4EB449F948E42CB302DD7A686CB29A3423A8367F99FF41780942498"
+  }
+]
