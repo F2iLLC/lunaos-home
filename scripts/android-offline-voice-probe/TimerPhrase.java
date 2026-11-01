@@ -18,12 +18,23 @@ public final class TimerPhrase {
         }
         return 0;
     }
-    public static String grammar() {
+    public static int commandSeconds(String text) {
+        if (text == null) return 0;
+        return text.startsWith("set a timer for ") ? seconds("hey luna " + text) : seconds(text);
+    }
+    public static String grammar() { return grammar(false); }
+    public static String commandGrammar() { return grammar(true); }
+    private static String grammar(boolean command) {
         StringBuilder out = new StringBuilder("[\"[unk]\",\"hey luna\"");
         for (int n = 1; n <= 60; n++) {
             String prefix = ",\"hey luna set a timer for " + number(n);
             out.append(prefix).append(n == 1 ? " second\"" : " seconds\"");
             out.append(prefix).append(n == 1 ? " minute\"" : " minutes\"");
+            if (command) {
+                String bare = ",\"set a timer for " + number(n);
+                out.append(bare).append(n == 1 ? " second\"" : " seconds\"");
+                out.append(bare).append(n == 1 ? " minute\"" : " minutes\"");
+            }
         }
         return out.append(']').toString();
     }

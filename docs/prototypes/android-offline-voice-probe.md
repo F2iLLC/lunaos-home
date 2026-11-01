@@ -21,7 +21,7 @@ outside the checkout. The notices preserve known native dependency licenses;
 this is not a reproducible native-library build or a completed release audit.
 
 Vosk performs constrained speech recognition during an explicitly started
-session. This is not a dedicated always-on keyword detector: microphone input is
+session, including the optional five-minute foreground waiting test. This is not a dedicated always-on keyword detector: microphone input is
 processed locally throughout that session, before any wake phrase is matched.
 There is no background service, screen-off listening, speaker identification,
 or claim about false activations, latency, battery life, or noise robustness.
@@ -43,10 +43,10 @@ part of #137.
 - Model loading happens with the microphone off. A fresh Start is required after
   leaving or stopping the screen; a canceled loading operation cannot start capture.
 - Listening uses 16 kHz mono PCM16, ends on a complete valid command or after
-  30 seconds, and releases capture on Stop or activity pause. Lock, microphone
+  30 seconds in the original full-command test, and releases capture on Stop or activity pause. Lock, microphone
   mute and permission are checked before capture and during the loop. A UI
   deadline releases capture even while a native decode is pending.
-- Final recognition results alone enter the strict parser. Accepted forms are
+- Final recognition results alone enter the strict parser. The original test accepts
   `hey luna set a timer for <one..sixty> second(s)/minute(s)`, with the matching
   singular or plural. No partial result, missing wake phrase, extra suffix,
   unsupported duration, or previous session's text can trigger a match.
@@ -58,6 +58,43 @@ part of #137.
 - The manifest requests microphone and normal `SET_ALARM` permissions, excludes backup and has no
   Internet permission. The APK stores only its bundled recognition model in its
   private files directory. Uninstall removes that development copy.
+
+## Foreground wake waiting test
+
+`Enable local wake listening for 5 minutes` is a separate explicit listening
+opt-in. Launch, microphone permission approval and resuming the activity never
+enable it. The microphone remains on locally while waiting; the screen displays
+that state. This test reuses Vosk speech recognition, not a qualified low-power
+keyword engine. There is no background service or screen-off support.
+
+Say only `Hey Luna`, then pause until `Awake` appears before saying
+`Set a timer for ten seconds`. The waiting recognizer's grammar contains only
+`hey luna` and `[unk]`; a complete exact final wake match opens a separate
+command recognizer. No partial result opens the command window. The original
+complete-phrase Start button remains available as a fallback.
+
+The command window lasts at most ten seconds and never extends the overall
+five-minute waiting deadline. Repeated wake results do not extend that window.
+Only within it may a final exact bare timer command (or full wake-prefixed
+command) match. There is no audio replay between recognizers: speaking the
+command before the Awake indicator may lose it. Invalid results never start a
+timer. The first valid command or either deadline ends the entire session;
+another attempt needs an explicit button tap. Clock handoff still requires the
+separate real-timer option and existing per-session authorization gate.
+
+A UI watchdog checks the current deadline and lock/mute/permission every 100 ms,
+independently of native decode progress. Stop, activity pause and completion
+remove that session's watchdog. The worker checks the same deadline before
+accepting final results; the activity identity guard rejects canceled results.
+No timers are dispatched after a deadline or cancellation. Native resource
+cleanup may finish after microphone release if a decode is pending.
+
+Only a 100 ms Java PCM chunk is passed at a time and then cleared. No application
+rolling pre-wake buffer is added; native decoder working memory and the OS audio
+buffer are separate, and their lifetime/size is not qualified by this test.
+Wake false-activation rate, command accuracy, latency, native resource retention
+and power costs remain unmeasured. Do not treat the pure transition tests as
+acoustic or lifecycle qualification.
 
 ## Optional real timer handoff
 
@@ -105,7 +142,7 @@ Get-Content scripts/android-offline-voice-probe/inputs.json -Raw |
     -Sdk $env:ANDROID_HOME -Jdk $env:JAVA_HOME
 ```
 
-The builder runs 16 parser and 11 handoff authorization checks, compiles Java and both library JARs
+The builder runs 16 parser, 11 handoff authorization and 32 wake-session checks, compiles Java and both library JARs
 to DEX, packages the model and native libraries, verifies portable ZIP entry
 paths and required model/native entries, and verifies the disposable APK
 signature. Assets are inserted with `jar` because Windows `aapt2 -A` emitted
@@ -126,12 +163,20 @@ launch `io.github.f2illc.lunaos.home.voiceprobe/.VoiceProbe`.
    timeout, Stop, leaving the screen, mute and permission revocation. Returning
    must not resume capture. UI/parser checks are not substitutes for these
    attended acoustic and lifecycle checks.
-5. Uninstall the isolated probe when evaluation is finished. Do not publish raw
+5. For the foreground wake test, leave real timers unchecked for the first trial.
+   Tap Enable local wake listening for 5 minutes, wait for the microphone-on
+   waiting state, say `Hey Luna` and pause. After Awake appears, say
+   `Set a timer for ten seconds` and pause. Expect the structured duration and
+   microphone off. Repeat only after explicitly enabling real timers to test
+   Clock handoff. Check Stop, leaving, command timeout and waiting timeout
+   separately; returning must not start capture. Never infer a negative-audio
+   benchmark from a few rejected phrases.
+6. Uninstall the isolated probe when evaluation is finished. Do not publish raw
    device logs, transcripts, screenshots, identifiers, or human-derived measurements.
 
 ## Current evidence
 
-The source passes all 16 parser and 11 handoff authorization checks and builds a
+The source passes all 16 parser, 11 handoff authorization and 32 wake-session checks and builds a
 signature-verified APK with verified portable model paths. Installation and
 activity launch succeeded on the connected API 30
 ARM32 test device. After correcting Windows asset entry separators, the explicit
@@ -148,3 +193,17 @@ recognition-to-alert scenario; it does not qualify screen-off alerts, repeated
 operation or always-on listening. A separate run logged the 30-second deadline
 stop. The remaining rejection, acoustic and lifecycle scenarios still require
 attended verification.
+
+The separate foreground wake waiting increment has synthetic transition coverage
+for exact wake matching, rejection before wake, command gating, duplicate wake,
+overall/command deadlines and duplicate command rejection. One attended
+recognition-only trial logged waiting, wake match and command match; the operator
+confirmed Awake followed by the ten-second duration. AppOps showed capture
+completed. A subsequent opted-in trial logged wake match, command match and one
+Clock dispatch; the operator confirmed the countdown and audible expiry. These
+two attended cases establish the tested foreground path only. Its remaining
+rejection, timeout, acoustic and lifecycle scenarios are pending. The increment builds a verified APK
+and has been installed on the same attended device. Launch showed listening off
+and real timers unchecked; AppOps showed no new capture from launch. Controls,
+including Stop and the status area, fit the inspected screen. The preceding full-phrase timer
+success does not establish this new two-stage path.
