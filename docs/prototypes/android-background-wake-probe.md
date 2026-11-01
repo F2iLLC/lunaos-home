@@ -128,5 +128,16 @@ instrumentation, not a claimed recognition fix.
 Version 0.6 passes all 81 policy and diagnostic checks and the full Java/DEX/APK
 build and signature verification. Installation and launch succeeded. Fresh UI
 inspection showed microphone off, timer opt-in unchecked and review disabled;
-no wake service was running and launch caused no new capture. A fresh attended
-diagnostic trial remains pending.
+no wake service was running and launch caused no new capture.
+
+In the subsequent version 0.6 attended trials, the operator confirmed five-second
+recognition, then reported successful recognition with the screen off. After
+pressing Start recognized timer in Clock, the operator confirmed both countdown
+and audible expiry. Fixed-code runtime evidence showed waiting, wake match,
+command match, background review ready with no timer started, then timer intent
+dispatch after the explicit tap. No wake service remained running at readback.
+Display state and countdown/sound are operator-confirmed, not independently
+instrumented. This verifies an attended screen-off recognition and explicit
+Clock handoff case; it does not establish repeated reliability, cue audibility,
+security-lock cancellation or a hands-free background timer. The earlier
+command-rejection cause remains unresolved.
