@@ -38,6 +38,7 @@ public final class VoiceProbe extends Activity {
     private boolean workerBusy;
     private CheckBox realTimers;
     private String lastTimerStatus;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -45,13 +46,14 @@ public final class VoiceProbe extends Activity {
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(32, 24, 32, 24);
         TextView intro = new TextView(this);
-        intro.setText("Home offline voice test\n\nAllow the microphone, then tap Start. After it says Listening, say:\n"
-            + "Hey Luna, set a timer for ten seconds.\n\n"
-            + "Enable real timers below to open Clock and start the recognized timer using its existing sound. "
-            + "Otherwise this only tests recognition. Audio stays on this device and is not saved. "
-            + "Listening stops after 30 seconds or when you leave. Stop ends listening; use Clock to cancel a timer.\n");
-        intro.setTextSize(20);
+        intro.setText("Home wake waiting test\nSay Hey Luna, pause for Awake, then say Set a timer for ten seconds.\n"
+            + "Keep this screen open. Audio stays local and is not saved. Stop ends listening; cancel timers in Clock.");
+        intro.setTextSize(18);
         layout.addView(intro);
+        status = new TextView(this);
+        status.setTextSize(22);
+        status.setText("Microphone off. Nothing starts automatically.");
+        layout.addView(status);
         Button allow = new Button(this);
         allow.setText("Allow microphone");
         allow.setOnClickListener(v -> {
@@ -79,14 +81,14 @@ public final class VoiceProbe extends Activity {
         start.setText("Start 30-second voice test");
         start.setOnClickListener(v -> startRun(true));
         layout.addView(start);
+        Button wait = new Button(this);
+        wait.setText("Enable local wake listening for 5 minutes");
+        wait.setOnClickListener(v -> startRun(true, true));
+        layout.addView(wait);
         Button stop = new Button(this);
         stop.setText("Stop");
         stop.setOnClickListener(v -> { stopRun(); status.setText("Listening stopped. Microphone off. Existing timers remain in Clock."); });
         layout.addView(stop);
-        status = new TextView(this);
-        status.setTextSize(24);
-        status.setText("Microphone off. Nothing starts automatically.");
-        layout.addView(status);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(layout);
         setContentView(scroll);
@@ -107,7 +109,11 @@ public final class VoiceProbe extends Activity {
     private void stopRun() {
         Run old = active;
         active = null;
-        if (old != null) { old.close(); Log.i("HomeVoiceProbe", "STOP_REQUESTED"); }
+        if (old != null) {
+            if (old.watchdog != null) handler.removeCallbacks(old.watchdog);
+            old.close();
+            Log.i("HomeVoiceProbe", "STOP_REQUESTED");
+        }
     }
     private boolean blocked() {
         return checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
@@ -115,15 +121,29 @@ public final class VoiceProbe extends Activity {
             || ((AudioManager) getSystemService(AUDIO_SERVICE)).isMicrophoneMute();
     }
     private void startRun(boolean capture) {
+        startRun(capture, false);
+    }
+    private void startRun(boolean capture, boolean waitForWake) {
         if (!resumed || workerBusy) return;
         if (capture && blocked()) { status.setText("Allow the microphone, unlock the device and unmute before starting."); return; }
         lastTimerStatus = null;
-        Run run = new Run(capture && realTimers.isChecked()); active = run; workerBusy = true;
+        Run run = new Run(capture && realTimers.isChecked(), waitForWake); active = run; workerBusy = true;
         status.setText("Loading offline model. Microphone off; please wait.");
         new Thread(() -> recognize(run, capture), "home-voice-probe").start();
     }
     private void show(Run run, String text) {
         runOnUiThread(() -> { if (resumed && active == run) status.setText(text); });
+    }
+    private void watch(Run run) {
+        run.watchdog = () -> {
+            if (active != run || !resumed) return;
+            if (blocked() || SystemClock.elapsedRealtime() >= run.deadline) {
+                stopRun();
+                status.setText("Listening ended: time limit, lock, mute or permission change. Microphone off. No timer started.");
+                Log.i("HomeVoiceProbe", "DEADLINE_OR_ACCESS_STOP");
+            } else handler.postDelayed(run.watchdog, 100);
+        };
+        handler.post(run.watchdog);
     }
     private void copyAsset(String asset, File destination) throws Exception {
         String[] children = getAssets().list(asset);
@@ -162,7 +182,10 @@ public final class VoiceProbe extends Activity {
                     message = "This model does not contain Luna. Microphone stayed off. Another model is needed.";
                     return;
                 }
-                try (Recognizer recognizer = new Recognizer(model, 16000, TimerPhrase.grammar())) {
+                try (Recognizer recognizer = new Recognizer(model, 16000,
+                        run.waitForWake ? WakeSession.grammar() : TimerPhrase.grammar());
+                     Recognizer commandRecognizer = run.waitForWake
+                        ? new Recognizer(model, 16000, TimerPhrase.commandGrammar()) : null) {
                     if (!capture) {
                         outcome = "ENGINE_READY_NO_CAPTURE";
                         message = "Offline engine and Luna vocabulary ready. Microphone stayed off. Tap Start for speech testing.";
@@ -179,20 +202,18 @@ public final class VoiceProbe extends Activity {
                         run.recorder.startRecording();
                         if (run.recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException();
                     }
-                    Log.i("HomeVoiceProbe", "LISTENING");
-                    // Release capture on the UI clock even if a native decode takes longer.
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (active == run) {
-                            stopRun();
-                            status.setText("30-second test ended. Microphone off. No timer started.");
-                            Log.i("HomeVoiceProbe", "DEADLINE_STOP");
-                        }
-                    }, 30000);
-                    show(run, "Listening. Say: Hey Luna, set a timer for ten seconds.");
-                    long end = SystemClock.elapsedRealtime() + 30000;
+                    long started = SystemClock.elapsedRealtime();
+                    WakeSession wake = run.waitForWake ? new WakeSession(started) : null;
+                    run.deadline = wake != null ? wake.deadline() : started + 30000;
+                    // UI watchdog releases capture even if native decoding is pending.
+                    runOnUiThread(() -> { if (active == run && resumed) watch(run); });
+                    Log.i("HomeVoiceProbe", run.waitForWake ? "WAITING_FOR_WAKE" : "LISTENING");
+                    show(run, run.waitForWake
+                        ? "MICROPHONE ON locally. Waiting for Hey Luna (up to 5 minutes). Pause after the wake phrase."
+                        : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.");
                     outcome = "NO_COMPLETE_COMMAND";
                     message = "Test ended without a complete matching command. No timer started.";
-                    while (!run.closed && SystemClock.elapsedRealtime() < end) {
+                    while (!run.closed && SystemClock.elapsedRealtime() < run.deadline) {
                         if (blocked()) { outcome = "ACCESS_STOP"; message = "Stopped: lock, mute or permission changed."; return; }
                         int count;
                         synchronized (run) {
@@ -200,18 +221,25 @@ public final class VoiceProbe extends Activity {
                             count = run.recorder.read(samples, 0, samples.length, AudioRecord.READ_NON_BLOCKING);
                         }
                         if (count < 0) throw new IllegalStateException();
-                        boolean complete = count > 0 && recognizer.acceptWaveForm(samples, count);
+                        Recognizer current = wake != null && wake.awaitingCommand() ? commandRecognizer : recognizer;
+                        boolean complete = count > 0 && current.acceptWaveForm(samples, count);
                         Arrays.fill(samples, (short) 0);
                         if (complete) {
-                            String text = new JSONObject(recognizer.getResult()).optString("text", "");
-                            int seconds = TimerPhrase.seconds(text);
+                            String text = new JSONObject(current.getResult()).optString("text", "");
+                            int seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
+                            if (seconds == WakeSession.WAKE) {
+                                run.deadline = wake.deadline();
+                                Log.i("HomeVoiceProbe", "WAKE_MATCH");
+                                show(run, "Awake. MICROPHONE ON. Say: Set a timer for ten seconds. You have 10 seconds.");
+                                continue;
+                            }
                             if (seconds > 0) {
                                 matchedSeconds = seconds;
                                 outcome = "COMMAND_MATCH";
                                 message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
                             }
-                            show(run, "No complete match yet. Try the whole phrase again; pause afterward.");
+                            if (wake == null) show(run, "No complete match yet. Try the whole phrase again; pause afterward.");
                         }
                         SystemClock.sleep(10);
                     }
@@ -227,12 +255,14 @@ public final class VoiceProbe extends Activity {
             final String result = message;
             final int duration = matchedSeconds;
             runOnUiThread(() -> {
+                if (run.watchdog != null) handler.removeCallbacks(run.watchdog);
                 workerBusy = false;
                 if (active == run && resumed) {
                     active = null;
                     status.setText(result + (result.contains("Microphone off") ? "" : " Microphone off."));
                     Log.i("HomeVoiceProbe", code);
-                    if (run.handoff.claim(realTimers.isChecked(), resumed && !blocked(), duration)) dispatchTimer(duration);
+                    boolean allowed = resumed && !blocked() && SystemClock.elapsedRealtime() < run.deadline;
+                    if (run.handoff.claim(realTimers.isChecked(), allowed, duration)) dispatchTimer(duration);
                 }
             });
         }
@@ -262,7 +292,13 @@ public final class VoiceProbe extends Activity {
     }
     private static final class Run {
         final TimerHandoffGate handoff;
-        Run(boolean realTimers) { handoff = new TimerHandoffGate(realTimers); }
+        final boolean waitForWake;
+        volatile long deadline;
+        Runnable watchdog;
+        Run(boolean realTimers, boolean waitForWake) {
+            handoff = new TimerHandoffGate(realTimers);
+            this.waitForWake = waitForWake;
+        }
         volatile boolean closed;
         AudioRecord recorder;
         synchronized void close() {
