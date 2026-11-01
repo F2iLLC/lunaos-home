@@ -14,8 +14,11 @@ This document records the product scope and proposes the implementation boundary
 it does not establish working speech recognition, a timer, or device support.
 
 The [native timer probe](../prototypes/native-timer-probe.md) records a partial
-converted-device feasibility test. Intent dispatch and Clock expiry were observed;
-audible delivery and a true screen-off run are not established by that evidence.
+converted-device feasibility test. Intent dispatch and Clock expiry were observed,
+and audible output was separately confirmed by the attended tester. A true
+screen-off run is not established. The [foreground microphone probe](../prototypes/android-microphone-probe.md)
+established bounded nonzero PCM input and a visible level meter, but no installed
+speech recognition service. It does not establish wake detection or speech recognition.
 
 The historical device candidate is Android 11/API 30, ARM32, without Play services.
 Those attributes, microphone/speaker availability and actual ROM/build must be
