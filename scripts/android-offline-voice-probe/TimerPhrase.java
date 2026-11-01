@@ -31,6 +31,30 @@ public final class TimerPhrase {
         if (text.contains("timer")) return "INCOMPLETE_TIMER_PHRASE";
         return "OTHER_SPEECH";
     }
+    /** Structural rejection codes only. Never repairs text or authorizes a timer. */
+    public static String commandDetail(String text) {
+        String category = commandDiagnostic(text);
+        if (!"INCOMPLETE_TIMER_PHRASE".equals(category)) return category;
+        String bare = text.startsWith("hey luna ") ? text.substring(9) : text;
+        String prefix = "set a timer for ";
+        if (bare.equals("set a timer for")) return "MISSING_DURATION_AND_UNIT";
+        if (bare.startsWith("set timer for ")
+                && commandSeconds(prefix + bare.substring(14)) > 0) return "MISSING_ARTICLE";
+        for (String unit : new String[] {"second", "seconds", "minute", "minutes"}) {
+            if (bare.equals(prefix + unit)) return "MISSING_DURATION";
+        }
+        for (int n = 1; n <= 60; n++) {
+            String stem = prefix + number(n);
+            if (bare.equals(stem)) return "MISSING_UNIT";
+            if (bare.equals(stem + (n == 1 ? " seconds" : " second"))
+                    || bare.equals(stem + (n == 1 ? " minutes" : " minute")))
+                return "UNIT_NUMBER_MISMATCH";
+            for (String unit : new String[] {n == 1 ? " second" : " seconds", n == 1 ? " minute" : " minutes"}) {
+                if (bare.startsWith(stem + unit + " ")) return "EXTRA_WORDS_AFTER_TIMER";
+            }
+        }
+        return "TIMER_WORDING_MISMATCH";
+    }
     public static String grammar() { return grammar(false); }
     public static String commandGrammar() { return grammar(true); }
     private static String grammar(boolean command) {

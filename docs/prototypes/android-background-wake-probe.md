@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.6 extends the [foreground probe](android-offline-voice-probe.md) with
+Version 0.7 extends the [foreground probe](android-offline-voice-probe.md) with
 an explicitly started microphone foreground service. It evaluates leaving the
 activity and turning off an unlocked display on the selected converted Android
 device. This finite engineering probe is not the Home application or an
@@ -51,8 +51,8 @@ remain #148 and #149.
 ## Build and attended test
 
 Use the offline builder and pinned inputs documented with the foreground probe.
-This version requires API 26+, targets API 30 and packages ARM32 only. Its 81
-policy checks cover parser and fixed diagnostics (23), handoff (11), wake transitions (32), and timer
+This version requires API 26+, targets API 30 and packages ARM32 only. Its 338
+policy checks cover parser and fixed diagnostics (280), handoff (11), wake transitions (32), and timer
 review expiry, revocation, range and one-use claim (15).
 
 1. Verify installation, launch and permission leave the microphone off and no
@@ -141,3 +141,45 @@ instrumented. This verifies an attended screen-off recognition and explicit
 Clock handoff case; it does not establish repeated reliability, cue audibility,
 security-lock cancellation or a hands-free background timer. The earlier
 command-rejection cause remains unresolved.
+
+Subsequent attended version 0.6 retries again produced both a successful
+recognition/review path and command timeouts. The failed paths reached wake
+match and a finalized `INCOMPLETE_TIMER_PHRASE` before the command deadline;
+neither failure dispatched a timer. That category means only that rejected text
+contained `timer`, not that a particular word was omitted. It cannot identify
+the decoding error. The operator's successful-result report does not separately
+confirm cue audibility or a new countdown/alert result.
+
+The operator subsequently reported Stop and the stopped UI. Readback confirmed
+no active microphone operation and no wake service. In a separate lock-screen
+trial, capture was verified active before the operator reported locking. The
+device showed its keyguard but reported no secure lock, and capture continued.
+This does not test `isDeviceLocked()` cancellation on a securely locked device.
+After unlocking and the operator's Stop action, readback again showed capture
+off and no wake service. Lock settings were not changed. Post-unlock
+non-restart following a genuine security-lock cancellation remains unverified.
+
+Version 0.7 narrows rejected-command diagnostics without changing recognition,
+grammar, strict parsing, deadlines or timer authorization. The fixed details are
+`MISSING_DURATION_AND_UNIT`, `MISSING_DURATION`, `MISSING_UNIT`,
+`MISSING_ARTICLE`, `UNIT_NUMBER_MISMATCH`, `EXTRA_WORDS_AFTER_TIMER` and
+`TIMER_WORDING_MISMATCH`. The first six identify exact structural patterns;
+the last is the fallback for other rejected timer wording. Existing silence,
+unclear-speech, wake-only and other-speech categories remain. The UI and log
+show only these codes, never recognized text. A rejected phrase is never
+completed, joined to a later utterance or accepted based on its diagnostic.
+This is investigation instrumentation, not a demonstrated acoustic repair.
+
+Version 0.7 passes 338 policy/diagnostic cases and the complete offline
+Java/DEX/APK build, portable-entry checks and signature verification. These
+checks use synthetic inputs; they do not establish device recognition recovery.
+The new APK has not been installed or acoustically tested. Version 0.6 remains
+the last verified installed revision. All APKs, models and signing material
+remain outside Git.
+
+For the next attended trial, first install and verify the diagnostic revision
+without starting capture. The operator must then start a fresh background
+session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
+codes before considering any recognition change. Leave Clock review untouched
+for recognition-only trials. Stop remains an explicit operator action; no ADB
+capture start or lock-setting change is authorized by this procedure.

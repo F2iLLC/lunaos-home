@@ -180,7 +180,7 @@ final class ProbeCapture {
                                 message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
                             } else if (wake != null && wake.awaitingCommand()) {
-                                String diagnostic = TimerPhrase.commandDiagnostic(text);
+                                String diagnostic = TimerPhrase.commandDetail(text);
                                 if (!"NO_SPEECH".equals(diagnostic) || "NO_FINAL_RESULT".equals(commandDiagnostic))
                                     commandDiagnostic = diagnostic;
                                 Log.i("HomeVoiceProbe", "COMMAND_FINAL_" + diagnostic);
