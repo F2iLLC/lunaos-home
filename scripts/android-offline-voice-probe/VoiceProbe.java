@@ -17,7 +17,7 @@ import android.widget.ScrollView;
 import android.graphics.Color;
 import android.content.res.Configuration;
 
-/** Explicit controls for attended foreground and finite background feasibility tests. */
+/** Explicit controls for wake-word listening and attended foreground tests. */
 public final class VoiceProbe extends Activity {
     private TextView status;
     private LunaFace face;
@@ -60,8 +60,9 @@ public final class VoiceProbe extends Activity {
         layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(32, 24, 32, 24);
         TextView intro = new TextView(this);
         intro.setTextColor(Color.rgb(215, 211, 234));
-        intro.setText("Luna · local wake test\nSay Hey Luna, wait for the bright eyes or wake cue, then say your timer. Keep this screen open to see Luna.\n"
-            + "Local audio is not saved. Five-minute limit. Security lock stops listening. Background recognition needs a tap to start Clock. Stop does not cancel existing Clock timers.");
+        intro.setText("Luna · wake-word listening\nSay Hey Luna, wait for the bright eyes or wake cue, then say your timer. Keep this screen open to see Luna.\n"
+            + "Enable once to keep listening until disabled. Local audio is not saved. Lock, mute or permission loss disables listening. Android stopping the app requires enabling again.\n"
+            + "Timers still need Clock review. The microphone pauses during review and resumes after review, discard or expiry. Disable does not cancel existing Clock timers.");
         intro.setTextSize(18); layout.addView(intro);
         status = new TextView(this); status.setTextSize(22);
         status.setTextColor(Color.WHITE);
@@ -69,10 +70,10 @@ public final class VoiceProbe extends Activity {
         button(layout, "Allow microphone", () -> {
             stopAll();
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
-                status.setText("Permission allowed. Choose a test below.");
+                status.setText("Permission allowed. Enable wake-word listening when ready.");
             else requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 1);
         });
-        button(layout, "Enable background wake test for 5 minutes", () -> {
+        button(layout, "Enable wake-word listening", () -> {
             if (!resumed || ProbeCapture.busy() || BackgroundWakeService.running) {
                 status.setText("Stop and wait for the previous worker to finish first."); return;
             }
@@ -83,24 +84,31 @@ public final class VoiceProbe extends Activity {
             face.setState(LunaFace.State.PREPARING);
             try {
                 startForegroundService(new Intent(this, BackgroundWakeService.class).setAction(BackgroundWakeService.START));
-                status.setText("Starting background test. Wait for Waiting before leaving this screen.");
+                status.setText("Starting wake-word listening. Wait for Waiting before leaving this screen.");
             } catch (RuntimeException failure) {
                 face.setState(LunaFace.State.OFF);
                 status.setText("Background start unavailable. Microphone off.");
             }
         });
-        button(layout, "Stop / discard recognized request", () -> {
+        button(layout, "Disable listening / discard request", () -> {
             stopAll(); status.setText("Listening stopped. Microphone off. Existing timers remain in Clock.");
+        });
+        button(layout, "Discard timer / keep listening", () -> {
+            BackgroundWakeService.discard(); review.setEnabled(false);
+            if (BackgroundWakeService.running) {
+                backgroundView = true;
+                status.setText("Request discarded. Wake-word listening remains enabled.");
+            } else status.setText("Request discarded. Microphone off.");
         });
         review = new Button(this); review.setText("Start recognized timer in Clock (may sound)"); review.setEnabled(false);
         review.setOnClickListener(v -> {
             if (!resumed || capture != null || ProbeCapture.busy()) return;
             int seconds = BackgroundWakeService.claim(this);
-            BackgroundWakeService.revoke(this); review.setEnabled(false);
-            backgroundView = false;
-            face.setState(LunaFace.State.OFF);
+            review.setEnabled(false);
+            backgroundView = BackgroundWakeService.running;
+            face.setState(backgroundView ? LunaFace.State.PREPARING : LunaFace.State.OFF);
             if (seconds > 0) dispatchTimer(seconds);
-            else status.setText("Request unavailable or expired. Microphone off. No timer started.");
+            else status.setText("Request unavailable or expired. No timer started. " + listeningStatus());
         }); layout.addView(review);
         realTimers = new CheckBox(this);
         realTimers.setTextColor(Color.WHITE);
@@ -135,7 +143,7 @@ public final class VoiceProbe extends Activity {
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code == 1) status.setText(checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-            ? "Permission allowed. Choose a test below." : "Permission denied. No audio captured.");
+            ? "Permission allowed. Enable wake-word listening when ready." : "Permission denied. No audio captured.");
     }
     private void stopForegroundRun() {
         generation++;
@@ -185,20 +193,25 @@ public final class VoiceProbe extends Activity {
             .putExtra(AlarmClock.EXTRA_SKIP_UI, false);
         try {
             if (timer.resolveActivity(getPackageManager()) == null) {
-                status.setText("Clock unavailable. Microphone off. No timer request sent.");
+                status.setText("Clock unavailable. No timer request sent. " + listeningStatus());
                 Log.i("HomeVoiceProbe", "CLOCK_UNAVAILABLE_NO_DISPATCH");
                 return;
             }
-            lastTimerStatus = "Requested " + seconds + " seconds in Clock. Check its countdown. Microphone off. No automatic retry.";
+            lastTimerStatus = "Requested " + seconds + " seconds in Clock. Check its countdown. "
+                + (BackgroundWakeService.running ? "Wake-word listening remains enabled. " : "Microphone off. ") + "No automatic timer retry.";
             status.setText(lastTimerStatus);
             startActivity(timer);
             // Dispatch is not a persistence receipt or proof that an alert will sound.
             Log.i("HomeVoiceProbe", "TIMER_INTENT_DISPATCHED_ALERT_UNVERIFIED");
         } catch (RuntimeException failure) {
-            lastTimerStatus = "Clock handoff failed or is uncertain. Check Clock before retrying. Microphone off.";
+            lastTimerStatus = "Clock handoff failed or is uncertain. Check Clock before retrying. " + listeningStatus();
             status.setText(lastTimerStatus);
             Log.i("HomeVoiceProbe", "TIMER_DISPATCH_UNCERTAIN_NO_RETRY");
         }
+    }
+
+    private String listeningStatus() {
+        return BackgroundWakeService.running ? "Wake-word listening remains enabled." : "Microphone off.";
     }
 
 }

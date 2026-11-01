@@ -24,7 +24,7 @@ import org.vosk.Model;
 import org.vosk.Recognizer;
 import com.sun.jna.NativeLibrary;
 
-/** Shared finite capture worker. Owners stop it and independently gate effects. */
+/** Shared capture worker. Owners stop it and independently gate effects. */
 final class ProbeCapture {
     private static final AtomicBoolean BUSY = new AtomicBoolean();
     static boolean busy() { return BUSY.get(); }
@@ -34,7 +34,7 @@ final class ProbeCapture {
         void finished(String code, String text, int seconds, long deadline, boolean canceled);
     }
     private final Context context;
-    private final boolean capture, wait;
+    private final boolean capture, wait, persistent;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final long maximum;
@@ -42,6 +42,7 @@ final class ProbeCapture {
     private volatile boolean closed, canceled;
     private volatile boolean awake;
     private volatile String commandDiagnostic = "NO_FINAL_RESULT";
+    private volatile String watchdogCode, watchdogMessage;
     private AudioRecord recorder;
     private ToneGenerator cue;
     private final Runnable watchdog = new Runnable() {
@@ -49,19 +50,24 @@ final class ProbeCapture {
             if (closed) return;
             boolean accessLost = blocked(context);
             if (accessLost || SystemClock.elapsedRealtime() >= deadline) {
-                stop();
                 String code = accessLost ? "ACCESS_STOP" : awake ? "COMMAND_WINDOW_EXPIRED" : "LISTENING_DEADLINE";
+                watchdogCode = code;
+                watchdogMessage = accessLost ? "Listening stopped: lock, mute or permission change. Microphone off."
+                    : timeoutMessage();
+                stop();
                 listener.visual(accessLost ? LunaFace.State.OFF : LunaFace.State.RETRY);
-                listener.status(accessLost ? "Listening stopped: lock, mute or permission change. Microphone off."
-                    : timeoutMessage());
+                listener.status(watchdogMessage);
                 Log.i("HomeVoiceProbe", code);
             } else main.postDelayed(this, 100);
         }
     };
     ProbeCapture(Context context, boolean capture, boolean wait, Listener listener) {
+        this(context, capture, wait, false, listener);
+    }
+    ProbeCapture(Context context, boolean capture, boolean wait, boolean persistent, Listener listener) {
         this.context = context.getApplicationContext();
-        this.capture = capture; this.wait = wait; this.listener = listener;
-        maximum = SystemClock.elapsedRealtime() + (wait ? WakeSession.WAIT_MS : 30000);
+        this.capture = capture; this.wait = wait; this.persistent = persistent && capture && wait; this.listener = listener;
+        maximum = this.persistent ? Long.MAX_VALUE : SystemClock.elapsedRealtime() + (wait ? WakeSession.WAIT_MS : 30000);
         deadline = maximum;
     }
     static boolean blocked(Context context) {
@@ -152,9 +158,9 @@ final class ProbeCapture {
                         recorder.startRecording();
                         if (recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException();
                     }
-                    WakeSession wake = wait ? new WakeSession(SystemClock.elapsedRealtime()) : null;
+                    WakeSession wake = wait ? new WakeSession(SystemClock.elapsedRealtime(), persistent) : null;
                     Log.i("HomeVoiceProbe", wait ? "WAITING_FOR_WAKE" : "LISTENING");
-                    show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna (up to 5 minutes). Pause after the wake phrase."
+                    show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna" + (persistent ? " until disabled." : " (up to 5 minutes).") + " Pause after the wake phrase."
                         : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.",
                         wait ? LunaFace.State.WAITING : LunaFace.State.AWAKE);
                     code = "NO_COMPLETE_COMMAND"; message = "Test ended without a complete command. No timer started.";
@@ -202,7 +208,8 @@ final class ProbeCapture {
             code = phase + "_FAILED"; message = "Offline engine failed at " + phase + ". No timer started.";
         } finally {
             closeRecorder(); Arrays.fill(samples, (short) 0);
-            String resultCode = code, resultMessage = message; int seconds = matched;
+            String resultCode = watchdogCode != null ? watchdogCode : code;
+            String resultMessage = watchdogMessage != null ? watchdogMessage : message; int seconds = matched;
             main.post(() -> {
                 main.removeCallbacks(watchdog);
                 BUSY.set(false);

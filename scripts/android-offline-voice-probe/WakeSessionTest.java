@@ -40,6 +40,21 @@ public final class WakeSessionTest {
         check(TimerPhrase.commandSeconds(null) == 0);
         check(TimerPhrase.commandGrammar().contains("\"set a timer for ten seconds\""));
         check(WakeSession.grammar().equals("[\"[unk]\",\"hey luna\"]"));
+        WakeSession persistent = new WakeSession(0, true);
+        long hours = 6 * 60 * 60 * 1000L;
+        check(persistent.deadline() == Long.MAX_VALUE);
+        check(!persistent.expired(hours));
+        check(persistent.acceptFinal("set a timer for five seconds", hours) == 0);
+        check(!persistent.awaitingCommand());
+        check(persistent.acceptFinal("hey luna", hours + 1) == WakeSession.WAKE);
+        check(persistent.deadline() == hours + 10001);
+        check(persistent.acceptFinal("hey luna", hours + 2) == 0);
+        check(persistent.deadline() == hours + 10001);
+        check(persistent.acceptFinal("set a timer for five seconds", hours + 10001) == 0);
+        WakeSession renewed = new WakeSession(hours + 10002, true);
+        check(renewed.acceptFinal("hey luna", hours + 10003) == WakeSession.WAKE);
+        check(renewed.acceptFinal("set a timer for five seconds", hours + 10004) == 5);
+        check(renewed.acceptFinal("set a timer for five seconds", hours + 10005) == 0);
         System.out.println("Wake session checks passed (" + checks + " cases).");
     }
 }
