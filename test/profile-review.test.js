@@ -10,6 +10,14 @@ test('fictional GUI proposal preserves sourced fields, uncertainty and candidate
   const membershipCode = alex.fields.find(field => field.label === 'Membership code');
   const relationship = proposal.people.find(person => person.name === 'Sam Example').fields[0];
 
+  assert.deepEqual(proposal.sourceCoverage.map(({ kind, status }) => ({ kind, status })), [
+    { kind: 'assistant-memory', status: 'available' },
+    { kind: 'calendar', status: 'unavailable' },
+    { kind: 'email', status: 'available' },
+    { kind: 'manual', status: 'not-authorized' },
+  ]);
+  assert.equal(proposal.sourceCoverage[1].reason, 'Offline in this fictional example.');
+
   assert.equal(workplace.value, 'Willow Studio');
   assert.equal(workplace.status, undefined);
   assert.deepEqual(workplace.evidence, [{
@@ -23,6 +31,7 @@ test('fictional GUI proposal preserves sourced fields, uncertainty and candidate
   assert.equal(membershipCode.value, null);
   assert.equal(membershipCode.uncertainty, 'conflicting');
   assert.deepEqual(membershipCode.evidence.map(item => item.value), ['AbC', 'abc']);
+  assert.equal(membershipCode.evidence.some(item => item.sourceLabel === 'Calendar example'), false);
   assert.equal(relationship.uncertainty, 'single-source');
   assert.equal(relationship.evidence[0].provenance, 'inferred');
   assert.deepEqual(casey.fields, []);

@@ -17,9 +17,21 @@ function isReadableDraft(draft) {
     && typeof item.observedAt === 'string' && !Number.isNaN(Date.parse(item.observedAt))
     && ['direct', 'inferred'].includes(item.provenance) && text(item.value)
     && item.trust === 'untrusted-source-data');
+  const validCoverage = value => {
+    const sourceIds = new Set();
+    return list(value, 0, 24, source => {
+      if (!object(source) || !text(source.id, 80) || sourceIds.has(source.id)) return false;
+      sourceIds.add(source.id);
+      if (!['assistant-memory', 'calendar', 'email', 'manual'].includes(source.kind)) return false;
+      if (source.status === 'unavailable') return text(source.reason) && Object.keys(source).every(key => ['id', 'kind', 'status', 'reason'].includes(key));
+      return ['available', 'not-authorized'].includes(source.status)
+        && Object.keys(source).every(key => ['id', 'kind', 'status'].includes(key));
+    });
+  };
   // Validate the read contract before replacing UI state or clearing recovery.
   // This is response integrity checking, not authentication of the local service.
   return object(draft) && uniqueId(draft.id) && Number.isSafeInteger(draft.revision) && draft.revision >= 0
+    && (draft.sourceCoverage === undefined || validCoverage(draft.sourceCoverage))
     && list(draft.people, 1, 6, person => object(person) && uniqueId(person.id) && text(person.name)
       && list(person.fields, 0, 12, field => object(field) && uniqueId(field.id)
         && text(field.label) && (text(field.value) || (field.value === null && ['needs-review', 'skipped'].includes(field.status) && profileUncertainty.includes(field.uncertainty))) && text(field.source)

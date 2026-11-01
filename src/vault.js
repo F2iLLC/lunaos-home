@@ -7,6 +7,7 @@ let fieldId;
 let busy = false;
 const $ = selector => document.querySelector(selector);
 const labels = { proposed: 'Please check', 'needs-review': 'Needs review', confirmed: 'Looks right', skipped: 'Skipped', accepted: 'Yes, later', declined: 'Not now' };
+const sourceLabels = { 'assistant-memory': 'Assistant memory example', calendar: 'Calendar example', email: 'Email example', manual: 'Manual example' };
 const uncertaintyLabels = {
   'single-source': 'One source · unverified',
   corroborated: 'Sources agree · still needs review',
@@ -77,6 +78,13 @@ function render() {
   $('#draft-content').hidden = !draft;
   $('#discard-confirmation').hidden = true;
   if (!draft) return;
+  const sources = draft.sourceCoverage ?? [];
+  $('#source-coverage-panel').hidden = sources.length === 0;
+  $('#source-coverage').replaceChildren(...sources.map(source => {
+    const status = source.status === 'available' ? 'Sample available'
+      : source.status === 'unavailable' ? `Unavailable: ${source.reason}` : 'Not authorized';
+    return element('li', `${sourceLabels[source.kind]} · ${status}`);
+  }));
   const person = draft.people.find(item => item.id === personId) || draft.people[0];
   personId = person.id;
   const field = person.fields.find(item => item.id === fieldId) || person.fields[0];
