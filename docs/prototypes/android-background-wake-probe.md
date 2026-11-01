@@ -226,6 +226,13 @@ Stop/Discard action and operator acknowledgement, fresh readback showed no
 active microphone capture and no wake service. This establishes the attended
 active-to-stopped transition; it does not establish security-lock cancellation.
 
+The operator subsequently confirmed hearing the soft wake cue during the
+successful attended attempt. Cue audibility is therefore operator-confirmed
+for that trial, without establishing repeatability or measured loudness. The
+operator also confirmed this device has no secure lock. Security-lock
+cancellation and post-unlock non-restart remain untested; lock settings were
+left unchanged.
+
 For a future attended trial, the operator must start a fresh background
 session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
 codes before considering any recognition change. Leave Clock review untouched
