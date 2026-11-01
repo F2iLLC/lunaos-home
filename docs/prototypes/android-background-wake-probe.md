@@ -249,3 +249,18 @@ matches. This is not a reliability rate or a demonstrated cause of the earlier
 human `INCOMPLETE_TIMER_PHRASE` results. The operator could not recall the
 earlier command/cue timing. No human audio was recorded, capture was not started
 through ADB, and the APK behavior was left unchanged.
+
+In the subsequent attended timing comparison, the operator spoke the wake
+phrase and five-second command continuously without waiting for the cue and
+reported five seconds recognized. Fresh fixed codes showed waiting, wake match,
+cue requested, command match and review ready, with capture off and no timer
+dispatch. This successful human case shows that the synthetic timing failure
+does not occur on every continuous-phrase attempt; it does not resolve the
+earlier human rejection cause or establish recognition reliability.
+
+The operator then left that review result untouched and confirmed that the
+screen displayed `Timer review expired` with the Clock button disabled after
+the review deadline. Readback after the deadline showed `BACKGROUND_STOPPED`,
+no active microphone operation, no wake service and no timer dispatch. The
+operator's confirmation distinguishes this attended automatic-expiry case
+from a Stop action; the stopped code alone does not identify the stop reason.
