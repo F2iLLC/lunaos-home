@@ -303,3 +303,11 @@ waiting, wake match, cue requested, command match and review ready without
 timer dispatch; follow-up state showed capture off and no wake service. This
 adds an operator-confirmed plural-minute case, with duration still not encoded
 in the runtime codes.
+
+In the subsequent version 0.7 trial, the operator reported five seconds
+recognized with the display off, then Stop afterward. Fresh fixed codes
+corroborated waiting, wake match, cue requested, command match and review ready
+without timer dispatch. Follow-up readback showed no active microphone
+operation and no wake service. Display state and exact duration are
+operator-confirmed; this display-off success does not test secure-lock
+cancellation or establish recognition reliability.
