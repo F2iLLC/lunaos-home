@@ -8,6 +8,7 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.media.ToneGenerator;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -38,14 +39,19 @@ final class ProbeCapture {
     private final long maximum;
     private volatile long deadline;
     private volatile boolean closed, canceled;
+    private volatile boolean awake;
     private AudioRecord recorder;
+    private ToneGenerator cue;
     private final Runnable watchdog = new Runnable() {
         @Override public void run() {
             if (closed) return;
-            if (blocked(context) || SystemClock.elapsedRealtime() >= deadline) {
+            boolean accessLost = blocked(context);
+            if (accessLost || SystemClock.elapsedRealtime() >= deadline) {
                 stop();
-                listener.status("Listening stopped: deadline, lock, mute or permission change. Microphone off.");
-                Log.i("HomeVoiceProbe", "DEADLINE_OR_ACCESS_STOP");
+                String code = accessLost ? "ACCESS_STOP" : awake ? "COMMAND_WINDOW_EXPIRED" : "LISTENING_DEADLINE";
+                listener.status(accessLost ? "Listening stopped: lock, mute or permission change. Microphone off."
+                    : timeoutMessage());
+                Log.i("HomeVoiceProbe", code);
             } else main.postDelayed(this, 100);
         }
     };
@@ -67,12 +73,33 @@ final class ProbeCapture {
         return true;
     }
     void stop() { canceled = true; closeRecorder(); main.removeCallbacks(watchdog); }
+    private String timeoutMessage() {
+        return awake ? "Command timed out after Hey Luna. Microphone off. No timer started. Start a new test, wait for the soft wake cue, then say Set a timer for five seconds."
+            : "Listening time limit reached. Microphone off. No timer started.";
+    }
     private synchronized void closeRecorder() {
         closed = true;
+        closeCue();
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
         catch (RuntimeException ignored) { }
         finally { recorder.release(); recorder = null; }
+    }
+    private synchronized void closeCue() {
+        if (cue == null) return;
+        try { cue.stopTone(); } catch (RuntimeException ignored) { }
+        finally { try { cue.release(); } catch (RuntimeException ignored) { } cue = null; }
+    }
+    private synchronized void wakeCue() {
+        if (closed || blocked(context) || SystemClock.elapsedRealtime() >= deadline) return;
+        try {
+            cue = new ToneGenerator(AudioManager.STREAM_MUSIC, 12);
+            boolean requested = cue.startTone(ToneGenerator.TONE_PROP_BEEP, 90);
+            Log.i("HomeVoiceProbe", requested ? "WAKE_CUE_REQUESTED" : "WAKE_CUE_UNAVAILABLE");
+            main.postDelayed(this::closeCue, 150);
+        } catch (RuntimeException failure) {
+            closeCue(); Log.i("HomeVoiceProbe", "WAKE_CUE_UNAVAILABLE");
+        }
     }
     private void show(String text) {
         main.post(() -> { if (!canceled && !closed) listener.status(text); });
@@ -143,15 +170,23 @@ final class ProbeCapture {
                             int seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
                             if (seconds == WakeSession.WAKE) {
                                 deadline = Math.min(maximum, wake.deadline());
+                                awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
                                 show("Awake. MICROPHONE ON. Say: Set a timer for ten seconds. You have 10 seconds.");
+                                main.post(this::wakeCue);
                             } else if (seconds > 0) {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
+                            } else if (wake != null && wake.awaitingCommand()) {
+                                Log.i("HomeVoiceProbe", "COMMAND_FINAL_NO_MATCH");
                             }
                         }
                         SystemClock.sleep(10);
+                    }
+                    if (!closed && SystemClock.elapsedRealtime() >= deadline) {
+                        code = awake ? "COMMAND_WINDOW_EXPIRED" : "LISTENING_DEADLINE";
+                        message = timeoutMessage();
                     }
                 }
             }

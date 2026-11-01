@@ -44,7 +44,7 @@ public final class VoiceProbe extends Activity {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(32, 24, 32, 24);
         TextView intro = new TextView(this);
-        intro.setText("Home background wake test\nEnable below, wait for Waiting, then press Home or turn off the display. Say Hey Luna, pause 3 seconds, then Set a timer for ten seconds.\n"
+        intro.setText("Home background wake test\nEnable below, wait for Waiting, then press Home or turn off the display. Say Hey Luna, wait for the soft wake cue (or Awake), then Set a timer for five seconds.\n"
             + "Local audio is not saved. Five-minute limit. Security lock stops listening. Background recognition needs a tap to start Clock. Stop does not cancel existing Clock timers.");
         intro.setTextSize(18); layout.addView(intro);
         status = new TextView(this); status.setTextSize(22);

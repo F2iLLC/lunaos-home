@@ -100,7 +100,8 @@ public final class BackgroundWakeService extends Service {
             capture = new ProbeCapture(this, true, true, new ProbeCapture.Listener() {
                 @Override public void status(String text) {
                     if (destroyed || capture == null) return;
-                    if (text.startsWith("Listening stopped")) { end(text); return; }
+                    if (text.startsWith("Listening stopped") || text.startsWith("Command timed out")
+                            || text.startsWith("Listening time limit")) { end(text); return; }
                     latest = text;
                     notifications.notify(LISTENING, notification(text, true));
                 }

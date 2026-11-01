@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.4 extends the [foreground probe](android-offline-voice-probe.md) with
+Version 0.5 extends the [foreground probe](android-offline-voice-probe.md) with
 an explicitly started microphone foreground service. It evaluates leaving the
 activity and turning off an unlocked display on the selected converted Android
 device. This finite engineering probe is not the Home application or an
@@ -18,9 +18,11 @@ remain #148 and #149.
   test. It is released at completion or cancellation and has an acquisition
   timeout. This does not establish acceptable battery consumption.
 - Five minutes includes model preparation. An exact finalized `hey luna` opens
-  a ten-second command window, bounded by the original limit. Pause about three
-  seconds after the wake phrase before speaking the command. There is no audible
-  wake acknowledgement in this increment.
+  a ten-second command window, bounded by the original limit. Wait for the brief
+  wake cue (or visible Awake) before speaking the command. Version 0.5 requests a
+  90 ms cue at 12% generator volume on the existing media stream; it never changes
+  device volume or sound settings. Muted media or output routing may make it
+  inaudible. Cue resources are released after playback or cancellation.
 - Leaving the activity stops foreground tests; the deliberately selected
   background test continues. Both share a capture worker and process-wide
   exclusion gate. A closing worker must finish before another can start.
@@ -56,9 +58,9 @@ review expiry, revocation, range and one-use claim (15).
 1. Verify installation, launch and permission leave the microphone off and no
    wake service running. The explicit engine check must also leave capture off.
 2. Tap Enable background wake test for 5 minutes. Wait for Waiting and verify
-   the ongoing notification has Stop. Press Home, say `Hey Luna`, pause about
-   three seconds, then `Set a timer for ten seconds` and pause.
-3. Expect a notification with ten seconds and microphone off, with no Clock
+   the ongoing notification has Stop. Press Home, say `Hey Luna`, wait
+   for the wake cue (or visible Awake), then `Set a timer for five seconds` and pause.
+3. Expect a notification with five seconds and microphone off, with no Clock
    launch or alarm. Tap it, then explicitly start the recognized timer. Check
    countdown and audible expiry; dismiss in Clock. Repeated/stale taps must not
    dispatch another timer.
@@ -94,3 +96,18 @@ These cases establish attended background and reported display-off recognition.
 Security-lock cancellation, explicit timer review/alert delivery, repeated
 reliability and acoustic qualification remain pending. Display-off success
 does not prove listening while security-locked or lock cancellation behavior.
+
+Subsequent retries repeatedly reached wake match followed by the ten-second
+command-window deadline without a command match. The available fixed-code logs
+do not establish whether the command began before the decoder switched, was
+not recognized, or failed to finalize in time. Version 0.5 adds the wake cue,
+explicit command-timeout guidance and a fixed code for finalized nonmatching
+commands. No recognition text is logged. Both watchdog and worker deadline paths
+report timeout consistently. The five-minute and ten-second limits remain in
+force. Cue audibility and recognition recovery require a fresh attended trial;
+the earlier successful cases do not qualify this revision.
+
+Version 0.5 also passes all 74 policy checks and the complete Java/DEX/APK build
+and signature verification. The update was installed and launched; fresh UI
+inspection showed microphone off, timer opt-in unchecked and timer review
+disabled. Launch caused no new capture and no wake service was running.
