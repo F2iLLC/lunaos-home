@@ -217,6 +217,15 @@ completes the small attended repeatability check with successful version 0.7
 recognition cases, but no failed version 0.7 trial was captured for the narrower
 diagnostics. The earlier intermittent timeout cause remains unresolved.
 
+In the next attended version 0.7 recognition attempt, fresh fixed codes again
+showed waiting, wake match, cue requested, command match and review ready with
+no timer dispatch. Capture was off with review pending. For a subsequent
+dedicated Stop test, readback verified active microphone capture and the wake
+service after the operator started listening locally. After the requested
+Stop/Discard action and operator acknowledgement, fresh readback showed no
+active microphone capture and no wake service. This establishes the attended
+active-to-stopped transition; it does not establish security-lock cancellation.
+
 For a future attended trial, the operator must start a fresh background
 session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
 codes before considering any recognition change. Leave Clock review untouched
