@@ -356,3 +356,20 @@ capture off, no wake service, the face's accessible microphone-off description
 and Clock review disabled. This confirms operator-assessed awake visibility
 and the stopped visual state, not timer recognition or visual qualification
 of review/timeout/expiry transitions. No recognition repair is claimed.
+
+In a fresh attended version 0.8 recognition-only trial, the operator was asked
+to wait for the cue or awake face, request five seconds, leave Clock review
+untouched and then Stop/Discard. The operator confirmed hearing the cue and
+reported that the trial behaved as expected. Fresh fixed codes showed waiting,
+wake match, cue requested, command match and review ready without a timer
+dispatch. Follow-up readback showed capture off and no wake service. These
+codes do not encode duration, and the latest retained sequence did not include
+a stop-reason event; exact duration and the shutdown path are not independently
+verified. No new Clock countdown or audible timer expiry is claimed. The full
+repository suite passed at the hairstyle head: 344 tests, zero failures or
+skips. This adds an attended recognition and audible-cue case for the visual
+revision; intermittent command rejection remains unresolved.
+
+The current probe still requires local listening activation and an explicit
+Clock review tap. Persistent kitchen listening and automatic timer creation
+require a separately agreed design and are not implemented by the face work.
