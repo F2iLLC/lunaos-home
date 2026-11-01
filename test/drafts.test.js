@@ -105,3 +105,25 @@ test('a skipped unresolved field cannot be confirmed into an unreadable null sta
   assert.equal(store.read().people[0].fields.find(field => field.id === conflict.id).status, 'skipped');
   assert.equal(store.read().revision, 1);
 });
+
+test('an unresolved person match cannot become a confirmed detail through review or correction', () => {
+  for (const uncertainty of ['ambiguous-identity', 'unmatched-identity']) {
+    const store = createDraftStore();
+    const draft = store.stage({ people: [{ name: 'Alex Example', fields: [{
+      label: 'Workplace', value: null, source: 'Synthetic source · unverified',
+      status: 'needs-review', uncertainty,
+    }], suggestions: [] }] });
+    const ref = { draftId: draft.id, personId: draft.people[0].id, itemId: draft.people[0].fields[0].id };
+    assert.throws(() => store.review({ ...ref, revision: 0, action: 'edit', value: 'Willow Studio' }), /Match this detail/);
+    assert.throws(() => store.review({ ...ref, revision: 0, action: 'confirm' }), /Match this detail/);
+    assert.equal(store.read().revision, 0);
+    store.review({ ...ref, revision: 0, action: 'reply', value: 'The source may refer to another person.' });
+    assert.throws(() => store.correct({ ...ref, revision: 1, value: 'Willow Studio' }), /Match this detail/);
+    assert.deepEqual(store.read().people[0].fields[0], {
+      ...draft.people[0].fields[0], reply: 'The source may refer to another person.',
+    });
+    assert.equal(store.read().revision, 1);
+    store.review({ ...ref, revision: 1, action: 'skip' });
+    assert.equal(store.read().people[0].fields[0].status, 'skipped');
+  }
+});

@@ -139,17 +139,19 @@ function render() {
     editor.append(evidenceHeading, evidenceList);
   }
   const actions = element('div', undefined, 'review-actions');
+  const needsPersonMatch = ['ambiguous-identity', 'unmatched-identity'].includes(field.uncertainty);
   const confirm = button('Looks right', () => review(person, field, 'confirm', revision));
-  confirm.disabled = field.status === 'needs-review' || field.value === null;
+  confirm.disabled = needsPersonMatch || field.status === 'needs-review' || field.value === null;
   actions.append(confirm, button('Needs review', () => review(person, field, 'flag', revision)), button('Skip this detail', () => review(person, field, 'skip', revision)));
   if (canSaveDraft()) {
     const save = button('Save this detail', () => prepareSave({ draftId: draft.id, personId: person.id, itemId: field.id, revision }));
-    save.disabled = field.status !== 'confirmed';
+    save.disabled = needsPersonMatch || field.status !== 'confirmed';
     actions.append(save);
   }
   editor.append(actions);
+  if (needsPersonMatch) editor.append(element('p', 'This source detail is not matched to one person. Skip it for now. Changing its text cannot establish whose detail it is.', 'section-help'));
   if (field.status === 'needs-review' && !canRequestAssistantReview()) {
-    editor.append(element('p', 'An assistant is not connected to this app preview. You can change this detail yourself below.', 'section-help'));
+    editor.append(element('p', needsPersonMatch ? 'An assistant is not connected to this app preview.' : 'An assistant is not connected to this app preview. You can change this detail yourself below.', 'section-help'));
   }
   if (field.status === 'needs-review' && canRequestAssistantReview()) {
     editor.append(element('p', field.question, 'review-question'));
@@ -159,8 +161,9 @@ function render() {
     const submit = element('button', 'Leave reply for assistant', 'quiet-button'); submit.type = 'submit';
     reply.append(label, input, submit);
     reply.addEventListener('submit', event => { event.preventDefault(); review(person, field, 'reply', revision, input.value); });
-    editor.append(reply, element('p', field.reply ? 'Reply ready. Your connected assistant can check it and propose a correction.' : 'Your assistant can pick up this reply when it checks the draft. You can also edit the detail yourself.', 'section-help'));
+    editor.append(reply, element('p', needsPersonMatch ? 'Your reply can describe the missing person match. This draft cannot assign the detail to anyone yet.' : field.reply ? 'Reply ready. Your connected assistant can check it and propose a correction.' : 'Your assistant can pick up this reply when it checks the draft. You can also edit the detail yourself.', 'section-help'));
   }
+  if (needsPersonMatch) { renderSuggestions(person, revision); return; }
   const edit = element('form', undefined, 'manual-edit');
   const editLabel = element('label', 'Or change it yourself'); editLabel.htmlFor = 'field-value';
   const input = element('input'); input.id = 'field-value'; input.type = 'text'; input.required = true; input.maxLength = 240; input.autocomplete = 'off'; input.value = field.value ?? '';
