@@ -275,3 +275,13 @@ The operator then confirmed Stop/Discard cleared that result and disabled the
 Clock button. Follow-up readback showed capture off and no wake service, with
 no timer dispatch in the retained sequence. No stop-reason code was observed
 for this action; the cleared result is operator-confirmed.
+
+In an intentional incomplete-command trial, the operator was asked to wait
+for the cue and say only `Set a timer`, omitting duration, then Stop/Discard
+after the result or deadline. The operator reported `TIMER_WORDING_MISMATCH`.
+Fresh fixed codes corroborated `COMMAND_FINAL_TIMER_WORDING_MISMATCH`, then
+`COMMAND_FINAL_NO_SPEECH`, `BACKGROUND_STOPPED` and `COMMAND_WINDOW_EXPIRED`.
+No command match, review-ready event or timer dispatch occurred; readback
+showed capture off and no service. The fallback category does not reveal the
+decoder's exact interpretation. This verifies rejection in this deliberately
+incomplete trial, not the cause of earlier complete-command failures.
