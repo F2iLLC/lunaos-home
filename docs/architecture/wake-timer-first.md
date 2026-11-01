@@ -13,6 +13,10 @@ screen off. "Hey Luna" remains a candidate phrase pending detector evaluation.
 This document records the product scope and proposes the implementation boundary;
 it does not establish working speech recognition, a timer, or device support.
 
+The [native timer probe](../prototypes/native-timer-probe.md) records a partial
+converted-device feasibility test. Intent dispatch and Clock expiry were observed;
+audible delivery and a true screen-off run are not established by that evidence.
+
 The historical device candidate is Android 11/API 30, ARM32, without Play services.
 Those attributes, microphone/speaker availability and actual ROM/build must be
 verified on the selected device before choosing an engine or promising support.
