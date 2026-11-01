@@ -1,46 +1,54 @@
 # Android background wake feasibility probe
 
-Version 0.8 extends the [foreground probe](android-offline-voice-probe.md) with
-an explicitly started microphone foreground service. It evaluates leaving the
-activity and turning off an unlocked display on the selected converted Android
-device. This finite engineering probe is not the Home application or an
-always-on assistant. Reuses #135, #136 and #137; durable timers and native alerts
+Version 0.9 extends the [foreground probe](android-offline-voice-probe.md) with
+explicitly enabled, persistent local wake-word listening in a microphone
+foreground service. It evaluates leaving the activity and turning off an
+unlocked display on the selected converted Android device. This engineering
+probe is not the Home application or a qualified appliance. Reuses #135, #136 and #137; durable timers and native alerts
 remain #148 and #149.
 
 ## Behavior and boundaries
 
 - Launch, microphone permission, returning, unlock and process recreation never
-  start listening. Only the visible activity's background button starts the
+  start listening. Only the visible activity's Enable wake-word listening button starts the
   non-exported service. `START_NOT_STICKY` prevents automatic restart. No boot
   receiver or battery/security settings changes.
 - An ongoing silent notification identifies local microphone use and offers
-  Stop / discard. A partial wake lock keeps the CPU available during this finite
-  test. It is released at completion or cancellation and has an acquisition
-  timeout. This does not establish acceptable battery consumption.
-- Five minutes includes model preparation. An exact finalized `hey luna` opens
-  a ten-second command window, bounded by the original limit. Wait for the brief
+  Disable / discard. A partial wake lock keeps the CPU available during capture;
+  its 60-second acquisition is renewed every 30 seconds. Review, cancellation
+  and destruction release it. This does not establish acceptable battery
+  consumption, thermal behavior or prolonged unattended operation.
+- Once enabled, waiting has no five-minute limit. An exact finalized `hey luna`
+  opens a ten-second command window. Timeout closes that worker, then prepares
+  another wake listener after a short delay without another Enable tap. Decoder
+  failures disable listening rather than retrying indefinitely. Wait for the brief
   wake cue (or visible Awake) before speaking the command. Version 0.5 requests a
   90 ms cue at 12% generator volume on the existing media stream; it never changes
   device volume or sound settings. Muted media or output routing may make it
   inaudible. Cue resources are released after playback or cancellation.
 - Leaving the activity stops foreground tests; the deliberately selected
-  background test continues. Both share a capture worker and process-wide
+  wake-word listener continues. Foreground tests retain their finite limits.
+  Both share a capture worker and process-wide
   exclusion gate. A closing worker must finish before another can start.
-- Stop, security lock, microphone mute or permission loss close capture.
+- Disable, security lock, microphone mute or permission loss close capture and
+  cancel queued restarts. Restoring access does not re-enable listening.
   Main-thread watchdogs check every 100 ms; canceled native decoding cannot
   authorize later effects. Display off differs from security lock: if screen-off
   locks this device, listening stops. Unlock never restarts it. OS termination
-  may end the test early.
+  ends listening; there is no boot or process-death recovery.
 - Recognition closes the microphone and releases the wake lock before offering
   a structured duration. **No background Clock activity is launched and no timer
-  starts from recognition alone.** Tap the result notification, then Start
+  starts from recognition alone.** The enabled service and silent notification
+  remain while capture pauses for review. Tap the notification, then Start
   recognized timer in Clock. Android restricts
   [background activity launches](https://developer.android.com/guide/components/activities/background-starts);
   a microphone foreground service alone does not enable a hands-free Clock handoff.
 - A duration of 1 through 3600 seconds is held in process memory for at most 60
   seconds. Claim consumes it before Clock dispatch. Stop, a new test, blocked
-  access, service/process destruction or expiry discard it. No replay or
-  automatic retry. Dispatch is an unacknowledged request: check countdown and
+  access, service/process destruction or expiry discard it. Review claim,
+  Discard timer / keep listening, and expiry resume wake-word listening when
+  still enabled. Disable listening / discard request stops it completely.
+  No timer replay or automatic timer retry. Dispatch is an unacknowledged request: check countdown and
   alert, and cancel existing timers in Clock.
 - The foreground real-timer checkbox is unchecked at launch and applies only
   to foreground tests. Background timer review has its own explicit button.
@@ -55,33 +63,42 @@ remain #148 and #149.
   timer started. Fixed visual states are supplied by capture/service callbacks;
   recognized speech is never used to draw the face.
 - The visible activity keeps its display on only during preparation, waiting,
-  command capture and pending review. Stop, timeout, review expiry and leaving
-  the activity release that flag. The face does not turn a dark display on,
+  command capture and pending review. Disable and leaving the activity release
+  that flag; timeout and expiry can return to visible preparation/waiting.
+  The face does not turn a dark display on,
   launch from the background, change brightness or bypass a lock. Keep the
-  probe open to use the visual cue; the existing finite listening limits and
-  explicit Clock tap remain in force.
+  probe open to use the visual cue. The explicit Clock tap remains in force.
 
 ## Build and attended test
 
 Use the offline builder and pinned inputs documented with the foreground probe.
-This version requires API 26+, targets API 30 and packages ARM32 only. Its 338
-policy checks cover parser and fixed diagnostics (280), handoff (11), wake transitions (32), and timer
+This version requires API 26+, targets API 30 and packages ARM32 only. Its 350
+policy checks cover parser and fixed diagnostics (280), handoff (11), wake transitions (44), and timer
 review expiry, revocation, range and one-use claim (15).
+The repository suite also executes the actual Java service with deterministic
+clock, scheduler and capture fakes to check rearming, review pause/resume,
+expiry, one-use claim, stale callbacks, blocked access and Disable during a
+queued restart. These fakes do not test Android enforcement or real audio.
 
 1. Verify installation, launch and permission leave the microphone off and no
    wake service running. The explicit engine check must also leave capture off.
-2. Tap Enable background wake test for 5 minutes. Wait for Waiting and verify
-   the ongoing notification has Stop. Press Home, say `Hey Luna`, wait
+2. Tap Enable wake-word listening. Wait for Waiting and verify
+   the ongoing notification has Disable. Press Home, say `Hey Luna`, wait
    for the wake cue (or visible Awake), then `Set a timer for five seconds` and pause.
-3. Expect a notification with five seconds and microphone off, with no Clock
+3. Expect a notification with five seconds and microphone paused, with no Clock
    launch or alarm. Tap it, then explicitly start the recognized timer. Check
    countdown and audible expiry; dismiss in Clock. Repeated/stale taps must not
-   dispatch another timer.
+   dispatch another timer. Expect wake listening to resume after the review tap.
+   Separately verify Discard timer / keep listening and untouched 60-second
+   review expiry resume listening without a timer dispatch.
 4. Separately repeat with the display off. If it security-locks, expect capture
    to stop and remain off after unlock. Do not weaken the lock to pass a test.
-5. Separately test notification/in-app Stop, mute, permission revocation,
-   waiting/command deadlines, review expiry and process death. Returning must
-   never restart capture. Acoustic, power and lifecycle results require attended
+5. Wait beyond five minutes before speaking a wake phrase; verify waiting still
+   works. Separately let a command time out and verify a fresh wake works without
+   Enable. Disable during retry preparation must prevent a later restart.
+6. Separately test notification/in-app Disable, mute, permission revocation,
+   and process death. Returning or restoring access must never restart capture
+   after these stops. Acoustic, power and lifecycle results require attended
    evidence; policy tests and successful compilation do not establish them.
 
 ## Evidence
@@ -356,3 +373,34 @@ capture off, no wake service, the face's accessible microphone-off description
 and Clock review disabled. This confirms operator-assessed awake visibility
 and the stopped visual state, not timer recognition or visual qualification
 of review/timeout/expiry transitions. No recognition repair is claimed.
+
+In a fresh attended version 0.8 recognition-only trial, the operator was asked
+to wait for the cue or awake face, request five seconds, leave Clock review
+untouched and then Stop/Discard. The operator confirmed hearing the cue and
+reported that the trial behaved as expected. Fresh fixed codes showed waiting,
+wake match, cue requested, command match and review ready without a timer
+dispatch. Follow-up readback showed capture off and no wake service. These
+codes do not encode duration, and the latest retained sequence did not include
+a stop-reason event; exact duration and the shutdown path are not independently
+verified. No new Clock countdown or audible timer expiry is claimed. The full
+repository suite passed at the hairstyle head: 344 tests, zero failures or
+skips. This adds an attended recognition and audible-cue case for the visual
+revision; intermittent command rejection remains unresolved.
+
+Version 0.8 still required local activation for each bounded session and an
+explicit Clock review tap; persistent listening was not part of the face work.
+The operator subsequently authorized general-purpose persistent wake-word
+listening with an Enable control, explicitly avoiding the name kitchen mode.
+Version 0.9 implements that enable-once lifecycle, retaining explicit Clock
+review and fail-closed access controls. It does not change the timer parser or
+claim to resolve intermittent recognition rejection. Fresh attended version
+0.9 lifecycle tests, power qualification and genuine secure-lock cancellation
+remain pending; prior version 0.8 behavior does not qualify this new lifecycle.
+
+Version 0.9 passes 350 policy/diagnostic cases, the complete offline
+Java/DEX/APK build, portable-entry checks and signature verification. The APK
+was re-signed with the existing installed-build test identity and the
+certificate match verified. The full local Windows repository suite passes
+345 tests, with zero failures or skips, including the deterministic service
+lifecycle harness. Compilation and simulated transitions do not establish
+attended version 0.9 behavior, recognition reliability or battery suitability.
