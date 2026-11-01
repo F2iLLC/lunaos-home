@@ -193,6 +193,13 @@ audible expiry is claimed. This successful recognition case does not resolve
 the preceding intermittent rejections; a failed version 0.7 trial is still
 needed to inspect the narrower diagnostic categories.
 
+In a later version 0.7 attempt, the operator confirmed speaking five seconds
+and seeing five seconds recognized. The device was no longer connected over
+ADB when follow-up inspection was attempted. This is operator-confirmed
+duration correctness only; fresh fixed codes, capture shutdown, review state
+and timer dispatch were not verified for this attempt. No countdown, sound or
+recognition-reliability qualification is inferred.
+
 For the next attended trial, first install and verify the diagnostic revision
 without starting capture. The operator must then start a fresh background
 session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
