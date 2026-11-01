@@ -200,6 +200,14 @@ duration correctness only; fresh fixed codes, capture shutdown, review state
 and timer dispatch were not verified for this attempt. No countdown, sound or
 recognition-reliability qualification is inferred.
 
+After the operator reported Stop and reconnected the device, fresh package
+readback again confirmed version 0.7, with no active microphone operation and
+no wake service. Retained fixed codes from the intervening period showed an
+additional waiting/wake-match/command-match/review-ready sequence followed by
+background stopped, with no timer dispatch. This supplies delayed runtime
+corroboration for recognition and the current stopped state; the exact duration
+remains operator-confirmed because these codes do not include it.
+
 For the next attended trial, first install and verify the diagnostic revision
 without starting capture. The operator must then start a fresh background
 session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
