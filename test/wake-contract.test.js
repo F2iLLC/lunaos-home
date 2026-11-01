@@ -132,12 +132,31 @@ test('local-consent revocation, OS permission loss and host failure fail closed'
 test('revoking disclosure stops future work and reports that already-forwarded content may not be retractable', () => {
   const active = listening();
   const pending = step(active, { type: 'COMMAND_CAPTURED', generation: active.generation, fields: ['spoken-command'] }).snapshot;
-  assert.equal(step(pending, { type: 'POST_WAKE_DISCLOSURE_REVOKED' }).snapshot.state, 'waiting-for-wake');
+  assert.equal(step(pending, { type: 'POST_WAKE_DISCLOSURE_REVOKED', generation: active.generation }).snapshot.state, 'waiting-for-wake');
   const selected = step(pending, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: active.generation, destination: 'assistant-choice' }).snapshot;
   const forwarded = step(selected, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: active.generation,
     destination: 'assistant-choice', fields: ['spoken-command'] }).snapshot;
-  const revoked = step(forwarded, { type: 'POST_WAKE_DISCLOSURE_REVOKED' });
+  const revoked = step(forwarded, { type: 'POST_WAKE_DISCLOSURE_REVOKED', generation: active.generation });
   assert.ok(revoked.effects.some(effect => effect.type === 'CANCEL_REMOTE_WORK'));
   assert.ok(revoked.effects.some(effect => effect.type === 'EXPLAIN_CONTENT_MAY_ALREADY_BE_SENT'));
   assert.equal(revoked.snapshot.state, 'waiting-for-wake');
+});
+
+test('a stale disclosure revocation cannot cancel a later command generation', () => {
+  const prompt1 = step(listening(), { type: 'COMMAND_CAPTURED', generation: 1, fields: ['spoken-command'] }).snapshot;
+  const cancelled1 = step(prompt1, { type: 'CANCEL' }).snapshot;
+  const generation3 = step(cancelled1, { type: 'WAKE_DETECTED', eventId: 'wake-fixture-2' }).snapshot;
+  const prompt3 = step(generation3, { type: 'COMMAND_CAPTURED', generation: generation3.generation, fields: ['spoken-command'] }).snapshot;
+  const selected3 = step(prompt3, { type: 'POST_WAKE_DESTINATION_SELECTED', generation: generation3.generation,
+    destination: 'assistant-choice' }).snapshot;
+  const forwarded3 = step(selected3, { type: 'POST_WAKE_DISCLOSURE_APPROVED', generation: generation3.generation,
+    destination: 'assistant-choice', fields: ['spoken-command'] }).snapshot;
+
+  const delayedRevocation = step(forwarded3, { type: 'POST_WAKE_DISCLOSURE_REVOKED', generation: prompt1.generation });
+  assert.equal(delayedRevocation.accepted, false);
+  assert.deepEqual(delayedRevocation.effects, []);
+  assert.equal(delayedRevocation.snapshot, forwarded3);
+  assert.equal(delayedRevocation.snapshot.state, 'processing');
+  assert.equal(delayedRevocation.snapshot.contentForwarded, true);
+  assert.equal(delayedRevocation.snapshot.generation, generation3.generation);
 });
