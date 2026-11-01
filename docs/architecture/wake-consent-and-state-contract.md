@@ -2,6 +2,11 @@
 
 **Status: proposed feasibility contract for #135.** This document and its pure reducer/tests do not enable a microphone, select a speech engine or provider, or establish attended device support. The product/voice-host decision remains unresolved.
 
+The owner selected setting a timer on the converted Android home device as the
+first wake-word use case. The [timer-first acceptance contract](wake-timer-first.md)
+records that scope, the proposed local command route, and the device evidence
+needed before claiming it works. This does not select a general conversation host.
+
 ## Architecture options
 
 | Option | Wake and voice owner | Home boundary | Evidence and open question |
