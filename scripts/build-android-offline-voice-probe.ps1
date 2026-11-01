@@ -58,10 +58,11 @@ $savedPassword = $env:LUNA_VOICE_PROBE_SIGNING_PASSWORD
 try {
     $env:JAVA_HOME = $Jdk
     $env:LUNA_VOICE_PROBE_SIGNING_PASSWORD = 'fictional-probe-only'
-    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-d', "$output/tests", "$source/TimerPhrase.java", "$source/TimerPhraseTest.java")
+    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-d', "$output/tests", "$source/TimerPhrase.java", "$source/TimerPhraseTest.java", "$source/TimerHandoffGate.java", "$source/TimerHandoffGateTest.java")
     Invoke-ProbeTool $java @('-cp', "$output/tests", 'io.github.f2illc.lunaos.home.voiceprobe.TimerPhraseTest')
+    Invoke-ProbeTool $java @('-cp', "$output/tests", 'io.github.f2illc.lunaos.home.voiceprobe.TimerHandoffGateTest')
     $classpath = "$androidJar;$output/vosk/classes.jar;$output/jna/classes.jar"
-    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-classpath', $classpath, '-d', "$output/classes", "$source/TimerPhrase.java", "$source/VoiceProbe.java")
+    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-classpath', $classpath, '-d', "$output/classes", "$source/TimerPhrase.java", "$source/TimerHandoffGate.java", "$source/VoiceProbe.java")
     Invoke-ProbeTool $jar @('--create', '--file', "$output/classes.jar", '-C', "$output/classes", '.')
     Invoke-ProbeTool "$buildTools/d8.bat" @('--min-api', '24', '--lib', $androidJar, '--output', "$output/dex", "$output/classes.jar", "$output/vosk/classes.jar", "$output/jna/classes.jar")
     Invoke-ProbeTool $keytool @('-genkeypair', '-keystore', "$output/probe.p12", '-storetype', 'PKCS12', '-alias', 'probe', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '30', '-dname', 'CN=Fictional Local Probe', '-storepass:env', 'LUNA_VOICE_PROBE_SIGNING_PASSWORD', '-keypass:env', 'LUNA_VOICE_PROBE_SIGNING_PASSWORD')

@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
@@ -12,10 +13,13 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.AlarmClock;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.ScrollView;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -26,12 +30,14 @@ import org.vosk.Model;
 import org.vosk.Recognizer;
 import com.sun.jna.NativeLibrary;
 
-/** Attended foreground probe. No network, audio files, transcript logs or alarms. */
+/** Attended foreground probe with optional, explicitly enabled native Clock handoff. */
 public final class VoiceProbe extends Activity {
     private TextView status;
     private Run active;
     private boolean resumed;
     private boolean workerBusy;
+    private CheckBox realTimers;
+    private String lastTimerStatus;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -41,8 +47,9 @@ public final class VoiceProbe extends Activity {
         TextView intro = new TextView(this);
         intro.setText("Home offline voice test\n\nAllow the microphone, then tap Start. After it says Listening, say:\n"
             + "Hey Luna, set a timer for ten seconds.\n\n"
-            + "Recognition test only: NO timer or alarm will start. Audio stays on this device and is not saved. "
-            + "Listening ends after 30 seconds or when you leave. Keep this screen open.\n");
+            + "Enable real timers below to open Clock and start the recognized timer using its existing sound. "
+            + "Otherwise this only tests recognition. Audio stays on this device and is not saved. "
+            + "Listening stops after 30 seconds or when you leave. Stop ends listening; use Clock to cancel a timer.\n");
         intro.setTextSize(20);
         layout.addView(intro);
         Button allow = new Button(this);
@@ -58,25 +65,38 @@ public final class VoiceProbe extends Activity {
         check.setText("Check offline engine (microphone off)");
         check.setOnClickListener(v -> startRun(false));
         layout.addView(check);
+        realTimers = new CheckBox(this);
+        realTimers.setText("Start real timers in Clock (may sound)");
+        realTimers.setChecked(false);
+        realTimers.setSaveEnabled(false);
+        realTimers.setOnCheckedChangeListener((button, checked) -> {
+            stopRun();
+            status.setText(checked ? "Real timers enabled for this screen. Tap Start, then say the full phrase."
+                : "Recognition only. No timer will start. Tap Start to test.");
+        });
+        layout.addView(realTimers);
         Button start = new Button(this);
         start.setText("Start 30-second voice test");
         start.setOnClickListener(v -> startRun(true));
         layout.addView(start);
         Button stop = new Button(this);
         stop.setText("Stop");
-        stop.setOnClickListener(v -> { stopRun(); status.setText("Stopped. Microphone off. No timer started."); });
+        stop.setOnClickListener(v -> { stopRun(); status.setText("Listening stopped. Microphone off. Existing timers remain in Clock."); });
         layout.addView(stop);
         status = new TextView(this);
         status.setTextSize(24);
         status.setText("Microphone off. Nothing starts automatically.");
         layout.addView(status);
-        setContentView(layout);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(layout);
+        setContentView(scroll);
     }
     @Override public void onResume() { super.onResume(); resumed = true; }
     @Override public void onPause() {
         resumed = false;
         stopRun();
-        status.setText("Stopped after leaving this screen. Tap Start to try again.");
+        status.setText(lastTimerStatus != null ? lastTimerStatus
+            : "Stopped after leaving this screen. Tap Start to try again.");
         super.onPause();
     }
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
@@ -97,7 +117,8 @@ public final class VoiceProbe extends Activity {
     private void startRun(boolean capture) {
         if (!resumed || workerBusy) return;
         if (capture && blocked()) { status.setText("Allow the microphone, unlock the device and unmute before starting."); return; }
-        Run run = new Run(); active = run; workerBusy = true;
+        lastTimerStatus = null;
+        Run run = new Run(capture && realTimers.isChecked()); active = run; workerBusy = true;
         status.setText("Loading offline model. Microphone off; please wait.");
         new Thread(() -> recognize(run, capture), "home-voice-probe").start();
     }
@@ -122,6 +143,7 @@ public final class VoiceProbe extends Activity {
         String outcome = "ENGINE_UNAVAILABLE";
         String message = "Offline engine could not start. No timer started.";
         String phase = "NATIVE_LOAD";
+        int matchedSeconds = 0;
         try {
             LibVosk.vosk_set_log_level(-1);
             phase = "MODEL_COPY";
@@ -184,8 +206,9 @@ public final class VoiceProbe extends Activity {
                             String text = new JSONObject(recognizer.getResult()).optString("text", "");
                             int seconds = TimerPhrase.seconds(text);
                             if (seconds > 0) {
+                                matchedSeconds = seconds;
                                 outcome = "COMMAND_MATCH";
-                                message = "Recognized duration: " + seconds + " seconds. Microphone off. NO timer started.";
+                                message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
                             }
                             show(run, "No complete match yet. Try the whole phrase again; pause afterward.");
@@ -202,16 +225,44 @@ public final class VoiceProbe extends Activity {
             run.close(); Arrays.fill(samples, (short) 0);
             final String code = outcome;
             final String result = message;
+            final int duration = matchedSeconds;
             runOnUiThread(() -> {
                 workerBusy = false;
                 if (active == run && resumed) {
-                    active = null; status.setText(result + " Microphone off.");
+                    active = null;
+                    status.setText(result + (result.contains("Microphone off") ? "" : " Microphone off."));
                     Log.i("HomeVoiceProbe", code);
+                    if (run.handoff.claim(realTimers.isChecked(), resumed && !blocked(), duration)) dispatchTimer(duration);
                 }
             });
         }
     }
+    private void dispatchTimer(int seconds) {
+        Intent timer = new Intent(AlarmClock.ACTION_SET_TIMER)
+            .setPackage("com.android.deskclock")
+            .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+            .putExtra(AlarmClock.EXTRA_MESSAGE, "Home voice timer")
+            .putExtra(AlarmClock.EXTRA_SKIP_UI, false);
+        try {
+            if (timer.resolveActivity(getPackageManager()) == null) {
+                status.setText("Clock unavailable. Microphone off. No timer request sent.");
+                Log.i("HomeVoiceProbe", "CLOCK_UNAVAILABLE_NO_DISPATCH");
+                return;
+            }
+            lastTimerStatus = "Requested " + seconds + " seconds in Clock. Check its countdown. Microphone off. No automatic retry.";
+            status.setText(lastTimerStatus);
+            startActivity(timer);
+            // Dispatch is not a persistence receipt or proof that an alert will sound.
+            Log.i("HomeVoiceProbe", "TIMER_INTENT_DISPATCHED_ALERT_UNVERIFIED");
+        } catch (RuntimeException failure) {
+            lastTimerStatus = "Clock handoff failed or is uncertain. Check Clock before retrying. Microphone off.";
+            status.setText(lastTimerStatus);
+            Log.i("HomeVoiceProbe", "TIMER_DISPATCH_UNCERTAIN_NO_RETRY");
+        }
+    }
     private static final class Run {
+        final TimerHandoffGate handoff;
+        Run(boolean realTimers) { handoff = new TimerHandoffGate(realTimers); }
         volatile boolean closed;
         AudioRecord recorder;
         synchronized void close() {
