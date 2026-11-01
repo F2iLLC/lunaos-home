@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.7 extends the [foreground probe](android-offline-voice-probe.md) with
+Version 0.8 extends the [foreground probe](android-offline-voice-probe.md) with
 an explicitly started microphone foreground service. It evaluates leaving the
 activity and turning off an unlocked display on the selected converted Android
 device. This finite engineering probe is not the Home application or an
@@ -47,6 +47,19 @@ remain #148 and #149.
   Toggling the checkbox stops tests and discards pending requests.
 - No network permission, saved audio or transcript. Do not publish raw device
   logs, identifiers, screenshots, household audio or human-derived measurements.
+- While the probe screen is visible, an oversized locally drawn chibi Luna
+  provides visual feedback: sleepy eyes while waiting, wide eyes with a slow
+  mint halo while the command window is open, happy eyes for pending review,
+  and a distinct retry expression after timeout. Large labels and accessible
+  descriptions supplement expression and color. Review explicitly says no
+  timer started. Fixed visual states are supplied by capture/service callbacks;
+  recognized speech is never used to draw the face.
+- The visible activity keeps its display on only during preparation, waiting,
+  command capture and pending review. Stop, timeout, review expiry and leaving
+  the activity release that flag. The face does not turn a dark display on,
+  launch from the background, change brightness or bypass a lock. Keep the
+  probe open to use the visual cue; the existing finite listening limits and
+  explicit Clock tap remain in force.
 
 ## Build and attended test
 
@@ -323,3 +336,23 @@ Capture was not independently sampled before revocation, and no stop-reason
 code was retained. This corroborates the denied-permission stopped state,
 without distinguishing Android process termination from the probe's own
 permission-cancellation path. Permission was not changed through ADB.
+
+Version 0.8 adds the chibi visual indicator and responsive face/control layout.
+All 338 policy/diagnostic cases, offline Java/DEX/APK build, portable-entry
+checks and signature verification passed. The update was re-signed using the
+existing disposable identity and installed without uninstalling. Package
+readback confirmed 0.8, with microphone permission still denied, no active
+capture and no wake service. Launch did not activate capture. Local UI
+inspection and the operator confirmed the large face and microphone-off state.
+The full repository suite also passed: 344 tests, zero failures or skips.
+
+In the attended visual trial, the operator granted microphone permission and
+started listening locally, then confirmed the awake face was obvious from the
+kitchen viewing distance. The operator clarified that Stop was pressed after
+seeing the awake face, before a recognized-duration result. Fresh codes showed
+waiting, wake match, cue requested and a no-speech command final, without
+command match, review ready or timer dispatch. Follow-up readback showed
+capture off, no wake service, the face's accessible microphone-off description
+and Clock review disabled. This confirms operator-assessed awake visibility
+and the stopped visual state, not timer recognition or visual qualification
+of review/timeout/expiry transitions. No recognition repair is claimed.

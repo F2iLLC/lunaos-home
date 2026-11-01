@@ -1,0 +1,134 @@
+package io.github.f2illc.lunaos.home.voiceprobe;
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Typeface;
+import android.os.SystemClock;
+import android.view.View;
+
+/** Local, speech-free visual feedback. Never starts capture or changes display/lock settings. */
+final class LunaFace extends View {
+    enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RETRY }
+    private State state = State.OFF;
+    private final Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private boolean active;
+    private static final int NIGHT = Color.rgb(17, 20, 38);
+    private static final int CREAM = Color.rgb(255, 241, 224);
+    private static final int LAVENDER = Color.rgb(183, 169, 242);
+    private static final int MINT = Color.rgb(140, 239, 217);
+
+    LunaFace(Context context) {
+        super(context);
+        setBackgroundColor(NIGHT);
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+        setState(State.OFF);
+    }
+    void setActive(boolean value) { active = value; updateKeepOn(); invalidate(); }
+    void setState(State value) {
+        if (state != value) { state = value; invalidate(); }
+        setContentDescription("Luna. " + heading() + ". " + detail());
+        updateKeepOn();
+    }
+    private void updateKeepOn() {
+        setKeepScreenOn(active && (state == State.PREPARING || state == State.WAITING
+            || state == State.AWAKE || state == State.REVIEW));
+    }
+    private String heading() {
+        switch (state) {
+            case PREPARING: return "ONE MOMENT";
+            case WAITING: return "SAY HEY LUNA";
+            case AWAKE: return "I'M LISTENING";
+            case REVIEW: return "REVIEW TIMER";
+            case RETRY: return "TRY AGAIN";
+            default: return "MIC OFF";
+        }
+    }
+    private String detail() {
+        switch (state) {
+            case PREPARING: return "MIC OFF WHILE LOADING";
+            case WAITING: return "MIC ON · WAITING FOR YOU";
+            case AWAKE: return "MIC ON · SAY YOUR TIMER";
+            case REVIEW: return "MIC OFF · NO TIMER STARTED";
+            case RETRY: return "MIC OFF · NO TIMER STARTED";
+            default: return "NOT LISTENING";
+        }
+    }
+    private void fill(Canvas c, int color, float l, float t, float r, float b, float radius) {
+        ink.setColor(color); ink.setStyle(Paint.Style.FILL);
+        c.drawRoundRect(l, t, r, b, radius, radius, ink);
+    }
+    private void line(Canvas c, float x1, float y1, float x2, float y2) {
+        ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE);
+        ink.setStrokeWidth(8); ink.setStrokeCap(Paint.Cap.ROUND);
+        c.drawLine(x1, y1, x2, y2, ink);
+        ink.setStyle(Paint.Style.FILL);
+    }
+    private void eye(Canvas c, float x, boolean blink) {
+        if (state == State.OFF || state == State.WAITING || state == State.PREPARING || blink) {
+            ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE);
+            ink.setStrokeWidth(8); ink.setStrokeCap(Paint.Cap.ROUND);
+            c.drawArc(x - 23, 159, x + 23, 185, 8, 164, false, ink);
+            ink.setStyle(Paint.Style.FILL);
+        } else if (state == State.RETRY) {
+            line(c, x - 20, 173, x, 181); line(c, x, 181, x + 20, 173);
+        } else if (state == State.REVIEW) {
+            ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE); ink.setStrokeWidth(8);
+            ink.setStrokeCap(Paint.Cap.ROUND);
+            c.drawArc(x - 22, 169, x + 22, 203, 192, 156, false, ink);
+            ink.setStyle(Paint.Style.FILL);
+        } else {
+            fill(c, NIGHT, x - 22, 146, x + 22, 206, 21);
+            fill(c, Color.WHITE, x - 12, 153, x + 1, 170, 6);
+            fill(c, MINT, x + 5, 185, x + 13, 195, 4);
+        }
+    }
+    @Override protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        float scale = Math.min(getWidth() / 400f, getHeight() / 410f);
+        canvas.save();
+        canvas.translate((getWidth() - 400 * scale) / 2, (getHeight() - 410 * scale) / 2);
+        canvas.scale(scale, scale);
+        double time = SystemClock.uptimeMillis() / 1000.0;
+        boolean awake = state == State.AWAKE;
+        int accent = awake ? MINT : LAVENDER;
+        // Slow halo breath, never a flashing full-screen color change.
+        float breathe = active && awake ? (float) Math.sin(time * 2.4) * 5 : 0;
+        ink.setColor(accent); ink.setAlpha(awake ? 65 : 23);
+        canvas.drawCircle(200, 166, 139 + breathe, ink); ink.setAlpha(255);
+        // Little ears and a generous rounded chibi face.
+        fill(canvas, accent, 62, 79, 123, 171, 30);
+        fill(canvas, accent, 277, 79, 338, 171, 30);
+        fill(canvas, CREAM, 69, 100, 331, 264, 78);
+        // Lavender fringe, with one curled forelock.
+        fill(canvas, LAVENDER, 111, 91, 281, 126, 20);
+        Path curl = new Path(); curl.moveTo(190, 111);
+        curl.cubicTo(223, 91, 244, 107, 216, 130);
+        ink.setColor(LAVENDER); canvas.drawPath(curl, ink);
+        boolean blink = active && (state == State.AWAKE || state == State.PREPARING)
+            && SystemClock.uptimeMillis() % 5100 < 130;
+        eye(canvas, 145, blink); eye(canvas, 255, blink);
+        fill(canvas, Color.rgb(242, 168, 174), 96, 206, 131, 220, 7);
+        fill(canvas, Color.rgb(242, 168, 174), 269, 206, 304, 220, 7);
+        if (awake) fill(canvas, NIGHT, 190, 211, 210, 235, 10);
+        else {
+            ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE);
+            ink.setStrokeWidth(6); ink.setStrokeCap(Paint.Cap.ROUND);
+            canvas.drawArc(184, 206, 216, 231, 15, 150, false, ink);
+            ink.setStyle(Paint.Style.FILL);
+        }
+        // Crescent hair clip.
+        ink.setColor(Color.rgb(255, 218, 134)); canvas.drawCircle(304, 113, 17, ink);
+        ink.setColor(CREAM); canvas.drawCircle(311, 107, 15, ink);
+        ink.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        ink.setTextAlign(Paint.Align.CENTER); ink.setTextSize(29); ink.setColor(awake ? MINT : CREAM);
+        canvas.drawText(heading(), 200, 326, ink);
+        ink.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        ink.setTextSize(13); ink.setColor(LAVENDER); canvas.drawText(detail(), 200, 355, ink);
+        canvas.restore();
+        if (active && getWindowVisibility() == VISIBLE && (awake || state == State.PREPARING))
+            postInvalidateDelayed(65);
+    }
+}
