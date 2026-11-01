@@ -296,3 +296,10 @@ reported disrupted delivery during the duration. This is an attended rejected
 complete-command attempt followed by a successful fresh retry. The fixed
 category does not identify the decoder output or establish an acoustic cause;
 no speech or audio was retained.
+
+In the next cue-separated trial, the operator requested two minutes, confirmed
+120 seconds recognized and reported Stop afterward. Fresh fixed codes showed
+waiting, wake match, cue requested, command match and review ready without
+timer dispatch; follow-up state showed capture off and no wake service. This
+adds an operator-confirmed plural-minute case, with duration still not encoded
+in the runtime codes.
