@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.5 extends the [foreground probe](android-offline-voice-probe.md) with
+Version 0.6 extends the [foreground probe](android-offline-voice-probe.md) with
 an explicitly started microphone foreground service. It evaluates leaving the
 activity and turning off an unlocked display on the selected converted Android
 device. This finite engineering probe is not the Home application or an
@@ -51,8 +51,8 @@ remain #148 and #149.
 ## Build and attended test
 
 Use the offline builder and pinned inputs documented with the foreground probe.
-This version requires API 26+, targets API 30 and packages ARM32 only. Its 74
-policy checks cover parser (16), handoff (11), wake transitions (32), and timer
+This version requires API 26+, targets API 30 and packages ARM32 only. Its 81
+policy checks cover parser and fixed diagnostics (23), handoff (11), wake transitions (32), and timer
 review expiry, revocation, range and one-use claim (15).
 
 1. Verify installation, launch and permission leave the microphone off and no
@@ -111,3 +111,22 @@ Version 0.5 also passes all 74 policy checks and the complete Java/DEX/APK build
 and signature verification. The update was installed and launched; fresh UI
 inspection showed microphone off, timer opt-in unchecked and timer review
 disabled. Launch caused no new capture and no wake service was running.
+
+Version 0.5 attended retries still timed out. Fixed-code evidence showed wake
+match, cue requested and a finalized nonmatching command before expiry. The
+operator used the supported five-second phrase and did not hear the cue.
+The device reported media unmuted; cue audibility remains unverified. This
+is not evidence that command recognition recovered.
+
+Version 0.6 distinguishes no finalized result, no speech, unclear speech, wake
+only, an incomplete timer phrase and other speech. These fixed categories appear
+on screen and in diagnostic logs; recognized text is never displayed or logged.
+Nonempty rejection categories survive later silence results until timeout.
+The parser and timer authorization remain unchanged. This is diagnostic
+instrumentation, not a claimed recognition fix.
+
+Version 0.6 passes all 81 policy and diagnostic checks and the full Java/DEX/APK
+build and signature verification. Installation and launch succeeded. Fresh UI
+inspection showed microphone off, timer opt-in unchecked and review disabled;
+no wake service was running and launch caused no new capture. A fresh attended
+diagnostic trial remains pending.

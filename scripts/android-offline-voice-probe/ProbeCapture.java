@@ -40,6 +40,7 @@ final class ProbeCapture {
     private volatile long deadline;
     private volatile boolean closed, canceled;
     private volatile boolean awake;
+    private volatile String commandDiagnostic = "NO_FINAL_RESULT";
     private AudioRecord recorder;
     private ToneGenerator cue;
     private final Runnable watchdog = new Runnable() {
@@ -74,7 +75,7 @@ final class ProbeCapture {
     }
     void stop() { canceled = true; closeRecorder(); main.removeCallbacks(watchdog); }
     private String timeoutMessage() {
-        return awake ? "Command timed out after Hey Luna. Microphone off. No timer started. Start a new test, wait for the soft wake cue, then say Set a timer for five seconds."
+        return awake ? "Command timed out after Hey Luna. Decoder: " + commandDiagnostic + ". Microphone off. No timer started."
             : "Listening time limit reached. Microphone off. No timer started.";
     }
     private synchronized void closeRecorder() {
@@ -172,14 +173,18 @@ final class ProbeCapture {
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
-                                show("Awake. MICROPHONE ON. Say: Set a timer for ten seconds. You have 10 seconds.");
+                                show("Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.");
                                 main.post(this::wakeCue);
                             } else if (seconds > 0) {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Recognized duration: " + seconds + " seconds. NO timer started.";
                                 return;
                             } else if (wake != null && wake.awaitingCommand()) {
-                                Log.i("HomeVoiceProbe", "COMMAND_FINAL_NO_MATCH");
+                                String diagnostic = TimerPhrase.commandDiagnostic(text);
+                                if (!"NO_SPEECH".equals(diagnostic) || "NO_FINAL_RESULT".equals(commandDiagnostic))
+                                    commandDiagnostic = diagnostic;
+                                Log.i("HomeVoiceProbe", "COMMAND_FINAL_" + diagnostic);
+                                show("Awake. Decoder: " + commandDiagnostic + ". No supported timer yet. MICROPHONE ON until the command deadline.");
                             }
                         }
                         SystemClock.sleep(10);

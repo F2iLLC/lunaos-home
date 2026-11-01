@@ -22,6 +22,15 @@ public final class TimerPhrase {
         if (text == null) return 0;
         return text.startsWith("set a timer for ") ? seconds("hey luna " + text) : seconds(text);
     }
+    /** Fixed diagnostic categories only; never return recognized speech. */
+    public static String commandDiagnostic(String text) {
+        if (text == null || text.trim().isEmpty()) return "NO_SPEECH";
+        if (text.contains("[unk]")) return "UNCLEAR_SPEECH";
+        if (commandSeconds(text) > 0) return "SUPPORTED_TIMER";
+        if (text.equals("hey luna")) return "WAKE_ONLY";
+        if (text.contains("timer")) return "INCOMPLETE_TIMER_PHRASE";
+        return "OTHER_SPEECH";
+    }
     public static String grammar() { return grammar(false); }
     public static String commandGrammar() { return grammar(true); }
     private static String grammar(boolean command) {
