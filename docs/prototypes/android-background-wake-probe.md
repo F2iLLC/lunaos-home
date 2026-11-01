@@ -238,3 +238,14 @@ session on-device. After a timeout, inspect only the fixed `COMMAND_FINAL_*`
 codes before considering any recognition change. Leave Clock review untouched
 for recognition-only trials. Stop remains an explicit operator action; no ADB
 capture start or lock-setting change is authorized by this procedure.
+
+A subsequent [offline synthetic decoder experiment](android-synthetic-decoder.md)
+reproduced a separate timing failure in both a Windows decoder and the pinned
+Android native library. Fast commands with no added gap could begin before the
+wake decoder finalized; adding silence or feeding the same command directly
+avoided those failures in the tested fixtures. Each native matrix completed 72
+cases, with four zero-added-gap `UNCLEAR_SPEECH` rejections and 68 expected
+matches. This is not a reliability rate or a demonstrated cause of the earlier
+human `INCOMPLETE_TIMER_PHRASE` results. The operator could not recall the
+earlier command/cue timing. No human audio was recorded, capture was not started
+through ADB, and the APK behavior was left unchanged.
