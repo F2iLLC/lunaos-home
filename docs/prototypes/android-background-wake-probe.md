@@ -84,7 +84,13 @@ In the first attended background recognition trial, the operator varied the
 synthetic command to five seconds and confirmed that the recognized duration
 was correct. Fixed-code runtime evidence showed waiting, wake match, command
 match and background review ready with no timer started. AppOps showed that
-capture had completed. This establishes one attended background recognition
-case; it does not establish display-off operation, lock cancellation, explicit
-timer review/alert delivery, repeated reliability or acoustic qualification.
-Those scenarios remain pending.
+capture had completed. In the subsequent requested display-off trial, the
+operator reported the five-second review result with microphone off and no
+timer started. Fixed-code evidence again showed waiting, wake match, command
+match and background review ready, and AppOps showed completed capture. Display
+state in this trial is operator-reported, not independently instrumented.
+
+These cases establish attended background and reported display-off recognition.
+Security-lock cancellation, explicit timer review/alert delivery, repeated
+reliability and acoustic qualification remain pending. Display-off success
+does not prove listening while security-locked or lock cancellation behavior.
