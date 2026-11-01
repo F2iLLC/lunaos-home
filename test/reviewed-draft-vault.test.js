@@ -53,6 +53,19 @@ test('saving requires confirmed field, separate approval and current draft; save
   assert.deepEqual(f.drafts.pending(), { draftId: null, revision: null, requests: [] });
   assert.equal((await f.vault.request({ action: 'view' })).records.length, 1);
 });
+
+test('storage refuses a confirmed detail with unresolved person identity', async t => {
+  const f = fixture();
+  const ref = f.ref();
+  const draft = f.drafts.read();
+  draft.people[0].fields[0].status = 'confirmed';
+  draft.people[0].fields[0].uncertainty = 'ambiguous-identity';
+  const vault = createReviewedDraftVault({ drafts: { read: () => draft }, store: f.store });
+  t.after(async () => { await vault.close(); await f.vault.close(); });
+  await assert.rejects(vault.request({ action: 'prepare', ...ref }), /Looks right/);
+  assert.equal(f.store.records.size, 0);
+});
+
 test('expired and cancelled approvals cannot save; duplicate identities and unsupported details are refused', async t => {
   let now = 0;
   const f = fixture(memoryStore(), () => now); t.after(() => f.vault.close());
