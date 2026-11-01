@@ -18,6 +18,21 @@ test('fictional proposal is isolated, bounded and cannot replace a reviewed draf
   assert.throws(() => createDraftStore().stage({ ...exampleProposal, saved: true }));
   assert.throws(() => createDraftStore().stage({ people: [] }));
 });
+test('source coverage survives review and rejects invalid source declarations', () => {
+  const proposal = createProfileReviewProposal();
+  const store = createDraftStore();
+  const draft = store.stage(proposal);
+  assert.deepEqual(draft.sourceCoverage, proposal.sourceCoverage);
+  const field = draft.people[0].fields[0];
+  const reviewed = store.review({ draftId: draft.id, personId: draft.people[0].id, itemId: field.id, revision: 0, action: 'confirm' });
+  assert.deepEqual(reviewed.sourceCoverage, proposal.sourceCoverage);
+  const duplicate = createProfileReviewProposal();
+  duplicate.sourceCoverage[1].id = duplicate.sourceCoverage[0].id;
+  assert.throws(() => createDraftStore().stage(duplicate), /Source IDs must be unique/);
+  const malformed = createProfileReviewProposal();
+  delete malformed.sourceCoverage[1].reason;
+  assert.throws(() => createDraftStore().stage(malformed));
+});
 test('review requires a reply, correction stays unconfirmed and stale requests fail', () => {
   const { store, ref } = setup();
   store.review({ ...ref, action: 'flag' });

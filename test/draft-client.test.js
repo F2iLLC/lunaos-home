@@ -12,6 +12,25 @@ test('response checker accepts sourced profile fields, unresolved values and can
   assert.deepEqual((await client('/api/draft')).draft, draft);
 });
 
+test('malformed source coverage blocks writes until a valid draft refresh', async () => {
+  const valid = createDraftStore().stage(createProfileReviewProposal());
+  const malformed = structuredClone(valid);
+  malformed.sourceCoverage[1].reason = undefined;
+  let responseDraft = malformed;
+  let writes = 0;
+  const client = createHttpDraftClient((path, options) => {
+    if (options.method === 'POST') writes++;
+    return Response.json({ draft: responseDraft });
+  });
+  await assert.rejects(client('/api/draft'), TypeError);
+  await assert.rejects(client('/api/review', {}), /Check for updates/);
+  assert.equal(writes, 0);
+  responseDraft = valid;
+  assert.deepEqual((await client('/api/draft')).draft, valid);
+  await client('/api/review', {});
+  assert.equal(writes, 1);
+});
+
 test('a committed change with a lost response is not replayed before a successful refresh', async t => {
   const store = createDraftStore();
   const initial = store.stage(exampleProposal);
