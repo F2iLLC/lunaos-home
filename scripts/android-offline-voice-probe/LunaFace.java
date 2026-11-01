@@ -98,15 +98,20 @@ final class LunaFace extends View {
         float breathe = active && awake ? (float) Math.sin(time * 2.4) * 5 : 0;
         ink.setColor(accent); ink.setAlpha(awake ? 65 : 23);
         canvas.drawCircle(200, 166, 139 + breathe, ink); ink.setAlpha(255);
-        // Little ears and a generous rounded chibi face.
-        fill(canvas, accent, 62, 79, 123, 171, 30);
-        fill(canvas, accent, 277, 79, 338, 171, 30);
+        // Round buns and a generous rounded chibi face.
+        ink.setColor(LAVENDER);
+        canvas.drawCircle(84, 111, 32, ink);
+        canvas.drawCircle(316, 111, 32, ink);
         fill(canvas, CREAM, 69, 100, 331, 264, 78);
-        // Lavender fringe, with one curled forelock.
-        fill(canvas, LAVENDER, 111, 91, 281, 126, 20);
-        Path curl = new Path(); curl.moveTo(190, 111);
-        curl.cubicTo(223, 91, 244, 107, 216, 130);
-        ink.setColor(LAVENDER); canvas.drawPath(curl, ink);
+        // Soft side-swept fringe, with a curved silhouette rather than a flat bar.
+        Path hair = new Path(); hair.moveTo(73, 169);
+        hair.cubicTo(55, 82, 119, 55, 195, 72);
+        hair.cubicTo(273, 49, 347, 96, 329, 171);
+        hair.quadTo(315, 155, 310, 132);
+        hair.cubicTo(267, 142, 230, 123, 216, 107);
+        hair.cubicTo(202, 142, 146, 153, 111, 136);
+        hair.quadTo(94, 149, 73, 169); hair.close();
+        ink.setColor(LAVENDER); canvas.drawPath(hair, ink);
         boolean blink = active && (state == State.AWAKE || state == State.PREPARING)
             && SystemClock.uptimeMillis() % 5100 < 130;
         eye(canvas, 145, blink); eye(canvas, 255, blink);
