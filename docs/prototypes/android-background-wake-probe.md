@@ -311,3 +311,15 @@ without timer dispatch. Follow-up readback showed no active microphone
 operation and no wake service. Display state and exact duration are
 operator-confirmed; this display-off success does not test secure-lock
 cancellation or establish recognition reliability.
+
+For an attended microphone-permission revocation check, the operator was
+instructed to start listening locally, revoke microphone permission in Android
+settings and return to the probe. The operator reported the microphone-off,
+nothing-starts-automatically screen. Package readback confirmed runtime
+microphone permission denied; AppOps and service readback showed no active
+capture and no wake service. The latest session had logged
+`WAITING_FOR_WAKE`, with no subsequent match, review or timer dispatch.
+Capture was not independently sampled before revocation, and no stop-reason
+code was retained. This corroborates the denied-permission stopped state,
+without distinguishing Android process termination from the probe's own
+permission-cancellation path. Permission was not changed through ADB.
