@@ -179,8 +179,19 @@ the probe. Package readback confirmed version 0.7. Launch inspection showed
 microphone off, foreground timer opt-in unchecked and Clock review disabled.
 No wake service or active microphone operation was present; AppOps still
 reported only the preceding capture operation, before this update/launch.
-No capture was started through ADB. Acoustic behavior on version 0.7 remains
-untested. All APKs, models and signing material remain outside Git.
+No capture was started through ADB. All APKs, models and signing material remain
+outside Git.
+
+In the first subsequent attended version 0.7 trial, fixed-code readback showed
+waiting, wake match, command match and background review ready without a timer
+dispatch. Microphone capture was off at readback; the service remained present
+for pending review. The operator reported choosing a ten-second command rather
+than the suggested five-second command. The fixed codes do not encode duration,
+and a structured-duration UI readback was unavailable, so exact-duration
+correctness is not independently established for this trial. No countdown or
+audible expiry is claimed. This successful recognition case does not resolve
+the preceding intermittent rejections; a failed version 0.7 trial is still
+needed to inspect the narrower diagnostic categories.
 
 For the next attended trial, first install and verify the diagnostic revision
 without starting capture. The operator must then start a fresh background
