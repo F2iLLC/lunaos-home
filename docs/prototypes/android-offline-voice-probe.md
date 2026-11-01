@@ -199,8 +199,10 @@ for exact wake matching, rejection before wake, command gating, duplicate wake,
 overall/command deadlines and duplicate command rejection. One attended
 recognition-only trial logged waiting, wake match and command match; the operator
 confirmed Awake followed by the ten-second duration. AppOps showed capture
-completed. Real-timer handoff through this two-stage route and its remaining
-acoustic/lifecycle scenarios are pending. The increment builds a verified APK
+completed. A subsequent opted-in trial logged wake match, command match and one
+Clock dispatch; the operator confirmed the countdown and audible expiry. These
+two attended cases establish the tested foreground path only. Its remaining
+rejection, timeout, acoustic and lifecycle scenarios are pending. The increment builds a verified APK
 and has been installed on the same attended device. Launch showed listening off
 and real timers unchecked; AppOps showed no new capture from launch. Controls,
 including Stop and the status area, fit the inspected screen. The preceding full-phrase timer
