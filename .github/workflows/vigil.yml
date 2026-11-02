@@ -9,7 +9,9 @@
 # - Runner: GitHub-hosted. This repository is PUBLIC, so it must never run on
 #   our self-hosted runners: a pull request from a fork could execute
 #   arbitrary code on our servers.
-# - Fork pull requests are skipped: GitHub gives them no OIDC token or secrets.
+# - Fork pull requests are rejected before the privileged reusable workflow.
+#   Comment commands also require OWNER, MEMBER, or COLLABORATOR association.
+#   A read-only API lookup verifies the head repository for every admitted event.
 # - Kill switch: set the Actions variable VIGIL_SKIP=true to pause reviews.
 # - The reusable workflow is pinned to a vigil commit; bump it deliberately.
 
@@ -25,18 +27,51 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
-  id-token: write
 
 jobs:
-  vigil:
+  authorize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
     if: >-
       vars.VIGIL_SKIP != 'true' &&
-      (github.event_name != 'pull_request' ||
-       github.event.pull_request.head.repo.full_name == github.repository)
+      ((github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+       ((github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)))
+    outputs:
+      allowed: ${{ steps.authorize.outputs.allowed }}
+    steps:
+      # No checkout or evaluation of PR/comment content in this read-only job.
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        id: authorize
+        with:
+          script: |
+            core.setOutput('allowed', 'false');
+            const { eventName, payload, repo } = context;
+            const isComment = ['issue_comment', 'pull_request_review_comment'].includes(eventName);
+            if (eventName !== 'pull_request' && !isComment) return;
+            if (isComment && !['OWNER', 'MEMBER', 'COLLABORATOR'].includes(payload.comment?.author_association)) return;
+            if (eventName === 'issue_comment' && !payload.issue?.pull_request) return;
+            const number = eventName === 'issue_comment' ? payload.issue.number : payload.pull_request?.number;
+            if (!Number.isSafeInteger(number) || number <= 0) return;
+            const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: number });
+            const expected = `${repo.owner}/${repo.repo}`;
+            if (pr.state !== 'open' || pr.base?.repo?.full_name !== expected || pr.head?.repo?.full_name !== expected) return;
+            core.setOutput('allowed', 'true');
+
+  vigil:
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true' && vars.VIGIL_SKIP != 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
     uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@52826b70595baae8d16549a7503535c20820a4a0
     with:
       model: claude-sonnet-5-5
       runner-json: '["ubuntu-latest"]'
-    secrets: inherit
+    secrets:
+      VIGIL_REVIEW_TOKEN: ${{ secrets.VIGIL_REVIEW_TOKEN }}
