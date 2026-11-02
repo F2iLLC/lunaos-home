@@ -8,17 +8,60 @@ import { tmpdir } from 'node:os';
 // Execute the actual service against a deterministic clock, scheduler and capture
 // boundary. These fakes do not simulate Android permission enforcement or audio.
 const fakes = {
+  'android/content/SharedPreferences.java': `package android.content; public class SharedPreferences {
+ public String value; public boolean fail;
+ public String getString(String k,String d) {return value==null?d:value;}
+ public Editor edit() {return new Editor();}
+ public class Editor {String next; public Editor putString(String k,String v) {next=v;return this;} public boolean commit() {if(fail)return false;value=next;return true;}}
+}`,
+  'android/net/Uri.java': 'package android.net; public class Uri {public static Uri parse(String s) {return new Uri();}}',
+  'android/provider/Settings.java': 'package android.provider; public class Settings {public static class Global {public static int boot=1;public static final String BOOT_COUNT="boot";public static int getInt(Object r,String n,int d) {return boot;}}}',
+  'android/app/AlarmManager.java': `package android.app; public class AlarmManager {
+ public boolean fail;public PendingIntent last;public int schedules,cancels;
+ public static class AlarmClockInfo {public AlarmClockInfo(long t,PendingIntent p) {}}
+ public void setAlarmClock(AlarmClockInfo info,PendingIntent p) {if(fail){fail=false;throw new SecurityException();}last=p;schedules++;}
+ public void cancel(PendingIntent p) {cancels++;}
+}`,
+  'io/github/f2illc/lunaos/home/voiceprobe/TimerReceiver.java': 'package io.github.f2illc.lunaos.home.voiceprobe; public class TimerReceiver {}',
+  'android/media/AudioAttributes.java': 'package android.media; public class AudioAttributes {public static final int USAGE_ALARM=1,CONTENT_TYPE_SONIFICATION=2; public static class Builder {public Builder setUsage(int v){return this;} public Builder setContentType(int v){return this;}public AudioAttributes build(){return new AudioAttributes();}}}',
+  'android/media/RingtoneManager.java': 'package android.media; public class RingtoneManager {public static final int TYPE_ALARM=1;public static android.net.Uri getDefaultUri(int type){return android.net.Uri.parse("alarm");}}',
+  'android/media/MediaPlayer.java': `package android.media;public class MediaPlayer {
+ public static int starts,releases;public static boolean fail;public static float volume=1;
+ public void setAudioAttributes(AudioAttributes a) {} public void setWakeMode(android.content.Context c,int m) {}
+ public void setDataSource(android.content.Context c,android.net.Uri uri) {} public void setLooping(boolean b) {if(!b)throw new AssertionError();}
+ public void prepare() {if(fail)throw new IllegalStateException();}public void start() {starts++;}public void release() {releases++;}
+ public void setVolume(float l,float r) {volume=l;}
+}`,
+  'io/github/f2illc/lunaos/home/voiceprobe/SpokenReply.java': `package io.github.f2illc.lunaos.home.voiceprobe;
+ class SpokenReply {static SpokenReply last;final Runnable completion;boolean closed;
+ SpokenReply(android.content.Context c,String s,Runnable r) {last=this;completion=r;}
+ void close() {closed=true;} void finish() {completion.run();}}
+`,
   'android/content/Context.java': `package android.content;
 public class Context {
- public static final String NOTIFICATION_SERVICE="notification", POWER_SERVICE="power";
+ public static final String NOTIFICATION_SERVICE="notification", POWER_SERVICE="power", ALARM_SERVICE="alarm";
+ public static final int MODE_PRIVATE=0;
+ public final android.app.AlarmManager alarms=new android.app.AlarmManager();
+ public final SharedPreferences prefs=new SharedPreferences();
+ public int alarmStarts;
+ public SharedPreferences getSharedPreferences(String name,int mode) {return prefs;}
+ public Object getContentResolver() {return null;}
+ public Object startForegroundService(Intent i) {alarmStarts++;return null;}
  public final android.app.NotificationManager notifications=new android.app.NotificationManager();
  public final android.os.PowerManager power=new android.os.PowerManager();
- public Object getSystemService(String name) { return name.equals(POWER_SERVICE)?power:notifications; }
+ public Object getSystemService(String name) { return name.equals(POWER_SERVICE)?power:name.equals(ALARM_SERVICE)?alarms:notifications; }
  public boolean stopService(Intent intent) { return true; }
 }`,
   'android/content/Intent.java': `package android.content;
 public class Intent {
  public static final int FLAG_ACTIVITY_SINGLE_TOP=1, FLAG_ACTIVITY_CLEAR_TOP=2;
+ public static final String ACTION_TIME_CHANGED="time";
+ private final java.util.Map<String,Object> extras=new java.util.HashMap<>();
+ public Intent putExtra(String key,int v) {extras.put(key,v);return this;}
+ public Intent putExtra(String key,long v) {extras.put(key,v);return this;}
+ public int getIntExtra(String key,int fallback) {return (int)extras.getOrDefault(key,fallback);}
+ public long getLongExtra(String key,long fallback) {return (long)extras.getOrDefault(key,fallback);}
+ public Intent setData(android.net.Uri uri) {return this;}
  private String action;
  public Intent(Context context, Class<?> cls) {}
  public Intent setAction(String value) { action=value; return this; }
@@ -27,10 +70,11 @@ public class Intent {
 }`,
   'android/app/Service.java': `package android.app;
 public class Service extends android.content.Context {
- public static final int START_NOT_STICKY=2;
+ public static final int START_NOT_STICKY=2, STOP_FOREGROUND_DETACH=2;
  public boolean foreground, stopped;
  public void startForeground(int id, Notification n) { foreground=true; }
  public void stopForeground(boolean remove) { foreground=false; }
+ public void stopForeground(int flags) {foreground=false;}
  public void stopSelf() { stopped=true; }
  public int onStartCommand(android.content.Intent i,int f,int id) { return 0; }
  public void onDestroy() {}
@@ -74,6 +118,8 @@ public class NotificationManager {
   'android/app/PendingIntent.java': `package android.app;
 public class PendingIntent {
  public static final int FLAG_IMMUTABLE=1, FLAG_UPDATE_CURRENT=2;
+ public android.content.Intent intent;
+ public static PendingIntent getBroadcast(android.content.Context c,int id,android.content.Intent i,int f) {PendingIntent p=new PendingIntent();p.intent=i;return p;}
  public static PendingIntent getActivity(android.content.Context c,int id,android.content.Intent i,int f) { return new PendingIntent(); }
  public static PendingIntent getService(android.content.Context c,int id,android.content.Intent i,int f) { return new PendingIntent(); }
 }`,
@@ -113,9 +159,9 @@ public class PowerManager {
  }
 }`,
   'android/util/Log.java': 'package android.util; public class Log { public static int i(String tag,String code) { return 0; } }',
-  'android/R.java': 'package android; public class R { public static class drawable { public static int ic_btn_speak_now=1; } }',
+  'android/R.java': 'package android; public class R { public static class drawable { public static int ic_btn_speak_now=1, ic_lock_idle_alarm=2; } }',
   'io/github/f2illc/lunaos/home/voiceprobe/VoiceProbe.java': 'package io.github.f2illc.lunaos.home.voiceprobe; public class VoiceProbe {}',
-  'io/github/f2illc/lunaos/home/voiceprobe/LunaFace.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class LunaFace { enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RETRY } }',
+  'io/github/f2illc/lunaos/home/voiceprobe/LunaFace.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class LunaFace { enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RESPONSE, RETRY } }',
   'io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java': `package io.github.f2illc.lunaos.home.voiceprobe;
 class ProbeCapture {
  interface Listener {void visual(LunaFace.State s);void status(String s);void finished(String c,String t,int s,long d,boolean canceled);}
@@ -135,7 +181,7 @@ class ProbeCapture {
 }`,
 };
 
-test('wake service persists, resumes review and deadlines, and rejects late or revoked workers', async t => {
+test('native timers and wake service preserve identity, cancellation and listening lifecycle', async t => {
   const output = await mkdtemp(join(tmpdir(), 'home-wake-service-'));
   t.after(() => rm(output, { recursive: true, force: true }));
   const sources = [];
@@ -147,9 +193,13 @@ test('wake service persists, resumes review and deadlines, and rejects late or r
   }
   sources.push('scripts/android-offline-voice-probe/BackgroundWakeService.java',
     'scripts/android-offline-voice-probe/PendingTimerRequest.java',
+    ...['NativeTimers','TimerLedger','TimerCommand','TimerPhrase','WakeSession','TimerAlarmService'].map(n => 'scripts/android-offline-voice-probe/' + n + '.java'),
+    'test/fixtures/NativeTimerProbe.java',
     'test/fixtures/WakeServiceProbe.java');
   const tool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name + (process.platform === 'win32' ? '.exe' : '')) : name;
   execFileSync(tool('javac'), ['-d', output, ...sources], { windowsHide: true, timeout: 30_000, stdio: 'pipe' });
   const result = execFileSync(tool('java'), ['-cp', output, 'io.github.f2illc.lunaos.home.voiceprobe.WakeServiceProbe'], { windowsHide: true, timeout: 30_000, encoding: 'utf8' });
   assert.match(result, /Wake service lifecycle checks passed/);
+  const timer = execFileSync(tool('java'), ['-cp', output, 'io.github.f2illc.lunaos.home.voiceprobe.NativeTimerProbe'], {windowsHide:true,timeout:30000,encoding:'utf8'});
+  assert.match(timer, /Native timer checks passed/);
 });

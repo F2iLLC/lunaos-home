@@ -69,6 +69,7 @@ public final class TimerPhrase {
                 out.append(bare).append(n == 1 ? " minute\"" : " minutes\"");
             }
         }
+        if (command) TimerCommand.grammar(out);
         return out.append(']').toString();
     }
 }

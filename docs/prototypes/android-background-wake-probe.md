@@ -1,105 +1,109 @@
 # Android background wake feasibility probe
 
-Version 0.9 extends the [foreground probe](android-offline-voice-probe.md) with
-explicitly enabled, persistent local wake-word listening in a microphone
-foreground service. It evaluates leaving the activity and turning off an
-unlocked display on the selected converted Android device. This engineering
-probe is not the Home application or a qualified appliance. Reuses #135, #136 and #137; durable timers and native alerts
-remain #148 and #149.
+Version 0.11 adds ElevenLabs replies for hands-free Luna-owned timers in the
+explicitly enabled local wake listener. The owner authorized creation without Clock review, spoken
+cancellation, adding time and additional timers during a countdown. This is
+an engineering probe, not a qualified unattended appliance. Reuses #135, #136
+and #137; broader durable timer/native alert work remains #148 and #149.
 
 ## Behavior and boundaries
 
-- Launch, microphone permission, returning, unlock and process recreation never
-  start listening. Only the visible activity's Enable wake-word listening button starts the
-  non-exported service. `START_NOT_STICKY` prevents automatic restart. No boot
-  receiver or battery/security settings changes.
-- An ongoing silent notification identifies local microphone use and offers
-  Disable / discard. A partial wake lock keeps the CPU available during capture;
-  its 60-second acquisition is renewed every 30 seconds. Review, cancellation
-  and destruction release it. This does not establish acceptable battery
-  consumption, thermal behavior or prolonged unattended operation.
-- Once enabled, waiting has no five-minute limit. An exact finalized `hey luna`
-  opens a ten-second command window. Timeout closes that worker, then prepares
-  another wake listener after a short delay without another Enable tap. Decoder
-  failures disable listening rather than retrying indefinitely. Wait for the brief
-  wake cue (or visible Awake) before speaking the command. Version 0.5 requests a
-  90 ms cue at 12% generator volume on the existing media stream; it never changes
-  device volume or sound settings. Muted media or output routing may make it
-  inaudible. Cue resources are released after playback or cancellation.
-- Leaving the activity stops foreground tests; the deliberately selected
-  wake-word listener continues. Foreground tests retain their finite limits.
-  Both share a capture worker and process-wide
-  exclusion gate. A closing worker must finish before another can start.
-- Disable, security lock, microphone mute or permission loss close capture and
-  cancel queued restarts. Restoring access does not re-enable listening.
-  Main-thread watchdogs check every 100 ms; canceled native decoding cannot
-  authorize later effects. Display off differs from security lock: if screen-off
-  locks this device, listening stops. Unlock never restarts it. OS termination
-  ends listening; there is no boot or process-death recovery.
-- Recognition closes the microphone and releases the wake lock before offering
-  a structured duration. **No background Clock activity is launched and no timer
-  starts from recognition alone.** The enabled service and silent notification
-  remain while capture pauses for review. Tap the notification, then Start
-  recognized timer in Clock. Android restricts
-  [background activity launches](https://developer.android.com/guide/components/activities/background-starts);
-  a microphone foreground service alone does not enable a hands-free Clock handoff.
-- A duration of 1 through 3600 seconds is held in process memory for at most 60
-  seconds. Claim consumes it before Clock dispatch. Stop, a new test, blocked
-  access, service/process destruction or expiry discard it. Review claim,
-  Discard timer / keep listening, and expiry resume wake-word listening when
-  still enabled. Disable listening / discard request stops it completely.
-  No timer replay or automatic timer retry. Dispatch is an unacknowledged request: check countdown and
-  alert, and cancel existing timers in Clock.
-- The foreground real-timer checkbox is unchecked at launch and applies only
-  to foreground tests. Background timer review has its own explicit button.
-  Toggling the checkbox stops tests and discards pending requests.
-- No network permission, saved audio or transcript. Do not publish raw device
-  logs, identifiers, screenshots, household audio or human-derived measurements.
-- While the probe screen is visible, an oversized locally drawn chibi Luna
-  provides visual feedback: sleepy eyes while waiting, wide eyes with a slow
-  mint halo while the command window is open, happy eyes for pending review,
-  and a distinct retry expression after timeout. Large labels and accessible
-  descriptions supplement expression and color. Review explicitly says no
-  timer started. Fixed visual states are supplied by capture/service callbacks;
-  recognized speech is never used to draw the face.
-- The visible activity keeps its display on only during preparation, waiting,
-  command capture and pending review. Disable and leaving the activity release
-  that flag; timeout and expiry can return to visible preparation/waiting.
-  The face does not turn a dark display on,
-  launch from the background, change brightness or bypass a lock. Keep the
-  probe open to use the visual cue. The explicit Clock tap remains in force.
+- Only the visible Enable wake-word listening button starts capture. Launch,
+  permission, unlock, timer expiry and process recreation never enable it.
+  Disable, secure lock, mic mute or permission loss disable capture and queued
+  restarts. Restoration requires Enable again. No boot receiver, permission
+  auto-grant, lock bypass or battery/security settings changes.
+- Say `Hey Luna`, wait for cue or bright awake eyes, then a complete command
+  within ten seconds. Waiting persists while enabled. Timeout rearms listening;
+  decoder errors disable it. Intermittent rejection remains unresolved.
+- `Set a timer for five seconds` or `set another timer for two minutes` starts
+  a Luna timer hands-free. Durations are exact whole numbers one through sixty
+  seconds or minutes. Incomplete, unclear and extra-word commands are rejected.
+  Only finalized post-wake commands can act. No fuzzy duration repair.
+- Up to eight independently numbered timers run. Numbers are reused after
+  cancellation. With one timer, say `cancel the timer` or `add one minute to
+  the timer`. With several, say `cancel timer two` or `add one minute to timer
+  two`. Ambiguity changes nothing and requests a numbered command after
+  another wake word. Add supports one through sixty seconds/minutes, with a
+  24-hour cap on resulting remaining time. Adding to an expired timer starts
+  the added duration from now. There is no arbitrary newest-timer selection.
+- Private structured state and Android
+  [AlarmManager alarm-clock scheduling](https://developer.android.com/develop/background-work/services/alarms)
+  own these timers. IDs, revisions and monotonic deadlines are saved before
+  acknowledgment. Queued alarms and cancellation actions check revision.
+  Wall-clock changes reschedule from elapsed remaining time. State is scoped
+  to the current boot; reboot invalidates it without restoring timers or mic.
+  Process-death/force-stop, reboot and prolonged idle are not device-qualified.
+  OS intervention or force-stop can prevent delivery.
+- A separate non-exported playback foreground service loops the default alarm
+  sound on expiry. Existing volume/routing applies and is never changed.
+  Screen and per-timer notification Cancel controls stop countdowns or ringing.
+  Canceling one leaves others intact. Sound failure logs a fixed code and
+  retains the visible expired timer, without a playback retry loop. An API
+  return is not proof of audible delivery.
+- Countdown display never switches to Clock or disables the listener. Capture
+  pauses for a fixed structured spoken reply, then resumes if still enabled.
+  Generic voice prompts are prepared with ElevenLabs and bundled as 262
+  uncompressed WAV assets. Timer numbers and duration phrases play in two
+  clips; cancellation and fixed errors use complete replies. No device speech engine or
+  network is required. Playback errors or a fifteen-second reply timeout
+  release playback and rearm listening; the displayed result remains available. Disable
+  invalidates reply callbacks. Ringing audio is locally reduced during the
+  command window/reply, then restored; device alarm volume is unchanged.
+  Recognition over a ringing alarm needs attended evidence; Cancel remains
+  available on screen and in the notification.
+- Disable stops listening/speech, not timers. Luna does not change Clock timers.
+  Separate legacy foreground diagnostics retain finite limits and an unchecked
+  real-Clock-timer option; manage those timers in Clock. Background commands
+  use native timers only. Closing workers share a capture exclusion gate.
+- An ongoing silent mic notification offers Disable. Capture's partial wake
+  lock has a 60-second lease renewed every 30 seconds, released between workers
+  and retained during bounded replies. Battery/thermal/unattended reliability remain unqualified.
+- The chibi face shows preparation, waiting, awake, reply and retry. Numbered
+  countdowns and Cancel controls appear alongside it. Reply says mic paused.
+  Visible activity display-on behavior never wakes a dark display or bypasses
+  locks. No network permission, saved audio or transcripts. Timer state contains
+  only numbers, deadlines, revisions and boot count. Keep raw logs, identifiers,
+  screenshots, audio and household data out of Git/PRs.
 
 ## Build and attended test
 
-Use the offline builder and pinned inputs documented with the foreground probe.
-This version requires API 26+, targets API 30 and packages ARM32 only. Its 350
-policy checks cover parser and fixed diagnostics (280), handoff (11), wake transitions (44), and timer
-review expiry, revocation, range and one-use claim (15).
-The repository suite also executes the actual Java service with deterministic
-clock, scheduler and capture fakes to check rearming, review pause/resume,
-expiry, one-use claim, stale callbacks, blocked access and Disable during a
-queued restart. These fakes do not test Android enforcement or real audio.
+Use `scripts/build-android-offline-voice-probe.ps1`, pinned offline inputs and
+existing installed signer. Keep APKs/models/libraries/signers/audio outside Git.
+Pass the external prepared voice pack through `-ReplyDirectory` (defaults to
+`<InputDirectory>/replies`). The builder requires the exact generic prompt
+manifest, matching clip checksums and bounded PCM16 mono 24 kHz WAV files;
+there is no Windows voice fallback and no provider call during a build.
 
-1. Verify installation, launch and permission leave the microphone off and no
-   wake service running. The explicit engine check must also leave capture off.
-2. Tap Enable wake-word listening. Wait for Waiting and verify
-   the ongoing notification has Disable. Press Home, say `Hey Luna`, wait
-   for the wake cue (or visible Awake), then `Set a timer for five seconds` and pause.
-3. Expect a notification with five seconds and microphone paused, with no Clock
-   launch or alarm. Tap it, then explicitly start the recognized timer. Check
-   countdown and audible expiry; dismiss in Clock. Repeated/stale taps must not
-   dispatch another timer. Expect wake listening to resume after the review tap.
-   Separately verify Discard timer / keep listening and untouched 60-second
-   review expiry resume listening without a timer dispatch.
-4. Separately repeat with the display off. If it security-locks, expect capture
-   to stop and remain off after unlock. Do not weaken the lock to pass a test.
-5. Wait beyond five minutes before speaking a wake phrase; verify waiting still
-   works. Separately let a command time out and verify a fresh wake works without
-   Enable. Disable during retry preparation must prevent a later restart.
-6. Separately test notification/in-app Disable, mute, permission revocation,
-   and process death. Returning or restoring access must never restart capture
-   after these stops. Acoustic, power and lifecycle results require attended
-   evidence; policy tests and successful compilation do not establish them.
+For a new pack, generate the fixed text in `reply-prompts.json` with one
+ElevenLabs voice, in batches with pauses. Obtain Scribe word timings for only
+that synthetic generated audio. Keep batch audio, timing JSON, provider URLs
+and pack metadata outside Git. Run `prepare-reply-pack.mjs` with an external
+batches JSON and a new external output directory. Each batch supplies its
+manifest `start` index, `count`, `audioFile` and `wordsFile`. The preparer
+requires exact normalized wording, trims any articulated separator tag, and
+uses FFmpeg to emit canonical WAVs and a local checksum manifest. Word timings
+are a preparation check; they do not establish perceived voice quality.
+API 26+, target API 30, ARM32. Existing 350 parser, diagnostic, wake and historical
+review policy cases remain. Java harnesses execute the actual native timer
+manager, ledger, alarm service, reply helper and wake service with deterministic
+Android/audio boundaries. Coverage includes strict commands, targeting,
+add/cancel, ambiguity, stale alarms, slot reuse, storage/scheduling failures,
+boot invalidation, multi-alarm cancellation, offline reply success/error/timeout
+and Disable during reply. Fakes do not qualify Android enforcement or sound.
+
+1. Opening/installation must leave mic off and no wake service running.
+2. Enable locally; wake, wait for cue/awake, then set one minute. Verify numbered
+   countdown, spoken acknowledgment and automatic return to Waiting.
+3. Wake and add one minute. Verify the same countdown increases.
+4. Wake and set another two-minute timer. Verify independent countdowns.
+   Unnumbered add/cancel must request a number and change neither.
+5. Wake and cancel timer two. Verify timer one remains, then cancel it too.
+6. Separately set five seconds, hear expiry, then wake and cancel the timer.
+   Test screen/notification Cancel too; repeat in background and display-off.
+7. Disable during countdown; capture must stay off while timer expiry/cancel
+   remains available. Keep secure-lock, permission, process-death, idle and
+   reboot evidence distinct. Do not weaken a lock to pass a test.
 
 ## Evidence
 
@@ -404,3 +408,55 @@ certificate match verified. The full local Windows repository suite passes
 345 tests, with zero failures or skips, including the deterministic service
 lifecycle harness. Compilation and simulated transitions do not establish
 attended version 0.9 behavior, recognition reliability or battery suitability.
+
+For version 0.9, the operator subsequently confirmed that the ten-second command
+window returns to waiting without another Enable tap, and discarding a
+recognized request also returns to waiting. This is attended lifecycle evidence,
+not prolonged listening, secure-lock qualification or an explanation of earlier
+recognition failures.
+
+Version 0.10 implementation and device evidence are separate. Prior Clock expiry
+behavior does not qualify the new Luna-owned alarm path.
+
+### Version 0.10 implementation checks (2026-11-01)
+
+The complete local npm suite passed: 346 tests, zero failures or skips. The
+native timer/wake and bundled reply harnesses passed again after the bounded
+reply wake-lock adjustment. The complete offline Java/DEX/APK build passed its
+350 existing policy/diagnostic checks and signature verification. All 81 bundled
+voice clips were present, nonempty and uncompressed in the APK. Generic prompts
+were generated outside Git; no captured speech was used.
+
+The update was re-signed with the existing installed test signer; certificate
+matching and signature verification passed. Installation and UI launch succeeded
+with installed version 0.10. The user had explicitly disabled listening first.
+Fresh read-only checks before and after installation showed no probe service
+and no running microphone operation. No capture or timer was started remotely.
+
+Spoken reply audibility, native timer expiry, spoken cancel/add, simultaneous
+timers and continued listening during countdown/ringing remain pending an
+attended trial. Earlier Clock expiry evidence does not qualify this new timer
+implementation. Existing intermittent command rejection is not claimed solved.
+Secure-lock cancellation remains unverified; no lock settings were changed.
+
+### Version 0.11 ElevenLabs reply preparation (2026-11-01)
+
+The user heard the version 0.10 voice and rejected its quality, then requested
+ElevenLabs. This confirms audible output in that trial; it does not confirm
+native expiry, cancel/add, multiple timers or automatic return to Waiting.
+
+Version 0.11 replaces the Windows-generated word fragments with 262 generic
+ElevenLabs phrase clips. Scribe timing checks matched every scripted word;
+any articulated batch separator was excluded from the clips. Generated audio
+and timing data remain outside Git. The full local npm suite passed 347 tests
+with zero failures/skips. The complete offline Java/DEX/APK build passed 350
+policy/diagnostic checks and signature verification. All 262 voice assets were
+checked as nonempty and uncompressed, and the device APK matches the existing
+test signer. Pack tests reject incorrect wording, missing clips, checksum
+tampering and malformed WAV headers.
+
+The user confirmed Disable again. Read-only checks found no wake service or
+active microphone app-op before installation. Version 0.11 was installed with
+the existing test signer and the UI opened; version and post-launch mic/service
+checks passed with capture off. New voice quality and native timer behavior
+still require attended user confirmation.

@@ -25,8 +25,8 @@ public final class WakeSession {
             deadline = Math.min(end, now + COMMAND_MS);
             return WAKE;
         }
-        int seconds = TimerPhrase.commandSeconds(text);
-        if (seconds > 0) finished = true;
+        int seconds = TimerCommand.parse(text);
+        if (TimerCommand.valid(seconds)) finished = true;
         return seconds;
     }
     public static String grammar() { return "[\"[unk]\",\"hey luna\"]"; }

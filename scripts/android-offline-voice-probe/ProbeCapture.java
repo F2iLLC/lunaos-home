@@ -184,9 +184,9 @@ final class ProbeCapture {
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
                                 show("Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.", LunaFace.State.AWAKE);
                                 main.post(this::wakeCue);
-                            } else if (seconds > 0) {
+                            } else if (TimerCommand.valid(seconds)) {
                                 matched = seconds; code = "COMMAND_MATCH";
-                                message = "Recognized duration: " + seconds + " seconds. NO timer started.";
+                                message = "Supported timer command recognized. Microphone closing.";
                                 return;
                             } else if (wake != null && wake.awaitingCommand()) {
                                 String diagnostic = TimerPhrase.commandDetail(text);
