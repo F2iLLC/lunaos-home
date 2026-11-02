@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="io.github.f2illc.lunaos.home.voiceprobe" android:versionCode="9" android:versionName="0.9">
+    package="io.github.f2illc.lunaos.home.voiceprobe" android:versionCode="10" android:versionName="0.10">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30" />
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -10,5 +10,7 @@
       android:extractNativeLibs="true" android:allowBackup="false" android:fullBackupContent="false">
     <activity android:name=".VoiceProbe" android:exported="true" />
     <service android:name=".BackgroundWakeService" android:exported="false" android:foregroundServiceType="microphone" />
+    <service android:name=".TimerAlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+    <receiver android:name=".TimerReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.TIME_SET" /></intent-filter></receiver>
   </application>
 </manifest>

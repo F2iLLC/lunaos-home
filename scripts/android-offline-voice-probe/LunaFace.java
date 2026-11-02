@@ -11,7 +11,7 @@ import android.view.View;
 
 /** Local, speech-free visual feedback. Never starts capture or changes display/lock settings. */
 final class LunaFace extends View {
-    enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RETRY }
+    enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RESPONSE, RETRY }
     private State state = State.OFF;
     private final Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
     private boolean active;
@@ -34,13 +34,14 @@ final class LunaFace extends View {
     }
     private void updateKeepOn() {
         setKeepScreenOn(active && (state == State.PREPARING || state == State.WAITING
-            || state == State.AWAKE || state == State.REVIEW));
+            || state == State.AWAKE || (state == State.REVIEW || state == State.RESPONSE)));
     }
     private String heading() {
         switch (state) {
             case PREPARING: return "ONE MOMENT";
             case WAITING: return "SAY HEY LUNA";
             case AWAKE: return "I'M LISTENING";
+            case RESPONSE: return "ONE MOMENT";
             case REVIEW: return "REVIEW TIMER";
             case RETRY: return "TRY AGAIN";
             default: return "MIC OFF";
@@ -51,6 +52,7 @@ final class LunaFace extends View {
             case PREPARING: return "MIC OFF WHILE LOADING";
             case WAITING: return "MIC ON · WAITING FOR YOU";
             case AWAKE: return "MIC ON · SAY YOUR TIMER";
+            case RESPONSE: return "MIC PAUSED · RESPONDING";
             case REVIEW: return "MIC OFF · NO TIMER STARTED";
             case RETRY: return "MIC OFF · NO TIMER STARTED";
             default: return "NOT LISTENING";
@@ -74,7 +76,7 @@ final class LunaFace extends View {
             ink.setStyle(Paint.Style.FILL);
         } else if (state == State.RETRY) {
             line(c, x - 20, 173, x, 181); line(c, x, 181, x + 20, 173);
-        } else if (state == State.REVIEW) {
+        } else if ((state == State.REVIEW || state == State.RESPONSE)) {
             ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE); ink.setStrokeWidth(8);
             ink.setStrokeCap(Paint.Cap.ROUND);
             c.drawArc(x - 22, 169, x + 22, 203, 192, 156, false, ink);

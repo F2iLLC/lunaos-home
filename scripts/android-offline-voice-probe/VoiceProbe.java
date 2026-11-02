@@ -26,14 +26,14 @@ public final class VoiceProbe extends Activity {
     private boolean backgroundView;
     private long generation;
     private CheckBox realTimers;
-    private Button review;
+    private LinearLayout timerList;
+    private String timerSnapshot = "";
     private String lastTimerStatus;
     private final Handler handler = new Handler();
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             if (!resumed) return;
-            int seconds = BackgroundWakeService.pendingSeconds(VoiceProbe.this);
-            review.setEnabled(seconds > 0 && capture == null && !ProbeCapture.busy());
+            refreshTimers();
             if (capture == null && backgroundView) {
                 status.setText(BackgroundWakeService.latest);
                 face.setState(BackgroundWakeService.visual);
@@ -62,7 +62,7 @@ public final class VoiceProbe extends Activity {
         intro.setTextColor(Color.rgb(215, 211, 234));
         intro.setText("Luna · wake-word listening\nSay Hey Luna, wait for the bright eyes or wake cue, then say your timer. Keep this screen open to see Luna.\n"
             + "Enable once to keep listening until disabled. Local audio is not saved. Lock, mute or permission loss disables listening. Android stopping the app requires enabling again.\n"
-            + "Timers still need Clock review. The microphone pauses during review and resumes after review, discard or expiry. Disable does not cancel existing Clock timers.");
+            + "Luna starts timers hands-free. Say set a timer for five seconds, cancel the timer, or add one minute to the timer. With multiple timers, say timer one or timer two. Listening resumes after the spoken reply and continues during countdowns. Disable stops listening, not timers.");
         intro.setTextSize(18); layout.addView(intro);
         status = new TextView(this); status.setTextSize(22);
         status.setTextColor(Color.WHITE);
@@ -90,26 +90,10 @@ public final class VoiceProbe extends Activity {
                 status.setText("Background start unavailable. Microphone off.");
             }
         });
-        button(layout, "Disable listening / discard request", () -> {
-            stopAll(); status.setText("Listening stopped. Microphone off. Existing timers remain in Clock.");
+        button(layout, "Disable listening", () -> {
+            stopAll(); status.setText("Listening stopped. Microphone off. Existing timers keep running; use their Cancel buttons below.");
         });
-        button(layout, "Discard timer / keep listening", () -> {
-            BackgroundWakeService.discard(); review.setEnabled(false);
-            if (BackgroundWakeService.running) {
-                backgroundView = true;
-                status.setText("Request discarded. Wake-word listening remains enabled.");
-            } else status.setText("Request discarded. Microphone off.");
-        });
-        review = new Button(this); review.setText("Start recognized timer in Clock (may sound)"); review.setEnabled(false);
-        review.setOnClickListener(v -> {
-            if (!resumed || capture != null || ProbeCapture.busy()) return;
-            int seconds = BackgroundWakeService.claim(this);
-            review.setEnabled(false);
-            backgroundView = BackgroundWakeService.running;
-            face.setState(backgroundView ? LunaFace.State.PREPARING : LunaFace.State.OFF);
-            if (seconds > 0) dispatchTimer(seconds);
-            else status.setText("Request unavailable or expired. No timer started. " + listeningStatus());
-        }); layout.addView(review);
+        timerList = new LinearLayout(this); timerList.setOrientation(LinearLayout.VERTICAL); layout.addView(timerList);
         realTimers = new CheckBox(this);
         realTimers.setTextColor(Color.WHITE);
         realTimers.setText("Start real timers for foreground tests only (may sound)");
@@ -129,13 +113,13 @@ public final class VoiceProbe extends Activity {
     @Override public void onResume() {
         super.onResume(); resumed = true;
         face.setActive(true);
-        if (BackgroundWakeService.running || BackgroundWakeService.pendingSeconds(this) > 0) backgroundView = true;
+        if (BackgroundWakeService.running) backgroundView = true;
         handler.post(refresh);
     }
     @Override public void onPause() {
         resumed = false; handler.removeCallbacks(refresh); stopForegroundRun();
         face.setActive(false);
-        if (!BackgroundWakeService.running && BackgroundWakeService.pendingSeconds(this) == 0)
+        if (!BackgroundWakeService.running)
             face.setState(LunaFace.State.OFF);
         if (!BackgroundWakeService.running) status.setText(lastTimerStatus != null ? lastTimerStatus : "Microphone off. Choose a test to start again.");
         super.onPause();
@@ -207,6 +191,28 @@ public final class VoiceProbe extends Activity {
             lastTimerStatus = "Clock handoff failed or is uncertain. Check Clock before retrying. " + listeningStatus();
             status.setText(lastTimerStatus);
             Log.i("HomeVoiceProbe", "TIMER_DISPATCH_UNCERTAIN_NO_RETRY");
+        }
+    }
+
+    private void refreshTimers() {
+        TimerLedger ledger = NativeTimers.read(this);
+        long now = SystemClock.elapsedRealtime();
+        StringBuilder snapshot = new StringBuilder();
+        for (int id = 1; id <= TimerLedger.LIMIT; id++) if (ledger.deadlines[id] > 0)
+            snapshot.append(id).append(':').append(Math.max(0, (ledger.deadlines[id] - now + 999) / 1000)).append(';');
+        if (snapshot.toString().equals(timerSnapshot)) return;
+        timerSnapshot = snapshot.toString(); timerList.removeAllViews();
+        for (int id = 1; id <= TimerLedger.LIMIT; id++) if (ledger.deadlines[id] > 0) {
+            final int target = id;
+            long remaining = Math.max(0, (ledger.deadlines[id] - now + 999) / 1000);
+            TextView label = new TextView(this); label.setTextColor(Color.WHITE); label.setTextSize(26);
+            label.setText("Timer " + id + (remaining == 0 ? " · TIME IS UP" : " · " + remaining / 60 + ":" + String.format(java.util.Locale.US, "%02d", remaining % 60)));
+            timerList.addView(label);
+            button(timerList, "Cancel timer " + id, () -> {
+                try { status.setText(NativeTimers.execute(this, TimerCommand.cancel(target))); }
+                catch (RuntimeException failure) { status.setText("Cancellation uncertain. Check the timer list."); }
+                refreshTimers();
+            });
         }
     }
 

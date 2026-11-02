@@ -17,15 +17,15 @@ public final class BackgroundWakeService extends Service {
     static final String START = "home.probe.START", STOP = "home.probe.STOP";
     private static final String CHANNEL = "local-wake-probe";
     private static final int LISTENING = 41;
-    private static final PendingTimerRequest pending = new PendingTimerRequest();
     static boolean running;
     static LunaFace.State visual = LunaFace.State.OFF;
     static String latest = "Microphone off. Enable wake-word listening to start.";
     private final Handler handler = new Handler();
     private ProbeCapture capture;
     private PowerManager.WakeLock wakeLock;
-    private long renewAt, generation, reviewDeadline;
-    private boolean destroyed, restarting;
+    private long renewAt, generation;
+    private boolean destroyed, restarting, responding;
+    private SpokenReply reply;
     private final Runnable watch = new Runnable() {
         @Override public void run() {
             if (destroyed || !running) return;
@@ -33,36 +33,18 @@ public final class BackgroundWakeService extends Service {
                 end("Listening disabled: lock, mute or permission change. Microphone off.");
                 return;
             }
-            if (capture != null) {
+            if (capture != null || responding) {
                 try { renewWakeLock(); }
                 catch (RuntimeException failure) { end("Listening disabled: could not keep the decoder awake. Microphone off."); return; }
-            } else if (!restarting && pending.peek(SystemClock.elapsedRealtime(), true) == 0) {
-                if (reviewDeadline > 0 && SystemClock.elapsedRealtime() >= reviewDeadline)
-                    Log.i("HomeVoiceProbe", "BACKGROUND_REVIEW_EXPIRED_LISTENING_ENABLED");
-                reviewDeadline = 0;
-                scheduleCapture(0);
-            }
+            } else if (!responding && !restarting) scheduleCapture(0);
             handler.postDelayed(this, 100);
         }
     };
-    static int pendingSeconds(android.content.Context context) {
-        return pending.peek(SystemClock.elapsedRealtime(), !ProbeCapture.blocked(context));
-    }
-    static int claim(android.content.Context context) {
-        int seconds = pending.claim(SystemClock.elapsedRealtime(), !ProbeCapture.blocked(context));
-        if (seconds > 0) Log.i("HomeVoiceProbe", "BACKGROUND_REVIEW_CLAIMED");
-        return seconds;
-    }
-    static void discard() {
-        pending.clear();
-        Log.i("HomeVoiceProbe", "BACKGROUND_REVIEW_DISCARDED");
-    }
     static void revoke(android.content.Context context) {
         // Revoke synchronously, before Android delivers onDestroy or a queued callback.
         running = false;
         visual = LunaFace.State.OFF;
         latest = "Wake-word listening disabled. Microphone off.";
-        pending.clear();
         context.stopService(new Intent(context, BackgroundWakeService.class));
     }
     private Notification notification(String text) {
@@ -76,7 +58,7 @@ public final class BackgroundWakeService extends Service {
             .setContentText(text).setStyle(new Notification.BigTextStyle().bigText(text))
             .setContentIntent(open).setOnlyAlertOnce(true).setOngoing(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
-            .addAction(new Notification.Action.Builder(null, "Disable / discard", stop).build()).build();
+            .addAction(new Notification.Action.Builder(null, "Disable listening", stop).build()).build();
     }
     private void notifyStatus() {
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).notify(LISTENING, notification(latest));
@@ -97,9 +79,9 @@ public final class BackgroundWakeService extends Service {
         wakeLock = null;
     }
     private void end(String text) {
-        running = false; generation++; restarting = false;
+        running = false; generation++; restarting = false; responding = false;
+        if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
         latest = text; visual = LunaFace.State.OFF;
-        pending.clear(); reviewDeadline = 0;
         if (capture != null) capture.stop();
         capture = null;
         handler.removeCallbacksAndMessages(null);
@@ -107,7 +89,7 @@ public final class BackgroundWakeService extends Service {
         Log.i("HomeVoiceProbe", "BACKGROUND_STOPPED");
     }
     private void scheduleCapture(long delay) {
-        if (!running || destroyed || capture != null || restarting) return;
+        if (!running || destroyed || capture != null || restarting || responding) return;
         restarting = true;
         final long id = generation;
         handler.postDelayed(() -> {
@@ -131,7 +113,7 @@ public final class BackgroundWakeService extends Service {
             capture = new ProbeCapture(this, true, true, true, new ProbeCapture.Listener() {
                 private boolean current() { return !destroyed && running && generation == id && capture != null; }
                 @Override public void visual(LunaFace.State state) {
-                    if (current()) visual = state;
+                    if (current()) { visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE); }
                 }
                 @Override public void status(String text) {
                     if (!current()) return;
@@ -143,14 +125,25 @@ public final class BackgroundWakeService extends Service {
                     capture = null; releaseWakeLock();
                     if (ProbeCapture.blocked(BackgroundWakeService.this)) {
                         end("Listening disabled: lock, mute or permission change. Microphone off.");
-                    } else if (!canceled && SystemClock.elapsedRealtime() < deadline && seconds > 0) {
-                        long now = SystemClock.elapsedRealtime();
-                        pending.offer(seconds, now); reviewDeadline = now + PendingTimerRequest.TTL_MS;
-                        visual = LunaFace.State.REVIEW;
-                        latest = "Recognized " + seconds + " seconds. NO timer started. Microphone paused for Clock review (60 seconds). Listening resumes after review, discard or expiry; Disable stops it.";
+                    } else if (!canceled && SystemClock.elapsedRealtime() < deadline && TimerCommand.valid(seconds)) {
+                        responding = true;
+                        visual = LunaFace.State.RESPONSE;
+                        String result;
+                        try { result = NativeTimers.execute(BackgroundWakeService.this, seconds); }
+                        catch (RuntimeException failure) { result = "Timer change failed or is uncertain. Check the timer list before retrying."; }
+                        latest = result + " Microphone paused for reply; wake listening resumes afterward.";
                         notifyStatus();
-                        Log.i("HomeVoiceProbe", "BACKGROUND_REVIEW_READY_NO_TIMER");
+                        Log.i("HomeVoiceProbe", "NATIVE_TIMER_COMMAND_HANDLED");
+                        final long responseId = generation;
+                        try {
+                            renewWakeLock();
+                            reply = new SpokenReply(BackgroundWakeService.this, result, () -> {
+                                if (destroyed || !running || generation != responseId) return;
+                                reply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250);
+                            });
+                        } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
+                        TimerAlarmService.duck(false);
                         visual = LunaFace.State.RETRY;
                         latest = text + " Wake-word listening remains enabled; preparing to listen again.";
                         notifyStatus();
@@ -170,7 +163,6 @@ public final class BackgroundWakeService extends Service {
             return START_NOT_STICKY;
         }
         if (running || capture != null) return START_NOT_STICKY;
-        pending.clear(); reviewDeadline = 0;
         NotificationManager notifications = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         NotificationChannel channel = new NotificationChannel(CHANNEL, "Wake-word listening", NotificationManager.IMPORTANCE_LOW);
         channel.setSound(null, null); channel.enableVibration(false);
@@ -185,12 +177,13 @@ public final class BackgroundWakeService extends Service {
         return START_NOT_STICKY;
     }
     @Override public void onDestroy() {
-        destroyed = true; generation++; restarting = false;
-        if (running || capture != null || pending.peek(SystemClock.elapsedRealtime(), true) > 0)
+        destroyed = true; generation++; restarting = false; responding = false;
+        if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
+        if (running || capture != null)
             latest = "Wake-word listening stopped. Microphone off. Enable it to start again.";
         visual = LunaFace.State.OFF;
         if (capture != null) capture.stop();
-        capture = null; running = false; pending.clear();
+        capture = null; running = false;
         handler.removeCallbacksAndMessages(null); releaseWakeLock(); stopForeground(true);
         super.onDestroy();
     }
