@@ -68,8 +68,11 @@ final class LunaFace extends View {
         c.drawLine(x1, y1, x2, y2, ink);
         ink.setStyle(Paint.Style.FILL);
     }
-    private void eye(Canvas c, float x, boolean blink) {
-        if (state == State.OFF || state == State.WAITING || state == State.PREPARING || blink) {
+    private void eye(Canvas c, float x, boolean blink, boolean peek) {
+        if (peek) {
+            fill(c, NIGHT, x - 18, 171, x + 18, 184, 7);
+            fill(c, Color.WHITE, x - 8, 173, x - 1, 178, 3);
+        } else if (state == State.OFF || state == State.WAITING || state == State.PREPARING || blink) {
             ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE);
             ink.setStrokeWidth(8); ink.setStrokeCap(Paint.Cap.ROUND);
             c.drawArc(x - 23, 159, x + 23, 185, 8, 164, false, ink);
@@ -95,11 +98,19 @@ final class LunaFace extends View {
         canvas.scale(scale, scale);
         double time = SystemClock.uptimeMillis() / 1000.0;
         boolean awake = state == State.AWAKE;
+        boolean sleepy = state == State.OFF || state == State.WAITING;
+        float doze = active && sleepy ? (float) Math.sin(time * 1.7) : 0;
         int accent = awake ? MINT : LAVENDER;
         // Slow halo breath, never a flashing full-screen color change.
         float breathe = active && awake ? (float) Math.sin(time * 2.4) * 5 : 0;
         ink.setColor(accent); ink.setAlpha(awake ? 65 : 23);
         canvas.drawCircle(200, 166, 139 + breathe, ink); ink.setAlpha(255);
+        canvas.save();
+        // A tiny sleeping bob; status text stays still and truthful about the mic.
+        if (sleepy) {
+            canvas.translate(0, doze * 2);
+            canvas.rotate(doze * 0.7f, 200, 175);
+        }
         // Round buns and a generous rounded chibi face.
         ink.setColor(LAVENDER);
         canvas.drawCircle(84, 111, 32, ink);
@@ -116,11 +127,18 @@ final class LunaFace extends View {
         ink.setColor(LAVENDER); canvas.drawPath(hair, ink);
         boolean blink = active && (state == State.AWAKE || state == State.PREPARING)
             && SystemClock.uptimeMillis() % 5100 < 130;
-        eye(canvas, 145, blink); eye(canvas, 255, blink);
+        // Briefly peek, blink, then drift shut again every seven seconds.
+        long idlePhase = SystemClock.uptimeMillis() % 7300;
+        boolean peek = active && sleepy && ((idlePhase > 6300 && idlePhase < 6590)
+            || (idlePhase > 6700 && idlePhase < 6940));
+        eye(canvas, 145, blink, peek); eye(canvas, 255, blink, peek);
         fill(canvas, Color.rgb(242, 168, 174), 96, 206, 131, 220, 7);
         fill(canvas, Color.rgb(242, 168, 174), 269, 206, 304, 220, 7);
         if (awake) fill(canvas, NIGHT, 190, 211, 210, 235, 10);
-        else {
+        else if (sleepy) {
+            float puff = 2 + (doze + 1) * 2;
+            fill(canvas, NIGHT, 194 - puff, 218 - puff, 206 + puff, 230 + puff, 10);
+        } else {
             ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE);
             ink.setStrokeWidth(6); ink.setStrokeCap(Paint.Cap.ROUND);
             canvas.drawArc(184, 206, 216, 231, 15, 150, false, ink);
@@ -129,13 +147,24 @@ final class LunaFace extends View {
         // Crescent hair clip.
         ink.setColor(Color.rgb(255, 218, 134)); canvas.drawCircle(304, 113, 17, ink);
         ink.setColor(CREAM); canvas.drawCircle(311, 107, 15, ink);
+        if (sleepy && active) {
+            float drift = (float) ((time % 3.7) / 3.7);
+            ink.setColor(LAVENDER);
+            ink.setAlpha((int) (145 * Math.sin(drift * Math.PI)));
+            ink.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            ink.setTextAlign(Paint.Align.CENTER);
+            ink.setTextSize(17 + drift * 9);
+            canvas.drawText("z", 343 + drift * 12, 154 - drift * 43, ink);
+            ink.setAlpha(255);
+        }
+        canvas.restore();
         ink.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         ink.setTextAlign(Paint.Align.CENTER); ink.setTextSize(29); ink.setColor(awake ? MINT : CREAM);
         canvas.drawText(heading(), 200, 326, ink);
         ink.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         ink.setTextSize(13); ink.setColor(LAVENDER); canvas.drawText(detail(), 200, 355, ink);
         canvas.restore();
-        if (active && getWindowVisibility() == VISIBLE && (awake || state == State.PREPARING))
-            postInvalidateDelayed(65);
+        if (active && getWindowVisibility() == VISIBLE && (awake || sleepy || state == State.PREPARING))
+            postInvalidateDelayed(sleepy ? 100 : 65);
     }
 }
