@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string] $OutputDirectory,
     [Parameter(Mandatory)][string] $InputDirectory,
+    [string] $ReplyDirectory,
     [string] $Sdk = $env:ANDROID_HOME,
     [string] $Jdk = $env:JAVA_HOME
 )
@@ -53,7 +54,8 @@ Copy-Item -LiteralPath "$repo/LICENSE" -Destination "$output/assets/HOME-LICENSE
 foreach ($name in @('vosk', 'jna')) {
     Copy-Item -Path "$output/$name/jni/armeabi-v7a/*.so" -Destination "$output/native/lib/armeabi-v7a"
 }
-Invoke-ProbeTool "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile', '-File', "$source/build-reply-prompts.ps1", '-OutputDirectory', "$output/assets/replies")
+if (-not $ReplyDirectory) { $ReplyDirectory = Join-Path $InputDirectory 'replies' }
+& "$source/copy-reply-prompts.ps1" -InputDirectory $ReplyDirectory -OutputDirectory "$output/assets/replies"
 $savedJava = $env:JAVA_HOME
 $savedPassword = $env:LUNA_VOICE_PROBE_SIGNING_PASSWORD
 try {
@@ -79,8 +81,14 @@ try {
             throw 'APK contains non-portable entry paths.'
         }
         foreach ($entry in @('assets/model/am/final.mdl', 'assets/model/conf/model.conf',
-            'assets/replies/timer-1.wav', 'assets/replies/number-60.wav', 'assets/THIRD-PARTY-NOTICES.txt', 'lib/armeabi-v7a/libvosk.so', 'lib/armeabi-v7a/libjnidispatch.so')) {
+            'assets/replies/timer-1.wav', 'assets/replies/started-60-minute.wav', 'assets/THIRD-PARTY-NOTICES.txt', 'lib/armeabi-v7a/libvosk.so', 'lib/armeabi-v7a/libjnidispatch.so')) {
             if (-not $archive.GetEntry($entry)) { throw "APK is missing required entry: $entry" }
+        }
+        foreach ($clip in (Get-Content -Raw "$source/reply-prompts.json" | ConvertFrom-Json)) {
+            $entry = $archive.GetEntry("assets/replies/$($clip.id).wav")
+            if (-not $entry -or $entry.Length -lt 4844 -or $entry.Length -ne $entry.CompressedLength) {
+                throw "APK is missing an uncompressed reply: $($clip.id)"
+            }
         }
     } finally { $archive.Dispose() }
     Invoke-ProbeTool "$buildTools/zipalign.exe" @('-p', '4', "$output/probe-unsigned.apk", "$output/probe-aligned.apk")

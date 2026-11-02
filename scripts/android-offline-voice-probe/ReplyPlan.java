@@ -5,12 +5,12 @@ final class ReplyPlan {
     static String[] clips(String result) {
         for (int id = 1; id <= 8; id++) {
             String prefix = "Timer " + TimerPhrase.number(id);
-            if (result.equals(prefix + " canceled.")) return new String[] {"timer-" + id, "canceled"};
+            if (result.equals(prefix + " canceled.")) return new String[] {"cancel-" + id};
             for (String action : new String[] {" started for ", " extended by "}) {
                 for (int n = 1; n <= 60; n++) for (int scale : new int[] {1, 60})
                     if (result.equals(prefix + action + n * scale + " seconds."))
-                        return new String[] {"timer-" + id, action.startsWith(" started") ? "started" : "extended", "number-" + n,
-                            scale == 60 ? n == 1 ? "minute" : "minutes" : n == 1 ? "second" : "seconds"};
+                        return new String[] {"timer-" + id,
+                            (action.startsWith(" started") ? "started-" : "extended-") + n + (scale == 60 ? "-minute" : "-second")};
             }
         }
         if (result.startsWith("More than one timer is active.")) return new String[] {"ambiguous"};

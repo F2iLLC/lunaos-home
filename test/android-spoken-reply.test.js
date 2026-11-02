@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
 test('bundled offline replies sequence exact clips, release playback, and recover from errors or timeout', async t => {
   const output = await mkdtemp(join(tmpdir(), 'home-offline-reply-'));
   t.after(() => rm(output, { recursive: true, force: true }));
+  const manifest = JSON.parse(await readFile('scripts/android-offline-voice-probe/reply-prompts.json','utf8'));
   const fakes = {
     'android/content/Context.java': 'package android.content; public class Context {public android.content.res.AssetManager getAssets(){return new android.content.res.AssetManager();}}',
     'android/os/Handler.java': `package android.os; public class Handler {
@@ -30,21 +31,22 @@ test('bundled offline replies sequence exact clips, release playback, and recove
     'io/github/f2illc/lunaos/home/voiceprobe/ReplyProbe.java': `package io.github.f2illc.lunaos.home.voiceprobe;
       import android.media.MediaPlayer;import android.os.Handler;import android.content.res.AssetManager;
       public class ReplyProbe {
+        static java.util.List<String> manifest=java.util.Arrays.asList(${manifest.map(c => JSON.stringify(c.id)).join(",")});
         static int completed;static void check(boolean b){if(!b)throw new AssertionError();}
         static SpokenReply create(){return new SpokenReply(new android.content.Context(),"Timer one started for 60 seconds.",()->completed++);}
         public static void main(String[] args){
           SpokenReply reply=create();Handler.drain();
-          for(int i=0;i<4;i++){MediaPlayer p=MediaPlayer.last;p.listener.onCompletion(p);check(p.released);}
-          Handler.drain();check(completed==1);check(AssetManager.opened.equals(java.util.Arrays.asList("replies/timer-1.wav","replies/started.wav","replies/number-1.wav","replies/minute.wav")));
+          for(int i=0;i<2;i++){MediaPlayer p=MediaPlayer.last;p.listener.onCompletion(p);check(p.released);}
+          Handler.drain();check(completed==1);check(AssetManager.opened.equals(java.util.Arrays.asList("replies/timer-1.wav","replies/started-1-minute.wav")));
           reply=create();reply.close();Handler.drain();check(completed==1);
           reply=create();Handler.drain();MediaPlayer p=MediaPlayer.last;Handler.timeout();check(p.released&&completed==2);
           p.listener.onCompletion(p);Handler.drain();check(completed==2);
           reply=create();Handler.drain();p=MediaPlayer.last;p.error.onError(p,1,1);Handler.drain();check(p.released&&completed==3);
           MediaPlayer.fail=true;reply=create();Handler.drain();check(MediaPlayer.last.released&&completed==4);MediaPlayer.fail=false;
           for(int id=1;id<=8;id++)for(int n=1;n<=60;n++)for(int scale:new int[]{1,60})for(String action:new String[]{" started for "," extended by "}){
-            String[] clips=ReplyPlan.clips("Timer "+TimerPhrase.number(id)+action+n*scale+" seconds.");check(clips.length==4&&clips[0].equals("timer-"+id));
+            String[] clips=ReplyPlan.clips("Timer "+TimerPhrase.number(id)+action+n*scale+" seconds.");check(clips.length==2&&clips[0].equals("timer-"+id)&&manifest.contains(clips[1]));
           }
-          check(ReplyPlan.clips("Timer eight canceled.")[1].equals("canceled"));
+          check(ReplyPlan.clips("Timer eight canceled.")[0].equals("cancel-8"));
           check(ReplyPlan.clips("untrusted speech")[0].equals("unsupported"));
           System.out.println("Offline reply checks passed");
         }

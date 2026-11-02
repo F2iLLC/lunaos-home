@@ -1,7 +1,7 @@
 # Android background wake feasibility probe
 
-Version 0.10 adds hands-free Luna-owned timers to the explicitly enabled local
-wake listener. The owner authorized creation without Clock review, spoken
+Version 0.11 adds ElevenLabs replies for hands-free Luna-owned timers in the
+explicitly enabled local wake listener. The owner authorized creation without Clock review, spoken
 cancellation, adding time and additional timers during a countdown. This is
 an engineering probe, not a qualified unattended appliance. Reuses #135, #136
 and #137; broader durable timer/native alert work remains #148 and #149.
@@ -43,8 +43,9 @@ and #137; broader durable timer/native alert work remains #148 and #149.
   return is not proof of audible delivery.
 - Countdown display never switches to Clock or disables the listener. Capture
   pauses for a fixed structured spoken reply, then resumes if still enabled.
-  Generic voice prompts are generated with Windows System.Speech during the
-  build and bundled as uncompressed WAV assets. No device speech engine or
+  Generic voice prompts are prepared with ElevenLabs and bundled as 262
+  uncompressed WAV assets. Timer numbers and duration phrases play in two
+  clips; cancellation and fixed errors use complete replies. No device speech engine or
   network is required. Playback errors or a fifteen-second reply timeout
   release playback and rearm listening; the displayed result remains available. Disable
   invalidates reply callbacks. Ringing audio is locally reduced during the
@@ -68,7 +69,21 @@ and #137; broader durable timer/native alert work remains #148 and #149.
 ## Build and attended test
 
 Use `scripts/build-android-offline-voice-probe.ps1`, pinned offline inputs and
-existing installed signer. Keep APKs/models/libraries/signers outside Git.
+existing installed signer. Keep APKs/models/libraries/signers/audio outside Git.
+Pass the external prepared voice pack through `-ReplyDirectory` (defaults to
+`<InputDirectory>/replies`). The builder requires the exact generic prompt
+manifest, matching clip checksums and bounded PCM16 mono 24 kHz WAV files;
+there is no Windows voice fallback and no provider call during a build.
+
+For a new pack, generate the fixed text in `reply-prompts.json` with one
+ElevenLabs voice, in batches with pauses. Obtain Scribe word timings for only
+that synthetic generated audio. Keep batch audio, timing JSON, provider URLs
+and pack metadata outside Git. Run `prepare-reply-pack.mjs` with an external
+batches JSON and a new external output directory. Each batch supplies its
+manifest `start` index, `count`, `audioFile` and `wordsFile`. The preparer
+requires exact normalized wording, trims any articulated separator tag, and
+uses FFmpeg to emit canonical WAVs and a local checksum manifest. Word timings
+are a preparation check; they do not establish perceived voice quality.
 API 26+, target API 30, ARM32. Existing 350 parser, diagnostic, wake and historical
 review policy cases remain. Java harnesses execute the actual native timer
 manager, ledger, alarm service, reply helper and wake service with deterministic
@@ -423,3 +438,25 @@ timers and continued listening during countdown/ringing remain pending an
 attended trial. Earlier Clock expiry evidence does not qualify this new timer
 implementation. Existing intermittent command rejection is not claimed solved.
 Secure-lock cancellation remains unverified; no lock settings were changed.
+
+### Version 0.11 ElevenLabs reply preparation (2026-11-01)
+
+The user heard the version 0.10 voice and rejected its quality, then requested
+ElevenLabs. This confirms audible output in that trial; it does not confirm
+native expiry, cancel/add, multiple timers or automatic return to Waiting.
+
+Version 0.11 replaces the Windows-generated word fragments with 262 generic
+ElevenLabs phrase clips. Scribe timing checks matched every scripted word;
+any articulated batch separator was excluded from the clips. Generated audio
+and timing data remain outside Git. The full local npm suite passed 347 tests
+with zero failures/skips. The complete offline Java/DEX/APK build passed 350
+policy/diagnostic checks and signature verification. All 262 voice assets were
+checked as nonempty and uncompressed, and the device APK matches the existing
+test signer. Pack tests reject incorrect wording, missing clips, checksum
+tampering and malformed WAV headers.
+
+The user confirmed Disable again. Read-only checks found no wake service or
+active microphone app-op before installation. Version 0.11 was installed with
+the existing test signer and the UI opened; version and post-launch mic/service
+checks passed with capture off. New voice quality and native timer behavior
+still require attended user confirmation.
