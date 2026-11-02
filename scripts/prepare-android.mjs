@@ -32,7 +32,7 @@ export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.andro
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
+  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.speech.RecognitionService" /></intent><package android:name="io.github.f2illc.lunaos.home.voiceprobe" /></queries>
   <application>
     <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="false" />
     <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleConversationActivity" android:exported="false" />

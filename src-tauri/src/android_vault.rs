@@ -16,6 +16,7 @@ pub async fn open_fictional_vault<R: Runtime>(
         Some("prepare-direct") => "prepareDirect",
         Some("open-direct") => "openDirect",
         Some("vehicle") => "openVehicle",
+        Some("luna-probe") => "openLunaProbe",
         _ => return Err("Unsupported fictional experiment".into()),
     };
     state
