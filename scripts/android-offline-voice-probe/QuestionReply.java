@@ -30,11 +30,17 @@ final class QuestionReply implements AutoCloseable {
     private byte[] audio;
     private boolean played;
     QuestionReply(Context context, String question, Completion completion) {
-        this.completion = completion;
-        main.postDelayed(this::finish, 90000);
-        new Thread(() -> request(context.getApplicationContext(), question), "luna-question").start();
+        this(context, question, completion, "https://localhost:18743/question", 60000, 90000);
     }
-    private void request(Context context, String question) {
+    // Package-private transport settings let the JVM contract fixture use an ephemeral
+    // loopback port and short deadlines without changing the provisioned app route.
+    QuestionReply(Context context, String question, Completion completion, String endpoint,
+                  int readTimeoutMs, long deadlineMs) {
+        this.completion = completion;
+        main.postDelayed(this::finish, deadlineMs);
+        new Thread(() -> request(context.getApplicationContext(), question, endpoint, readTimeoutMs), "luna-question").start();
+    }
+    private void request(Context context, String question, String endpoint, int readTimeoutMs) {
         byte[] wave = null;
         try {
             if (!enabled(context) || !QuestionPolicy.accepts(question) || closed || ProbeCapture.blocked(context)) throw new IOException();
@@ -51,10 +57,10 @@ final class QuestionReply implements AutoCloseable {
                 new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
             TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
             SSLContext tls = SSLContext.getInstance("TLS"); tls.init(null, trust.getTrustManagers(), null);
-            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL("https://localhost:18743/question").openConnection();
+            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL(endpoint).openConnection();
             synchronized (this) { if (closed) throw new IOException(); connection = next; }
             next.setSSLSocketFactory(tls.getSocketFactory()); // Default hostname verification remains enabled.
-            next.setInstanceFollowRedirects(false); next.setConnectTimeout(5000); next.setReadTimeout(60000);
+            next.setInstanceFollowRedirects(false); next.setConnectTimeout(5000); next.setReadTimeout(readTimeoutMs);
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
