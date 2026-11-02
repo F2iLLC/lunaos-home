@@ -30,7 +30,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'luna-probe' });
       status.textContent = 'Voice demo opened. Listening remains under its local controls.';
     } catch {
-      status.textContent = 'Voice demo unavailable. Install the separate demo on this device first.';
+      status.textContent = 'Could not open the voice demo. Check that the separate demo is installed and can open on this device, then try again.';
     } finally { button.disabled = false; }
   });
   const launch = document.createElement('button');

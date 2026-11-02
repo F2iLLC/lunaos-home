@@ -92,7 +92,9 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     const lunaButton = lunaScreen.querySelector('#open-luna-demo');
     const lunaPending = lunaButton.click({ currentTarget: lunaButton });
     assert.deepEqual(calls, [['open_fictional_vault', { kind: 'luna-probe' }]]);
+    assert.equal(lunaButton.disabled, true);
     finish(); await lunaPending;
+    assert.equal(lunaButton.disabled, false);
     assert.match(lunaScreen.querySelector('#luna-demo-status').textContent, /local controls/);
     assert.ok(elements.has('#home-actions'));
     assert.equal(button.className, 'primary-button');
@@ -115,6 +117,16 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     finish(); await opening;
     assert.equal(open.disabled, false);
     assert.match(directStatus.textContent, /Native connection screen requested/);
+    window.__TAURI__.core.invoke = () => Promise.reject(new Error('Private native diagnostic'));
+    await lunaButton.click({ currentTarget: lunaButton });
+    assert.equal(lunaButton.disabled, false);
+    const lunaStatus = lunaScreen.querySelector('#luna-demo-status');
+    assert.match(lunaStatus.textContent, /Could not open the voice demo/);
+    assert.doesNotMatch(lunaStatus.textContent, /Install the separate demo.*first|Private native diagnostic|Voice demo opened/);
+    window.__TAURI__.core.invoke = () => Promise.resolve();
+    await lunaButton.click({ currentTarget: lunaButton });
+    assert.equal(lunaButton.disabled, false);
+    assert.match(lunaStatus.textContent, /Voice demo opened/);
     window.__TAURI__.core.invoke = () => Promise.reject(new Error('Private native diagnostic'));
     await button.click();
     assert.equal(button.disabled, false);
