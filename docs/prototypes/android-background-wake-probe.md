@@ -1,6 +1,6 @@
 # Android background wake feasibility probe
 
-Version 0.11 adds ElevenLabs replies for hands-free Luna-owned timers in the
+Version 0.12 uses the owner-selected ElevenLabs voice for replies for hands-free Luna-owned timers in the
 explicitly enabled local wake listener. The owner authorized creation without Clock review, spoken
 cancellation, adding time and additional timers during a countdown. This is
 an engineering probe, not a qualified unattended appliance. Reuses #135, #136
@@ -460,3 +460,41 @@ active microphone app-op before installation. Version 0.11 was installed with
 the existing test signer and the UI opened; version and post-launch mic/service
 checks passed with capture off. New voice quality and native timer behavior
 still require attended user confirmation.
+
+
+### Version 0.12 selected voice (2026-11-01)
+
+The owner selected a specific ElevenLabs voice after hearing version 0.11.
+Version 0.12 regenerates the same 262 fixed generic phrases with that choice;
+provider identifiers, audio, timing data and pack metadata remain outside Git.
+No timer, capture or playback lifecycle behavior changes. The selected voice
+still needs an attended device check; selecting it is not timer qualification.
+
+The visible OFF and WAITING faces now gently bob with a breathing O-shaped
+mouth, drifting z and occasional sleepy peek/blink. Awake command listening
+keeps its bright eyes. The text continues to distinguish MIC OFF from waiting
+with MIC ON. Animation never activates capture, wakes the display or changes
+lock behavior; it redraws at ten frames per second only while active/visible.
+
+Version 0.12 passed all 350 repository tests before the drawing-only change.
+The final offline Java/DEX/APK build passed all 350 policy checks and signature
+verification, including all 262 nonempty uncompressed voice assets. The final
+APK was signed with the matching installed test signer. After the owner
+disabled listening, read-only checks verified capture off. Installation and
+UI launch succeeded with version 0.12 and capture remained off afterward.
+Perceived animation and selected-voice quality remain for the owner's trial.
+
+### Version 0.13 pigtails (2026-11-01)
+
+At the owner's request, Luna now has soft lavender pigtails with mint ties in
+place of the round buns. The tails follow the existing sleepy head bob; the
+fringe, breathing mouth, peek-blinks and selected voice are retained. This is
+a drawing-only change apart from the version bump, with no capture or timer
+behavior changes.
+
+The complete offline Java/DEX/APK build passed all 350 policy checks and
+signature verification, including validation of the 262 bundled reply assets.
+Version 0.13 was installed with the existing test signer after fresh read-only
+checks found no service or running microphone operation. UI launch and installed
+version checks passed, and capture remained off afterward. Visual acceptance
+of the pigtails remains for the owner's device check.
