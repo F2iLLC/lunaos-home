@@ -593,7 +593,10 @@ installed 0.15 probe with the selected voice. This is attended behavior evidence
 it does not establish repeated recognition reliability or secure-lock cancellation.
 The owner also reported that the online-questions checkbox is hard to see. The
 probe now gives both checkboxes a mint control tint, contrasting panel, larger
-label and touch area. Visual acceptance of this change remains pending.
+label and touch area. After the rebuilt 0.15 APK was installed with the existing
+signer while capture was off, the owner confirmed the online checkbox is clearly
+visible. This confirms the attended appearance, not capture or timer behavior
+on the rebuilt APK.
 
 The main Home Android app uses a Tauri WebView (`scripts/android/MainActivity.kt`
 and `src/index.html`); the voice probe is a separate Android package with its
