@@ -483,3 +483,18 @@ APK was signed with the matching installed test signer. After the owner
 disabled listening, read-only checks verified capture off. Installation and
 UI launch succeeded with version 0.12 and capture remained off afterward.
 Perceived animation and selected-voice quality remain for the owner's trial.
+
+### Version 0.13 pigtails (2026-11-01)
+
+At the owner's request, Luna now has soft lavender pigtails with mint ties in
+place of the round buns. The tails follow the existing sleepy head bob; the
+fringe, breathing mouth, peek-blinks and selected voice are retained. This is
+a drawing-only change apart from the version bump, with no capture or timer
+behavior changes.
+
+The complete offline Java/DEX/APK build passed all 350 policy checks and
+signature verification, including validation of the 262 bundled reply assets.
+Version 0.13 was installed with the existing test signer after fresh read-only
+checks found no service or running microphone operation. UI launch and installed
+version checks passed, and capture remained off afterward. Visual acceptance
+of the pigtails remains for the owner's device check.

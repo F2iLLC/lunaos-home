@@ -111,10 +111,22 @@ final class LunaFace extends View {
             canvas.translate(0, doze * 2);
             canvas.rotate(doze * 0.7f, 200, 175);
         }
-        // Round buns and a generous rounded chibi face.
+        // Soft pigtails sit behind the face and follow its sleepy bob.
         ink.setColor(LAVENDER);
-        canvas.drawCircle(84, 111, 32, ink);
-        canvas.drawCircle(316, 111, 32, ink);
+        for (int side = 0; side < 2; side++) {
+            canvas.save();
+            if (side == 1) canvas.scale(-1, 1, 200, 175);
+            Path tail = new Path();
+            tail.moveTo(91, 119);
+            tail.cubicTo(57, 98, 28, 133, 37, 169);
+            tail.cubicTo(44, 195, 29, 220, 39, 239);
+            tail.cubicTo(67, 236, 87, 208, 83, 184);
+            tail.cubicTo(79, 158, 108, 143, 91, 119);
+            tail.close();
+            ink.setColor(LAVENDER); canvas.drawPath(tail, ink);
+            fill(canvas, MINT, 69, 126, 95, 138, 6);
+            canvas.restore();
+        }
         fill(canvas, CREAM, 69, 100, 331, 264, 78);
         // Soft side-swept fringe, with a curved silhouette rather than a flat bar.
         Path hair = new Path(); hair.moveTo(73, 169);
