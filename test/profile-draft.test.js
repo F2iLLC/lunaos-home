@@ -126,6 +126,62 @@ test('exported schema binds matched person ID to its sole candidate', () => {
   assert.equal(profileDraftSchema.safeParse(invalid).success, false);
 });
 
+function assertRetainedNameIdentityMismatch(draft) {
+  const result = profileDraftSchema.safeParse(draft);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue =>
+    JSON.stringify(issue.path) === JSON.stringify(['fields', 0, 'identity']) &&
+    issue.message === 'Identity status and candidates must match the retained people with this name.'
+  ));
+}
+
+test('exported schema cannot assign a field to a different named person', () => {
+  const draft = createProfileDraft(input([observation()], { people: [...people, { id: 'sam-a', name: 'Sam Example' }] }));
+  const invalid = structuredClone(draft);
+  invalid.fields[0].identity.personId = 'sam-a';
+  invalid.fields[0].identity.candidatePersonIds = ['sam-a'];
+  assertRetainedNameIdentityMismatch(invalid);
+});
+
+test('exported schema retains all same-name candidates and ambiguity', () => {
+  const candidates = [...people, { id: 'alex-b', name: 'Alex Example' }, { id: 'alex-c', name: 'Alex Example' }];
+  const draft = createProfileDraft(input([observation()], { people: candidates }));
+  assert.equal(profileDraftSchema.safeParse(draft).success, true);
+  const incomplete = structuredClone(draft);
+  incomplete.fields[0].identity.candidatePersonIds = ['alex-a', 'alex-b'];
+  assertRetainedNameIdentityMismatch(incomplete);
+  const falselyMatched = structuredClone(draft);
+  falselyMatched.fields[0].identity = { status: 'matched', personId: 'alex-a', candidatePersonIds: ['alex-a'] };
+  falselyMatched.fields[0].uncertainty = 'single-source';
+  falselyMatched.fields[0].value = 'Willow Studio';
+  assertRetainedNameIdentityMismatch(falselyMatched);
+});
+
+test('exported schema cannot mark a known person as unmatched', () => {
+  const draft = createProfileDraft(input([observation()]));
+  const invalid = structuredClone(draft);
+  invalid.fields[0].identity = { status: 'unmatched', personId: null, candidatePersonIds: [] };
+  invalid.fields[0].uncertainty = 'unmatched-identity';
+  invalid.fields[0].value = null;
+  assertRetainedNameIdentityMismatch(invalid);
+});
+
+test('identity matching normalizes case and whitespace in retained and observed names', () => {
+  const draft = createProfileDraft(input([observation({ personName: 'aLeX eXaMpLe' })], {
+    people: [{ id: 'alex-a', name: 'Alex  Example' }],
+  }));
+  assert.deepEqual(draft.fields[0].identity, {
+    status: 'matched', personId: 'alex-a', candidatePersonIds: ['alex-a'],
+  });
+  assert.equal(profileDraftSchema.safeParse(draft).success, true);
+
+  const forged = structuredClone(draft);
+  forged.fields[0].identity = { status: 'unmatched', personId: null, candidatePersonIds: [] };
+  forged.fields[0].uncertainty = 'unmatched-identity';
+  forged.fields[0].value = null;
+  assertRetainedNameIdentityMismatch(forged);
+});
+
 test('exported schema rejects duplicate person-field groups', () => {
   const draft = createProfileDraft(input([observation()]));
   const invalid = structuredClone(draft);
