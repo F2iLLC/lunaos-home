@@ -498,3 +498,19 @@ Version 0.13 was installed with the existing test signer after fresh read-only
 checks found no service or running microphone operation. UI launch and installed
 version checks passed, and capture remained off afterward. Visual acceptance
 of the pigtails remains for the owner's device check.
+
+### Version 0.14 bow (2026-11-01)
+
+The owner confirmed acceptance of the pigtails and requested a big bow on top
+of Luna's head. A mint bow now sits above the fringe, following the same sleepy
+head bob. This drawing-only update retains the selected voice and existing
+capture, timer and playback behavior. General spoken questions are still
+pending implementation; this update does not add online answers.
+
+The complete offline Java/DEX/APK build passed all 350 policy checks and
+signature verification, including validation of the 262 bundled reply assets.
+The device APK was signed with the matching installed test signer. Fresh
+read-only checks found no service or running microphone operation before
+installation. Version 0.14 installed and its UI opened successfully; post-launch
+checks confirmed the version and capture remained off. Perceived bow appearance
+still requires the owner's device check.
