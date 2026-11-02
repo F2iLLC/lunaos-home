@@ -126,6 +126,37 @@ test('exported schema binds matched person ID to its sole candidate', () => {
   assert.equal(profileDraftSchema.safeParse(invalid).success, false);
 });
 
+test('exported schema cannot assign a field to a different named person', () => {
+  const draft = createProfileDraft(input([observation()], { people: [...people, { id: 'sam-a', name: 'Sam Example' }] }));
+  const invalid = structuredClone(draft);
+  invalid.fields[0].identity.personId = 'sam-a';
+  invalid.fields[0].identity.candidatePersonIds = ['sam-a'];
+  assert.equal(profileDraftSchema.safeParse(invalid).success, false);
+});
+
+test('exported schema retains all same-name candidates and ambiguity', () => {
+  const candidates = [...people, { id: 'alex-b', name: 'Alex Example' }, { id: 'alex-c', name: 'Alex Example' }];
+  const draft = createProfileDraft(input([observation()], { people: candidates }));
+  assert.equal(profileDraftSchema.safeParse(draft).success, true);
+  const incomplete = structuredClone(draft);
+  incomplete.fields[0].identity.candidatePersonIds = ['alex-a', 'alex-b'];
+  assert.equal(profileDraftSchema.safeParse(incomplete).success, false);
+  const falselyMatched = structuredClone(draft);
+  falselyMatched.fields[0].identity = { status: 'matched', personId: 'alex-a', candidatePersonIds: ['alex-a'] };
+  falselyMatched.fields[0].uncertainty = 'single-source';
+  falselyMatched.fields[0].value = 'Willow Studio';
+  assert.equal(profileDraftSchema.safeParse(falselyMatched).success, false);
+});
+
+test('exported schema cannot mark a known person as unmatched', () => {
+  const draft = createProfileDraft(input([observation()]));
+  const invalid = structuredClone(draft);
+  invalid.fields[0].identity = { status: 'unmatched', personId: null, candidatePersonIds: [] };
+  invalid.fields[0].uncertainty = 'unmatched-identity';
+  invalid.fields[0].value = null;
+  assert.equal(profileDraftSchema.safeParse(invalid).success, false);
+});
+
 test('exported schema rejects duplicate person-field groups', () => {
   const draft = createProfileDraft(input([observation()]));
   const invalid = structuredClone(draft);
