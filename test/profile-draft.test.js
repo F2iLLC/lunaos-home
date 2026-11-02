@@ -126,12 +126,21 @@ test('exported schema binds matched person ID to its sole candidate', () => {
   assert.equal(profileDraftSchema.safeParse(invalid).success, false);
 });
 
+function assertRetainedNameIdentityMismatch(draft) {
+  const result = profileDraftSchema.safeParse(draft);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue =>
+    JSON.stringify(issue.path) === JSON.stringify(['fields', 0, 'identity']) &&
+    issue.message === 'Identity status and candidates must match the retained people with this name.'
+  ));
+}
+
 test('exported schema cannot assign a field to a different named person', () => {
   const draft = createProfileDraft(input([observation()], { people: [...people, { id: 'sam-a', name: 'Sam Example' }] }));
   const invalid = structuredClone(draft);
   invalid.fields[0].identity.personId = 'sam-a';
   invalid.fields[0].identity.candidatePersonIds = ['sam-a'];
-  assert.equal(profileDraftSchema.safeParse(invalid).success, false);
+  assertRetainedNameIdentityMismatch(invalid);
 });
 
 test('exported schema retains all same-name candidates and ambiguity', () => {
@@ -140,12 +149,12 @@ test('exported schema retains all same-name candidates and ambiguity', () => {
   assert.equal(profileDraftSchema.safeParse(draft).success, true);
   const incomplete = structuredClone(draft);
   incomplete.fields[0].identity.candidatePersonIds = ['alex-a', 'alex-b'];
-  assert.equal(profileDraftSchema.safeParse(incomplete).success, false);
+  assertRetainedNameIdentityMismatch(incomplete);
   const falselyMatched = structuredClone(draft);
   falselyMatched.fields[0].identity = { status: 'matched', personId: 'alex-a', candidatePersonIds: ['alex-a'] };
   falselyMatched.fields[0].uncertainty = 'single-source';
   falselyMatched.fields[0].value = 'Willow Studio';
-  assert.equal(profileDraftSchema.safeParse(falselyMatched).success, false);
+  assertRetainedNameIdentityMismatch(falselyMatched);
 });
 
 test('exported schema cannot mark a known person as unmatched', () => {
@@ -154,7 +163,7 @@ test('exported schema cannot mark a known person as unmatched', () => {
   invalid.fields[0].identity = { status: 'unmatched', personId: null, candidatePersonIds: [] };
   invalid.fields[0].uncertainty = 'unmatched-identity';
   invalid.fields[0].value = null;
-  assert.equal(profileDraftSchema.safeParse(invalid).success, false);
+  assertRetainedNameIdentityMismatch(invalid);
 });
 
 test('exported schema rejects duplicate person-field groups', () => {
