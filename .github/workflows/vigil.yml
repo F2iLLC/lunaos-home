@@ -1,0 +1,42 @@
+# Vigil automated PR review (F2iLLC/vigil), calling the shared reusable workflow.
+#
+# - Model: Claude (claude-sonnet-5-5), authenticated with Anthropic workload
+#   identity federation: the run's GitHub OIDC token is exchanged for a
+#   short-lived Anthropic token, so no API key is stored. This needs
+#   `id-token: write` below and the org-level ANTHROPIC_* Actions variables
+#   (ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID,
+#   ANTHROPIC_SERVICE_ACCOUNT_ID, ANTHROPIC_WORKSPACE_ID).
+# - Runner: GitHub-hosted. This repository is PUBLIC, so it must never run on
+#   our self-hosted runners: a pull request from a fork could execute
+#   arbitrary code on our servers.
+# - Fork pull requests are skipped: GitHub gives them no OIDC token or secrets.
+# - Kill switch: set the Actions variable VIGIL_SKIP=true to pause reviews.
+# - The reusable workflow is pinned to a vigil commit; bump it deliberately.
+
+name: Vigil PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  vigil:
+    if: >-
+      vars.VIGIL_SKIP != 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@52826b70595baae8d16549a7503535c20820a4a0
+    with:
+      model: claude-sonnet-5-5
+      runner-json: '["ubuntu-latest"]'
+    secrets: inherit
