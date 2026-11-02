@@ -16,6 +16,7 @@ import android.widget.TextView;
 import android.widget.ScrollView;
 import android.graphics.Color;
 import android.content.res.Configuration;
+import android.content.res.ColorStateList;
 
 /** Explicit controls for wake-word listening and attended foreground tests. */
 public final class VoiceProbe extends Activity {
@@ -66,6 +67,11 @@ public final class VoiceProbe extends Activity {
         intro.setTextSize(18); layout.addView(intro);
         CheckBox questions = new CheckBox(this);
         questions.setTextColor(Color.WHITE);
+        questions.setButtonTintList(ColorStateList.valueOf(Color.rgb(129, 245, 214)));
+        questions.setBackgroundColor(Color.rgb(39, 48, 68));
+        questions.setPadding(20, 16, 20, 16);
+        questions.setMinHeight(72);
+        questions.setTextSize(18);
         questions.setText("Answer questions online: share post-wake question text with OpenAI and reply text with ElevenLabs. Requires the computer relay and USB. No conversation history. AI can make mistakes.");
         questions.setChecked(QuestionReply.enabled(this));
         questions.setOnCheckedChangeListener((view, checked) -> {
@@ -108,6 +114,11 @@ public final class VoiceProbe extends Activity {
         timerList = new LinearLayout(this); timerList.setOrientation(LinearLayout.VERTICAL); layout.addView(timerList);
         realTimers = new CheckBox(this);
         realTimers.setTextColor(Color.WHITE);
+        realTimers.setButtonTintList(ColorStateList.valueOf(Color.rgb(129, 245, 214)));
+        realTimers.setBackgroundColor(Color.rgb(39, 48, 68));
+        realTimers.setPadding(20, 16, 20, 16);
+        realTimers.setMinHeight(72);
+        realTimers.setTextSize(18);
         realTimers.setText("Start real timers for foreground tests only (may sound)");
         realTimers.setChecked(false); realTimers.setSaveEnabled(false);
         realTimers.setOnCheckedChangeListener((button, checked) -> {

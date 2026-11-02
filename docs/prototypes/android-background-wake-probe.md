@@ -585,3 +585,33 @@ question text returned HTTP 200 and bounded WAV audio from the selected voice,
 covering both providers. This is host integration evidence, not device audibility
 or attended recognition evidence. The owner confirmed the version 0.14 bow
 appearance before this update.
+
+### Attended result and main-app integration direction
+
+The owner subsequently confirmed that spoken questions and replies work on the
+installed 0.15 probe with the selected voice. This is attended behavior evidence;
+it does not establish repeated recognition reliability or secure-lock cancellation.
+The owner also reported that the online-questions checkbox is hard to see. The
+probe now gives both checkboxes a mint control tint, contrasting panel, larger
+label and touch area. Visual acceptance of this change remains pending.
+
+The main Home Android app uses a Tauri WebView (`scripts/android/MainActivity.kt`
+and `src/index.html`); the voice probe is a separate Android package with its
+own service, timer ledger, alarm receiver, assets and private preferences. A
+functional dedicated Luna screen needs a native bridge before it can claim to
+show listening state or active timers. The bridge should expose read-only
+snapshots and explicit Enable/Disable/online-setting commands to the WebView;
+native services must remain the authority for capture and timers. The screen
+should lead with Luna's face, current microphone state and numbered timers,
+then show prominent local Enable/Disable and online-answer controls. Existing
+foreground diagnostic controls should stay out of the everyday screen.
+
+Integration must carry the current safeguards into the main app: no capture on
+launch, restore or page navigation; local Enable after online-setting changes;
+blocked-device and Disable invalidation; strict local timer commands; private
+provider credentials outside the APK; and separate timer expiry from capture.
+Before moving the voice service, decide and implement a secure provider relay
+that does not depend on this computer and USB. Do not ship the development
+loopback relay as an appliance endpoint. Validate migration with unit and
+native lifecycle checks, then a fresh attended device trial, including the
+unresolved intermittent timer recognition and genuine secure-lock cases.
