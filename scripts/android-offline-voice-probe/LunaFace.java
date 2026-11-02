@@ -51,7 +51,7 @@ final class LunaFace extends View {
         switch (state) {
             case PREPARING: return "MIC OFF WHILE LOADING";
             case WAITING: return "MIC ON · WAITING FOR YOU";
-            case AWAKE: return "MIC ON · SAY YOUR TIMER";
+            case AWAKE: return "MIC ON · I'M LISTENING";
             case RESPONSE: return "MIC PAUSED · RESPONDING";
             case REVIEW: return "MIC OFF · NO TIMER STARTED";
             case RETRY: return "MIC OFF · NO TIMER STARTED";

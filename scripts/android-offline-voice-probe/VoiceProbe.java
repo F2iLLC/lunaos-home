@@ -60,13 +60,25 @@ public final class VoiceProbe extends Activity {
         layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(32, 24, 32, 24);
         TextView intro = new TextView(this);
         intro.setTextColor(Color.rgb(215, 211, 234));
-        intro.setText("Luna · wake-word listening\nSay Hey Luna, wait for the bright eyes or wake cue, then say your timer. Keep this screen open to see Luna.\n"
+        intro.setText("Luna · wake-word listening\nSay Hey Luna, wait for the bright eyes or wake cue, then speak. Keep this screen open to see Luna.\n"
             + "Enable once to keep listening until disabled. Local audio is not saved. Lock, mute or permission loss disables listening. Android stopping the app requires enabling again.\n"
             + "Luna starts timers hands-free. Say set a timer for five seconds, cancel the timer, or add one minute to the timer. With multiple timers, say timer one or timer two. Listening resumes after the spoken reply and continues during countdowns. Disable stops listening, not timers.");
         intro.setTextSize(18); layout.addView(intro);
+        CheckBox questions = new CheckBox(this);
+        questions.setTextColor(Color.WHITE);
+        questions.setText("Answer questions online: share post-wake question text with OpenAI and reply text with ElevenLabs. Requires the computer relay and USB. No conversation history. AI can make mistakes.");
+        questions.setChecked(QuestionReply.enabled(this));
+        questions.setOnCheckedChangeListener((view, checked) -> {
+            stopAll();
+            boolean saved = getSharedPreferences(QuestionReply.PREFERENCES, MODE_PRIVATE).edit()
+                .putBoolean(QuestionReply.ENABLED, checked).commit();
+            status.setText(saved ? "Listening off. Enable wake-word listening when ready. Online answers require the configured relay."
+                : "Could not save question setting. Listening remains off.");
+        });
         status = new TextView(this); status.setTextSize(22);
         status.setTextColor(Color.WHITE);
         status.setText("Microphone off. Nothing starts automatically."); layout.addView(status);
+        layout.addView(questions);
         button(layout, "Allow microphone", () -> {
             stopAll();
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)

@@ -129,6 +129,7 @@ final class ProbeCapture {
     }
     private void recognize() {
         short[] samples = new short[1600];
+        boolean questions = persistent && QuestionReply.enabled(context);
         String code = "ENGINE_UNAVAILABLE", message = "Offline engine could not start. No timer started.", phase = "NATIVE_LOAD";
         int matched = 0;
         try {
@@ -145,7 +146,8 @@ final class ProbeCapture {
                     .invokeInt(new Object[] { model.getPointer(), "luna" });
                 if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
                 try (Recognizer recognizer = new Recognizer(model, 16000, wait ? WakeSession.grammar() : TimerPhrase.grammar());
-                     Recognizer command = wait ? new Recognizer(model, 16000, TimerPhrase.commandGrammar()) : null) {
+                     Recognizer command = wait ? (questions ? new Recognizer(model, 16000)
+                         : new Recognizer(model, 16000, TimerPhrase.commandGrammar())) : null) {
                     if (!capture) { code = "ENGINE_READY_NO_CAPTURE"; message = "Offline engine ready. Microphone stayed off."; return; }
                     phase = "CAPTURE";
                     int size = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
@@ -182,12 +184,15 @@ final class ProbeCapture {
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
-                                show("Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.", LunaFace.State.AWAKE);
+                                show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within 10 seconds."
+                                    : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.", LunaFace.State.AWAKE);
                                 main.post(this::wakeCue);
                             } else if (TimerCommand.valid(seconds)) {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Supported timer command recognized. Microphone closing.";
                                 return;
+                            } else if (questions && wake != null && wake.awaitingCommand() && QuestionPolicy.accepts(text)) {
+                                code = "QUESTION_FINAL"; message = text; return;
                             } else if (wake != null && wake.awaitingCommand()) {
                                 String diagnostic = TimerPhrase.commandDetail(text);
                                 if (!"NO_SPEECH".equals(diagnostic) || "NO_FINAL_RESULT".equals(commandDiagnostic))

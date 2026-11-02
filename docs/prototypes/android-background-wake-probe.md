@@ -1,6 +1,7 @@
 # Android background wake feasibility probe
 
-Version 0.12 uses the owner-selected ElevenLabs voice for replies for hands-free Luna-owned timers in the
+Version 0.15 adds separately opted-in online questions, using the owner-selected
+ElevenLabs voice. Local replies remain available for hands-free Luna-owned timers in the
 explicitly enabled local wake listener. The owner authorized creation without Clock review, spoken
 cancellation, adding time and additional timers during a countdown. This is
 an engineering probe, not a qualified unattended appliance. Reuses #135, #136
@@ -62,7 +63,8 @@ and #137; broader durable timer/native alert work remains #148 and #149.
 - The chibi face shows preparation, waiting, awake, reply and retry. Numbered
   countdowns and Cancel controls appear alongside it. Reply says mic paused.
   Visible activity display-on behavior never wakes a dark display or bypasses
-  locks. No network permission, saved audio or transcripts. Timer state contains
+  locks. No saved audio or transcripts. Optional questions use network permission
+  only after the separate online setting and explicit listening activation. Timer state contains
   only numbers, deadlines, revisions and boot count. Keep raw logs, identifiers,
   screenshots, audio and household data out of Git/PRs.
 
@@ -514,3 +516,72 @@ read-only checks found no service or running microphone operation before
 installation. Version 0.14 installed and its UI opened successfully; post-launch
 checks confirmed the version and capture remained off. Perceived bow appearance
 still requires the owner's device check.
+
+### Version 0.15 spoken questions
+
+The owner authorized general questions and use of the existing provider keys.
+The online-questions checkbox defaults off. Changing it disables listening;
+the owner must tap Enable again. Wake recognition stays constrained and local.
+With questions enabled and relay configuration installed, the post-wake decoder
+uses the offline model's general vocabulary for the existing ten-second window.
+Strict complete timer commands still execute locally first. Incomplete wording
+containing timer/timers/cancel/add is rejected rather than repaired by AI. This
+changes the acoustic decoder used for timer commands while online questions are
+enabled; previous constrained-decoder evidence does not qualify this path.
+
+Only finalized post-wake question text goes to OpenAI. Generated answer text
+goes to ElevenLabs with the owner's selected voice. Ambient audio never goes
+to the relay. The host reuses bounded provider adapters, sets OpenAI store:false,
+offers no tools, and retains no conversation history. Provider data handling
+still follows their account policies; store:false is not a zero-retention claim.
+Answers can be wrong and have no browsing, household records or action powers.
+Each turn is independent; follow-up questions need another Hey Luna.
+
+The development relay listens only on computer loopback port 18743. Android
+connects through an explicitly configured ADB USB reverse, using HTTPS with a
+private trusted certificate, default hostname verification and a random device
+token. Provider keys remain in the existing host env file, never in the APK,
+Android configuration or Git. Certificate/key/token/config files stay outside
+Git in a private directory. There is no network deployment or boot startup.
+Unplugging USB or stopping the computer relay makes online replies unavailable;
+offline timers and the offline-only setting remain available.
+
+The relay accepts one bounded authenticated question at a time, rate limits
+turns, aborts provider work on disconnect, and never retries paid requests.
+Android pauses capture for the request and memory-only WAV playback, with a
+90-second overall limit. Disable, lock, mic mute and permission loss cancel
+network/playback and invalidate callbacks. Failure displays a fixed status and
+returns to waiting. Queued work cannot re-enable capture. Existing timers remain
+independent, including during network failure. This is not qualified unattended
+or genuine secure-lock evidence.
+
+Prepare private config with `scripts/prepare-spoken-question-relay.ps1`, passing
+an external new output directory, the existing env file, and selected voice ID.
+The file must define `OPENAI_API_KEY_LUNAOS_HOME` and
+`LUNA_HOME_ELEVENLABS_API_KEY` (the secret value, not the provider key ID).
+Start `node scripts/spoken-question-relay.mjs <external-host.json>` explicitly.
+Provision only `question-relay.json` into the probe's private files directory
+while listening is off; configure `adb reverse tcp:18743 tcp:18743`. Open the UI,
+locally check Answer questions online, then locally Enable wake-word listening.
+No script starts capture, grants mic permission or changes lock settings.
+Disable listening and stop the host process to end the trial; remove that
+specific reverse with `adb reverse --remove tcp:18743` when no longer needed.
+
+Implementation checks: 355 repository tests passed with no failures or skips.
+Focused relay/service checks additionally cover authorization, bounded input,
+provider failure, disconnect cancellation, concurrent request rejection, strict
+timer isolation, opt-out and stale completion callbacks. A live OpenAI
+gpt-6-luna answer passed the existing bounded adapter. Full spoken device
+question/answer and audible delivery require an attended trial; these checks
+do not establish recognition reliability or resolve earlier rejection causes.
+
+The final version 0.15 offline build passed 350 policy checks, Java/DEX/APK
+construction and signature verification. It was signed with the existing test
+signer and installed successfully while read-only checks showed capture off.
+The private relay config and USB reverse were provisioned; the UI was opened
+without enabling listening. Post-install checks still showed no wake service
+or running microphone operation. A live HTTPS relay request using fictional
+question text returned HTTP 200 and bounded WAV audio from the selected voice,
+covering both providers. This is host integration evidence, not device audibility
+or attended recognition evidence. The owner confirmed the version 0.14 bow
+appearance before this update.

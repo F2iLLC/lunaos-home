@@ -33,6 +33,25 @@ public final class WakeServiceProbe {
   ProbeCapture.blocked=false;first.finish("COMMAND_MATCH",5,false);Handler.advance(1000);check(NativeTimers.read(s).free()==1&&!BackgroundWakeService.running);s.onDestroy();
   s=enable();starts=ProbeCapture.starts;ProbeCapture.last.finish("MODEL_LOAD_FAILED",0,false);Handler.advance(1000);check(!BackgroundWakeService.running&&ProbeCapture.starts==starts);s.onDestroy();
   s=new BackgroundWakeService();s.onStartCommand(null,0,1);check(!BackgroundWakeService.running);s.onDestroy();
+  check(QuestionPolicy.accepts("why is the sky blue"));
+  check(QuestionPolicy.accepts("tell me a story about a dragon"));
+  for(String text:new String[]{"", "set a timer", "cancel timer nine", "add one minute", "[unk]", "hi\nthere"}) check(!QuestionPolicy.accepts(text));
+  check(!QuestionPolicy.accepts(new String(new char[1001]).replace('\0','a')));
+  s=enable();first=ProbeCapture.last;starts=ProbeCapture.starts;
+  first.busy=false;first.listener.finished("QUESTION_FINAL","why is the sky blue",0,SystemClock.now+10000,false);
+  check(QuestionReply.last!=null&&NativeTimers.read(s).free()==1);
+  Handler.advance(1000);check(ProbeCapture.starts==starts&&s.power.last.isHeld());
+  QuestionReply.last.finish();Handler.advance(250);check(ProbeCapture.starts==starts+1);
+  first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
+  QuestionReply.last.fail();check(BackgroundWakeService.latest.startsWith("Online answer unavailable"));Handler.advance(2500);check(ProbeCapture.busy());
+  first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
+  QuestionReply question=QuestionReply.last;starts=ProbeCapture.starts;disable(s);check(question.closed);
+  question.finish();Handler.advance(1000);check(!BackgroundWakeService.running&&ProbeCapture.starts==starts);
+  s=enable();first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","why is the sky blue",0,SystemClock.now+10000,false);
+  question=QuestionReply.last;ProbeCapture.blocked=true;Handler.advance(100);check(question.closed&&!BackgroundWakeService.running);
+  ProbeCapture.blocked=false;starts=ProbeCapture.starts;question.finish();Handler.advance(1000);check(ProbeCapture.starts==starts);s.onDestroy();
+  s=enable();first=ProbeCapture.last;QuestionReply.enabled=false;first.busy=false;
+  first.listener.finished("QUESTION_FINAL","why is the sky blue",0,SystemClock.now+10000,false);check(!BackgroundWakeService.running);s.onDestroy();QuestionReply.enabled=true;
   System.out.println("Wake service lifecycle checks passed ("+checks+" cases).");
  }
 }

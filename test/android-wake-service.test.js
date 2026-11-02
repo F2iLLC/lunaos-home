@@ -37,6 +37,12 @@ const fakes = {
  SpokenReply(android.content.Context c,String s,Runnable r) {last=this;completion=r;}
  void close() {closed=true;} void finish() {completion.run();}}
 `,
+  'io/github/f2illc/lunaos/home/voiceprobe/QuestionReply.java': `package io.github.f2illc.lunaos.home.voiceprobe;
+ class QuestionReply {interface Completion{void done(boolean played);}static QuestionReply last;static boolean enabled=true;final Completion completion;boolean closed;
+ static boolean enabled(android.content.Context c){return enabled;}
+ QuestionReply(android.content.Context c,String text,Completion r){last=this;completion=r;}
+ void close(){closed=true;}void finish(){completion.done(true);}void fail(){completion.done(false);}}
+`,
   'android/content/Context.java': `package android.content;
 public class Context {
  public static final String NOTIFICATION_SERVICE="notification", POWER_SERVICE="power", ALARM_SERVICE="alarm";
@@ -193,7 +199,7 @@ test('native timers and wake service preserve identity, cancellation and listeni
   }
   sources.push('scripts/android-offline-voice-probe/BackgroundWakeService.java',
     'scripts/android-offline-voice-probe/PendingTimerRequest.java',
-    ...['NativeTimers','TimerLedger','TimerCommand','TimerPhrase','WakeSession','TimerAlarmService'].map(n => 'scripts/android-offline-voice-probe/' + n + '.java'),
+    ...['NativeTimers','TimerLedger','TimerCommand','TimerPhrase','WakeSession','TimerAlarmService','QuestionPolicy'].map(n => 'scripts/android-offline-voice-probe/' + n + '.java'),
     'test/fixtures/NativeTimerProbe.java',
     'test/fixtures/WakeServiceProbe.java');
   const tool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name + (process.platform === 'win32' ? '.exe' : '')) : name;

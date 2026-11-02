@@ -26,6 +26,7 @@ public final class BackgroundWakeService extends Service {
     private long renewAt, generation;
     private boolean destroyed, restarting, responding;
     private SpokenReply reply;
+    private QuestionReply questionReply;
     private final Runnable watch = new Runnable() {
         @Override public void run() {
             if (destroyed || !running) return;
@@ -81,6 +82,7 @@ public final class BackgroundWakeService extends Service {
     private void end(String text) {
         running = false; generation++; restarting = false; responding = false;
         if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
+        if (questionReply != null) questionReply.close(); questionReply = null;
         latest = text; visual = LunaFace.State.OFF;
         if (capture != null) capture.stop();
         capture = null;
@@ -142,6 +144,23 @@ public final class BackgroundWakeService extends Service {
                                 reply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250);
                             });
                         } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
+                    } else if (!canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)
+                            && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
+                        responding = true; visual = LunaFace.State.RESPONSE;
+                        latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
+                        notifyStatus();
+                        final long responseId = generation;
+                        try {
+                            renewWakeLock();
+                            questionReply = new QuestionReply(BackgroundWakeService.this, text, played -> {
+                                if (destroyed || !running || generation != responseId) return;
+                                questionReply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false);
+                                latest = played ? "Answer playback finished. Returning to wake-word listening."
+                                    : "Online answer unavailable. Check the computer relay and USB. Returning to wake-word listening.";
+                                visual = played ? LunaFace.State.RESPONSE : LunaFace.State.RETRY; notifyStatus();
+                                scheduleCapture(played ? 250 : 2500);
+                            });
+                        } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
                         visual = LunaFace.State.RETRY;
@@ -179,6 +198,7 @@ public final class BackgroundWakeService extends Service {
     @Override public void onDestroy() {
         destroyed = true; generation++; restarting = false; responding = false;
         if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
+        if (questionReply != null) questionReply.close(); questionReply = null;
         if (running || capture != null)
             latest = "Wake-word listening stopped. Microphone off. Enable it to start again.";
         visual = LunaFace.State.OFF;
