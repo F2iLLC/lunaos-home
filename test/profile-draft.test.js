@@ -166,6 +166,22 @@ test('exported schema cannot mark a known person as unmatched', () => {
   assertRetainedNameIdentityMismatch(invalid);
 });
 
+test('identity matching normalizes case and whitespace in retained and observed names', () => {
+  const draft = createProfileDraft(input([observation({ personName: 'aLeX eXaMpLe' })], {
+    people: [{ id: 'alex-a', name: 'Alex  Example' }],
+  }));
+  assert.deepEqual(draft.fields[0].identity, {
+    status: 'matched', personId: 'alex-a', candidatePersonIds: ['alex-a'],
+  });
+  assert.equal(profileDraftSchema.safeParse(draft).success, true);
+
+  const forged = structuredClone(draft);
+  forged.fields[0].identity = { status: 'unmatched', personId: null, candidatePersonIds: [] };
+  forged.fields[0].uncertainty = 'unmatched-identity';
+  forged.fields[0].value = null;
+  assertRetainedNameIdentityMismatch(forged);
+});
+
 test('exported schema rejects duplicate person-field groups', () => {
   const draft = createProfileDraft(input([observation()]));
   const invalid = structuredClone(draft);
