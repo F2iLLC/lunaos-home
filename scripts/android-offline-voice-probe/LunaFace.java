@@ -14,6 +14,13 @@ final class LunaFace extends View {
     enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RESPONSE, RETRY }
     private State state = State.OFF;
     private final Paint ink = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path tail = new Path();
+    private final Path hair = new Path();
+    private final Path bowLoop = new Path();
+    private final Path bowFold = new Path();
+    private final Typeface sleepyTypeface = Typeface.create("sans-serif", Typeface.BOLD);
+    private final Typeface headingTypeface = Typeface.create("sans-serif-medium", Typeface.BOLD);
+    private final Typeface detailTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
     private boolean active;
     private static final int NIGHT = Color.rgb(17, 20, 38);
     private static final int CREAM = Color.rgb(255, 241, 224);
@@ -22,6 +29,26 @@ final class LunaFace extends View {
 
     LunaFace(Context context) {
         super(context);
+        // Geometry stays in design coordinates; canvas transforms animate and mirror it.
+        tail.moveTo(91, 119);
+        tail.cubicTo(57, 98, 28, 133, 37, 169);
+        tail.cubicTo(44, 195, 29, 220, 39, 239);
+        tail.cubicTo(67, 236, 87, 208, 83, 184);
+        tail.cubicTo(79, 158, 108, 143, 91, 119);
+        tail.close();
+        hair.moveTo(73, 169);
+        hair.cubicTo(55, 82, 119, 55, 195, 72);
+        hair.cubicTo(273, 49, 347, 96, 329, 171);
+        hair.quadTo(315, 155, 310, 132);
+        hair.cubicTo(267, 142, 230, 123, 216, 107);
+        hair.cubicTo(202, 142, 146, 153, 111, 136);
+        hair.quadTo(94, 149, 73, 169); hair.close();
+        bowLoop.moveTo(200, 65);
+        bowLoop.cubicTo(177, 42, 143, 24, 130, 36);
+        bowLoop.cubicTo(119, 48, 128, 87, 143, 94);
+        bowLoop.cubicTo(158, 100, 185, 79, 200, 65);
+        bowLoop.close();
+        bowFold.moveTo(190, 66); bowFold.quadTo(164, 57, 147, 49);
         setBackgroundColor(NIGHT);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         setState(State.OFF);
@@ -116,43 +143,21 @@ final class LunaFace extends View {
         for (int side = 0; side < 2; side++) {
             canvas.save();
             if (side == 1) canvas.scale(-1, 1, 200, 175);
-            Path tail = new Path();
-            tail.moveTo(91, 119);
-            tail.cubicTo(57, 98, 28, 133, 37, 169);
-            tail.cubicTo(44, 195, 29, 220, 39, 239);
-            tail.cubicTo(67, 236, 87, 208, 83, 184);
-            tail.cubicTo(79, 158, 108, 143, 91, 119);
-            tail.close();
             ink.setColor(LAVENDER); canvas.drawPath(tail, ink);
             fill(canvas, MINT, 69, 126, 95, 138, 6);
             canvas.restore();
         }
         fill(canvas, CREAM, 69, 100, 331, 264, 78);
         // Soft side-swept fringe, with a curved silhouette rather than a flat bar.
-        Path hair = new Path(); hair.moveTo(73, 169);
-        hair.cubicTo(55, 82, 119, 55, 195, 72);
-        hair.cubicTo(273, 49, 347, 96, 329, 171);
-        hair.quadTo(315, 155, 310, 132);
-        hair.cubicTo(267, 142, 230, 123, 216, 107);
-        hair.cubicTo(202, 142, 146, 153, 111, 136);
-        hair.quadTo(94, 149, 73, 169); hair.close();
         ink.setColor(LAVENDER); canvas.drawPath(hair, ink);
         // A big mint bow crowns the fringe and bobs with the pigtails.
         for (int side = 0; side < 2; side++) {
             canvas.save();
             if (side == 1) canvas.scale(-1, 1, 200, 65);
-            Path loop = new Path();
-            loop.moveTo(200, 65);
-            loop.cubicTo(177, 42, 143, 24, 130, 36);
-            loop.cubicTo(119, 48, 128, 87, 143, 94);
-            loop.cubicTo(158, 100, 185, 79, 200, 65);
-            loop.close();
-            ink.setColor(MINT); canvas.drawPath(loop, ink);
-            Path fold = new Path();
-            fold.moveTo(190, 66); fold.quadTo(164, 57, 147, 49);
+            ink.setColor(MINT); canvas.drawPath(bowLoop, ink);
             ink.setColor(Color.rgb(92, 190, 177));
             ink.setStyle(Paint.Style.STROKE); ink.setStrokeWidth(4);
-            ink.setStrokeCap(Paint.Cap.ROUND); canvas.drawPath(fold, ink);
+            ink.setStrokeCap(Paint.Cap.ROUND); canvas.drawPath(bowFold, ink);
             ink.setStyle(Paint.Style.FILL);
             canvas.restore();
         }
@@ -184,17 +189,17 @@ final class LunaFace extends View {
             float drift = (float) ((time % 3.7) / 3.7);
             ink.setColor(LAVENDER);
             ink.setAlpha((int) (145 * Math.sin(drift * Math.PI)));
-            ink.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            ink.setTypeface(sleepyTypeface);
             ink.setTextAlign(Paint.Align.CENTER);
             ink.setTextSize(17 + drift * 9);
             canvas.drawText("z", 343 + drift * 12, 154 - drift * 43, ink);
             ink.setAlpha(255);
         }
         canvas.restore();
-        ink.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        ink.setTypeface(headingTypeface);
         ink.setTextAlign(Paint.Align.CENTER); ink.setTextSize(29); ink.setColor(awake ? MINT : CREAM);
         canvas.drawText(heading(), 200, 326, ink);
-        ink.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        ink.setTypeface(detailTypeface);
         ink.setTextSize(13); ink.setColor(LAVENDER); canvas.drawText(detail(), 200, 355, ink);
         canvas.restore();
         if (active && getWindowVisibility() == VISIBLE && (awake || sleepy || state == State.PREPARING))
