@@ -51,7 +51,7 @@ final class LunaFace extends View {
         switch (state) {
             case PREPARING: return "MIC OFF WHILE LOADING";
             case WAITING: return "MIC ON · WAITING FOR YOU";
-            case AWAKE: return "MIC ON · SAY YOUR TIMER";
+            case AWAKE: return "MIC ON · I'M LISTENING";
             case RESPONSE: return "MIC PAUSED · RESPONDING";
             case REVIEW: return "MIC OFF · NO TIMER STARTED";
             case RETRY: return "MIC OFF · NO TIMER STARTED";
@@ -137,6 +137,27 @@ final class LunaFace extends View {
         hair.cubicTo(202, 142, 146, 153, 111, 136);
         hair.quadTo(94, 149, 73, 169); hair.close();
         ink.setColor(LAVENDER); canvas.drawPath(hair, ink);
+        // A big mint bow crowns the fringe and bobs with the pigtails.
+        for (int side = 0; side < 2; side++) {
+            canvas.save();
+            if (side == 1) canvas.scale(-1, 1, 200, 65);
+            Path loop = new Path();
+            loop.moveTo(200, 65);
+            loop.cubicTo(177, 42, 143, 24, 130, 36);
+            loop.cubicTo(119, 48, 128, 87, 143, 94);
+            loop.cubicTo(158, 100, 185, 79, 200, 65);
+            loop.close();
+            ink.setColor(MINT); canvas.drawPath(loop, ink);
+            Path fold = new Path();
+            fold.moveTo(190, 66); fold.quadTo(164, 57, 147, 49);
+            ink.setColor(Color.rgb(92, 190, 177));
+            ink.setStyle(Paint.Style.STROKE); ink.setStrokeWidth(4);
+            ink.setStrokeCap(Paint.Cap.ROUND); canvas.drawPath(fold, ink);
+            ink.setStyle(Paint.Style.FILL);
+            canvas.restore();
+        }
+        fill(canvas, Color.rgb(109, 214, 195), 185, 51, 215, 80, 11);
+        fill(canvas, Color.rgb(193, 255, 237), 190, 55, 199, 67, 4);
         boolean blink = active && (state == State.AWAKE || state == State.PREPARING)
             && SystemClock.uptimeMillis() % 5100 < 130;
         // Briefly peek, blink, then drift shut again every seven seconds.
