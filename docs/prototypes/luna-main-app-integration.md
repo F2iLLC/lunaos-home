@@ -69,3 +69,14 @@ The next implementation unit is the native bridge and read-only state snapshot
 with a dedicated page in the debug Android app. It can be tested without
 enabling capture. Hosted endpoint work follows the identity contract before
 the computer relay is removed.
+
+## Initial debug entry slice
+
+The debug Android Home build now offers a dedicated Meet Luna entry page. Its
+native command opens the separately installed probe activity by explicit
+component name; it does not start the listener or claim access to probe timers.
+The page says that face, timer and microphone controls remain in that separate
+app. It is omitted from desktop and non-debug Android builds. This establishes
+the Home navigation and narrow native launch path only. The state snapshot,
+native ownership migration, hosted service and USB-free behavior above remain
+implementation work.

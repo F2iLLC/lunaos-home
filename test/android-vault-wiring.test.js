@@ -37,6 +37,13 @@ test('Android grants only local main-window open, without remote or filesystem c
   assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION|FOREGROUND_SERVICE_MICROPHONE/);
   assert.match(vaultDebugManifest, /android.permission.RECORD_AUDIO/);
   assert.match(vaultDebugManifest, /VehicleConversationActivity" android:exported="false"/);
+  assert.match(vaultDebugManifest, /<package android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe"\s*\/>/);
+  const rust = await readFile(new URL('../src-tauri/src/android_vault.rs', import.meta.url), 'utf8');
+  const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
+  assert.match(rust, /Some\("luna-probe"\) => "openLunaProbe"/);
+  assert.match(plugin, /fun openLunaProbe\(invoke: Invoke\)/);
+  assert.match(plugin, /setClassName\([\s\S]*io\.github\.f2illc\.lunaos\.home\.voiceprobe\.VoiceProbe/);
+  assert.doesNotMatch(plugin.match(/fun openLunaProbe\(invoke: Invoke\)[\s\S]*?\n    }/)?.[0] ?? '', /BackgroundWakeService|RECORD_AUDIO|startForegroundService/);
 });
 
 test('bundled launcher sends only open, disables while pending, and stays absent outside Android debug', async () => {
@@ -62,7 +69,12 @@ test('bundled launcher sends only open, disables while pending, and stays absent
         return elements.get(selector);
       },
       createElement() {
-        return { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; } };
+        const local = new Map();
+        return { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; },
+          querySelector(selector) {
+            if (!local.has(selector)) local.set(selector, { addEventListener(event, handler) { this[event] = handler; } });
+            return local.get(selector);
+          } };
       },
     };
     const calls = [];
@@ -74,12 +86,19 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     await new AsyncFunction('document', 'window', bundled.outputFiles[0].text)(document, window);
     if (!enabled) { assert.equal(children.length, 0); continue; }
-    const [button, status, prepare, open, directStatus] = children;
+    const [lunaLink, lunaScreen, button, status, prepare, open, directStatus] = children;
+    assert.equal(lunaLink.href, '#luna');
+    assert.equal(lunaScreen.id, 'luna');
+    const lunaButton = lunaScreen.querySelector('#open-luna-demo');
+    const lunaPending = lunaButton.click({ currentTarget: lunaButton });
+    assert.deepEqual(calls, [['open_fictional_vault', { kind: 'luna-probe' }]]);
+    finish(); await lunaPending;
+    assert.match(lunaScreen.querySelector('#luna-demo-status').textContent, /local controls/);
     assert.ok(elements.has('#home-actions'));
     assert.equal(button.className, 'primary-button');
     const pending = button.click();
     assert.equal(button.disabled, true);
-    assert.deepEqual(calls, [['open_fictional_vault']]);
+    assert.deepEqual(calls.at(-1), ['open_fictional_vault']);
     finish();
     await pending;
     assert.equal(button.disabled, false);

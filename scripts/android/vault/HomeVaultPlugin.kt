@@ -12,6 +12,27 @@ import io.github.f2illc.lunaos.directtlsprobe.HomeDirectEntry
 @TauriPlugin
 class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
+    fun openLunaProbe(invoke: Invoke) {
+        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) {
+            invoke.reject("Luna voice demo requires an Android API26+ debug build.")
+            return
+        }
+        activity.runOnUiThread {
+            try {
+                val intent = Intent().setClassName(
+                    "io.github.f2illc.lunaos.home.voiceprobe",
+                    "io.github.f2illc.lunaos.home.voiceprobe.VoiceProbe"
+                )
+                activity.startActivity(intent)
+                invoke.resolve()
+            } catch (_: android.content.ActivityNotFoundException) {
+                invoke.reject("Install the separate Luna voice demo first.")
+            } catch (_: SecurityException) {
+                invoke.reject("Luna voice demo cannot be opened on this device.")
+            }
+        }
+    }
+    @Command
     fun openVehicle(invoke: Invoke) {
         if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 31) {
             invoke.reject("Vehicle preview requires an Android API31+ debug build.")

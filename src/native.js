@@ -6,6 +6,33 @@ document.querySelector('.preview-note p').textContent = 'Use made-up details onl
 document.querySelector('#draft-empty p').textContent = 'Try our made-up family to explore the app. An assistant is not connected to this offline preview yet.';
 document.querySelector('#native-notices').hidden = false;
 if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ && window.__TAURI__?.core) {
+  const lunaLink = document.createElement('a');
+  lunaLink.href = '#luna';
+  lunaLink.innerHTML = 'Meet Luna <small>Open the installed voice demo</small>';
+  document.querySelector('#home-actions').append(lunaLink);
+  const luna = document.createElement('section');
+  luna.id = 'luna';
+  luna.className = 'vault';
+  luna.hidden = true;
+  luna.innerHTML = `<a class="back-link" href="#welcome">← Back home</a>
+    <div class="checklist-intro"><p class="eyebrow">LUNA VOICE DEMO</p>
+    <h1 id="luna-heading" tabindex="-1">Meet Luna.</h1>
+    <p>Luna's face, microphone controls and active timers are in the separately installed voice demo.</p></div>
+    <div class="list-panel"><p>Opening the demo does not turn on its microphone. Tap Enable there to start listening. Online answers currently require the computer relay and USB.</p>
+    <button id="open-luna-demo" class="primary-button" type="button">Open Luna voice demo</button>
+    <p id="luna-demo-status" role="status" aria-live="polite"></p></div>`;
+  document.querySelector('main').append(luna);
+  luna.querySelector('#open-luna-demo').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    const status = luna.querySelector('#luna-demo-status');
+    button.disabled = true;
+    try {
+      await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'luna-probe' });
+      status.textContent = 'Voice demo opened. Listening remains under its local controls.';
+    } catch {
+      status.textContent = 'Voice demo unavailable. Install the separate demo on this device first.';
+    } finally { button.disabled = false; }
+  });
   const launch = document.createElement('button');
   launch.type = 'button';
   launch.className = 'primary-button';
