@@ -1,0 +1,19 @@
+{
+  "comment": "Test-only fault injection for the developer Windows vault probe. Single source of truth for windows-vault-worker.ps1 and lib/windows-probe-store.js; neither the production open path nor the ChatGPT plugin bundle reads this file.",
+  "faults": [
+    "before-write",
+    "during-write",
+    "after-write",
+    "before-replacement",
+    "after-replacement",
+    "disk-full",
+    "process-interruption",
+    "tampered-temporary"
+  ],
+  "operations": [
+    "create",
+    "edit",
+    "edit-profile",
+    "delete"
+  ]
+}
