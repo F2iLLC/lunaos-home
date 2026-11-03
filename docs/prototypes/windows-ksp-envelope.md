@@ -10,19 +10,23 @@ method or sensitive-use acceptance is established by this experiment.
 
 The example generates a random 256-bit data key with Windows CNG, wraps it with
 a new 2048-bit Microsoft Software KSP RSA key using OAEP/SHA-256, and encrypts
-one fixed fictional record using AES-256-GCM (96-bit random nonce, 128-bit tag).
+one fixed fictional snapshot using AES-256-GCM (96-bit random nonce, 128-bit tag).
 The protector requests high-protection UI and permits decryption only; it never
 requests private-key export. The separate disposable **key password** belongs
 only in the Windows-owned dialog. It is not the Windows account password or
 Windows Hello. Home never receives either password.
 
-The version-1 envelope authenticates its format identifier, algorithm suite,
-protector name, preparation boot marker, wrapped data key and nonce as GCM
-additional data. Unknown versions, noncanonical encodings, oversized input,
-wrong keys and altered authentication data/ciphertext/tag fail closed. There
-is no DPAPI fallback. A complete older valid envelope can still be replayed:
-rollback prevention, adversarial same-user file replacement and production
-store identity are not solved here.
+The version-1 snapshot envelope authenticates its format identifier, algorithm
+suite, protector name, preparation boot marker, snapshot revision, wrapped data
+key and nonce as GCM additional data. Its bounded fictional payload carries a
+record, revision, last request ID and mutation receipt revision together. The
+developer example can perform one compare-and-swap transition from revision 1
+to revision 2; it is not the shared `VersionedVaultRecordStore v2` interface or
+a general-purpose record store. Unknown versions, noncanonical encodings,
+oversized input, wrong keys and altered authentication data/ciphertext/tag fail
+closed. There is no DPAPI fallback. A complete older valid envelope can still
+be replayed: rollback prevention, adversarial same-user file replacement and
+production store identity are not solved here.
 
 The format and crypto use the existing Windows crate and operating-system
 facilities; no new third-party package or custom cryptographic primitive is
@@ -32,7 +36,7 @@ and [NCrypt encryption API](https://learn.microsoft.com/en-us/windows/win32/api/
 ## Lifetime, writes and cleanup
 
 Each attended operation creates a native owner window and an isolated worker
-process lifetime. The key is used for one native comparison and is never returned
+process lifetime. The key is used for one native snapshot operation and is never returned
 to JavaScript, a transport, the terminal, a model or evidence. The process
 registers the existing session/power monitor. Lock, suspend, session changes,
 window closure and a 120-second overall deadline end the process. While the
@@ -64,13 +68,17 @@ processes or OS memory remnants. It does not register as a background service.
 
 A create-new sibling ciphertext file is flushed with sync_all, then moved on
 the same volume using [MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw).
-Creation refuses an existing envelope. The internal replacement primitive is
-exercised only by tests; no runtime edit or method-change command is exposed.
-Successful commits require byte-for-byte readback. Failure or a lost receipt
-requires explicit readback, with no automatic write replay. Pre-rename failures
-preserve the last committed envelope. Uncommitted pending files are never
-promoted by reads. A process crash can leave ciphertext-only pending files;
-physical power-loss durability and real disk exhaustion remain untested.
+Preparation refuses an existing envelope. The bounded CAS example replaces
+the envelope only after checking the expected revision, and commits the next
+record, revision and request receipt in one encrypted payload. A repeated
+request ID returns the committed receipt without another write. A stale
+revision returns conflict. Successful commits require byte-for-byte readback.
+The `write-unknown` runner injects a lost acknowledgement after replacement;
+that step stops and requires a separate attended readback command. It never
+automatically replays the mutation. Pre-rename failures preserve the last
+committed envelope. Uncommitted pending files are never promoted by reads. A
+process crash can leave ciphertext-only pending files; physical power-loss
+durability and real disk exhaustion remain untested.
 
 An exclusive Windows file lease serializes operations in the selected fixture
 directory. Before key creation, an ownership receipt records only the random
@@ -93,7 +101,26 @@ node scripts/test-attended-ksp-envelope.mjs prepare $fixtureDir
 node scripts/test-attended-ksp-envelope.mjs cancel $fixtureDir
 node scripts/test-attended-ksp-envelope.mjs wrong-password $fixtureDir
 node scripts/test-attended-ksp-envelope.mjs read $fixtureDir
+node scripts/test-attended-ksp-envelope.mjs stale $fixtureDir
+node scripts/test-attended-ksp-envelope.mjs commit $fixtureDir
+node scripts/test-attended-ksp-envelope.mjs receipt-retry $fixtureDir
+
+# Use a separate initial revision-1 fixture for the lost-acknowledgement path.
+$unknownFixtureDir = Join-Path $env:LOCALAPPDATA ('LunaOSHome\AttendedEvidence\ksp-unknown-' + [guid]::NewGuid().ToString('N'))
+node scripts/test-attended-ksp-envelope.mjs prepare $unknownFixtureDir
+node scripts/test-attended-ksp-envelope.mjs write-unknown $unknownFixtureDir
+node scripts/test-attended-ksp-envelope.mjs reconcile $unknownFixtureDir
+node scripts/test-attended-ksp-envelope.mjs cleanup $unknownFixtureDir
 ~~~
+
+Run `stale` before `commit`; it must leave revision 1 unchanged. Run
+`receipt-retry` only after `commit`, using that same fixture and its retained
+request ID. To inspect the lost-acknowledgement path, prepare a **separate**
+fresh fixture, then run `write-unknown` once and `reconcile` as a separate
+command. The unknown step reports `WRITE_UNKNOWN_READBACK_REQUIRED`; the
+readback reports whether revision 2 is already committed. Do not run `commit`
+or `write-unknown` a second time to resolve that outcome. Clean up each fixture
+explicitly after its sequence.
 
 Run one command at a time and check its result before starting the next.
 The runner requires a TTY and a separate typed begin decision for each step.
@@ -132,7 +159,7 @@ node scripts/test-attended-ksp-envelope.mjs cleanup $fixtureDir
 
 Verification requires changed Win32_OperatingSystem.LastBootUpTime UTC ticks,
 fresh-process silent denial, OS-owned attended release, authenticated native
-fixture comparison, unchanged envelope and post-release silent denial.
+snapshot validation, unchanged envelope and post-release silent denial.
 It retains the fixture until explicit cleanup. On any incomplete attempt,
 preserve its result and run cleanup; never label timeout, lost password,
 wrong source/binary or same-boot refusal as a passing restart. If the runner
