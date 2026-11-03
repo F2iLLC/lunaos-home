@@ -69,7 +69,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@52826b70595baae8d16549a7503535c20820a4a0
+    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@ef7d11f5b8e83383e084ff64153184ef9e2b29fe
     with:
       model: claude-sonnet-5-5
       runner-json: '["ubuntu-latest"]'
