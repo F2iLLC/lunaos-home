@@ -48,4 +48,4 @@ jobs:
           pwsh --version
           Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
       - run: npm ci --ignore-scripts
-      - run: node --test test/windows-grocery-persistence.test.js
+      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js
