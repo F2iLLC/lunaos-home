@@ -252,7 +252,9 @@ produced this record (#206, #212, #220, #221, #222), not to this document.
 
 The first adapter/platform and compatible key-method direction are recorded
 above. The work still requires implementing `WindowsSnapshotFileStore v1`,
-reviewing a governing conformance specification, and rerunning this
+reviewing the governing conformance specification (draft:
+[adapter conformance](versioned-record-store-conformance.md)), passing its
+suite on that adapter, and rerunning this
 exact-version matrix against that adapter. The selected separate-password
 method is not Windows-account authentication and makes no TPM-backed claim.
 Android requires a separate adapter and independent qualification before it is
