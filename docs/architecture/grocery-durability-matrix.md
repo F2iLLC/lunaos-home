@@ -17,11 +17,44 @@ The intended adapter is `WindowsSnapshotFileStore v1`: a native Tauri/Rust
 adapter that commits the complete versioned record snapshot as one encrypted
 file, using a flushed same-directory temporary file, atomic replacement and
 readback. Its data key must be released through a supported Windows-owned,
-authentication-bound key-protection method. That method is not selected yet;
-the disposable Software KSP password experiment is not the production method.
-The adapter is an implementation decision, not a qualification or release
-claim. #6 remains open until key custody, unlock, migration and failure
-acceptance are approved and integrated.
+authentication-bound key-protection method. That method is not selected, so the
+native encrypted adapter cannot yet be integrated safely. The disposable
+Software KSP password experiment is not the production method. The adapter is
+an implementation decision, not a qualification or release claim. #6 remains
+open until key custody, unlock, migration and failure acceptance are approved
+and integrated.
+
+### Windows key-release assessment (2026-11-03)
+
+The current official platform documentation establishes these boundaries:
+
+* Windows Hello application credentials keep private keys in the OS and expose
+  requested cryptographic operations, such as signing; the app does not receive
+  key material. The documented `KeyCredential` flow is challenge signing, not
+  release of an arbitrary vault data key. The existing Home
+  `UserConsentVerifier` call returns a verification result and gates app access;
+  it does not unwrap or release an encryption key. See Microsoft's
+  [Windows Hello app guidance](https://learn.microsoft.com/en-us/windows/apps/develop/security/windows-hello).
+* `DataProtectionProvider` uses DPAPI and binds protected data to a security
+  descriptor such as a user SID. This is user-scoped data protection, not
+  authentication-bound release. See Microsoft's
+  [Windows data protection guidance](https://learn.microsoft.com/en-us/windows/uwp/security/data-protection).
+* Windows Personal Data Encryption (PDE) can protect custom app content through
+  its APIs and uses Windows Hello for Business. Its supported configuration
+  requires Windows 11 Enterprise/Education or qualifying licenses, Entra join,
+  enabled policy and Hello sign-in; Pro and Home are excluded. Key availability
+  follows sign-in and PDE lock-level rules, rather than an app-controlled
+  per-operation prompt. See Microsoft's [PDE overview](https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/personal-data-encryption/), [PDE configuration](https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/personal-data-encryption/configure) and [PDE CSP edition/OS scope](https://learn.microsoft.com/en-us/windows/client-management/mdm/personaldataencryption-csp).
+
+This leaves a concrete owner/reviewer decision before the encrypted file adapter
+can be integrated: may the first Windows support target require managed Windows
+11 Enterprise/Education devices with Entra join and PDE enabled, accepting
+sign-in/lock-based release and PDE's recovery constraints, or must it support
+ordinary Windows 11 Home/Pro devices with a different reviewed, authentication-
+bound key-release design? The present Windows 11 Home probe machine cannot
+qualify the PDE route. No attended OS prompt or key operation was run for this
+assessment. Do not substitute DPAPI `CurrentUser`, an app prompt, or the
+disposable Software KSP password experiment.
 
 Android remains an intended follow-on platform, with an eventual native
 `AndroidSnapshotFileStore` using Keystore and app-private no-backup storage.
@@ -32,7 +65,7 @@ not in the first production-support scope. No other platform is claimed.
 
 | Target | Intended production adapter / implementation under test | Decision and qualification |
 | --- | --- | --- |
-| Windows 11 x64 desktop | Intended: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot). Exercised probe: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Selected first support target and adapter design. The existing probe is developer-only and does not qualify the intended adapter. Authentication-bound key release, production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
+| Windows 11 x64 desktop | Selected target/design: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot); **not implemented**. Existing evidence: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Integration is blocked pending the Windows key-release scope decision above. Probe remains developer-only. Production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
 | Android follow-on | Intended: `AndroidSnapshotFileStore` (native adapter, Keystore and app-private no-backup snapshot). No grocery persistence implementation exists. | Follow-on qualification target only; excluded from first support scope. Minimum OS, provider/hardware requirement, backup/transfer behavior and atomic replacement semantics remain open. |
 
 The snapshot adapter names describe intended designs; neither is implemented
@@ -126,12 +159,25 @@ the repository's version-2 synthetic probe using installed .NET
 `System.Security.Cryptography.ProtectedData` and `DataProtectionScope.CurrentUser`.
 No Android adapter version exists. All fixtures are fictional.
 
+The exact inherited evidence scope was checked at merged PR #212 head
+`685b65a5b096caa8bf6e6da7cbd7a51c21bf6f19`: it tests the JavaScript
+`WindowsProbeStore v2` DPAPI `CurrentUser` adapter plus generic in-memory
+commit-boundary simulations, not a native Rust `WindowsSnapshotFileStore`.
+Restart tests exercise add, edit, check, uncheck and remove, including same-ID
+retry, changed command/actor, stale revision, and lost acknowledgement. The
+fault probe reopens after eight injected stages; disk-full and process
+interruption are simulated. Backup tests cover the profile-only schema-1
+archive and reject grocery data; snapshot backup, restore and schema rollback
+remain unsupported. These existing tests are the synthetic baseline and are
+not repeated here as native-adapter evidence.
+
 Commands and results from this checkout:
 
 | Command | Result |
 | --- | --- |
 | `node --test test/grocery-persistence.test.js test/portable-vault-backup.test.js` | 31 passed, 0 failed |
 | `node --test test/windows-grocery-persistence.test.js` | 3 passed, 0 failed, 0 skipped on Windows; includes DPAPI reopen/retry and eight injected fault cases |
+| `node --test test/grocery-persistence.test.js test/windows-grocery-persistence.test.js test/portable-vault-backup.test.js` | 34 passed, 0 failed, 0 skipped on this follow-on worktree; Windows 10.0.26300 (Windows 11 Home per the host record above), Node.js v24.19.0, PowerShell 7.6.9. Synthetic probe/contract evidence only. |
 | `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 11 passed, 0 failed, 0 skipped on Windows |
 | `npm test` | 405 passed, 0 failed, 0 skipped |
 | `git diff --check` | passed |
@@ -170,11 +216,16 @@ The matrix counts match the recorded commands; the PR description is updated
 with those counts and the hosted Windows result. This is a commit-scoped review
 record, not an approval of later changes.
 
-The first adapter/platform decision is recorded above. Qualification still
-requires implementing `WindowsSnapshotFileStore v1`, selecting and validating
-its authentication-bound key release, approving a governing conformance
-specification, and rerunning this exact-version matrix against that adapter.
+The first adapter/platform decision is recorded above. The current blocker is
+the unresolved Windows key-release scope decision above. After it is resolved,
+the work still requires implementing `WindowsSnapshotFileStore v1`, approving a
+governing conformance specification, and rerunning this exact-version matrix
+against that adapter.
 Android requires a separate adapter and independent qualification before it is
 added to supported platforms. Backup/restore and schema rollback remain under
-#10; isolation review remains under #151. Issues #6, #10, #151 and #141 remain
-open.
+#10; isolation review remains under #151. Live issue states verified
+2026-11-03: #6 OPEN (reopened after GitHub auto-closed it on PR #220 merge),
+#10 OPEN, #151 OPEN, and #141 OPEN. PR #220 merged at decision head
+`cf202a2af161aae0a84c6f867db1991282631340` as merge commit
+`a5d1c95b634cfb01ae849c8bd9de66f50c0682ac`; this follow-on did not merge or
+close any acceptance issue.
