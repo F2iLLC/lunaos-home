@@ -12,7 +12,17 @@ The module is a contract/adapter port, not a product route or persistence implem
 
 ## Shared list transitions
 
-`lib/grocery-list.js` provides `applyGroceryMutation(current, command, actor, nextRevision?)` for storage adapters. It prepares a validated, independent candidate for add/edit/check/uncheck/remove without changing the input list. Optional quantity/unit/notes fields can be cleared with `null`; item IDs cannot be edited. Duplicate item IDs and stale revisions conflict, absent targets return `NOT_FOUND`, and a full 500-item list rejects additions with `BUSY`. Every accepted mutation, including checking an already checked item, gets a fresh revision. Labels and notes remain literal data.
+`lib/grocery-list.js` provides `applyGroceryMutation(current, command, actor, nextRevision)` for storage adapters. The adapter must supply `nextRevision`; the transition has no implicit revision generator. It prepares a validated, independent candidate for add/edit/check/uncheck/remove without changing the input list. Optional quantity/unit/notes fields can be cleared with `null`; item IDs cannot be edited. `MAX_GROCERY_ITEMS` in `lib/grocery-contract.js` defines the 500-item bound used by both the list schema and transition. Duplicate item IDs and stale revisions throw `GroceryConflictError` (`code: CONFLICT`), absent targets return `NOT_FOUND`, and additions to a list at or above the item bound return `BUSY`. Every accepted mutation, including checking an already checked item, gets a fresh revision. Labels and notes remain literal data.
+
+The transition can throw the following errors. Consumers should branch on `code`, since failures share a generic message.
+
+| Code | Condition |
+| --- | --- |
+| `INVALID` | The command is malformed or is a `query` (queries are not mutations); `nextRevision` is missing, invalid, or unchanged; an edit contains an invalid value; or the candidate fails list validation. |
+| `READ_FAILED` | The stored list fails schema validation before mutation. |
+| `NOT_FOUND` | The command's household/list does not match the stored list, or the requested item is absent. |
+| `BUSY` | An add is attempted when the list already has `MAX_GROCERY_ITEMS` items. |
+| `CONFLICT` (`GroceryConflictError`) | The expected revision is stale, or an add uses an item ID already present in the list. |
 
 This function performs no authorization, I/O, persistence, event publication, or request deduplication. The actor must come from the live session, never command input. A storage adapter must read the authoritative list and atomically commit the candidate and durable request outcome under its revision lock. It must not treat the returned candidate as an applied receipt or run a read/prepare/write sequence outside that lock. Keep unknown outcomes unknown until authoritative readback; do not blindly replay the mutation. The existing command service supplies process-local request deduplication only.
 
