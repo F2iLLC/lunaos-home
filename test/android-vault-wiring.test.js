@@ -12,6 +12,8 @@ function assertLunaProbeGuard(rust) {
   assert.ok(command, 'open_luna_probe command must exist');
   assert.match(command, /if window.label\(\) != "main"\s*\{\s*return Err\(/);
   assert.match(command, /run_mobile_plugin_async::<\(\)>\("openLunaProbe", \(\)\)/);
+  assert.ok(command.indexOf('if window.label()') < command.indexOf('run_mobile_plugin_async'),
+    'main-window guard must precede the plugin call');
 }
 
 test('Luna guard assertion cannot borrow a guard or plugin call from a later command', () => {
@@ -20,6 +22,7 @@ test('Luna guard assertion cannot borrow a guard or plugin call from a later com
   const command = body => `pub async fn open_luna_probe() {\n${body}\n}`;
   const later = `\npub async fn other_command() {\n${guard}\n${call}\n}`;
   assertLunaProbeGuard(command(`${guard}\n${call}`) + later);
+  assert.throws(() => assertLunaProbeGuard(command(`${call}\n${guard}`) + later), assert.AssertionError);
   assert.throws(() => assertLunaProbeGuard(command(call) + later), assert.AssertionError);
   assert.throws(() => assertLunaProbeGuard(command(guard) + later), assert.AssertionError);
   assert.throws(() => assertLunaProbeGuard(later), assert.AssertionError);
