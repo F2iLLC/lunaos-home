@@ -1,8 +1,8 @@
 {
   "identifier": "android-fictional-launch",
-  "description": "Open native experiment screens or the separate Luna demo; no record or storage access.",
+  "description": "Open local native experiments and control Home-owned offline Luna wake listening and timers.",
   "local": true,
   "windows": ["main"],
   "platforms": ["android"],
-  "permissions": ["allow-open-fictional-vault", "allow-open-luna-probe", "allow-get-luna-snapshot"]
+  "permissions": ["allow-open-fictional-vault", "allow-get-luna-snapshot", "allow-enable-luna-wake", "allow-request-luna-microphone", "allow-disable-luna-wake", "allow-cancel-luna-timer"]
 }

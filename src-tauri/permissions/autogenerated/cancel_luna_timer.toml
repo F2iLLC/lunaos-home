@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-luna-timer"
+description = "Enables cancellation of a numbered Home Luna timer."
+commands.allow = ["cancel_luna_timer"]
+
+[[permission]]
+identifier = "deny-cancel-luna-timer"
+description = "Denies cancellation of a Home Luna timer."
+commands.deny = ["cancel_luna_timer"]

@@ -6,35 +6,36 @@ import { vaultDebugManifest } from '../scripts/prepare-android.mjs';
 
 const json = async path => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'));
 
-function assertLunaProbeGuard(rust) {
+function assertHomeLunaGuard(rust, name, operation) {
   // Rust command bodies end at a column-zero brace; nested blocks are indented.
-  const command = rust.match(/^pub async fn open_luna_probe\b[^]*?^}/m)?.[0];
-  assert.ok(command, 'open_luna_probe command must exist');
+  const command = rust.match(new RegExp(`^pub async fn ${name}\\b[^]*?^}`, 'm'))?.[0];
+  assert.ok(command, `${name} command must exist`);
   assert.match(command, /if window.label\(\) != "main"\s*\{\s*return Err\(/);
-  assert.match(command, /run_mobile_plugin_async::<\(\)>\("openLunaProbe", \(\)\)/);
+  assert.ok(command.includes(`"${operation}"`), `${name} must call the ${operation} Home command`);
   assert.ok(command.indexOf('if window.label()') < command.indexOf('run_mobile_plugin_async'),
     'main-window guard must precede the plugin call');
 }
 
-test('Luna guard assertion cannot borrow a guard or plugin call from a later command', () => {
+test('Home Luna guard assertion cannot borrow a guard or plugin call from a later command', () => {
   const guard = '    if window.label() != "main" {\n        return Err("Denied".into());\n    }';
-  const call = '    state.0.run_mobile_plugin_async::<()>("openLunaProbe", ())';
-  const command = body => `pub async fn open_luna_probe() {\n${body}\n}`;
+  const call = '    state.0.run_mobile_plugin_async::<()>("enableLunaWake", ())';
+  const command = body => `pub async fn enable_luna_wake() {\n${body}\n}`;
   const later = `\npub async fn other_command() {\n${guard}\n${call}\n}`;
-  assertLunaProbeGuard(command(`${guard}\n${call}`) + later);
-  assert.throws(() => assertLunaProbeGuard(command(`${call}\n${guard}`) + later), assert.AssertionError);
-  assert.throws(() => assertLunaProbeGuard(command(call) + later), assert.AssertionError);
-  assert.throws(() => assertLunaProbeGuard(command(guard) + later), assert.AssertionError);
-  assert.throws(() => assertLunaProbeGuard(later), assert.AssertionError);
+  assertHomeLunaGuard(command(`${guard}\n${call}`) + later, 'enable_luna_wake', 'enableLunaWake');
+  assert.throws(() => assertHomeLunaGuard(command(`${call}\n${guard}`) + later, 'enable_luna_wake', 'enableLunaWake'), assert.AssertionError);
+  assert.throws(() => assertHomeLunaGuard(command(call) + later, 'enable_luna_wake', 'enableLunaWake'), assert.AssertionError);
+  assert.throws(() => assertHomeLunaGuard(command(guard) + later, 'enable_luna_wake', 'enableLunaWake'), assert.AssertionError);
+  assert.throws(() => assertHomeLunaGuard(later, 'enable_luna_wake', 'enableLunaWake'), assert.AssertionError);
 });
 
-test('Android grants only local main-window open, without remote or filesystem capabilities', async () => {
+test('Android grants only local main-window Home commands, without remote or filesystem capabilities', async () => {
   const capability = await json('../src-tauri/capabilities/android-fictional-launch.json');
   assert.equal(capability.local, true);
   assert.equal(capability.remote, undefined);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(capability.platforms, ['android']);
-  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-open-luna-probe', 'allow-get-luna-snapshot']);
+  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-enable-luna-wake',
+    'allow-request-luna-microphone', 'allow-disable-luna-wake', 'allow-cancel-luna-timer']);
   const android = await json('../src-tauri/tauri.android.conf.json');
   assert.deepEqual(android.app.security.capabilities, ['android-fictional-launch']);
   assert.equal(android.app.withGlobalTauri, true);
@@ -51,34 +52,39 @@ test('Android grants only local main-window open, without remote or filesystem c
       'android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE',
       'android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND',
       'android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND', 'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_MICROPHONE', 'android.permission.WAKE_LOCK',
       'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK']);
   assert.match(vaultDebugManifest, /<receiver android:name="androidx.profileinstaller.ProfileInstallReceiver" tools:node="remove"\s*\/>/);
   assert.match(vaultDebugManifest, /android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"/);
   assert.match(vaultDebugManifest, /VehicleAudioService" android:exported="false"/);
   assert.match(vaultDebugManifest, /VehicleReceiver[\s\S]*android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED/);
-  assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION|FOREGROUND_SERVICE_MICROPHONE/);
+  assert.doesNotMatch(vaultDebugManifest, /<activity-alias\b|ACCESS_FINE_LOCATION/);
   assert.match(vaultDebugManifest, /android.permission.RECORD_AUDIO/);
   assert.match(vaultDebugManifest, /VehicleConversationActivity" android:exported="false"/);
-  assert.match(vaultDebugManifest, /<package android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe"\s*\/>/);
+  assert.match(vaultDebugManifest, /service android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe\.BackgroundWakeService"[^>]*foregroundServiceType="microphone"/);
+  assert.match(vaultDebugManifest, /service android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe\.TimerAlarmService"/);
+  assert.doesNotMatch(vaultDebugManifest, /<package android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe"/);
   const rust = await readFile(new URL('../src-tauri/src/android_vault.rs', import.meta.url), 'utf8');
   const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
-  assert.doesNotMatch(rust, /Some\("luna-probe"\)/);
-  assertLunaProbeGuard(rust);
+  assert.match(rust, /pub async fn enable_luna_wake/);
+  assert.match(rust, /pub async fn request_luna_microphone/);
+  assertHomeLunaGuard(rust, 'enable_luna_wake', 'enableLunaWake');
   const registration = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
-  assert.match(registration, /#\[cfg\(all\(target_os = "android", debug_assertions\)\)\][\s\S]*android_vault::open_luna_probe/);
+  assert.match(registration, /#\[cfg\(all\(target_os = "android", debug_assertions\)\)\][\s\S]*android_vault::enable_luna_wake/);
   assert.match(registration, /android_vault::get_luna_snapshot/);
   const manifest = await readFile(new URL('../src-tauri/build.rs', import.meta.url), 'utf8');
-  assert.match(manifest, /"get_luna_snapshot"/);
-  const permission = await readFile(new URL('../src-tauri/permissions/autogenerated/open_luna_probe.toml', import.meta.url), 'utf8');
-  assert.match(permission, /commands.allow = \["open_luna_probe"\]/);
+  for (const command of ['get_luna_snapshot', 'enable_luna_wake', 'request_luna_microphone', 'disable_luna_wake', 'cancel_luna_timer'])
+    assert.match(manifest, new RegExp(`"${command}"`));
+  const permission = await readFile(new URL('../src-tauri/permissions/autogenerated/enable_luna_wake.toml', import.meta.url), 'utf8');
+  assert.match(permission, /commands.allow = \["enable_luna_wake"\]/);
   const snapshotPermission = await readFile(new URL('../src-tauri/permissions/autogenerated/get_luna_snapshot.toml', import.meta.url), 'utf8');
   assert.match(snapshotPermission, /commands.allow = \["get_luna_snapshot"\]/);
-  assert.match(plugin, /fun openLunaProbe\(invoke: Invoke\)/);
-  assert.match(plugin, /setClassName\([\s\S]*io\.github\.f2illc\.lunaos\.home\.voiceprobe\.VoiceProbe/);
-  assert.doesNotMatch(plugin.match(/fun openLunaProbe\(invoke: Invoke\)[\s\S]*?\n    }/)?.[0] ?? '', /BackgroundWakeService|RECORD_AUDIO|startForegroundService/);
+  assert.match(plugin, /fun enableLunaWake\(invoke: Invoke\)/);
+  assert.match(plugin, /invoke\.parseArgs\(LunaTimerArgs::class\.java\)/);
+  assert.doesNotMatch(plugin, /openLunaProbe|VoiceProbe/);
 });
 
-test('bundled launcher sends only open, disables while pending, and stays absent outside Android debug', async () => {
+test('bundled Home Luna controls are Android-debug-only and call only Home state commands', async () => {
   for (const enabled of [false, true]) {
     const bundled = await build({
       entryPoints: ['src/native.js'], bundle: true, write: false, format: 'esm',
@@ -102,18 +108,21 @@ test('bundled launcher sends only open, disables while pending, and stays absent
       },
       createElement() {
         const local = new Map();
-        return { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; },
+        const element = { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
-            if (!local.has(selector)) local.set(selector, { addEventListener(event, handler) { this[event] = handler; } });
+            if (!local.has(selector)) local.set(selector, { addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {} });
             return local.get(selector);
           } };
+        return element;
       },
     };
     const calls = [];
-    let finish;
     const window = { __TAURI__: { core: { invoke: (...args) => {
       calls.push(args);
-      return new Promise(resolve => { finish = resolve; });
+      return Promise.resolve(args[0] === 'get_luna_snapshot' ? {
+        status: 'unavailable', reason: 'local_model_unavailable', capturePhase: 'off',
+        microphoneInUse: false, onlineAnswersEnabled: false, activeTimers: [],
+      } : undefined);
     } } } };
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     await new AsyncFunction('document', 'window', bundled.outputFiles[0].text)(document, window);
@@ -121,44 +130,39 @@ test('bundled launcher sends only open, disables while pending, and stays absent
     const [lunaLink, lunaScreen, button, status, prepare, open, directStatus] = children;
     assert.equal(lunaLink.href, '#luna');
     assert.equal(lunaScreen.id, 'luna');
-    const lunaButton = lunaScreen.querySelector('#open-luna-demo');
-    const lunaPending = lunaButton.click({ currentTarget: lunaButton });
-    assert.deepEqual(calls, [['get_luna_snapshot'], ['open_luna_probe']]);
-    assert.equal(lunaButton.disabled, true);
-    finish(); await lunaPending;
-    assert.equal(lunaButton.disabled, false);
-    assert.match(lunaScreen.querySelector('#luna-demo-status').textContent, /local controls/);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(lunaScreen.querySelector('#luna-state').textContent, /Local wake model unavailable/);
+    const allowMic = lunaScreen.querySelector('#allow-luna-mic');
+    await allowMic.click({ currentTarget: allowMic });
+    assert.ok(calls.some(([command]) => command === 'request_luna_microphone'));
+    const enable = lunaScreen.querySelector('#enable-luna-wake');
+    await enable.click({ currentTarget: enable });
+    assert.ok(calls.some(([command]) => command === 'enable_luna_wake'));
+    const disable = lunaScreen.querySelector('#disable-luna-wake');
+    await disable.click({ currentTarget: disable });
+    assert.ok(calls.some(([command]) => command === 'disable_luna_wake'));
+    assert.deepEqual(calls.filter(([command]) => command === 'request_luna_microphone' || command.startsWith('luna_')).map(([command]) => command),
+      ['request_luna_microphone', 'enable_luna_wake', 'disable_luna_wake']);
     assert.ok(elements.has('#home-actions'));
     assert.equal(button.className, 'primary-button');
     const pending = button.click();
     assert.equal(button.disabled, true);
     assert.deepEqual(calls.at(-1), ['open_fictional_vault']);
-    finish();
     await pending;
     assert.equal(button.disabled, false);
     assert.match(status.textContent, /Native screen requested/);
     const preparing = prepare.click();
     assert.equal(prepare.disabled, true);
     assert.deepEqual(calls.at(-1), ['open_fictional_vault', { kind: 'prepare-direct' }]);
-    finish(); await preparing;
+    await preparing;
     assert.equal(prepare.disabled, false);
     assert.match(directStatus.textContent, /identity prepared/);
     const opening = open.click();
     assert.equal(open.disabled, true);
     assert.deepEqual(calls.at(-1), ['open_fictional_vault', { kind: 'open-direct' }]);
-    finish(); await opening;
+    await opening;
     assert.equal(open.disabled, false);
     assert.match(directStatus.textContent, /Native connection screen requested/);
-    window.__TAURI__.core.invoke = () => Promise.reject(new Error('Private native diagnostic'));
-    await lunaButton.click({ currentTarget: lunaButton });
-    assert.equal(lunaButton.disabled, false);
-    const lunaStatus = lunaScreen.querySelector('#luna-demo-status');
-    assert.match(lunaStatus.textContent, /Could not open the voice demo/);
-    assert.doesNotMatch(lunaStatus.textContent, /Install the separate demo.*first|Private native diagnostic|Voice demo opened/);
-    window.__TAURI__.core.invoke = () => Promise.resolve();
-    await lunaButton.click({ currentTarget: lunaButton });
-    assert.equal(lunaButton.disabled, false);
-    assert.match(lunaStatus.textContent, /Voice demo opened/);
     window.__TAURI__.core.invoke = () => Promise.reject(new Error('Private native diagnostic'));
     await button.click();
     assert.equal(button.disabled, false);

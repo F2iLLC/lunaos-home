@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "allow-get-luna-snapshot"
-description = "Enables the read-only Luna status snapshot command."
+description = "Enables the read-only Home-owned Luna status and timer snapshot command."
 commands.allow = ["get_luna_snapshot"]
 
 [[permission]]

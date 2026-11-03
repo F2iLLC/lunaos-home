@@ -4,30 +4,35 @@
 
 The owner selected a hosted LunaOS service with device authentication for online
 answers. The standalone 0.15 voice probe works for attended spoken questions and
-selected-voice replies. The owner confirmed that the updated online-answer
-checkbox is clearly visible after installation. The probe remains a separate
-package; its computer relay and USB reverse are development dependencies. Timer
-recognition reliability and genuine secure-lock cancellation remain unverified.
+selected-voice replies. Home now compiles the local wake listener and timer
+owner into its Android debug package. Android keeps each installed package's
+private preferences and files separate, so Home exposes only its new ledger;
+existing timers in a standalone probe remain there and cannot be claimed or
+canceled by Home. The computer relay and USB reverse are excluded from Home.
+Online answers remain off until the authenticated hosted service is integrated.
+Timer recognition reliability and genuine secure-lock cancellation remain
+unverified.
 
 ## Existing app boundary
 
 Home's Android shell is a Tauri WebView in `scripts/android/MainActivity.kt`.
-`scripts/prepare-android.mjs` packages selected native components into the debug
-variant; the main manifest currently has no microphone permission or voice
-service. The voice probe separately owns `BackgroundWakeService`, `NativeTimers`,
-`TimerAlarmService`, `TimerReceiver`, `LunaFace`, Vosk assets, reply assets and
-private preferences. Its package-scoped state cannot be treated as state in the
-main app. Merely adding a WebView page would not integrate capture or timers.
+`scripts/prepare-android.mjs` packages the local wake service, timer ledger,
+alarms, status face and Vosk runtime into the debug variant. The voice model is
+provided through `LUNA_HOME_VOICE_MODEL_DIRECTORY` at build time and is not
+committed. The native service and timer ledger run in Home's Android application
+sandbox and use Home's private files and preferences.
 
-The debug-only `open_luna_probe` command opens the separate demo from the local
-main window. It has its own Tauri permission and accepts no experiment kind or
-capture settings. The fictional-vault dispatcher rejects the former `luna-probe`
-kind. Launching the demo does not enable its microphone or report its timer state.
+The debug-only Home bridge exposes a read-only snapshot, a separate microphone
+permission request, explicit Enable and Disable controls, and numbered timer
+cancellation. Each command is restricted to the local main window. Loading Home
+or refreshing the snapshot does not start capture. The microphone permission
+button never enables listening. The standalone probe's existing native timers
+remain outside Home's state boundary.
 
 ## Target contract
 
-1. Move the native listener, timer ledger, alarms, playback and required offline
-   assets into the main Android package through a reviewed build path. Keep one
+1. Keep the native listener, timer ledger, alarms, playback and required offline
+   assets in the main Android package through the reviewed build path. Keep one
    native owner for each timer and one capture exclusion gate. Migration must
    explicitly handle old probe timers; the new app must never claim to see or
    control timers held by the separate probe.
@@ -70,21 +75,17 @@ kind. Launching the demo does not enable its microphone or report its timer stat
   Report automated, hosted, installed, audible and owner-confirmed evidence
   separately. Do not change lock settings or remotely activate capture.
 
-The next implementation unit after the read-only snapshot is migrating one
-native state owner into Home. Hosted endpoint work follows the identity
-contract before the computer relay is removed.
+The source migration is implemented in this debug build path. Hosted endpoint
+work still follows the identity contract; until then Home has no online-answer
+path.
 
 ## Initial debug entry slice
 
-The debug Android Home build now offers a dedicated Meet Luna entry page. Its
-native command opens the separately installed probe activity by explicit
-component name; it does not start the listener or claim access to probe timers.
-The page says that face, timer and microphone controls remain in that separate
-app. It is omitted from desktop and non-debug Android builds. The debug-only
-`get_luna_snapshot` command is scoped to the local main window and returns
-`unavailable` with `voice_not_integrated` until Home owns the voice service.
-Microphone use, online-answer preference and active timers remain unknown
-(`null`); the page does not infer them from the separate probe or show them as
-Home state. Refreshing the snapshot never starts capture. Native ownership
-migration, hosted service and USB-free behavior above remain implementation
-work.
+The debug Android Home build offers a dedicated Meet Luna page. It reads Home's
+own service and timer ledger, reports an unavailable local model, and supports
+explicit microphone permission, listening Enable/Disable and timer cancellation.
+Online answers are hard-disabled in Home until the authenticated hosted service
+is integrated. The page is omitted from desktop and non-debug Android builds.
+This source migration does not establish installed-device reliability, audible
+behavior, lock handling, or hosted service operation; those remain separate
+verification gates.

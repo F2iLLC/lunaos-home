@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-disable-luna-wake"
+description = "Enables explicit disabling of Home wake listening."
+commands.allow = ["disable_luna_wake"]
+
+[[permission]]
+identifier = "deny-disable-luna-wake"
+description = "Denies disabling Home wake listening."
+commands.deny = ["disable_luna_wake"]
