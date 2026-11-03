@@ -32,8 +32,10 @@ The Windows rows below execute the actual developer-only DPAPI probe and reopen
 the encrypted store after each injected error. `old` means the previous list
 and its existing receipt history remain, with no receipt for the attempted
 request. `new` means the updated list and its matching success receipt are both
-present. The generic contract rows use a commit-boundary simulator and are
-supporting protocol tests, not filesystem evidence.
+present. The generic contract rows use a commit-boundary simulator. They
+assert that persistence sends list and receipt together in one compare-and-swap
+call, then exercise modeled pre/post-replacement outcomes; they are not
+filesystem evidence.
 
 | Adapter / injected fault | Reopened state | Evidence boundary |
 | --- | --- | --- |
@@ -133,9 +135,16 @@ PR #206 was approved by member reviewer `F2iProject` and automated reviewer
 approving; Conformance did not run because no governing specification was
 provided. The issue-206 source change was merged by GitHub as merge commit
 `02364929250e1ea8a81dcafceebfd00bf9aff82e` at 2026-11-03 03:21 UTC. These
-decisions apply to that merged head only. This follow-up matrix and its new
-tests have no reviewer decision yet; do not infer approval from the earlier
-reviews or checks.
+decisions apply to that merged head only.
+
+Vigil approved this matrix/test follow-up at commit `9278ae9`: six of seven
+specialists approved, with no findings; Conformance did not run. Testing
+recorded two non-blocking observations, tracked in #213 (assert the generic
+simulator boundary) and #214 (negative coverage for fault-hook validation).
+This revision adds the requested candidate-payload assertions and negative
+tests. The approval and observations above apply to `9278ae9`; they do not
+pre-approve later commits. A member review and governing conformance decision
+remain pending.
 
 Before adapter/platform qualification, reviewers still need to select the
 production implementation for Windows and Android, decide whether both remain

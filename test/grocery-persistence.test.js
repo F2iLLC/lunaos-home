@@ -199,9 +199,11 @@ const atomicFaults = [
 ];
 
 for (const [fault, expectedCommit] of atomicFaults) {
-  test(`atomic commit fault ${fault} reopens as one complete list/receipt pair`, async () => {
+  test(`commit-boundary simulation ${fault} submits one list/receipt payload and reopens its modeled pair`, async () => {
     let committed;
     let temporary;
+    let editCalls = 0;
+    let candidateData;
     const store = {
       contractVersion: 2,
       async read() { return structuredClone(committed ?? null); },
@@ -210,6 +212,8 @@ for (const [fault, expectedCommit] of atomicFaults) {
         return { revision: committed.revision };
       },
       async edit(_id, data, expectedRevision) {
+        editCalls++;
+        candidateData = structuredClone(data);
         if (committed.revision !== expectedRevision) throw new VaultConflictError();
         temporary = JSON.stringify({ revision: crypto.randomUUID(), data });
         if (fault === 'during-write' || fault === 'disk-full-during-write' || fault === 'process-interruption-during-write') {
@@ -235,8 +239,15 @@ for (const [fault, expectedCommit] of atomicFaults) {
     try { receipt = await persistence.execute(command, { actor }); }
     catch { /* A pre-replacement failure leaves outcome reconciliation to a later read. */ }
 
-    // The adapter's committed slot models a durable old-or-new atomic replacement;
-    // a partial/tampered temporary is deliberately never eligible for reopen.
+    assert.equal(editCalls, 1, 'the adapter receives one compare-and-swap write');
+    assert.equal(candidateData.kind, 'grocery-list');
+    assert.equal(candidateData.list.items[0].id, command.item.id);
+    assert.equal(candidateData.outcomes.length, 1);
+    assert.equal(candidateData.outcomes[0].requestId, command.requestId);
+    assert.equal(candidateData.outcomes[0].receipt.revision, candidateData.list.revision);
+
+    // This in-memory boundary models atomic replacement; Windows-specific
+    // filesystem evidence is supplied by windows-grocery-persistence.test.js.
     const reopened = createGroceryPersistence({ store });
     const stored = await store.read(list.id);
     const hasReceipt = stored.data.outcomes.some(outcome => outcome.requestId === command.requestId);

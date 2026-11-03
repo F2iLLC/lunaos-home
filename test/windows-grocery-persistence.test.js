@@ -10,6 +10,11 @@ const windows = { skip: process.platform !== 'win32', timeout: 60000 };
 const list = { id: 'weekly', householdId: 'home-example', label: 'Weekly', items: [],
   revision: '3d735c0e-3176-4502-8717-8e62f59d3a91', updatedBy: { kind: 'human', id: 'person-example' } };
 
+test('Windows probe rejects unsupported fault-injection options before platform access', async () => {
+  await assert.rejects(openWindowsProbeStore({ contractVersion: 2, testFault: 'unknown-fault' }), TypeError);
+  await assert.rejects(openWindowsProbeStore({ contractVersion: 1, testFault: 'before-write' }), TypeError);
+});
+
 test('encrypted grocery payload and receipts survive reopen; profile sessions cannot reinterpret them', windows, async t => {
   const store = await openWindowsProbeStore({ create: true, contractVersion: 2 });
   const service = createVaultSessionService({ store, contractVersion: 2 });
