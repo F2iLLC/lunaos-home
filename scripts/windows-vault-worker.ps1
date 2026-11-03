@@ -82,9 +82,10 @@ try {
     if ($request.Contains('contractVersion')) { $expected++ }
     if ($request.Contains('testFault')) {
         $expected++
-        if (-not $versioned -or $operation -cnotin @('create', 'edit', 'edit-profile', 'delete') -or
-            $request.testFault -cnotin @('before-write', 'during-write', 'after-write', 'before-replacement',
-                'after-replacement', 'disk-full', 'process-interruption', 'tampered-temporary')) { throw 'test-fault' }
+        # Test-only definitions shared with lib/windows-probe-store.js; read only when a fault is requested.
+        $faultContract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'windows-vault-faults.json') -Raw | ConvertFrom-Json -AsHashtable
+        if (-not $versioned -or $operation -cnotin $faultContract.operations -or
+            $request.testFault -isnot [string] -or $request.testFault -cnotin $faultContract.faults) { throw 'test-fault' }
     }
     if ($versioned -and $operation -cin @('edit', 'edit-profile', 'delete')) {
         $expected++
