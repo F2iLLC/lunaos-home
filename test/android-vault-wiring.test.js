@@ -6,6 +6,25 @@ import { vaultDebugManifest } from '../scripts/prepare-android.mjs';
 
 const json = async path => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'));
 
+function assertLunaProbeGuard(rust) {
+  // Rust command bodies end at a column-zero brace; nested blocks are indented.
+  const command = rust.match(/^pub async fn open_luna_probe\b[^]*?^}/m)?.[0];
+  assert.ok(command, 'open_luna_probe command must exist');
+  assert.match(command, /if window.label\(\) != "main"\s*\{\s*return Err\(/);
+  assert.match(command, /run_mobile_plugin_async::<\(\)>\("openLunaProbe", \(\)\)/);
+}
+
+test('Luna guard assertion cannot borrow a guard or plugin call from a later command', () => {
+  const guard = '    if window.label() != "main" {\n        return Err("Denied".into());\n    }';
+  const call = '    state.0.run_mobile_plugin_async::<()>("openLunaProbe", ())';
+  const command = body => `pub async fn open_luna_probe() {\n${body}\n}`;
+  const later = `\npub async fn other_command() {\n${guard}\n${call}\n}`;
+  assertLunaProbeGuard(command(`${guard}\n${call}`) + later);
+  assert.throws(() => assertLunaProbeGuard(command(call) + later), assert.AssertionError);
+  assert.throws(() => assertLunaProbeGuard(command(guard) + later), assert.AssertionError);
+  assert.throws(() => assertLunaProbeGuard(later), assert.AssertionError);
+});
+
 test('Android grants only local main-window open, without remote or filesystem capabilities', async () => {
   const capability = await json('../src-tauri/capabilities/android-fictional-launch.json');
   assert.equal(capability.local, true);
@@ -41,7 +60,7 @@ test('Android grants only local main-window open, without remote or filesystem c
   const rust = await readFile(new URL('../src-tauri/src/android_vault.rs', import.meta.url), 'utf8');
   const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
   assert.doesNotMatch(rust, /Some\("luna-probe"\)/);
-  assert.match(rust, /pub async fn open_luna_probe[\s\S]*window.label\(\) != "main"[\s\S]*run_mobile_plugin_async::<\(\)>\("openLunaProbe", \(\)\)/);
+  assertLunaProbeGuard(rust);
   const registration = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
   assert.match(registration, /#\[cfg\(all\(target_os = "android", debug_assertions\)\)\][\s\S]*android_vault::open_luna_probe/);
   const manifest = await readFile(new URL('../src-tauri/build.rs', import.meta.url), 'utf8');
