@@ -29,7 +29,18 @@ test('fault definitions have one source shared by the worker, the wrapper and th
   assert.deepEqual(windowsFaultMatrix.map(([fault]) => fault).sort(), [...faults].sort(), 'the Windows matrix covers every defined fault');
   const worker = await readFile(new URL('../scripts/windows-vault-worker.ps1', import.meta.url), 'utf8');
   assert.match(worker, /windows-vault-faults\.json/);
-  assert.doesNotMatch(worker, /-cnotin @\('before-write'/, 'the worker must not keep its own fault allow-list');
+  // Validation must come from the shared file.
+  assert.match(worker, /\$operation -cnotin \$faultContract\.operations/);
+  assert.match(worker, /\$request\.testFault -cnotin \$faultContract\.faults/);
+  // Fault names may appear only in the branches that implement each fault's
+  // behaviour. Any other form of private list (-notin, a hashtable, a variable,
+  // a different order) puts a fault literal on a non-branch line and fails here.
+  const faultLiteral = new RegExp(`'(?:${faults.join('|')})'`);
+  const literalLines = worker.split(/\r?\n/).filter(line => faultLiteral.test(line));
+  assert.ok(literalLines.length > 0, 'the worker implements the defined faults');
+  for (const line of literalLines) {
+    assert.match(line, /^\s*if \(\$testFault -c(?:eq|in) /, `fault names belong only in behaviour branches: ${line.trim()}`);
+  }
 });
 
 test('encrypted grocery payload and receipts survive reopen; profile sessions cannot reinterpret them', windows, async t => {
