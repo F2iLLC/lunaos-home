@@ -81,7 +81,9 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     catch { stateText.textContent = 'Could not confirm listening stopped. Refresh status.'; }
     finally { button.disabled = false; await refreshSnapshot(); }
   });
-  setInterval(() => { if (!luna.hidden) void refreshSnapshot(); }, 1000);
+  const snapshotPoll = setInterval(() => { if (!luna.hidden) void refreshSnapshot(); }, 1000);
+  // Node's DOM harness should not stay alive for a browser-only status poll.
+  snapshotPoll.unref?.();
   const launch = document.createElement('button');
   launch.type = 'button';
   launch.className = 'primary-button';
