@@ -141,7 +141,8 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const disable = lunaScreen.querySelector('#disable-luna-wake');
     await disable.click({ currentTarget: disable });
     assert.ok(calls.some(([command]) => command === 'disable_luna_wake'));
-    assert.deepEqual(calls.filter(([command]) => command === 'request_luna_microphone' || command.startsWith('luna_')).map(([command]) => command),
+    assert.deepEqual(calls.filter(([command]) => command === 'request_luna_microphone' ||
+      command === 'enable_luna_wake' || command === 'disable_luna_wake').map(([command]) => command),
       ['request_luna_microphone', 'enable_luna_wake', 'disable_luna_wake']);
     assert.ok(elements.has('#home-actions'));
     assert.equal(button.className, 'primary-button');
