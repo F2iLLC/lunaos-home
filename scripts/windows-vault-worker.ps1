@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = [Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-$lock = $null; $temp = $null; $locked = $false; $cleanup = $false
+$lock = $null; $temp = $null; $locked = $false; $cleanup = $false; $testFault = $null
 $errorCode = 'STORAGE_FAILED'
 function Assert-OrdinaryPath([string] $Path) {
     for ($cursor = $Path; $cursor; $cursor = [IO.Path]::GetDirectoryName($cursor)) {
@@ -74,11 +74,18 @@ try {
             $request.contractVersion -notin @(1, 2)) { throw 'contract' }
         $contractVersion = $request.contractVersion
     }
+    if ($request.Contains('testFault')) { $testFault = $request.testFault }
     $versioned = $contractVersion -eq 2
     if ($versioned -and $operation -cin @('snapshot', 'restore')) { throw 'unsupported-recovery' }
     if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'edit-profile', 'delete', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
     $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'edit-profile' { 4 }; 'delete' { 3 }; 'restore' { 3 }; default { 2 } }
     if ($request.Contains('contractVersion')) { $expected++ }
+    if ($request.Contains('testFault')) {
+        $expected++
+        if (-not $versioned -or $operation -cnotin @('create', 'edit', 'edit-profile', 'delete') -or
+            $request.testFault -cnotin @('before-write', 'during-write', 'after-write', 'before-replacement',
+                'after-replacement', 'disk-full', 'process-interruption', 'tampered-temporary')) { throw 'test-fault' }
+    }
     if ($versioned -and $operation -cin @('edit', 'edit-profile', 'delete')) {
         $expected++
         Assert-Revision $request.expectedRevision
@@ -203,9 +210,27 @@ try {
             if ($cipher.Length -gt 262144) { throw 'size' }
             $temp = Join-Path $root ('records-' + [Guid]::NewGuid().ToString('D') + '.tmp')
             $stream = [IO.FileStream]::new($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-            try { $stream.Write($cipher, 0, $cipher.Length); $stream.Flush($true) } finally { $stream.Dispose() }
+            try {
+                if ($testFault -ceq 'before-write') { throw 'injected-before-write' }
+                if ($testFault -cin @('during-write', 'disk-full', 'process-interruption')) {
+                    $partial = [Math]::Max(1, [Math]::Floor($cipher.Length / 2))
+                    $stream.Write($cipher, 0, $partial)
+                    throw 'injected-during-write'
+                }
+                $stream.Write($cipher, 0, $cipher.Length)
+                if ($testFault -ceq 'after-write') { throw 'injected-after-write' }
+                $stream.Flush($true)
+            } finally { $stream.Dispose() }
+            if ($testFault -ceq 'tampered-temporary') {
+                $damaged = [IO.File]::ReadAllBytes($temp)
+                $damaged[$damaged.Length - 1] = $damaged[$damaged.Length - 1] -bxor 1
+                [IO.File]::WriteAllBytes($temp, $damaged)
+                throw 'injected-temporary-tamper'
+            }
+            if ($testFault -ceq 'before-replacement') { throw 'injected-before-replacement' }
             [IO.File]::Move($temp, $file, $operation -ne 'init')
             $temp = $null
+            if ($testFault -ceq 'after-replacement') { throw 'injected-after-replacement' }
         }
     }
 } catch {

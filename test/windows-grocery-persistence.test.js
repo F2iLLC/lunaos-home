@@ -10,6 +10,11 @@ const windows = { skip: process.platform !== 'win32', timeout: 60000 };
 const list = { id: 'weekly', householdId: 'home-example', label: 'Weekly', items: [],
   revision: '3d735c0e-3176-4502-8717-8e62f59d3a91', updatedBy: { kind: 'human', id: 'person-example' } };
 
+test('Windows probe rejects unsupported fault-injection options before platform access', async () => {
+  await assert.rejects(openWindowsProbeStore({ contractVersion: 2, testFault: 'unknown-fault' }), TypeError);
+  await assert.rejects(openWindowsProbeStore({ contractVersion: 1, testFault: 'before-write' }), TypeError);
+});
+
 test('encrypted grocery payload and receipts survive reopen; profile sessions cannot reinterpret them', windows, async t => {
   const store = await openWindowsProbeStore({ create: true, contractVersion: 2 });
   const service = createVaultSessionService({ store, contractVersion: 2 });
@@ -36,4 +41,48 @@ test('encrypted grocery payload and receipts survive reopen; profile sessions ca
   await assert.rejects(connection.execute(grant, { version: 2, action: 'edit', recordId: list.id,
     expectedRevision: stored.revision, data: { memberId: 'member-example', label: 'Profile', value: 'Profile value' } }),
   { code: 'UNSUPPORTED' });
+});
+
+test('Windows DPAPI probe fault matrix reopens only complete old or new grocery/list receipt pairs', windows, async t => {
+  const store = await openWindowsProbeStore({ create: true, contractVersion: 2 });
+  t.after(() => store.removeSyntheticStore());
+  const initialList = { ...list, items: [{ id: 'apples', label: 'Apples', completed: false }] };
+  await createGroceryPersistence({ store }).createList(initialList);
+  let expectedRevision = initialList.revision;
+  let expectedLabel = 'Apples';
+  const faults = [
+    ['before-write', 'old'], ['during-write', 'old'], ['after-write', 'old'],
+    ['before-replacement', 'old'], ['after-replacement', 'new'], ['disk-full', 'old'],
+    ['process-interruption', 'old'], ['tampered-temporary', 'old'],
+  ];
+
+  for (const [testFault, outcome] of faults) {
+    const label = `Fixture ${testFault}`;
+    const faultStore = await openWindowsProbeStore({ probeId: store.probeId, contractVersion: 2, testFault });
+    const persistence = createGroceryPersistence({ store: faultStore });
+    const command = { version: 1, action: 'edit', requestId: crypto.randomUUID(), householdId: list.householdId,
+      listId: list.id, expectedRevision, itemId: 'apples', patch: { label } };
+    let result;
+    let failure;
+    try { result = await persistence.execute(command, { actor: list.updatedBy }); }
+    catch (error) { failure = error; }
+
+    const reopened = await openWindowsProbeStore({ probeId: store.probeId, contractVersion: 2 });
+    const row = await reopened.read(list.id);
+    const grocery = row.data;
+    const outcomeRecord = grocery.outcomes.find(entry => entry.requestId === command.requestId);
+    assert.equal(outcomeRecord !== undefined, outcome === 'new', `${testFault}: durable receipt presence`);
+    assert.equal(grocery.list.items[0].label, outcome === 'new' ? label : expectedLabel, `${testFault}: list state`);
+    if (outcome === 'new') {
+      assert.equal(result?.status, 'applied');
+      assert.equal(result.revision, grocery.list.revision);
+      assert.deepEqual(outcomeRecord.receipt, result);
+      expectedRevision = grocery.list.revision;
+      expectedLabel = label;
+    } else {
+      assert.ok(failure, `${testFault}: failed write must not claim success`);
+      assert.equal(outcomeRecord, undefined, `${testFault}: no success receipt may accompany the old list`);
+      expectedRevision = grocery.list.revision;
+    }
+  }
 });
