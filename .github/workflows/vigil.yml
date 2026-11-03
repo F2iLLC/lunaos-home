@@ -65,7 +65,7 @@ jobs:
       issues: write
     uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@f593583386a8ed36bdbcea37cd1aa1166cc1227c
     with:
-      model: gemini/gemini-3.1-flash-lite
+      model: gemini/gemini-3.1-flash
       runner-json: '["ubuntu-latest"]'
     secrets:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
