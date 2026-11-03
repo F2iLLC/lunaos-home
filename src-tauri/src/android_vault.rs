@@ -16,7 +16,6 @@ pub async fn open_fictional_vault<R: Runtime>(
         Some("prepare-direct") => "prepareDirect",
         Some("open-direct") => "openDirect",
         Some("vehicle") => "openVehicle",
-        Some("luna-probe") => "openLunaProbe",
         _ => return Err("Unsupported fictional experiment".into()),
     };
     state
@@ -24,6 +23,22 @@ pub async fn open_fictional_vault<R: Runtime>(
         .run_mobile_plugin_async::<()>(operation, ())
         .await
         .map_err(|_| "Native screen unavailable".into())
+}
+
+// Opening the demo only brings its controls into view; it never enables capture.
+#[tauri::command]
+pub async fn open_luna_probe<R: Runtime>(
+    window: tauri::WebviewWindow<R>,
+    state: tauri::State<'_, Vault<R>>,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Only the local main window may open the Luna demo".into());
+    }
+    state
+        .0
+        .run_mobile_plugin_async::<()>("openLunaProbe", ())
+        .await
+        .map_err(|_| "Luna demo unavailable".into())
 }
 
 pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {

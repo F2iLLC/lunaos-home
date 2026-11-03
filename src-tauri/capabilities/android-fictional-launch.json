@@ -1,8 +1,8 @@
 {
   "identifier": "android-fictional-launch",
-  "description": "Open the native fictional experiment only; no record or storage access.",
+  "description": "Open native experiment screens or the separate Luna demo; no record or storage access.",
   "local": true,
   "windows": ["main"],
   "platforms": ["android"],
-  "permissions": ["allow-open-fictional-vault"]
+  "permissions": ["allow-open-fictional-vault", "allow-open-luna-probe"]
 }
