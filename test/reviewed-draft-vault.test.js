@@ -11,7 +11,8 @@ import { once } from 'node:events';
 
 function memoryStore() {
   const records = new Map();
-  return { contractVersion: 2, records,
+  // This fixture holds only profile records, so the profile-only edit path is plain edit.
+  return { contractVersion: 2, records, editProfile(...args) { return this.edit(...args); },
     async read(id) { return structuredClone(records.get(id) ?? null); },
     async create(id, data) {
       if (records.has(id)) throw new VaultConflictError();
