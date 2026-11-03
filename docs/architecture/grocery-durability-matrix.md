@@ -12,19 +12,32 @@ atomic durable replacement. A failed acknowledgement is reconciled by a read;
 if that read fails, the result remains `unknown` and the caller must read later
 before any retry. This is the boundary exercised by PR #206.
 
-The qualification targets to resolve are Windows 11 desktop and Android
-phone: the README names Android as the first mobile target, and the roadmap
-names Windows 11 as the first desktop candidate. This is the intended target
-plan for adapter selection, not a compatibility or release-support claim.
-Production platform adapters are **not selected**:
+The selected first production-support target is **Windows 11 x64 desktop**.
+The intended adapter is `WindowsSnapshotFileStore v1`: a native Tauri/Rust
+adapter that commits the complete versioned record snapshot as one encrypted
+file, using a flushed same-directory temporary file, atomic replacement and
+readback. Its data key must be released through a supported Windows-owned,
+authentication-bound key-protection method. That method is not selected yet;
+the disposable Software KSP password experiment is not the production method.
+The adapter is an implementation decision, not a qualification or release
+claim. #6 remains open until key custody, unlock, migration and failure
+acceptance are approved and integrated.
 
-| Target | Named implementation under test | Production decision and qualification |
+Android remains an intended follow-on platform, with an eventual native
+`AndroidSnapshotFileStore` using Keystore and app-private no-backup storage.
+Android 16/API 36 emulator and Android 17/API 37 physical-device combinations
+are qualification targets only; the minimum supported Android release,
+Keystore requirements and file commit behavior are not selected. Android is
+not in the first production-support scope. No other platform is claimed.
+
+| Target | Intended production adapter / implementation under test | Decision and qualification |
 | --- | --- | --- |
-| Windows 11 desktop | `WindowsProbeStore v2`: `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, encrypted `records.bin`, flushed same-directory temporary ciphertext and `File.Move` replacement | Developer-only synthetic probe. Not the production adapter; production key release, location, crash durability, recovery and hostile-process boundary remain unselected/unqualified. |
-| Android phone | No grocery persistence adapter exists. Android Keystore plus app-private storage is the existing vault prototype direction. | Candidate only; no adapter implementation or grocery fault/restart qualification. Keystore provider/hardware level and file replacement semantics are not selected. |
+| Windows 11 x64 desktop | Intended: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot). Exercised probe: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Selected first support target and adapter design. The existing probe is developer-only and does not qualify the intended adapter. Authentication-bound key release, production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
+| Android follow-on | Intended: `AndroidSnapshotFileStore` (native adapter, Keystore and app-private no-backup snapshot). No grocery persistence implementation exists. | Follow-on qualification target only; excluded from first support scope. Minimum OS, provider/hardware requirement, backup/transfer behavior and atomic replacement semantics remain open. |
 
-No other platform is claimed. In particular, Android emulator or native-shell
-tests elsewhere in the repository do not qualify grocery persistence.
+The snapshot adapter names describe intended designs; neither is implemented
+as a production adapter yet. Android emulator or native-shell tests elsewhere
+in the repository do not qualify grocery persistence.
 
 ## Fault-injection matrix
 
@@ -157,8 +170,11 @@ The matrix counts match the recorded commands; the PR description is updated
 with those counts and the hosted Windows result. This is a commit-scoped review
 record, not an approval of later changes.
 
-Production qualification requires selecting the Windows and Android adapter
-implementations and supported targets, approving a governing conformance
-specification, and reviewing the exact-version matrix including the unsupported
-cases above. This matrix does not make those decisions. Issues #6, #10 and #151
-remain open.
+The first adapter/platform decision is recorded above. Qualification still
+requires implementing `WindowsSnapshotFileStore v1`, selecting and validating
+its authentication-bound key release, approving a governing conformance
+specification, and rerunning this exact-version matrix against that adapter.
+Android requires a separate adapter and independent qualification before it is
+added to supported platforms. Backup/restore and schema rollback remain under
+#10; isolation review remains under #151. Issues #6, #10, #151 and #141 remain
+open.

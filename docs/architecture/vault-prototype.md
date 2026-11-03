@@ -8,6 +8,25 @@ Keep the existing web interface and isolate a draft-only domain service. The Win
 
 Evaluate **Tauri with platform-native adapters** as the installable Windows/Android candidate. It can reuse a web interface, but the current Node process is not an Android runtime or a finished Tauri core. A native command adapter and shared contract tests must replace/bridge the experimental transport deliberately; do not bundle a desktop sidecar and claim phone support. The [offline shell probe](../prototypes/native-shell.md) now bundles the shared JavaScript domain and compiles a Windows debug executable without a Node runtime. The [Android probe](../prototypes/android.md) also builds, installs and starts on an Android 16 x86_64 emulator. Neither default offline shell has an assistant transport or persistent storage. The optional Windows debug connection is documented in the native shell probe; Android remains offline. Native interaction is verified for the documented Windows and physical Android combinations. Complete binary notices and installer validation remain distribution work. Tauri prerequisites include Windows build facilities and Android-specific tooling; none of that is established by responsive CSS. [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
+## Grocery storage adapter decision
+
+The first intended production-support target is Windows 11 x64 desktop, using a
+native Tauri/Rust `WindowsSnapshotFileStore v1` behind the shared
+`VersionedVaultRecordStore` contract. It will commit the full versioned record
+snapshot as one authenticated encrypted file with same-directory staging,
+atomic replacement and readback. A supported Windows-owned,
+authentication-bound data-key release method remains to be selected. The
+existing DPAPI grocery probe and disposable Software KSP envelope remain
+synthetic experiments; neither is the production adapter or its key policy.
+
+Android is a follow-on support target, not part of the first supported release.
+The intended native `AndroidSnapshotFileStore` would use Keystore and an
+app-private no-backup location, with separate backup/transfer and lifecycle
+qualification. The minimum supported Android version and provider requirements
+remain undecided. The [durability matrix](grocery-durability-matrix.md) records
+the adapter names, exact tested platforms and evidence limits. This decision
+does not close #6, #10 or #151, or claim production qualification.
+
 ## Assistant path
 
 The [physical Android check](../prototypes/android.md#october-16-physical-arm64-phone-interaction)
