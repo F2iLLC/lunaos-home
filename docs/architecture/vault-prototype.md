@@ -14,14 +14,11 @@ The first intended production-support target is Windows 11 x64 desktop, using a
 native Tauri/Rust `WindowsSnapshotFileStore v1` behind the shared
 `VersionedVaultRecordStore` contract. It will commit the full versioned record
 snapshot as one authenticated encrypted file with same-directory staging,
-atomic replacement and readback. For the observed Windows Home PC, the owner
-selected the Microsoft Software KSP high-protection dialog with a separate
-vault-key password as the implementation direction. This is a separate
-vault-password method, not Windows Hello, TPM-backed custody or Windows-account
-authentication. The app must not collect the password. The previous disposable
-KSP envelope remains compatibility evidence only; production integration and
-qualification are not complete. The adapter must fail closed and must never
-fall back to DPAPI `CurrentUser`.
+atomic replacement and readback. For the observed Windows 11 Home PC, the owner
+selected a separate vault-password method using the Microsoft Software KSP. The
+decision, its non-claims and its references are recorded once in the
+[Windows key-release assessment](grocery-durability-matrix.md#windows-key-release-assessment-2026-11-03).
+The adapter must fail closed and must never fall back to DPAPI `CurrentUser`.
 
 The current native preview has bundling disabled and no Windows grocery
 command/store implementing the shared v2 contract. The KSP example only wraps a
