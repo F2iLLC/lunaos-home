@@ -57,7 +57,10 @@ pub fn run() {
     #[cfg(all(target_os = "android", debug_assertions))]
     let builder = builder
         .plugin(android_vault::plugin())
-        .invoke_handler(tauri::generate_handler![android_vault::open_fictional_vault]);
+        .invoke_handler(tauri::generate_handler![
+            android_vault::open_fictional_vault,
+            android_vault::open_luna_probe
+        ]);
 
     builder
         .run(context)

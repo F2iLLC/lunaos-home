@@ -27,7 +27,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     const status = luna.querySelector('#luna-demo-status');
     button.disabled = true;
     try {
-      await window.__TAURI__.core.invoke('open_fictional_vault', { kind: 'luna-probe' });
+      await window.__TAURI__.core.invoke('open_luna_probe');
       status.textContent = 'Voice demo opened. Listening remains under its local controls.';
     } catch {
       status.textContent = 'Could not open the voice demo. Check that the separate demo is installed and can open on this device, then try again.';

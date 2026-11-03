@@ -19,6 +19,11 @@ service. The voice probe separately owns `BackgroundWakeService`, `NativeTimers`
 private preferences. Its package-scoped state cannot be treated as state in the
 main app. Merely adding a WebView page would not integrate capture or timers.
 
+The debug-only `open_luna_probe` command opens the separate demo from the local
+main window. It has its own Tauri permission and accepts no experiment kind or
+capture settings. The fictional-vault dispatcher rejects the former `luna-probe`
+kind. Launching the demo does not enable its microphone or report its timer state.
+
 ## Target contract
 
 1. Move the native listener, timer ledger, alarms, playback and required offline
