@@ -59,7 +59,8 @@ pub fn run() {
         .plugin(android_vault::plugin())
         .invoke_handler(tauri::generate_handler![
             android_vault::open_fictional_vault,
-            android_vault::open_luna_probe
+            android_vault::open_luna_probe,
+            android_vault::get_luna_snapshot
         ]);
 
     builder

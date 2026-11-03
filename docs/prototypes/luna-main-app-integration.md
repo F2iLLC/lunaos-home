@@ -70,10 +70,9 @@ kind. Launching the demo does not enable its microphone or report its timer stat
   Report automated, hosted, installed, audible and owner-confirmed evidence
   separately. Do not change lock settings or remotely activate capture.
 
-The next implementation unit is the native bridge and read-only state snapshot
-with a dedicated page in the debug Android app. It can be tested without
-enabling capture. Hosted endpoint work follows the identity contract before
-the computer relay is removed.
+The next implementation unit after the read-only snapshot is migrating one
+native state owner into Home. Hosted endpoint work follows the identity
+contract before the computer relay is removed.
 
 ## Initial debug entry slice
 
@@ -81,7 +80,11 @@ The debug Android Home build now offers a dedicated Meet Luna entry page. Its
 native command opens the separately installed probe activity by explicit
 component name; it does not start the listener or claim access to probe timers.
 The page says that face, timer and microphone controls remain in that separate
-app. It is omitted from desktop and non-debug Android builds. This establishes
-the Home navigation and narrow native launch path only. The state snapshot,
-native ownership migration, hosted service and USB-free behavior above remain
-implementation work.
+app. It is omitted from desktop and non-debug Android builds. The debug-only
+`get_luna_snapshot` command is scoped to the local main window and returns
+`unavailable` with `voice_not_integrated` until Home owns the voice service.
+Microphone use, online-answer preference and active timers remain unknown
+(`null`); the page does not infer them from the separate probe or show them as
+Home state. Refreshing the snapshot never starts capture. Native ownership
+migration, hosted service and USB-free behavior above remain implementation
+work.

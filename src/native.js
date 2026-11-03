@@ -18,10 +18,36 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div class="checklist-intro"><p class="eyebrow">LUNA VOICE DEMO</p>
     <h1 id="luna-heading" tabindex="-1">Meet Luna.</h1>
     <p>Luna's face, microphone controls and active timers are in the separately installed voice demo.</p></div>
-    <div class="list-panel"><p>Opening the demo does not turn on its microphone. Tap Enable there to start listening. Online answers currently require the computer relay and USB.</p>
+    <div class="list-panel"><h2>Home voice status</h2>
+    <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
+    <p id="luna-details">Home cannot read the separate demo's microphone or timers.</p>
+    <button id="refresh-luna-state" type="button">Refresh status</button>
+    <p>Opening the demo does not turn on its microphone. Tap Enable there to start listening. Online answers currently require the computer relay and USB.</p>
     <button id="open-luna-demo" class="primary-button" type="button">Open Luna voice demo</button>
     <p id="luna-demo-status" role="status" aria-live="polite"></p></div>`;
   document.querySelector('main').append(luna);
+  const stateText = luna.querySelector('#luna-state');
+  const stateDetails = luna.querySelector('#luna-details');
+  const refreshState = luna.querySelector('#refresh-luna-state');
+  const refreshSnapshot = async () => {
+    refreshState.disabled = true;
+    stateText.textContent = 'Checking Home voice status…';
+    try {
+      const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
+      if (snapshot.status === 'unavailable' && snapshot.reason === 'voice_not_integrated') {
+        stateText.textContent = 'Voice controls are not connected in Home yet.';
+        stateDetails.textContent = 'Microphone, online-answer and timer status are unavailable here. The separate demo has its own controls and state.';
+      } else {
+        stateText.textContent = 'Voice status unavailable.';
+        stateDetails.textContent = 'Home could not confirm microphone or timer state.';
+      }
+    } catch {
+      stateText.textContent = 'Voice status unavailable.';
+      stateDetails.textContent = 'Home could not confirm microphone or timer state.';
+    } finally { refreshState.disabled = false; }
+  };
+  refreshState.addEventListener('click', refreshSnapshot);
+  void refreshSnapshot();
   luna.querySelector('#open-luna-demo').addEventListener('click', async event => {
     const button = event.currentTarget;
     const status = luna.querySelector('#luna-demo-status');

@@ -4,5 +4,5 @@
   "local": true,
   "windows": ["main"],
   "platforms": ["android"],
-  "permissions": ["allow-open-fictional-vault", "allow-open-luna-probe"]
+  "permissions": ["allow-open-fictional-vault", "allow-open-luna-probe", "allow-get-luna-snapshot"]
 }
