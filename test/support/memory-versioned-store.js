@@ -15,19 +15,26 @@ export function createMemoryVersionedStore(backing = new Map()) {
     if (!result.success) throw new TypeError('Invalid synthetic store input.');
     return result.data;
   };
+  const readRow = recordId => {
+    const encoded = backing.get(recordId);
+    return encoded === undefined ? null : JSON.parse(encoded);
+  };
   function commit(recordId, data) {
     const revision = crypto.randomUUID();
     const row = { revision, data: structuredClone(data) };
     // Compare-and-commit happens synchronously below, so concurrent callers
     // observe either the old row or this complete row, never a mixture.
-    if (Buffer.byteLength(JSON.stringify(row)) > MEMORY_STORE_CEILING_BYTES) {
+    // JSON is this reference adapter's backing representation, so the ceiling
+    // check counts the exact bytes that the adapter stores.
+    const encoded = JSON.stringify(row);
+    if (Buffer.byteLength(encoded) > MEMORY_STORE_CEILING_BYTES) {
       throw new Error('Synthetic store payload exceeds its commit ceiling.');
     }
-    backing.set(recordId, row);
+    backing.set(recordId, encoded);
     return { revision };
   }
   function expect(recordId, expectedRevision) {
-    const current = backing.get(recordId);
+    const current = readRow(recordId);
     if (!current || current.revision !== expectedRevision) throw new VaultConflictError();
     return current;
   }
@@ -35,8 +42,7 @@ export function createMemoryVersionedStore(backing = new Map()) {
     contractVersion: 2,
     async read(recordId) {
       check(vaultRecordId, recordId);
-      const row = backing.get(recordId);
-      return row ? structuredClone(row) : null;
+      return readRow(recordId);
     },
     async create(recordId, data) {
       check(vaultRecordId, recordId);
