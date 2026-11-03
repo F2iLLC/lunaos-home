@@ -187,6 +187,10 @@ Commands and results from this checkout:
 
 | Command | Result |
 | --- | --- |
+| `npm run build:native` | passed; emits the offline fictional frontend only and does not add a vault adapter. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --example windows_key_release_probe` | 19 passed, 0 failed. Fixed-record Software KSP envelope tests only; no grocery store integration. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib` | 9 passed, 0 failed. Existing native preview/session tests only. |
+| `cargo build --manifest-path src-tauri/Cargo.toml --example windows_key_release_probe` | passed after pinning `windows-future` 0.3.2 to match `windows` 0.62.2. A fresh checkout previously failed because 0.100.0 introduced incompatible `windows-core` types; this was a build defect, not evidence about a grocery adapter. |
 | `node --test test/grocery-persistence.test.js test/portable-vault-backup.test.js` | 31 passed, 0 failed |
 | `node --test test/windows-grocery-persistence.test.js` | 3 passed, 0 failed, 0 skipped on Windows; includes DPAPI reopen/retry and eight injected fault cases |
 | `node --test test/grocery-persistence.test.js test/windows-grocery-persistence.test.js test/portable-vault-backup.test.js` | 34 passed, 0 failed, 0 skipped on this follow-on worktree; Windows 10.0.26300 (Windows 11 Home per the host record above), Node.js v24.19.0, PowerShell 7.6.9. Synthetic probe/contract evidence only. |
