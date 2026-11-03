@@ -95,6 +95,71 @@ test('unknown writes are cached and never blindly replayed; request ledger satur
   assert.equal((await service.execute(add(crypto.randomUUID()))).code, 'BUSY');
 });
 
+test('repeated queries read current state after acknowledged and uncertain writes', async () => {
+  for (const loseReceipt of [false, true]) {
+    let current = structuredClone(list);
+    let writes = 0;
+    const service = createGroceryCommandService({ withSessionAuthority: allow, async execute(command) {
+      if (command.action === 'query') return structuredClone(current);
+      writes++;
+      current = { ...current, revision: nextRevision, items: [...current.items, command.item] };
+      if (loseReceipt) throw Error('lost acknowledgement');
+      return { revision: nextRevision };
+    } });
+    const read = query(crypto.randomUUID());
+    const write = add(crypto.randomUUID());
+    assert.equal((await service.execute(read)).list.revision, revision);
+    const receipt = await service.execute(write);
+    assert.equal(receipt.status, loseReceipt ? 'unknown' : 'applied');
+    const reconciled = await service.execute(read);
+    assert.equal(reconciled.list.revision, nextRevision);
+    assert.equal(reconciled.list.items.length, 2);
+    assert.deepEqual(await service.execute(write), receipt);
+    assert.equal(writes, 1);
+  }
+});
+
+test('queries recover from read failure and remain available when mutation IDs are full', async () => {
+  let failRead = true;
+  const service = createGroceryCommandService({ withSessionAuthority: allow, maxRequestIds: 1, async execute(command) {
+    if (command.action !== 'query') throw Error('lost acknowledgement');
+    if (failRead) throw Error('temporary read failure');
+    return structuredClone(list);
+  } });
+  const read = query(crypto.randomUUID());
+  assert.equal((await service.execute(read)).code, 'READ_FAILED');
+  assert.equal(service.requestCount, 0);
+  const write = add(crypto.randomUUID());
+  assert.equal((await service.execute(write)).status, 'unknown');
+  assert.equal((await service.execute(add(crypto.randomUUID()))).code, 'BUSY');
+  failRead = false;
+  assert.equal((await service.execute(read)).status, 'queried');
+  assert.equal((await service.execute(query(crypto.randomUUID()))).status, 'queried');
+  assert.equal(service.requestCount, 1);
+  assert.equal((await service.execute(query(write.requestId))).code, 'REQUEST_ID_REUSED');
+});
+
+test('repeated queries recheck disclosure and use the current authorized actor', async () => {
+  let selectedContentDisclosed = true;
+  let currentActor = { kind: 'assistant', id: 'assistant-demo' };
+  let reads = 0;
+  const service = createGroceryCommandService({
+    withSessionAuthority: async (_requirement, run) => run({ householdId: list.householdId,
+      listId: list.id, actor: currentActor, selectedContentDisclosed }),
+    execute: async () => { reads++; return structuredClone(list); },
+  });
+  const read = query(crypto.randomUUID());
+  assert.equal((await service.execute(read)).status, 'queried');
+  selectedContentDisclosed = false;
+  const denied = await service.execute(read);
+  assert.equal(denied.code, 'DISCLOSURE_REQUIRED');
+  assert.equal('list' in denied, false);
+  assert.equal(reads, 1);
+  currentActor = actor;
+  assert.deepEqual((await service.execute(read)).actor, actor);
+  assert.equal(reads, 2);
+});
+
 test('query requires selected-content disclosure for an assistant and returns no content on denial', async () => {
   let executions = 0;
   const contexts = [

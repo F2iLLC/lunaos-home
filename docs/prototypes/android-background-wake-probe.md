@@ -1,7 +1,9 @@
 # Android background wake feasibility probe
 
-Version 0.15 adds separately opted-in online questions, using the owner-selected
-ElevenLabs voice. Local replies remain available for hands-free Luna-owned timers in the
+Version 0.15 is the current probe and adds separately opted-in online questions.
+Version 0.11 added ElevenLabs replies for hands-free Luna-owned timers;
+version 0.12 switched to the owner-selected voice, retained in 0.15.
+Local replies remain available for hands-free Luna-owned timers in the
 explicitly enabled local wake listener. The owner authorized creation without Clock review, spoken
 cancellation, adding time and additional timers during a countdown. This is
 an engineering probe, not a qualified unattended appliance. Reuses #135, #136
