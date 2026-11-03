@@ -99,12 +99,12 @@ test('Vigil fails closed on ordinary issues, unsupported events, missing numbers
   assert.equal(result.failure, error);
 });
 
-test('Vigil privileges and the sole forwarded secret remain behind successful authorization', () => {
+test('Vigil privileges and forwarded secrets remain behind successful authorization', () => {
   const [prefix, privileged] = workflow.split('\n  vigil:\n');
   assert.doesNotMatch(prefix, /^\s*(?:(?:id-token|issues|pull-requests): write|secrets:)/m);
   assert.doesNotMatch(prefix, /uses: actions\/checkout/);
   assert.match(prefix, /permissions:\n      pull-requests: read/);
   assert.match(privileged, /needs: authorize\n    if: needs\.authorize\.outputs\.allowed == 'true' && vars\.VIGIL_SKIP != 'true'/);
   assert.doesNotMatch(workflow, /secrets: inherit/);
-  assert.deepEqual([...workflow.matchAll(/secrets\.(\w+)/g)].map(match => match[1]), ['VIGIL_REVIEW_TOKEN']);
+  assert.deepEqual([...workflow.matchAll(/secrets\.(\w+)/g)].map(match => match[1]), ['GEMINI_API_KEY', 'VIGIL_REVIEW_TOKEN']);
 });
