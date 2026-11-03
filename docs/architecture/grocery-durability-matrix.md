@@ -101,6 +101,29 @@ storage before the #6 setup/recovery boundaries exist. The blocking work is
 therefore product integration and lifecycle design, not KSP availability on
 this PC. No native adapter qualification is claimed.
 
+### VLT-03 lifecycle qualification gates
+
+The current Software KSP envelope is a bounded feasibility prototype. It is
+not an enabled Home storage route, and the separate vault-key password shown
+in its OS dialog is not Windows sign-in, Windows Hello, or TPM authentication.
+Treat each row below as a separate gate; passing one does not establish the
+others.
+
+| VLT-03 requirement | Current evidence | Remaining gate before Home may enable this route |
+| --- | --- | --- |
+| Select and configure an unlock method | The Windows 11 Home compatible candidate is Software KSP high-protection UI with a separate vault-key password. One disposable key/envelope attended journey includes an actual restart. | Product setup must explain and configure this exact method; independently review that its password, OS prompt, provider behavior, and limitations meet the user's chosen security expectation. Do not describe it as Windows Hello or OS-account-bound authentication. |
+| Start locked and release only for bounded foreground use | The native example denies silent unwrap in fresh processes and bounds a fictional read to an attended foreground visit. | Integrate a native owner and explicit lock/unlock lifecycle into Home. Prove process restart, manual lock, suspend/session transitions, foreground loss, cancellation, and expiry on the integrated source. Keep key bytes out of JavaScript, IPC payloads, logs, and evidence. |
+| Change or remove the unlock method safely | No Home method enrollment, replacement, removal, or key-rotation route exists. | Reauthenticate locally, verify a working replacement or recovery path, commit the new protector transactionally, read it back, and show that failure leaves the previous committed protector usable. No silent DPAPI fallback. |
+| Handle wrong credentials and OS credential reset | The prototype has an operator-reported wrong-password denial and an explicit disposable-key cleanup receipt. No Windows account or live Hello reset was attempted. | On disposable credentials, record wrong-password and cancellation outcomes without collecting the password. Define key loss/reset behavior as locked until the separately qualified recovery path succeeds; never imply that resetting Windows recovers this key. |
+| Preserve last committed data on write failure | Envelope creation uses a flushed sibling and same-volume rename, readback, and injected pre-rename/lost-receipt cases. The grocery DPAPI probe's disk-full and interruption cases are simulated. | Integrate versioned record/document snapshots and compare-and-swap in the same native adapter. On its exact source, prove pre-commit and post-commit uncertainty by fresh readback, tamper refusal, interrupted writes, and disk-full behavior; do not replay an unknown mutation. Physical power-loss durability remains separately labeled. |
+| Migrate schema and recover data | No production schema migration or clean-device restore for this key hierarchy exists. The current VLT-07 archive covers a different, bounded profile schema. | Specify migration and rollback rules, then test failed migration without changing the last committed snapshot. Separately prove user-held backup recovery on a clean supported device with fresh device enrollment; do not treat archive creation or same-device re-open as recovery. |
+
+VLT-03 remains open until these gates are implemented and reviewed against the
+same supported route. A prototype check, unit test, build, or grocery probe is
+not production adapter qualification. VLT-07 recovery remains a dependency,
+not an available fallback today. No sensitive records may be routed through
+this candidate before the gates and independent review pass.
+
 ## Fault-injection matrix
 
 The Windows rows below execute the actual developer-only DPAPI probe and reopen
