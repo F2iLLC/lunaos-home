@@ -227,9 +227,10 @@ high-protection dialog and fictional envelope creation. A fresh process ran
 observed a Windows restart. This is local operator-attended compatibility
 evidence only; it does not establish restart recovery, key lifecycle, app
 integration or grocery durability. The disposable key and envelope are being
-removed only by the runner's explicit cleanup step, which is awaiting the
-operator's typed `begin`; until that step completes, treat this one disposable
-fixture as pending cleanup. No password or key material is recorded.
+removed only by the runner's explicit cleanup step. Following the operator's
+typed `begin`, `--envelope-cleanup` exited 0 and recorded
+`disposable-key-and-envelope-removed` and `PASS` for the same source head and
+binary. No password or key material is recorded.
 
 The full suite and focused suites ran on the Windows host above. The Ubuntu
 GitHub Actions job skips Windows-only tests; this PR adds a separate
