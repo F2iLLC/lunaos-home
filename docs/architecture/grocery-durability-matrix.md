@@ -13,15 +13,25 @@ if that read fails, the result remains `unknown` and the caller must read later
 before any retry. This is the boundary exercised by PR #206.
 
 The selected first production-support target is **Windows 11 x64 desktop**.
+The owner directed selection of an unlock method compatible with this PC. The
+host reports Windows Home, build 26300, and a ready TPM 2.0. PDE is unavailable
+on this edition. The selected implementation candidate is the Microsoft
+Software KSP with a separate vault-key password entered only in its
+OS-owned high-protection dialog. This is a separate vault-password method; it
+is not Windows Hello, TPM-backed custody, or authentication tied to the Windows
+account. The earlier disposable KSP experiment is compatibility evidence only,
+not implementation or qualification evidence. The app must not collect or
+persist this password.
+
 The intended adapter is `WindowsSnapshotFileStore v1`: a native Tauri/Rust
 adapter that commits the complete versioned record snapshot as one encrypted
 file, using a flushed same-directory temporary file, atomic replacement and
-readback. Its data key must be released through a supported Windows-owned,
-authentication-bound key-protection method. That method is not selected, so the
-native encrypted adapter cannot yet be integrated safely. The disposable
-Software KSP password experiment is not the production method. The adapter is
-an implementation decision, not a qualification or release claim. #6 remains
-open until key custody, unlock, migration and failure acceptance are approved
+readback. It must fail closed if the Software KSP protector is missing,
+unavailable, canceled, or cannot unwrap the record key; it must never fall back
+to DPAPI. The candidate's attended production flow still needs a reviewed
+integration and operator-run credential/lifecycle evidence. This selection is
+an implementation direction, not a qualification or release claim. #6 remains
+open until key custody, unlock, migration and failure acceptance are reviewed
 and integrated.
 
 ### Windows key-release assessment (2026-11-03)
@@ -46,15 +56,17 @@ The current official platform documentation establishes these boundaries:
   follows sign-in and PDE lock-level rules, rather than an app-controlled
   per-operation prompt. See Microsoft's [PDE overview](https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/personal-data-encryption/), [PDE configuration](https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/personal-data-encryption/configure) and [PDE CSP edition/OS scope](https://learn.microsoft.com/en-us/windows/client-management/mdm/personaldataencryption-csp).
 
-This leaves a concrete owner/reviewer decision before the encrypted file adapter
-can be integrated: may the first Windows support target require managed Windows
-11 Enterprise/Education devices with Entra join and PDE enabled, accepting
-sign-in/lock-based release and PDE's recovery constraints, or must it support
-ordinary Windows 11 Home/Pro devices with a different reviewed, authentication-
-bound key-release design? The present Windows 11 Home probe machine cannot
-qualify the PDE route. No attended OS prompt or key operation was run for this
-assessment. Do not substitute DPAPI `CurrentUser`, an app prompt, or the
-disposable Software KSP password experiment.
+Microsoft documents asymmetric encryption and RSA in the Software KSP, and
+CNG's high-protection policy requiring provider UI for protected-key use. The
+existing experiment observed an OS-owned separate key-password dialog on this
+PC. The selected product direction is this reviewed separate vault-password
+method, not Windows Hello or TPM binding. See Microsoft's [CNG KSP list](https://learn.microsoft.com/en-us/windows/win32/seccertenroll/cng-key-storage-providers) and [NCRYPT UI policy](https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/ns-ncrypt-ncrypt_ui_policy).
+
+PDE cannot qualify on the observed Windows Home edition. The owner selected the
+local-compatible route: integrate the Software KSP high-protection prompt as a
+separate vault-password method. This does not bind release to Windows sign-in,
+Hello or the TPM. Microsoft documents CNG's high-protection UI and the Software
+KSP's asymmetric encryption support in its [CNG KSP list](https://learn.microsoft.com/en-us/windows/win32/seccertenroll/cng-key-storage-providers) and [NCRYPT UI policy](https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/ns-ncrypt-ncrypt_ui_policy). The disposable experiment remains compatibility evidence only. The production integration, attended lifecycle evidence and review remain outstanding; DPAPI `CurrentUser` and an app prompt are not fallback release methods.
 
 Android remains an intended follow-on platform, with an eventual native
 `AndroidSnapshotFileStore` using Keystore and app-private no-backup storage.
@@ -65,12 +77,28 @@ not in the first production-support scope. No other platform is claimed.
 
 | Target | Intended production adapter / implementation under test | Decision and qualification |
 | --- | --- | --- |
-| Windows 11 x64 desktop | Selected target/design: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot); **not implemented**. Existing evidence: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Integration is blocked pending the Windows key-release scope decision above. Probe remains developer-only. Production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
+| Windows 11 Home x64 desktop | Selected target/design: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot) using Microsoft Software KSP high-protection UI and a separate vault-key password; **not implemented**. Existing evidence: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Key-method direction selected for this PC; adapter integration and operator-run key lifecycle evidence remain open. KSP key loss/password loss locks the snapshot until the separately reviewed VLT-07 recovery route succeeds. Probe remains developer-only. Production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
 | Android follow-on | Intended: `AndroidSnapshotFileStore` (native adapter, Keystore and app-private no-backup snapshot). No grocery persistence implementation exists. | Follow-on qualification target only; excluded from first support scope. Minimum OS, provider/hardware requirement, backup/transfer behavior and atomic replacement semantics remain open. |
 
 The snapshot adapter names describe intended designs; neither is implemented
 as a production adapter yet. Android emulator or native-shell tests elsewhere
 in the repository do not qualify grocery persistence.
+
+### Native integration blocker
+
+`WindowsSnapshotFileStore v1` cannot yet be integrated safely into the current
+Home application. `src-tauri/tauri.conf.json` has bundling disabled and labels
+the app as having no secure vault storage. `src-tauri/src/lib.rs` exposes only
+debug-only preview/demo modules and no Windows grocery command or native store
+that implements the shared JavaScript `VersionedVaultRecordStore` v2 contract.
+The KSP example encrypts one fixed fictional envelope; it has no list/receipt
+serialization, compare-and-swap commit, or app lifecycle integration. The
+application also has no accepted enrollment, unlock, method-change, credential
+reset, migration or recovery flow for this vault method. Connecting the example
+as grocery storage would silently turn a fictional preview into real vault
+storage before the #6 setup/recovery boundaries exist. The blocking work is
+therefore product integration and lifecycle design, not KSP availability on
+this PC. No native adapter qualification is claimed.
 
 ## Fault-injection matrix
 
@@ -175,12 +203,34 @@ Commands and results from this checkout:
 
 | Command | Result |
 | --- | --- |
+| `npm run build:native` | passed; emits the offline fictional frontend only and does not add a vault adapter. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --example windows_key_release_probe` | 19 passed, 0 failed. Fixed-record Software KSP envelope tests only; no grocery store integration. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --lib` | 9 passed, 0 failed. Existing native preview/session tests only. |
+| `cargo build --manifest-path src-tauri/Cargo.toml --example windows_key_release_probe` | passed after pinning `windows-future` 0.3.2 to match `windows` 0.62.2. A fresh checkout previously failed because 0.100.0 introduced incompatible `windows-core` types; this was a build defect, not evidence about a grocery adapter. |
 | `node --test test/grocery-persistence.test.js test/portable-vault-backup.test.js` | 31 passed, 0 failed |
 | `node --test test/windows-grocery-persistence.test.js` | 3 passed, 0 failed, 0 skipped on Windows; includes DPAPI reopen/retry and eight injected fault cases |
 | `node --test test/grocery-persistence.test.js test/windows-grocery-persistence.test.js test/portable-vault-backup.test.js` | 34 passed, 0 failed, 0 skipped on this follow-on worktree; Windows 10.0.26300 (Windows 11 Home per the host record above), Node.js v24.19.0, PowerShell 7.6.9. Synthetic probe/contract evidence only. |
 | `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 11 passed, 0 failed, 0 skipped on Windows |
 | `npm test` | 405 passed, 0 failed, 0 skipped |
 | `git diff --check` | passed |
+
+Attended local compatibility check (not grocery or production qualification):
+on Windows 11 Home x64, version 10.0.26300 build 26300, source commit
+`014d99d8a43619240e4a7613904e2c3cbf69ead9`, executable SHA-256
+`678ab78152abc7ecdf8848d07e361b80db3278fed7dd2fb89ec83d256812c2a9`, the
+disposable Software KSP envelope runner completed `--envelope-attended-prepare`
+with exit 0 (`PREPARED_NOT_RESTART_VERIFIED`), including an OS-owned
+high-protection dialog and fictional envelope creation. A fresh process ran
+`--envelope-check-locked` with exit 0 and denied silent decryption. Its
+`--envelope-attended-verify-restart` step returned exit 1,
+`cold-restart-not-observed`, before prompting because this check had not
+observed a Windows restart. This is local operator-attended compatibility
+evidence only; it does not establish restart recovery, key lifecycle, app
+integration or grocery durability. The disposable key and envelope are being
+removed only by the runner's explicit cleanup step. Following the operator's
+typed `begin`, `--envelope-cleanup` exited 0 and recorded
+`disposable-key-and-envelope-removed` and `PASS` for the same source head and
+binary. No password or key material is recorded.
 
 The full suite and focused suites ran on the Windows host above. The Ubuntu
 GitHub Actions job skips Windows-only tests; this PR adds a separate
@@ -216,11 +266,11 @@ The matrix counts match the recorded commands; the PR description is updated
 with those counts and the hosted Windows result. This is a commit-scoped review
 record, not an approval of later changes.
 
-The first adapter/platform decision is recorded above. The current blocker is
-the unresolved Windows key-release scope decision above. After it is resolved,
-the work still requires implementing `WindowsSnapshotFileStore v1`, approving a
-governing conformance specification, and rerunning this exact-version matrix
-against that adapter.
+The first adapter/platform and compatible key-method direction are recorded
+above. The work still requires implementing `WindowsSnapshotFileStore v1`,
+reviewing a governing conformance specification, and rerunning this
+exact-version matrix against that adapter. The selected separate-password
+method is not Windows-account authentication and makes no TPM-backed claim.
 Android requires a separate adapter and independent qualification before it is
 added to supported platforms. Backup/restore and schema rollback remain under
 #10; isolation review remains under #151. Live issue states verified

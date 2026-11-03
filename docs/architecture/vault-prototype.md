@@ -14,10 +14,23 @@ The first intended production-support target is Windows 11 x64 desktop, using a
 native Tauri/Rust `WindowsSnapshotFileStore v1` behind the shared
 `VersionedVaultRecordStore` contract. It will commit the full versioned record
 snapshot as one authenticated encrypted file with same-directory staging,
-atomic replacement and readback. A supported Windows-owned,
-authentication-bound data-key release method remains to be selected. The
-existing DPAPI grocery probe and disposable Software KSP envelope remain
-synthetic experiments; neither is the production adapter or its key policy.
+atomic replacement and readback. For the observed Windows Home PC, the owner
+selected the Microsoft Software KSP high-protection dialog with a separate
+vault-key password as the implementation direction. This is a separate
+vault-password method, not Windows Hello, TPM-backed custody or Windows-account
+authentication. The app must not collect the password. The previous disposable
+KSP envelope remains compatibility evidence only; production integration and
+qualification are not complete. The adapter must fail closed and must never
+fall back to DPAPI `CurrentUser`.
+
+The current native preview has bundling disabled and no Windows grocery
+command/store implementing the shared v2 contract. The KSP example only wraps a
+fixed fictional envelope and lacks the app's enrollment, unlock, reset,
+migration and recovery lifecycle. Wiring it into grocery persistence now would
+create real vault storage without the accepted #6 lifecycle boundary. This is
+the concrete integration blocker recorded in the
+[durability matrix](grocery-durability-matrix.md); the Software KSP is locally
+available, but the app integration and grocery adapter do not exist.
 
 Android is a follow-on support target, not part of the first supported release.
 The intended native `AndroidSnapshotFileStore` would use Keystore and an
