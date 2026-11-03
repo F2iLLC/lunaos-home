@@ -28,6 +28,35 @@ function Assert-Detail($Value) {
         catch { throw 'detail' }
     }
 }
+function Assert-RecordData($Value) {
+    if ($Value -isnot [Collections.IDictionary]) { throw 'data' }
+    if ($Value.Contains('kind') -and $Value.kind -ceq 'grocery-list') {
+        if ($Value.Count -ne 3 -or -not $Value.Contains('list') -or -not $Value.Contains('outcomes') -or
+            $Value.list -isnot [Collections.IDictionary] -or $Value.list.Count -ne 6 -or
+            $Value.outcomes -isnot [array] -or $Value.outcomes.Count -gt 512 -or
+            $Value.list.items -isnot [array] -or $Value.list.items.Count -gt 500) { throw 'grocery-data' }
+        foreach ($key in @('id', 'householdId')) { Assert-Id $Value.list[$key] }
+        Assert-Revision $Value.list.revision
+        if ($Value.list.label -isnot [string] -or $Value.list.label.Length -lt 1 -or $Value.list.label.Length -gt 120 -or
+            $Value.list.updatedBy -isnot [Collections.IDictionary] -or $Value.list.updatedBy.Count -ne 2 -or
+            $Value.list.updatedBy.kind -cnotin @('human', 'assistant')) { throw 'grocery-data' }
+        Assert-Id $Value.list.updatedBy.id
+        foreach ($item in $Value.list.items) {
+            if ($item -isnot [Collections.IDictionary] -or $item.Count -lt 3 -or $item.Count -gt 6 -or
+                $item.label -isnot [string] -or $item.label.Length -lt 1 -or $item.label.Length -gt 120 -or
+                $item.completed -isnot [bool]) { throw 'grocery-data' }
+            Assert-Id $item.id
+        }
+        foreach ($outcome in $Value.outcomes) {
+            if ($outcome -isnot [Collections.IDictionary] -or $outcome.Count -ne 3 -or
+                $outcome.requestId -isnot [string] -or $outcome.fingerprint -isnot [string] -or
+                $outcome.fingerprint.Length -lt 1 -or $outcome.fingerprint.Length -gt 8192 -or
+                $outcome.receipt -isnot [Collections.IDictionary] -or $outcome.receipt.status -cne 'applied') { throw 'grocery-data' }
+        }
+        return
+    }
+    Assert-Detail $Value
+}
 try {
     if (-not $IsWindows) { throw 'platform' }
     Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
@@ -47,16 +76,18 @@ try {
     }
     $versioned = $contractVersion -eq 2
     if ($versioned -and $operation -cin @('snapshot', 'restore')) { throw 'unsupported-recovery' }
-    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'delete', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
-    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'delete' { 3 }; 'restore' { 3 }; default { 2 } }
+    if ($operation -cnotin @('init', 'open', 'read', 'create', 'edit', 'edit-profile', 'delete', 'snapshot', 'restore', 'cleanup')) { throw 'operation' }
+    $expected = switch ($operation) { 'read' { 3 }; 'create' { 4 }; 'edit' { 4 }; 'edit-profile' { 4 }; 'delete' { 3 }; 'restore' { 3 }; default { 2 } }
     if ($request.Contains('contractVersion')) { $expected++ }
-    if ($versioned -and $operation -cin @('edit', 'delete')) {
+    if ($versioned -and $operation -cin @('edit', 'edit-profile', 'delete')) {
         $expected++
         Assert-Revision $request.expectedRevision
     }
     if ($request.Count -ne $expected) { throw 'request' }
-    if ($operation -cin @('read', 'create', 'edit', 'delete')) { Assert-Id $request.recordId }
-    if ($operation -cin @('create', 'edit')) { Assert-Detail $request.data }
+    if ($operation -cin @('read', 'create', 'edit', 'edit-profile', 'delete')) { Assert-Id $request.recordId }
+    if ($operation -cin @('create', 'edit', 'edit-profile')) {
+        if ($versioned -and $operation -ne 'edit-profile') { Assert-RecordData $request.data } else { Assert-Detail $request.data }
+    }
     if ($operation -eq 'restore') {
         $snapshot = $request.snapshot
         if ($snapshot -isnot [Collections.IDictionary] -or $snapshot.Count -ne 2 -or $snapshot.schema -ne 1 -or
@@ -108,20 +139,27 @@ try {
                 if ($versioned) {
                     if ($record -isnot [Collections.IDictionary] -or $record.Count -ne 2) { throw 'record' }
                     Assert-Revision $record.revision
-                    Assert-Detail $record.data
+                    Assert-RecordData $record.data
                 } else { Assert-Detail $record }
             }
         }
         $result = @{ ok = $true }
         # Compare and commit under the same exclusive file lock, including when
         # another process opened the store. Never fetch a newer revision for a caller.
-        if ($versioned -and $operation -cin @('create', 'edit', 'delete')) {
+        if ($versioned -and $operation -cin @('create', 'edit', 'edit-profile', 'delete')) {
             $exists = $envelope.records.psbase.Contains($request.recordId)
             if (($operation -eq 'create' -and $exists) -or
                 ($operation -ne 'create' -and (-not $exists -or
                     $envelope.records[$request.recordId].revision -cne $request.expectedRevision))) {
                 $errorCode = 'CONFLICT'
                 throw 'conflict'
+            }
+            if ($operation -eq 'edit-profile' -and
+                $envelope.records[$request.recordId].data -is [Collections.IDictionary] -and
+                $envelope.records[$request.recordId].data.Contains('kind') -and
+                $envelope.records[$request.recordId].data.kind -ceq 'grocery-list') {
+                $errorCode = 'UNSUPPORTED'
+                throw 'unsupported-record-type'
             }
         }
         switch ($operation) {
@@ -147,13 +185,18 @@ try {
                     $envelope.records[$request.recordId] = @{ revision = $result.revision; data = $request.data }
                 } else { $envelope.records[$request.recordId] = $request.data }
             }
+            'edit-profile' {
+                if (-not $envelope.records.psbase.Contains($request.recordId)) { throw 'missing-record' }
+                $result.revision = [Guid]::NewGuid().ToString('D')
+                $envelope.records[$request.recordId] = @{ revision = $result.revision; data = $request.data }
+            }
             'delete' {
                 if (-not $envelope.records.psbase.Contains($request.recordId)) { throw 'missing-record' }
                 $envelope.records.psbase.Remove($request.recordId)
                 if ($versioned) { $result.revision = $request.expectedRevision }
             }
         }
-        if ($operation -cin @('init', 'create', 'edit', 'delete', 'restore')) {
+        if ($operation -cin @('init', 'create', 'edit', 'edit-profile', 'delete', 'restore')) {
             $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 8 -Compress))
             try { $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, $scope) }
             finally { [Array]::Clear($plain, 0, $plain.Length) }

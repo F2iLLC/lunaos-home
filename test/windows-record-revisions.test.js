@@ -90,9 +90,10 @@ test('separate services race encrypted writes without overwriting a newer revisi
 test('lost encrypted write acknowledgement requires fresh review and never replays the old revision', windows, async t => {
   const store = await openWindowsProbeStore({ create: true, contractVersion: 2 });
   let writes = 0;
-  const wrapped = { ...store, lifecycleStore: store, async edit(...args) {
+  const editProfile = store.editProfile ?? store.edit.bind(store);
+  const wrapped = { ...store, lifecycleStore: store, async editProfile(...args) {
     writes++;
-    await store.edit(...args);
+    await editProfile(...args);
     throw Error('Synthetic lost acknowledgement');
   } };
   const service = createVaultSessionService({ store: wrapped, contractVersion: 2 });
