@@ -23,6 +23,15 @@ KSP envelope remains compatibility evidence only; production integration and
 qualification are not complete. The adapter must fail closed and must never
 fall back to DPAPI `CurrentUser`.
 
+The current native preview has bundling disabled and no Windows grocery
+command/store implementing the shared v2 contract. The KSP example only wraps a
+fixed fictional envelope and lacks the app's enrollment, unlock, reset,
+migration and recovery lifecycle. Wiring it into grocery persistence now would
+create real vault storage without the accepted #6 lifecycle boundary. This is
+the concrete integration blocker recorded in the
+[durability matrix](grocery-durability-matrix.md); the Software KSP is locally
+available, but the app integration and grocery adapter do not exist.
+
 Android is a follow-on support target, not part of the first supported release.
 The intended native `AndroidSnapshotFileStore` would use Keystore and an
 app-private no-backup location, with separate backup/transfer and lifecycle
