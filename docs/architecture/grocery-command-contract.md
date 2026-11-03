@@ -14,6 +14,8 @@ The command service remains a contract/adapter port, not a product route. Its `w
 
 This is still a storage adapter contract and synthetic fixture implementation, not a production Home storage integration. The Windows DPAPI adapter is explicitly developer-only. #142 owns shared GUI/MCP delivery. The work does not establish production key management, device behavior, or #141/#142 acceptance.
 
+See the [grocery durability and adapter qualification matrix](grocery-durability-matrix.md) for restart/fault evidence, the current Windows and Android target boundary, VLT-07 compatibility limits, and decisions still required before production qualification.
+
 ## Shared list transitions
 
 `lib/grocery-list.js` provides `applyGroceryMutation(current, command, actor, nextRevision)` for storage adapters. The adapter must supply `nextRevision`; the transition has no implicit revision generator. It prepares a validated, independent candidate for add/edit/check/uncheck/remove without changing the input list. Optional quantity/unit/notes fields can be cleared with `null`; item IDs cannot be edited. `MAX_GROCERY_ITEMS` in `lib/grocery-contract.js` defines the 500-item bound used by both the list schema and transition. Duplicate item IDs and stale revisions throw `GroceryConflictError` (`code: CONFLICT`), absent targets return `NOT_FOUND`, and additions to a list at or above the item bound return `BUSY`. Every accepted mutation, including checking an already checked item, gets a fresh revision. Labels and notes remain literal data.

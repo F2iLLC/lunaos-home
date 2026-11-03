@@ -43,6 +43,13 @@ test('backup input cannot include device grants, credentials or unknown fields',
   } }));
 });
 
+test('the VLT-07 profile archive rejects a grocery record instead of silently changing its schema', () => {
+  const grocery = { schema: 1, records: { weekly: {
+    kind: 'grocery-list', list: { id: 'weekly', householdId: 'home-example', items: [] }, outcomes: [],
+  } } };
+  assert.throws(() => createPortableBackup(grocery));
+});
+
 test('largest well-formed snapshot fits the authenticated archive', () => {
   const entries = Array.from({ length: 64 }, (_, index) => [
     `record-${index.toString().padStart(2, '0')}${'a'.repeat(71)}`,
