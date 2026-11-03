@@ -1,11 +1,6 @@
 # Vigil automated PR review (F2iLLC/vigil), calling the shared reusable workflow.
 #
-# - Model: Claude (claude-sonnet-5-5), authenticated with Anthropic workload
-#   identity federation: the run's GitHub OIDC token is exchanged for a
-#   short-lived Anthropic token, so no API key is stored. This needs
-#   `id-token: write` below and the org-level ANTHROPIC_* Actions variables
-#   (ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID,
-#   ANTHROPIC_SERVICE_ACCOUNT_ID, ANTHROPIC_WORKSPACE_ID).
+# - Model: Gemini 3.1 Flash-Lite, using the GEMINI_API_KEY Actions secret.
 # - Runner: GitHub-hosted. This repository is PUBLIC, so it must never run on
 #   our self-hosted runners: a pull request from a fork could execute
 #   arbitrary code on our servers.
@@ -68,10 +63,10 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-      id-token: write
-    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@ef7d11f5b8e83383e084ff64153184ef9e2b29fe
+    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@f593583386a8ed36bdbcea37cd1aa1166cc1227c
     with:
-      model: claude-sonnet-5-5
+      model: gemini/gemini-3.1-flash-lite
       runner-json: '["ubuntu-latest"]'
     secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       VIGIL_REVIEW_TOKEN: ${{ secrets.VIGIL_REVIEW_TOKEN }}
