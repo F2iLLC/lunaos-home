@@ -118,17 +118,22 @@ Commands and results from this checkout:
 | Command | Result |
 | --- | --- |
 | `node --test test/grocery-persistence.test.js test/portable-vault-backup.test.js` | 31 passed, 0 failed |
-| `node --test test/windows-grocery-persistence.test.js` | 2 passed, 0 failed; includes Windows DPAPI reopen/retry and eight fault cases |
-| `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 9 passed, 0 failed at the time of this focused run |
-| `npm test` | 404 passed, 0 failed, 0 skipped |
+| `node --test test/windows-grocery-persistence.test.js` | 3 passed, 0 failed, 0 skipped on Windows; includes DPAPI reopen/retry and eight injected fault cases |
+| `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 11 passed, 0 failed, 0 skipped on Windows |
+| `npm test` | 405 passed, 0 failed, 0 skipped |
 | `git diff --check` | passed |
 
-The full suite ran on the Windows host above. GitHub-hosted checks on PR #206
-ran against head `2f05f8d78cc6a7ab92a8cb13d410e4fe42c8a239`: `test`,
-`authorize`, and `vigil / review` succeeded. Those checks predate this follow-up
-matrix and do not qualify its additions.
+The full suite and focused suites ran on the Windows host above. The Ubuntu
+GitHub Actions job skips Windows-only tests; this PR adds a separate
+`windows-2025` `Windows grocery probe` job that records its Windows, Node and
+PowerShell versions and runs `node --test
+test/windows-grocery-persistence.test.js`. Its result is reported separately
+from the local evidence above. GitHub-hosted checks on PR #206 ran against head
+`2f05f8d78cc6a7ab92a8cb13d410e4fe42c8a239`: `test`, `authorize`, and
+`vigil / review` succeeded. Those checks predate this follow-up matrix and do
+not qualify its additions.
 
-## Reviewer decisions and remaining gates
+## Reviewer decision record and remaining qualification gates
 
 PR #206 was approved by member reviewer `F2iProject` and automated reviewer
 `vigil-reviewer` at `2f05f8d`. Vigil recorded six of seven specialists
@@ -137,17 +142,17 @@ provided. The issue-206 source change was merged by GitHub as merge commit
 `02364929250e1ea8a81dcafceebfd00bf9aff82e` at 2026-11-03 03:21 UTC. These
 decisions apply to that merged head only.
 
-Vigil approved this matrix/test follow-up at commit `9278ae9`: six of seven
-specialists approved, with no findings; Conformance did not run. Testing
-recorded two non-blocking observations, tracked in #213 (assert the generic
-simulator boundary) and #214 (negative coverage for fault-hook validation).
-This revision adds the requested candidate-payload assertions and negative
-tests. The approval and observations above apply to `9278ae9`; they do not
-pre-approve later commits. A member review and governing conformance decision
-remain pending.
+Vigil reviewed PR #212 at commit `52f534c14bb277d50a7b3365567e251f4fcec223`
+and returned **APPROVE**: six of seven specialists approved, with no findings;
+Conformance did not run because no governing specification was supplied. The
+review created non-blocking observations #215 (generic simulator scope), #216
+(review-history wording), and #217 (stale command counts). The matrix now labels
+simulator evidence, records exact rerun counts, and treats this section as a
+commit-scoped review history. A later commit requires its own review; this
+record is not an approval of later changes.
 
-Before adapter/platform qualification, reviewers still need to select the
-production implementation for Windows and Android, decide whether both remain
-supported targets, approve a governing conformance specification, and review
-the exact-version matrix including the unsupported cases above. Issues #6,
-#10 and #151 remain open.
+Production qualification requires selecting the Windows and Android adapter
+implementations and supported targets, approving a governing conformance
+specification, and reviewing the exact-version matrix including the unsupported
+cases above. This matrix does not make those decisions. Issues #6, #10 and #151
+remain open.
