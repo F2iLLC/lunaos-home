@@ -44,6 +44,29 @@ test('memory reference counts the encoded backing bytes and preserves them after
   assert.deepEqual(await store.read('weekly'), JSON.parse(encoded));
 });
 
+test('memory reference rejects commits above its encoded byte ceiling without changing the current record', async () => {
+  const backing = new Map();
+  const store = createMemoryVersionedStore(backing);
+  const { revision } = await store.create('weekly', syntheticGroceryRecord());
+  const before = await store.read('weekly');
+  const encodedBefore = backing.get('weekly');
+  assert.equal(encodedBefore, JSON.stringify(before));
+  const oversized = syntheticGroceryRecord(Array.from({ length: 500 }, (_, index) => ({
+    id: `item-${index}`, label: `Item ${index}`, notes: 'n'.repeat(1000), completed: false,
+  })));
+
+  assert.ok(Buffer.byteLength(JSON.stringify({ revision: crypto.randomUUID(), data: oversized })) > MEMORY_STORE_CEILING_BYTES);
+  await assert.rejects(store.edit('weekly', oversized, revision), {
+    message: 'Synthetic store payload exceeds its commit ceiling.',
+  });
+  assert.deepEqual(await store.read('weekly'), before);
+  assert.equal(backing.get('weekly'), encodedBefore);
+  await assert.rejects(store.create('too-large', oversized), {
+    message: 'Synthetic store payload exceeds its commit ceiling.',
+  });
+  assert.equal(await store.read('too-large'), null);
+});
+
 test('the conformance document and suite list the same clauses', async () => {
   const spec = await readFile(new URL('../docs/architecture/versioned-record-store-conformance.md', import.meta.url), 'utf8');
   const documented = [...spec.matchAll(/^\| (C-\d{2}) \|/gm)].map(match => match[1]);
