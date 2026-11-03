@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { VaultConflictError, VaultUnsupportedRecordError, vaultRevision } from '../../lib/vault-record-contract.js';
+import { isDeepStrictEqual } from 'node:util';
 
 // Executable form of docs/architecture/versioned-record-store-conformance.md.
 // Each test name starts with its clause ID. An adapter claims conformance only
@@ -8,6 +9,9 @@ import { VaultConflictError, VaultUnsupportedRecordError, vaultRevision } from '
 // harness = {
 //   name,                  label used in test names
 //   open(),                -> { store, reopen(), dispose() } over fresh empty storage
+//                          reopen() must share the same underlying storage;
+//                          this suite cannot establish OS-level lock behavior
+//                          unless the adapter's storage and platform exercise it.
 //   testOptions,           node:test options (skip/timeout) for this adapter
 //   atRest(handle),        optional: raw persisted bytes, for C-14
 // }
@@ -151,19 +155,24 @@ export function defineVersionedStoreConformance(test, harness) {
     assert.deepEqual(await store.read('weekly'), others.weekly);
   });
 
-  clause('C-12', 'concurrent conditional writes from one revision commit at most once', async ({ store, reopen }) => {
+  clause('C-12', 'concurrent conditional writes commit at most once and leave an allowed record', async ({ store, reopen }) => {
     const created = await store.create('alex-work', alex);
     const writers = [store, await reopen(), await reopen()];
+    const writerValues = writers.map((_, index) => ({ ...alex, value: `Writer ${index}` }));
     const results = await Promise.allSettled(writers.map((writer, index) =>
-      writer.edit('alex-work', { ...alex, value: `Writer ${index}` }, created.revision)));
+      writer.edit('alex-work', writerValues[index], created.revision)));
     const applied = results.flatMap((result, index) => result.status === 'fulfilled' ? [{ index, revision: result.value.revision }] : []);
     assert.ok(applied.length <= 1, 'two writers must never both commit from the same revision');
     const stored = await store.read('alex-work');
     if (applied.length === 1) {
-      assert.deepEqual(stored, { revision: applied[0].revision, data: { ...alex, value: `Writer ${applied[0].index}` } });
+      assert.deepEqual(stored, { revision: applied[0].revision, data: writerValues[applied[0].index] });
     } else {
-      // An uncertain failure may still have committed. State must be the original or exactly one writer's.
-      assert.ok(stored.revision === created.revision || writers.some((_, i) => stored.data.value === `Writer ${i}`));
+      // An uncertain failure may still have committed. Compare the complete
+      // record so unrelated or hybrid state cannot pass by matching one value.
+      const unchanged = isDeepStrictEqual(stored, { revision: created.revision, data: alex });
+      const oneWriterCommitted = writerValues.some(value =>
+        isDeepStrictEqual(stored.data, value) && vaultRevision.safeParse(stored.revision).success);
+      assert.ok(unchanged || oneWriterCommitted, 'stored state must be unchanged or exactly one writer payload');
     }
   });
 
