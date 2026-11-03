@@ -266,17 +266,67 @@ for (const [fault, expectedCommit] of atomicFaults) {
   });
 }
 
-test('stale revisions conflict and full durable outcome ledger fails closed', async () => {
-  const { store } = fixture();
-  const persistence = createGroceryPersistence({ store, maxOutcomes: 1 });
+test('stale revisions conflict and a full outcome ledger retires the oldest receipt without replaying it', async () => {
+  const { rows, store, getWrites } = fixture();
+  const persistence = createGroceryPersistence({ store, maxOutcomes: 2 });
   await persistence.createList(list);
-  const first = add(crypto.randomUUID());
-  await persistence.execute(first, { actor });
-  await assert.rejects(persistence.execute(add(crypto.randomUUID()), { actor }), GroceryConflictError);
-  const replay = createGroceryPersistence({ store, maxOutcomes: 1 });
-  const current = await rowsList(store, list.id);
-  const second = { ...add(crypto.randomUUID(), current.revision), item: { id: 'pears', label: 'Pears', completed: false } };
-  await assert.rejects(replay.execute(second, { actor }), { code: 'BUSY' });
+  await assert.rejects(persistence.execute({ ...add(crypto.randomUUID()), expectedRevision: crypto.randomUUID() }, { actor }), GroceryConflictError);
+  const commands = [];
+  for (const id of ['apples', 'pears', 'plums']) {
+    const current = await rowsList(store, list.id);
+    const command = { ...add(crypto.randomUUID(), current.revision), item: { id, label: id, completed: false } };
+    commands.push({ command, receipt: await persistence.execute(command, { actor }) });
+  }
+  assert.ok(commands.every(({ receipt }) => receipt.status === 'applied'), 'writes continue after the ledger fills');
+  const kept = rows.get(list.id).data.outcomes.map(outcome => outcome.requestId);
+  assert.deepEqual(kept, commands.slice(1).map(({ command }) => command.requestId), 'only the newest receipts are retained');
+
+  const writes = getWrites();
+  const reopened = createGroceryPersistence({ store, maxOutcomes: 2 });
+  assert.deepEqual(await reopened.execute(commands[2].command, { actor }), commands[2].receipt);
+  // The retired command expected a list revision that its own write replaced,
+  // so a late retry is a definite conflict and never a second apply.
+  await assert.rejects(reopened.execute(commands[0].command, { actor }), GroceryConflictError);
+  assert.equal(getWrites(), writes);
+  assert.equal((await rowsList(store, list.id)).items.length, 3);
+});
+
+test('stored rows that are mis-keyed or malformed are not interpreted as the requested list', async () => {
+  const { rows, store } = fixture();
+  const persistence = createGroceryPersistence({ store });
+  await persistence.createList(list);
+  const query = { version: 1, action: 'query', requestId: crypto.randomUUID(), householdId: list.householdId, listId: list.id };
+  const saved = rows.get(list.id);
+
+  rows.set(list.id, { ...saved, data: { ...saved.data, list: { ...saved.data.list, id: 'other-list' } } });
+  await assert.rejects(persistence.execute(query, { actor }), { code: 'NOT_FOUND' });
+  await assert.rejects(persistence.execute(add(crypto.randomUUID()), { actor }), { code: 'NOT_FOUND' });
+  rows.set(list.id, saved);
+  await assert.rejects(persistence.execute({ ...query, householdId: 'other-home' }, { actor }), { code: 'NOT_FOUND' });
+
+  rows.set(list.id, { ...saved, data: { kind: 'grocery-list', list: { id: list.id }, outcomes: [] } });
+  await assert.rejects(persistence.execute(query, { actor }), { code: 'READ_FAILED' });
+  rows.set(list.id, { ...saved, data: { memberId: 'member-example', label: 'Profile', value: 'not a grocery list' } });
+  await assert.rejects(persistence.execute(add(crypto.randomUUID()), { actor }), { code: 'READ_FAILED' });
+});
+
+test('command service rejects applied receipts that do not match the request, list, or actor', async () => {
+  const command = add(crypto.randomUUID());
+  const good = { version: 1, status: 'applied', requestId: command.requestId, listId: list.id,
+    revision: crypto.randomUUID(), actor };
+  for (const mismatch of [
+    { requestId: crypto.randomUUID() },
+    { listId: 'other-list' },
+    { actor: { kind: 'assistant', id: actor.id } },
+    { actor: { kind: 'human', id: 'someone-else' } },
+  ]) {
+    const service = createGroceryCommandService({
+      withSessionAuthority: async (_requirement, operation) => operation({ actor, householdId: list.householdId, listId: list.id }),
+      execute: async () => ({ ...good, ...mismatch }),
+    });
+    assert.deepEqual(await service.execute(command),
+      { version: 1, status: 'denied', requestId: command.requestId, code: 'READ_FAILED' }, JSON.stringify(mismatch));
+  }
 });
 
 test('grocery persistence integrates with the shared command receipt service', async () => {

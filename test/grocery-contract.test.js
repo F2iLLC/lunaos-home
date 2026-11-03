@@ -195,6 +195,8 @@ function sessionHarness({ device = 'device-one', destination, grantActions = ['r
   const rows = new Map([[list.id, { revision, data: { memberId: 'member-example', label: 'Grocery list', value: 'synthetic grocery fixture' } }]]);
   const store = {
     contractVersion: 2,
+    // This fixture holds only profile records, so the profile-only edit path is plain edit.
+    editProfile(...args) { return this.edit(...args); },
     async read(id) { return structuredClone(rows.get(id)); },
     async create(id, data) { rows.set(id, { revision: nextRevision, data }); return { revision: nextRevision }; },
     async edit(id, data, expected) {

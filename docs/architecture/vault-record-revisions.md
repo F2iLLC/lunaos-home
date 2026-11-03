@@ -36,7 +36,7 @@ encode household content.
 | --- | --- | --- |
 | `read` | None | Returns `{ version: 2, recordId, revision, data }`, or `NOT_FOUND`. |
 | `create` | `data` | Target must be absent. Returns a fresh revision. Existing target returns `CONFLICT`. |
-| `edit` | `data`, `expectedRevision` | Stored revision must exactly match. Every confirmed edit, even with identical data, produces a fresh revision. |
+| `edit` | `data`, `expectedRevision` | Stored revision must exactly match. Every confirmed edit, even with identical data, produces a fresh revision. The session service sends it only to the adapter's profile-only `editProfile(recordId, data, expectedRevision)`; a v2 adapter without that method returns `UNSUPPORTED`, so a profile edit can never overwrite another record kind such as a grocery list. |
 | `delete` | `expectedRevision` | Stored revision must exactly match. Receipt identifies the removed revision. |
 
 Mutation receipts contain only `{ version: 2, status: 'applied', recordId,

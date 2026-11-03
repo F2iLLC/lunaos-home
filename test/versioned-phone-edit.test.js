@@ -13,7 +13,8 @@ const data = { memberId: 'alex-example', label: 'Library visit', value: 'Monday'
 const read = { version: 2, action: 'read', recordId: 'alex-library' };
 async function fixture(t, { unknown = false, contractVersion = 2 } = {}) {
   let current = { revision: crypto.randomUUID(), data }, attempts = 0, commits = 0, tick = 0;
-  const store = { contractVersion, read: async () => structuredClone(current), create() { throw Error('Unexpected create'); },
+  // This fixture holds only profile records, so the profile-only edit path is plain edit.
+  const store = { contractVersion, editProfile(...args) { return this.edit(...args); }, read: async () => structuredClone(current), create() { throw Error('Unexpected create'); },
     async edit(id, value, expected) {
       attempts++;
       if (expected !== current.revision) throw new VaultConflictError();

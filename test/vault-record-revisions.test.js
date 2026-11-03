@@ -14,6 +14,8 @@ function fixture(t) {
   let tick = 0;
   const store = {
     contractVersion: 2,
+    // This fixture holds only profile records, so the profile-only edit path is plain edit.
+    editProfile(...args) { return this.edit(...args); },
     async read(id) { calls.push('read'); return structuredClone(rows.get(id) ?? null); },
     async create(id, data) {
       calls.push('create');
@@ -105,6 +107,20 @@ test('version, expected revision and strict fields are mandatory before reaching
   assert.deepEqual(calls, []);
   assert.throws(() => createVaultSessionService({ store }), /versions must match/);
   assert.throws(() => createVaultSessionService({ store: { ...store, contractVersion: 1 }, contractVersion: 2 }), /versions must match/);
+});
+
+test('versioned profile edits fail closed when the store has no profile-only edit path', async t => {
+  const { store, calls } = fixture(t);
+  const { editProfile, ...withoutProfilePath } = store;
+  const service = createVaultSessionService({ store: withoutProfilePath, contractVersion: 2, now: () => 0 });
+  t.after(() => service.shutdown());
+  service.admitDevice('windows-example');
+  const local = service.openConnection({ deviceId: 'windows-example' });
+  const grant = service.approveSetup(local, scope);
+  const created = await local.execute(grant, request('create', { data: alex }));
+  calls.length = 0;
+  await assert.rejects(local.execute(grant, request('edit', { data: alex, expectedRevision: created.revision })), { code: 'UNSUPPORTED' });
+  assert.deepEqual(calls, [], 'the generic edit path must never be used for a profile edit');
 });
 
 test('assistant revision reads require separate disclosure; revision tokens never grant write scope', async t => {
