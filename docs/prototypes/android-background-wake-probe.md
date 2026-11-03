@@ -9,6 +9,17 @@ and #137; broader durable timer/native alert work remains #148 and #149.
 
 ## Behavior and boundaries
 
+The JVM fixture `test/android-question-reply.test.js` compiles the real
+`QuestionReply` and `QuestionPolicy` against a local HTTPS stub with an ephemeral
+certificate and port. It covers playback completion, HTTP error, socket read
+timeout, overall deadline, close during a request, close before playback is
+prepared, player error, audio-buffer clearing and stale callback suppression.
+Failures complete once with `false`; explicit close suppresses completion.
+Android scheduling, playback and the narrow JSON API are test doubles. This
+does not verify Android audio decoding/audibility, OS lifecycle enforcement,
+microphone capture or the real relay/provider. The app constructor retains its
+fixed loopback endpoint and production timeouts.
+
 - Only the visible Enable wake-word listening button starts capture. Launch,
   permission, unlock, timer expiry and process recreation never enable it.
   Disable, secure lock, mic mute or permission loss disable capture and queued
