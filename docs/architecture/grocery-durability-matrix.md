@@ -84,6 +84,22 @@ The snapshot adapter names describe intended designs; neither is implemented
 as a production adapter yet. Android emulator or native-shell tests elsewhere
 in the repository do not qualify grocery persistence.
 
+### Native integration blocker
+
+`WindowsSnapshotFileStore v1` cannot yet be integrated safely into the current
+Home application. `src-tauri/tauri.conf.json` has bundling disabled and labels
+the app as having no secure vault storage. `src-tauri/src/lib.rs` exposes only
+debug-only preview/demo modules and no Windows grocery command or native store
+that implements the shared JavaScript `VersionedVaultRecordStore` v2 contract.
+The KSP example encrypts one fixed fictional envelope; it has no list/receipt
+serialization, compare-and-swap commit, or app lifecycle integration. The
+application also has no accepted enrollment, unlock, method-change, credential
+reset, migration or recovery flow for this vault method. Connecting the example
+as grocery storage would silently turn a fictional preview into real vault
+storage before the #6 setup/recovery boundaries exist. The blocking work is
+therefore product integration and lifecycle design, not KSP availability on
+this PC. No native adapter qualification is claimed.
+
 ## Fault-injection matrix
 
 The Windows rows below execute the actual developer-only DPAPI probe and reopen
@@ -197,6 +213,21 @@ Commands and results from this checkout:
 | `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 11 passed, 0 failed, 0 skipped on Windows |
 | `npm test` | 405 passed, 0 failed, 0 skipped |
 | `git diff --check` | passed |
+
+Attended local compatibility check (not grocery or production qualification):
+on Windows 11 Home x64, version 10.0.26300 build 26300, source commit
+`014d99d8a43619240e4a7613904e2c3cbf69ead9`, executable SHA-256
+`678ab78152abc7ecdf8848d07e361b80db3278fed7dd2fb89ec83d256812c2a9`, the
+disposable Software KSP envelope runner completed `--envelope-attended-prepare`
+with exit 0 (`PREPARED_NOT_RESTART_VERIFIED`), including an OS-owned
+high-protection dialog and fictional envelope creation. A fresh process ran
+`--envelope-check-locked` with exit 0 and denied silent decryption. Its
+`--envelope-attended-verify-restart` step returned exit 1,
+`cold-restart-not-observed`, before prompting because this check had not
+observed a Windows restart. This is local operator-attended compatibility
+evidence only; it does not establish restart recovery, key lifecycle, app
+integration or grocery durability. The disposable key and envelope are being
+removed in the explicit cleanup step; no password or key material is recorded.
 
 The full suite and focused suites ran on the Windows host above. The Ubuntu
 GitHub Actions job skips Windows-only tests; this PR adds a separate
