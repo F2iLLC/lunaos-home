@@ -128,7 +128,12 @@ GitHub Actions job skips Windows-only tests; this PR adds a separate
 `windows-2025` `Windows grocery probe` job that records its Windows, Node and
 PowerShell versions and runs `node --test
 test/windows-grocery-persistence.test.js`. Its result is reported separately
-from the local evidence above. GitHub-hosted checks on PR #206 ran against head
+from the local evidence above. On PR #212 head
+`498972e9715da40d29c77fc099c63a274a29e734`, the hosted job passed 3 tests with
+0 failures and 0 skips on Microsoft Windows Server 2025 Datacenter 10.0.26100
+(build 26100), runner image `windows-2025-vs2026` version `20261030.294.1`,
+Node.js v24.22.2, and PowerShell 7.6.9. Its exact command was
+`node --test test/windows-grocery-persistence.test.js`. GitHub-hosted checks on PR #206 ran against head
 `2f05f8d78cc6a7ab92a8cb13d410e4fe42c8a239`: `test`, `authorize`, and
 `vigil / review` succeeded. Those checks predate this follow-up matrix and do
 not qualify its additions.
@@ -142,14 +147,15 @@ provided. The issue-206 source change was merged by GitHub as merge commit
 `02364929250e1ea8a81dcafceebfd00bf9aff82e` at 2026-11-03 03:21 UTC. These
 decisions apply to that merged head only.
 
-Vigil reviewed PR #212 at commit `52f534c14bb277d50a7b3365567e251f4fcec223`
+Vigil reviewed PR #212 at commit `498972e9715da40d29c77fc099c63a274a29e734`
 and returned **APPROVE**: six of seven specialists approved, with no findings;
 Conformance did not run because no governing specification was supplied. The
-review created non-blocking observations #215 (generic simulator scope), #216
-(review-history wording), and #217 (stale command counts). The matrix now labels
-simulator evidence, records exact rerun counts, and treats this section as a
-commit-scoped review history. A later commit requires its own review; this
-record is not an approval of later changes.
+review created non-blocking observations #218 (the fault names are intentionally
+validated independently by the JavaScript caller and PowerShell worker so both
+process boundaries fail closed) and #219 (stale counts in the PR description).
+The matrix counts match the recorded commands; the PR description is updated
+with those counts and the hosted Windows result. This is a commit-scoped review
+record, not an approval of later changes.
 
 Production qualification requires selecting the Windows and Android adapter
 implementations and supported targets, approving a governing conformance
