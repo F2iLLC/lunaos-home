@@ -1,6 +1,6 @@
 // Fictional Software KSP envelope runner. No password/key/record input or logging.
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const [mode, directory] = process.argv.slice(2);
-assert.ok(['prepare', 'cancel', 'wrong-password', 'read', 'verify-restart', 'cleanup'].includes(mode),
-  'Mode: prepare | cancel | wrong-password | read | verify-restart | cleanup');
+assert.ok(['prepare', 'cancel', 'wrong-password', 'read', 'verify-restart', 'stale', 'commit', 'write-unknown', 'reconcile', 'receipt-retry', 'cleanup'].includes(mode),
+  'Mode: prepare | cancel | wrong-password | read | verify-restart | stale | commit | write-unknown | reconcile | receipt-retry | cleanup');
 assert.equal(process.platform, 'win32', 'Windows is required');
 assert.ok(process.stdin.isTTY && process.stdout.isTTY, 'Use an attended interactive terminal');
 assert.ok(directory && path.isAbsolute(directory), 'Supply an absolute evidence directory');
@@ -46,11 +46,14 @@ if (mode === 'prepare') {
 const binarySha256 = hash(executable);
 const metadataPath = path.join(target, 'runner.json');
 if (mode === 'prepare') {
-  writeFileSync(metadataPath, JSON.stringify({ schema: 1, sourceHead: head, binarySha256, fictional: true }, null, 2) + '\n', { flag: 'wx' });
+  writeFileSync(metadataPath, JSON.stringify({ schema: 2, sourceHead: head, binarySha256, fictional: true,
+    requestId: randomBytes(16).toString('hex'), staleRequestId: randomBytes(16).toString('hex') }, null, 2) + '\n', { flag: 'wx' });
 }
 const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
-assert.equal(metadata.schema, 1);
+assert.equal(metadata.schema, 2);
 assert.equal(metadata.fictional, true);
+assert.match(metadata.requestId, /^[0-9a-f]{32}$/);
+assert.match(metadata.staleRequestId, /^[0-9a-f]{32}$/);
 assert.equal(metadata.sourceHead, head, 'Use the same source head after restart');
 assert.equal(metadata.binarySha256, binarySha256, 'Use the same executable after restart');
 
@@ -66,15 +69,20 @@ const statements = {
   'wrong-password': 'Enter an intentionally wrong DISPOSABLE KEY password only in Windows and choose Allow. Confirm Windows rejects it, then close that dialog with its top-right X. Never send the password here.',
   read: 'Enter the disposable key password only in the Windows-owned dialog. One fictional native comparison will run; no record is displayed or returned.',
   'verify-restart': 'Use this only after a real Windows Restart and return to the same account. Enter the disposable key password only in Windows. This checks the native envelope, not joined phone behavior.',
+  stale: 'Enter the disposable key password only in Windows. This sends a fictional compare-and-swap with an intentionally stale expected revision; it must conflict without changing ciphertext.',
+  commit: 'Enter the disposable key password only in Windows. This commits one fictional whole-snapshot transition and its receipt together at revision 2.',
+  'write-unknown': 'Enter the disposable key password only in Windows. This performs one fictional commit while intentionally losing its acknowledgement. The step stops at WRITE_UNKNOWN; it does not retry or reconcile.',
+  reconcile: 'Read the retained fixture in a separate attended operation after WRITE_UNKNOWN. This resolves the outcome from current stored state without replaying the mutation.',
+  'receipt-retry': 'Enter the disposable key password only in Windows. This repeats the same request identity after a known commit and must return its stored receipt without changing ciphertext.',
   cleanup: 'Remove only this attempt’s disposable protector and envelope. Result files remain outside the checkout.',
 };
-async function invoke(nativeMode) {
+async function invoke(nativeMode, ...nativeArgs) {
   const receipt = { operation: nativeMode, exitCode: null, stages: [] };
   evidence.stages.push(receipt);
   writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
   // This is an attended GUI owner. Hidden STARTUPINFO can hide its first window
   // and strand foreground validation after the OS dialog returns.
-  const child = spawn(executable, [nativeMode, envelope], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
+  const child = spawn(executable, [nativeMode, envelope, ...nativeArgs], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false });
   let output = '';
   const consume = chunk => {
     output += chunk.toString('utf8');
@@ -90,7 +98,7 @@ async function invoke(nativeMode) {
   } finally { clearTimeout(timer); }
   // Do not preserve arbitrary diagnostics. Only native stage vocabulary.
   const stages = output.split(/\r?\n/).filter(line =>
-    /^(envelope-(result|stage): [a-zA-Z0-9-]+|fictional-envelope-prepared-locked|fresh-process-silent-decrypt-denied|disposable-key-and-envelope-removed|HOME_WINDOWS_(MONITOR_READY|SESSION_ENDED)|HOME_WINDOWS_EVENT:[a-z-]+)$/.test(line));
+    /^(envelope-(result|stage): [a-zA-Z0-9-]+|fictional-envelope-prepared-locked|fictional-snapshot-(revision|committed|receipt):[0-9]+|fresh-process-silent-decrypt-denied|disposable-key-and-envelope-removed|HOME_WINDOWS_(MONITOR_READY|SESSION_ENDED)|HOME_WINDOWS_EVENT:[a-z-]+)$/.test(line));
   receipt.exitCode = code; receipt.stages = stages;
   writeFileSync(resultPath, JSON.stringify(evidence, null, 2) + '\n');
   return { code, stages };
@@ -98,7 +106,7 @@ async function invoke(nativeMode) {
 function passed(result) { return result.code === 0 && result.stages.includes('envelope-result: PASS'); }
 try {
   console.log(statements[mode]);
-  if (['prepare', 'read', 'verify-restart'].includes(mode)) {
+  if (['prepare', 'read', 'verify-restart', 'stale', 'commit', 'write-unknown', 'reconcile', 'receipt-retry'].includes(mode)) {
     console.log('After each successful OS password dialog, click the Home test window within 30 seconds. Never enter a password in Home or this terminal.');
   }
   assert.equal(await terminal.question('Type begin to run this bounded attended step: '), 'begin', 'Not started');
@@ -127,6 +135,42 @@ try {
     assert.ok(passed(await invoke(mode === 'read' ? '--envelope-attended-read' : '--envelope-attended-verify-restart')), 'Native verification failed');
     assert.equal(hash(envelope), before, 'Read changed ciphertext');
     assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-read lock check failed');
+    evidence.result = 'PASS';
+  } else if (mode === 'stale') {
+    assert.ok(passed(await invoke('--envelope-check-locked')), 'Pre-write lock check failed');
+    const stale = await invoke('--envelope-attended-cas', '0', metadata.staleRequestId);
+    assert.equal(stale.code, 1);
+    assert.ok(stale.stages.includes('envelope-result: snapshot-conflict'), 'Expected stale revision conflict');
+    assert.equal(hash(envelope), before, 'Stale write changed ciphertext');
+    assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-conflict lock check failed');
+    evidence.result = 'PASS';
+  } else if (mode === 'commit') {
+    const committed = await invoke('--envelope-attended-cas', '1', metadata.requestId);
+    assert.ok(passed(committed), 'Snapshot commit failed');
+    assert.ok(committed.stages.includes('fictional-snapshot-committed:2'));
+    assert.ok(committed.stages.includes('fictional-snapshot-receipt:2'));
+    assert.notEqual(hash(envelope), before, 'Commit did not replace ciphertext');
+    assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-commit lock check failed');
+    evidence.result = 'PASS';
+  } else if (mode === 'write-unknown') {
+    const unknown = await invoke('--envelope-attended-cas-unknown', '1', metadata.requestId);
+    assert.equal(unknown.code, 1);
+    assert.ok(unknown.stages.includes('envelope-result: commit-unknown-readback-required'), 'Expected explicit unknown outcome');
+    assert.notEqual(hash(envelope), before, 'Injected lost acknowledgement did not occur after replacement');
+    evidence.result = 'WRITE_UNKNOWN_READBACK_REQUIRED';
+  } else if (mode === 'reconcile') {
+    const readback = await invoke('--envelope-attended-read');
+    assert.ok(passed(readback), 'Fresh attended readback failed');
+    assert.ok(readback.stages.includes('fictional-snapshot-revision:2'), 'Expected committed revision 2');
+    assert.equal(hash(envelope), before, 'Readback changed ciphertext');
+    assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-readback lock check failed');
+    evidence.result = 'PASS_COMMITTED';
+  } else if (mode === 'receipt-retry') {
+    const retry = await invoke('--envelope-attended-cas', '1', metadata.requestId);
+    assert.ok(passed(retry), 'Idempotent receipt lookup failed');
+    assert.ok(retry.stages.includes('fictional-snapshot-receipt:2'), 'Stored receipt was not returned');
+    assert.equal(hash(envelope), before, 'Receipt lookup changed ciphertext');
+    assert.ok(passed(await invoke('--envelope-check-locked')), 'Post-retry lock check failed');
     evidence.result = 'PASS';
   } else {
     assert.ok(passed(await invoke('--envelope-cleanup')), 'Cleanup failed; preserve evidence for repair');

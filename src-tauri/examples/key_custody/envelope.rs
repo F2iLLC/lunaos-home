@@ -14,8 +14,10 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 #[allow(dead_code)]
 mod session;
 
-const MAGIC: &str = "LunaOSHome.FictionalEnvelope.1";
-const FIXTURE: &[u8] = b"Fictional Alex: blue paper kite";
+const MAGIC: &str = "LunaOSHome.FictionalSnapshotEnvelope.1";
+const FIXTURE_RECORD: &str = "Fictional Alex: blue paper kite";
+const UPDATED_FIXTURE_RECORD: &str = "Fictional Alex: green paper kite";
+const SNAPSHOT_MAGIC: &str = "LunaOSHome.FictionalSnapshot.1";
 const MAX_FILE: u64 = 8192;
 type Result<T> = std::result::Result<T, &'static str>;
 static KEY_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -153,6 +155,7 @@ fn gcm(
 struct Envelope {
     name: String,
     boot: u64,
+    revision: u64,
     wrapped: Vec<u8>,
     nonce: [u8; 12],
     cipher: Vec<u8>,
@@ -161,9 +164,10 @@ struct Envelope {
 impl Envelope {
     fn header(&self) -> String {
         format!(
-            "{MAGIC}\nsoftware-rsa-oaep-sha256-aes256-gcm\n{}\n{}\n{}\n{}\n",
+            "{MAGIC}\nsoftware-rsa-oaep-sha256-aes256-gcm\n{}\n{}\n{}\n{}\n{}\n",
             self.name,
             self.boot,
+            self.revision,
             hex(&self.wrapped),
             hex(&self.nonce)
         )
@@ -183,10 +187,10 @@ impl Envelope {
         }
         let text = std::str::from_utf8(bytes).map_err(|_| "envelope-invalid")?;
         let parts: Vec<&str> = text.split('\n').collect();
-        if parts.len() != 9
+        if parts.len() != 10
             || parts[0] != MAGIC
             || parts[1] != "software-rsa-oaep-sha256-aes256-gcm"
-            || parts[8] != ""
+            || parts[9] != ""
         {
             return Err("envelope-invalid");
         }
@@ -205,29 +209,26 @@ impl Envelope {
         let result = Self {
             name: name.to_owned(),
             boot: parse_boot_time(parts[3]).ok_or("envelope-invalid")?,
-            wrapped,
-            nonce: get(5)?.try_into().map_err(|_| "envelope-invalid")?,
-            cipher: get(6)?,
-            tag: get(7)?.try_into().map_err(|_| "envelope-invalid")?,
+            revision: parts[4].parse::<u64>().map_err(|_| "envelope-invalid")?,
+            wrapped: get(5)?,
+            nonce: get(6)?.try_into().map_err(|_| "envelope-invalid")?,
+            cipher: get(7)?,
+            tag: get(8)?.try_into().map_err(|_| "envelope-invalid")?,
         };
-        if result.cipher.len() != FIXTURE.len() || result.encode() != bytes {
+        if result.revision == 0 || result.cipher.is_empty() || result.encode() != bytes {
             return Err("envelope-invalid");
         }
         Ok(result)
     }
-    fn decrypt(&self, key: &Secret) -> Result<()> {
-        let answer = gcm(
+    fn decrypt(&self, key: &Secret) -> Result<Secret> {
+        gcm(
             key,
             &self.nonce,
             self.header().as_bytes(),
             &self.cipher,
             &mut self.tag.clone(),
             true,
-        )?;
-        if answer.0 != FIXTURE {
-            return Err("fictional-record-mismatch");
-        }
-        Ok(()) // Plaintext never leaves this function.
+        )
     }
     fn silent(&self) -> Result<()> {
         check_separate_process_silent(&RestartState {
@@ -237,6 +238,79 @@ impl Envelope {
             uptime_ms: 0,
             boot_time_ticks: Some(self.boot),
         })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Snapshot {
+    revision: u64,
+    record: String,
+    last_request: Option<String>,
+    receipt_revision: Option<u64>,
+}
+impl Snapshot {
+    fn initial() -> Self {
+        Self {
+            revision: 1,
+            record: FIXTURE_RECORD.to_owned(),
+            last_request: None,
+            receipt_revision: None,
+        }
+    }
+    fn encode(&self) -> Vec<u8> {
+        format!(
+            "{SNAPSHOT_MAGIC}\n{}\n{}\n{}\n{}\n",
+            self.revision,
+            self.record,
+            self.last_request.as_deref().unwrap_or("-"),
+            self.receipt_revision
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-".to_owned())
+        )
+        .into_bytes()
+    }
+    fn decode(bytes: &[u8], envelope_revision: u64) -> Result<Self> {
+        let text = std::str::from_utf8(bytes).map_err(|_| "snapshot-invalid")?;
+        let parts: Vec<&str> = text.split('\n').collect();
+        if parts.len() != 6 || parts[0] != SNAPSHOT_MAGIC || parts[5] != "" {
+            return Err("snapshot-invalid");
+        }
+        let revision = parts[1].parse::<u64>().map_err(|_| "snapshot-invalid")?;
+        let record = parts[2];
+        if revision == 0
+            || revision != envelope_revision
+            || ![FIXTURE_RECORD, UPDATED_FIXTURE_RECORD].contains(&record)
+        {
+            return Err("snapshot-invalid");
+        }
+        let (last_request, receipt_revision) = if parts[3] == "-" && parts[4] == "-" {
+            (None, None)
+        } else {
+            if parts[3].len() != 32 || !parts[3].bytes().all(|value| value.is_ascii_hexdigit()) {
+                return Err("snapshot-invalid");
+            }
+            let receipt = parts[4].parse::<u64>().map_err(|_| "snapshot-invalid")?;
+            if receipt != revision || record != UPDATED_FIXTURE_RECORD {
+                return Err("snapshot-invalid");
+            }
+            (Some(parts[3].to_owned()), Some(receipt))
+        };
+        match (record, revision, last_request.is_some(), receipt_revision) {
+            (FIXTURE_RECORD, 1, false, None) => {}
+            (UPDATED_FIXTURE_RECORD, value, true, Some(receipt))
+                if value >= 2 && receipt == value => {}
+            _ => return Err("snapshot-invalid"),
+        }
+        let snapshot = Self {
+            revision,
+            record: record.to_owned(),
+            last_request,
+            receipt_revision,
+        };
+        if snapshot.encode() != bytes {
+            return Err("snapshot-invalid");
+        }
+        Ok(snapshot)
     }
 }
 
@@ -428,7 +502,95 @@ fn unwrap(envelope: &Envelope, hwnd: HWND) -> Result<()> {
     // No key-bearing session is retained while waiting for terminal input.
     let start = Instant::now();
     foreground(hwnd, start)?;
-    envelope.decrypt(&secret)?;
+    let plain = envelope.decrypt(&secret)?;
+    Snapshot::decode(&plain.0, envelope.revision)?;
+    println!("fictional-snapshot-revision:{}", envelope.revision);
+    foreground(hwnd, start)?;
+    drop(secret);
+    drop(active);
+    drop(key);
+    envelope.silent()?;
+    Ok(())
+}
+fn commit_snapshot(
+    path: &Path,
+    envelope: &Envelope,
+    hwnd: HWND,
+    expected_revision: u64,
+    request_id: &str,
+    fault: Fault,
+) -> Result<()> {
+    if request_id.len() != 32 || !request_id.bytes().all(|value| value.is_ascii_hexdigit()) {
+        return Err("snapshot-request-invalid");
+    }
+    envelope.silent()?;
+    let (_provider, key) = open_software_key(&envelope.name)?;
+    property(&key, NCRYPT_WINDOW_HANDLE_PROPERTY, &(hwnd.0 as usize))?;
+    drop(Secret(
+        crypt(&key, &envelope.wrapped, true, false).map_err(|_| "os-key-release-denied")?,
+    ));
+    println!("envelope-stage: os-key-gesture-completed");
+    await_foreground(hwnd)?;
+    let active = ActiveKey::begin();
+    KEY_FOREGROUND.store(true, Ordering::SeqCst);
+    let secret = Secret(
+        crypt(&key, &envelope.wrapped, true, true).map_err(|_| "foreground-key-release-denied")?,
+    );
+    let start = Instant::now();
+    foreground(hwnd, start)?;
+    let plaintext = envelope.decrypt(&secret)?;
+    let snapshot = Snapshot::decode(&plaintext.0, envelope.revision)?;
+    if snapshot.last_request.as_deref() == Some(request_id) {
+        println!(
+            "fictional-snapshot-receipt:{}",
+            snapshot.receipt_revision.unwrap_or_default()
+        );
+    } else {
+        if snapshot.revision != expected_revision {
+            return Err("snapshot-conflict");
+        }
+        if snapshot.record != FIXTURE_RECORD || snapshot.last_request.is_some() {
+            return Err("snapshot-mutation-unsupported");
+        }
+        let next_revision = snapshot
+            .revision
+            .checked_add(1)
+            .ok_or("snapshot-revision-exhausted")?;
+        let next_snapshot = Snapshot {
+            revision: next_revision,
+            record: UPDATED_FIXTURE_RECORD.to_owned(),
+            last_request: Some(request_id.to_owned()),
+            receipt_revision: Some(next_revision),
+        };
+        let mut next_envelope = envelope.clone();
+        next_envelope.revision = next_revision;
+        next_envelope.nonce = random::<12>()?;
+        next_envelope.cipher.clear();
+        next_envelope.tag = [0; 16];
+        next_envelope.cipher = gcm(
+            &secret,
+            &next_envelope.nonce,
+            next_envelope.header().as_bytes(),
+            &next_snapshot.encode(),
+            &mut next_envelope.tag,
+            false,
+        )?
+        .0
+        .clone();
+        foreground(hwnd, start)?;
+        atomic_commit(path, &next_envelope.encode(), true, fault)?;
+        let committed = read(path)?;
+        if committed.encode() != next_envelope.encode() {
+            return Err("commit-unknown-readback-required");
+        }
+        let committed_plain = committed.decrypt(&secret)?;
+        let verified = Snapshot::decode(&committed_plain.0, committed.revision)?;
+        if verified != next_snapshot {
+            return Err("commit-unknown-readback-required");
+        }
+        println!("fictional-snapshot-committed:{}", next_revision);
+        println!("fictional-snapshot-receipt:{}", next_revision);
+    }
     foreground(hwnd, start)?;
     drop(secret);
     drop(active);
@@ -451,6 +613,7 @@ fn prepare(path: &Path, hwnd: HWND) -> Result<()> {
         let mut envelope = Envelope {
             name: name.clone(),
             boot,
+            revision: Snapshot::initial().revision,
             wrapped: crypt(&protector, &secret.0, false, true).map_err(|_| "wrap-failed")?,
             nonce: random::<12>()?,
             cipher: Vec::new(),
@@ -460,7 +623,7 @@ fn prepare(path: &Path, hwnd: HWND) -> Result<()> {
             &secret,
             &envelope.nonce,
             envelope.header().as_bytes(),
-            FIXTURE,
+            &Snapshot::initial().encode(),
             &mut envelope.tag,
             false,
         )?
@@ -586,10 +749,25 @@ pub(super) fn run(arguments: &[String]) -> Result<()> {
             Ok(())
         });
     }
-    let [mode, file] = arguments else {
+    if arguments.len() < 2 || arguments.len() > 4 {
         return Err("envelope-arguments-invalid");
+    }
+    let mode = &arguments[0];
+    let path = std::path::PathBuf::from(&arguments[1]);
+    let cas = if mode == "--envelope-attended-cas" || mode == "--envelope-attended-cas-unknown" {
+        if arguments.len() != 4 {
+            return Err("envelope-arguments-invalid");
+        }
+        let expected = arguments[2]
+            .parse::<u64>()
+            .map_err(|_| "snapshot-revision-invalid")?;
+        Some((expected, arguments[3].as_str()))
+    } else {
+        if arguments.len() != 2 {
+            return Err("envelope-arguments-invalid");
+        }
+        None
     };
-    let path = std::path::PathBuf::from(file);
     validate_restart_path(&path)?;
     if path.file_name().and_then(|p| p.to_str()) != Some("fictional-envelope.v1") {
         return Err("envelope-path-invalid");
@@ -614,6 +792,17 @@ pub(super) fn run(arguments: &[String]) -> Result<()> {
                 return Err("cold-restart-not-observed");
             }
             visit(move |hwnd| unwrap(&envelope, hwnd))
+        }
+        "--envelope-attended-cas" | "--envelope-attended-cas-unknown" => {
+            let envelope = read(&path)?;
+            let (expected, request_id) = cas.ok_or("envelope-arguments-invalid")?;
+            let request_id = request_id.to_owned();
+            let fault = if mode.ends_with("unknown") {
+                Fault::LostReceipt
+            } else {
+                Fault::None
+            };
+            visit(move |hwnd| commit_snapshot(&path, &envelope, hwnd, expected, &request_id, fault))
         }
         "--envelope-check-locked" => {
             read(&path)?.silent()?;
@@ -685,6 +874,7 @@ mod tests {
         let mut envelope = Envelope {
             name: format!("LunaOSHome.FictionalKeyRelease.{}", "a".repeat(32)),
             boot: 638_000_000_000_000_000,
+            revision: Snapshot::initial().revision,
             wrapped: vec![7; 256],
             nonce: random::<12>().unwrap(),
             cipher: vec![],
@@ -694,7 +884,7 @@ mod tests {
             &key,
             &envelope.nonce,
             envelope.header().as_bytes(),
-            FIXTURE,
+            &Snapshot::initial().encode(),
             &mut envelope.tag,
             false,
         )
@@ -746,7 +936,7 @@ mod tests {
             &secret,
             &envelope.nonce,
             envelope.header().as_bytes(),
-            FIXTURE,
+            &Snapshot::initial().encode(),
             &mut envelope.tag,
             false,
         )
@@ -761,7 +951,7 @@ mod tests {
     #[test]
     fn authenticated_header_cipher_tag_and_wrong_key_fail_closed() {
         let (original, key) = sample();
-        original.decrypt(&key).unwrap();
+        Snapshot::decode(&original.decrypt(&key).unwrap().0, original.revision).unwrap();
         for field in 0..6 {
             let mut altered = original.clone();
             match field {
@@ -816,7 +1006,7 @@ mod tests {
         for fault in [Fault::PartialDiskFull, Fault::BeforeRename] {
             assert!(atomic_commit(&path, &new.encode(), true, fault).is_err());
             assert_eq!(read_bytes(&path).unwrap(), old.encode());
-            read(&path).unwrap().decrypt(&key).unwrap();
+            Snapshot::decode(&read(&path).unwrap().decrypt(&key).unwrap().0, old.revision).unwrap();
             assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
         }
         assert!(atomic_commit(&path, &new.encode(), false, Fault::None).is_err());

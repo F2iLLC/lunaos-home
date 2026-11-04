@@ -1,5 +1,27 @@
 # Session 3 build handoff: protected pairing custody and versioned reads
 
+## Windows snapshot-store prototype increment, 2026-11-03
+
+The isolated `windows-snapshot-store-v1` branch extends the developer-only
+attended Software KSP example with one encrypted, revisioned fictional
+snapshot. The record, revision, request ID and receipt revision are committed
+together through the native atomic replacement primitive. The bounded fixture
+supports stale-revision conflict, one revision-1-to-2 mutation, idempotent
+receipt lookup, and an injected lost acknowledgement that requires a later
+fresh attended read. The runner never automatically replays an uncertain
+write. Details and exact operator steps are in
+[the Windows envelope prototype](windows-ksp-envelope.md).
+
+`npm run build:native` and `cargo check --locked --manifest-path src-tauri/Cargo.toml
+--example windows_key_release_probe` passed on this source. Automated tests,
+an attended Windows operation, disk-full/power-loss exercise, production
+adapter, app route and JavaScript storage route were not verified for this
+increment. It does not implement the
+shared `VersionedVaultRecordStore v2` interface or qualify `WindowsSnapshotFileStore v1`.
+Enrollment, unlock, reset, migration, recovery, backup/restore and rollback
+controls remain open. Keep VLT-03 open and treat local/hosted checks, attended
+device evidence and production qualification as separate gates.
+
 This increment follows the [Session 2 feasibility decision](session-two-feasibility-handoff.md) for [VLT-03](https://github.com/F2iLLC/lunaos-home/issues/6) and [VLT-05](https://github.com/F2iLLC/lunaos-home/issues/8). It uses fictional records and a Windows-only developer harness. It is not approval for personal information or completion of either issue.
 
 ## Decision and result
