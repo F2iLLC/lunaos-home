@@ -127,5 +127,15 @@ test('Luna status polling follows visible route and document state at five-secon
 
   harness.resolveSnapshot();
   await harness.flush();
+  const refreshButton = luna.querySelector('#refresh-luna-state');
+  assert.equal(refreshButton.disabled, false, 'the completed poll re-enables manual refresh');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
+
+  const manualRefresh = refreshButton.onclick();
+  assert.equal(refreshButton.disabled, true);
+  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 3,
+    'manual refresh starts a fresh snapshot request when no request is in flight');
+  harness.resolveSnapshot();
+  await manualRefresh;
+  assert.equal(refreshButton.disabled, false, 'manual refresh re-enables its button after completion');
 });
