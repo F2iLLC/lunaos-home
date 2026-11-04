@@ -27,7 +27,9 @@ import com.sun.jna.NativeLibrary;
 /** Shared capture worker. Owners stop it and independently gate effects. */
 final class ProbeCapture {
     private static final AtomicBoolean BUSY = new AtomicBoolean();
+    private static final AtomicBoolean RECORDING = new AtomicBoolean();
     static boolean busy() { return BUSY.get(); }
+    static boolean recording() { return RECORDING.get(); }
     interface Listener {
         void visual(LunaFace.State state);
         void status(String text);
@@ -88,6 +90,7 @@ final class ProbeCapture {
     }
     private synchronized void closeRecorder() {
         closed = true;
+        RECORDING.set(false);
         closeCue();
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
@@ -159,6 +162,7 @@ final class ProbeCapture {
                         if (recorder.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException();
                         recorder.startRecording();
                         if (recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException();
+                        RECORDING.set(true);
                     }
                     WakeSession wake = wait ? new WakeSession(SystemClock.elapsedRealtime(), persistent) : null;
                     Log.i("HomeVoiceProbe", wait ? "WAITING_FOR_WAKE" : "LISTENING");

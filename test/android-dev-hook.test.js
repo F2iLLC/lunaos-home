@@ -22,13 +22,15 @@ const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/an
 async function fixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'home-android-hook-'));
   context.after(() => rm(directory, { recursive: true, force: true }));
-  for (const path of ['src', 'lib', 'scripts/android', 'scripts/android-direct-tls-probe', 'scripts/build-native.mjs', 'scripts/prepare-android.mjs', 'package.json', 'LICENSE']) {
+  for (const path of ['src', 'lib', 'scripts/android', 'scripts/android/voice', 'scripts/android-offline-voice-probe', 'scripts/android-direct-tls-probe', 'scripts/build-native.mjs', 'scripts/prepare-android.mjs', 'package.json', 'LICENSE']) {
     await mkdir(join(directory, path, '..'), { recursive: true });
     await cp(join(root, path), join(directory, path), { recursive: true });
   }
   // Reuse installed build dependencies only; generated Android inputs are real files.
   await symlink(join(root, 'node_modules'), join(directory, 'node_modules'), 'junction');
   const src = join(directory, 'src-tauri/gen/android/app/src');
+  await mkdir(join(directory, 'src-tauri/gen/android/app'), { recursive: true });
+  await writeFile(join(directory, 'src-tauri/gen/android/app/build.gradle'), 'dependencies {\n}\n');
   await mkdir(join(src, 'main', pkg), { recursive: true });
   await writeFile(join(src, 'main/AndroidManifest.xml'), manifest);
   await cp(join(root, 'scripts/android/MainActivity.kt'), join(src, 'main', pkg, 'MainActivity.kt'));

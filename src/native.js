@@ -8,31 +8,82 @@ document.querySelector('#native-notices').hidden = false;
 if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ && window.__TAURI__?.core) {
   const lunaLink = document.createElement('a');
   lunaLink.href = '#luna';
-  lunaLink.innerHTML = 'Meet Luna <small>Open the installed voice demo</small>';
+  lunaLink.innerHTML = 'Meet Luna <small>Wake listening and timers</small>';
   document.querySelector('#home-actions').append(lunaLink);
   const luna = document.createElement('section');
   luna.id = 'luna';
   luna.className = 'vault';
   luna.hidden = true;
   luna.innerHTML = `<a class="back-link" href="#welcome">← Back home</a>
-    <div class="checklist-intro"><p class="eyebrow">LUNA VOICE DEMO</p>
+    <div class="checklist-intro"><p class="eyebrow">LUNA</p>
     <h1 id="luna-heading" tabindex="-1">Meet Luna.</h1>
-    <p>Luna's face, microphone controls and active timers are in the separately installed voice demo.</p></div>
-    <div class="list-panel"><p>Opening the demo does not turn on its microphone. Tap Enable there to start listening. Online answers currently require the computer relay and USB.</p>
-    <button id="open-luna-demo" class="primary-button" type="button">Open Luna voice demo</button>
-    <p id="luna-demo-status" role="status" aria-live="polite"></p></div>`;
+    <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you enable it here.</p></div>
+    <div class="list-panel"><h2>Home voice status</h2>
+    <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
+      <p id="luna-details">Online answers are off. Questions are not sent anywhere.</p>
+    <button id="refresh-luna-state" type="button">Refresh status</button>
+    <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
+    <button id="allow-luna-mic" type="button">Allow microphone</button>
+    <button id="enable-luna-wake" class="primary-button" type="button">Enable wake-word listening</button>
+    <button id="disable-luna-wake" type="button">Disable listening</button>
+    <div id="luna-timers" aria-live="polite"></div></div>`;
   document.querySelector('main').append(luna);
-  luna.querySelector('#open-luna-demo').addEventListener('click', async event => {
-    const button = event.currentTarget;
-    const status = luna.querySelector('#luna-demo-status');
-    button.disabled = true;
+  const stateText = luna.querySelector('#luna-state');
+  const stateDetails = luna.querySelector('#luna-details');
+  const refreshState = luna.querySelector('#refresh-luna-state');
+  const refreshSnapshot = async () => {
+    refreshState.disabled = true;
+    stateText.textContent = 'Checking Home voice status…';
     try {
-      await window.__TAURI__.core.invoke('open_luna_probe');
-      status.textContent = 'Voice demo opened. Listening remains under its local controls.';
+      const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
+        const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening locally for Hey Luna.', awake: 'Luna heard the wake phrase and is listening for a timer command.', response: 'Luna is responding; microphone paused.', retry: 'Listening paused. Enable it again when ready.' };
+        if (snapshot.status !== 'ready') {
+          stateText.textContent = snapshot.reason === 'local_model_unavailable' ? 'Local wake model unavailable. Listening is off.' : 'Home voice service unavailable.';
+        } else {
+          stateText.textContent = snapshot.microphoneInUse ? (phases[snapshot.capturePhase] || 'Microphone is on.') : (phases[snapshot.capturePhase] || 'Microphone off.');
+        }
+      stateDetails.textContent = snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.';
+      const timers = luna.querySelector('#luna-timers');
+      timers.replaceChildren();
+      for (const timer of snapshot.activeTimers || []) {
+        const row = document.createElement('p');
+        row.textContent = `Timer ${timer.id}: ${timer.remainingSeconds} seconds remaining. `;
+        const cancel = document.createElement('button');
+        cancel.type = 'button'; cancel.textContent = `Cancel timer ${timer.id}`;
+        cancel.addEventListener('click', async () => {
+          cancel.disabled = true;
+          try { await window.__TAURI__.core.invoke('cancel_luna_timer', { id: Number(timer.id) }); await refreshSnapshot(); }
+          catch { cancel.disabled = false; stateText.textContent = 'Could not confirm timer cancellation. Refresh the status before retrying.'; }
+        });
+        row.append(cancel); timers.append(row);
+      }
     } catch {
-      status.textContent = 'Could not open the voice demo. Check that the separate demo is installed and can open on this device, then try again.';
-    } finally { button.disabled = false; }
+      stateText.textContent = 'Voice status unavailable.';
+      stateDetails.textContent = 'Home could not confirm microphone or timer state.';
+    } finally { refreshState.disabled = false; }
+  };
+  refreshState.addEventListener('click', refreshSnapshot);
+  void refreshSnapshot();
+  luna.querySelector('#allow-luna-mic').addEventListener('click', async () => {
+      try { await window.__TAURI__.core.invoke('request_luna_microphone'); }
+      catch { stateText.textContent = 'Could not request microphone access.'; }
+    await refreshSnapshot();
   });
+  luna.querySelector('#enable-luna-wake').addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try { await window.__TAURI__.core.invoke('enable_luna_wake'); }
+    catch { stateText.textContent = 'Could not start listening. Check microphone permission, lock, mute, and model availability.'; }
+    finally { button.disabled = false; await refreshSnapshot(); }
+  });
+  luna.querySelector('#disable-luna-wake').addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try { await window.__TAURI__.core.invoke('disable_luna_wake'); }
+    catch { stateText.textContent = 'Could not confirm listening stopped. Refresh status.'; }
+    finally { button.disabled = false; await refreshSnapshot(); }
+  });
+  const snapshotPoll = setInterval(() => { if (!luna.hidden) void refreshSnapshot(); }, 1000);
+  // Node's DOM harness should not stay alive for a browser-only status poll.
+  snapshotPoll.unref?.();
   const launch = document.createElement('button');
   launch.type = 'button';
   launch.className = 'primary-button';

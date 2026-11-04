@@ -13,6 +13,8 @@ async function fixture(context) {
   context.after(() => rm(root, { recursive: true, force: true }));
   const projectRoot = join(root, 'project/gen/android');
   const src = join(projectRoot, 'app/src');
+  await mkdir(join(projectRoot, 'app'), { recursive: true });
+  await writeFile(join(projectRoot, 'app/build.gradle'), 'dependencies {\n}\n');
   await mkdir(join(src, 'main', pkg), { recursive: true });
   await writeFile(join(src, 'main/AndroidManifest.xml'), manifest);
   await writeFile(join(src, 'main', pkg, 'MainActivity.kt'),

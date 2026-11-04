@@ -1,4 +1,29 @@
+use serde::{Deserialize, Serialize};
 use tauri::{plugin::PluginHandle, Manager, Runtime};
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LunaSnapshot {
+    pub status: String,
+    pub reason: String,
+    pub capture_phase: String,
+    pub microphone_in_use: Option<bool>,
+    pub online_answers_enabled: Option<bool>,
+    pub active_timers: Option<Vec<LunaTimerSnapshot>>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LunaTimerSnapshot {
+    pub id: String,
+    pub label: String,
+    pub remaining_seconds: u64,
+}
+
+#[derive(Serialize)]
+struct LunaTimerRequest {
+    id: u8,
+}
 
 pub(crate) struct Vault<R: Runtime>(PluginHandle<R>);
 
@@ -25,20 +50,41 @@ pub async fn open_fictional_vault<R: Runtime>(
         .map_err(|_| "Native screen unavailable".into())
 }
 
-// Opening the demo only brings its controls into view; it never enables capture.
 #[tauri::command]
-pub async fn open_luna_probe<R: Runtime>(
+pub async fn get_luna_snapshot<R: Runtime>(
     window: tauri::WebviewWindow<R>,
     state: tauri::State<'_, Vault<R>>,
-) -> Result<(), String> {
+) -> Result<LunaSnapshot, String> {
     if window.label() != "main" {
-        return Err("Only the local main window may open the Luna demo".into());
+        return Err("Only the local main window may read Luna status".into());
     }
-    state
-        .0
-        .run_mobile_plugin_async::<()>("openLunaProbe", ())
-        .await
-        .map_err(|_| "Luna demo unavailable".into())
+    state.0.run_mobile_plugin_async::<LunaSnapshot>("lunaSnapshot", ()).await
+        .map_err(|_| "Home voice status unavailable".into())
+}
+
+#[tauri::command]
+pub async fn enable_luna_wake<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may enable Luna".into()); }
+    state.0.run_mobile_plugin_async("enableLunaWake", ()).await.map_err(|_| "Could not enable Luna listening".into())
+}
+
+#[tauri::command]
+pub async fn request_luna_microphone<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may request Luna microphone access".into()); }
+    state.0.run_mobile_plugin_async::<()>("requestLunaMicrophone", ()).await.map_err(|_| "Could not request microphone access".into())
+}
+
+#[tauri::command]
+pub async fn disable_luna_wake<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may disable Luna".into()); }
+    state.0.run_mobile_plugin_async::<()>("disableLunaWake", ()).await.map_err(|_| "Could not disable Luna listening".into())
+}
+
+#[tauri::command]
+pub async fn cancel_luna_timer<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>, id: u8) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may cancel a Luna timer".into()); }
+    if !(1..=8).contains(&id) { return Err("Invalid Luna timer".into()); }
+    state.0.run_mobile_plugin_async::<()>("cancelLunaTimer", LunaTimerRequest { id }).await.map_err(|_| "Could not cancel Luna timer".into())
 }
 
 pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {

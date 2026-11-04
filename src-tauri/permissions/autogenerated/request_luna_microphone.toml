@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-request-luna-microphone"
+description = "Enables the explicit Home microphone permission request."
+commands.allow = ["request_luna_microphone"]
+
+[[permission]]
+identifier = "deny-request-luna-microphone"
+description = "Denies the Home microphone permission request."
+commands.deny = ["request_luna_microphone"]

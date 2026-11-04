@@ -4,33 +4,44 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import app.tauri.annotation.Command
+import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.Plugin
 import io.github.f2illc.lunaos.directtlsprobe.HomeDirectEntry
+import io.github.f2illc.lunaos.home.voiceprobe.HomeLunaBridge
+
+@InvokeArg
+internal class LunaTimerArgs { var id: Int = 0 }
 
 @TauriPlugin
 class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
-    @Command
-    fun openLunaProbe(invoke: Invoke) {
-        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) {
-            invoke.reject("Luna voice demo requires an Android API26+ debug build.")
-            return
-        }
-        activity.runOnUiThread {
-            try {
-                val intent = Intent().setClassName(
-                    "io.github.f2illc.lunaos.home.voiceprobe",
-                    "io.github.f2illc.lunaos.home.voiceprobe.VoiceProbe"
-                )
-                activity.startActivity(intent)
-                invoke.resolve()
-            } catch (_: android.content.ActivityNotFoundException) {
-                invoke.reject("Install the separate Luna voice demo first.")
-            } catch (_: SecurityException) {
-                invoke.reject("Luna voice demo cannot be opened on this device.")
-            }
-        }
+    @Command fun lunaSnapshot(invoke: Invoke) {
+        try { invoke.resolve(HomeLunaBridge.snapshot(activity)) }
+        catch (_: Exception) { invoke.reject("Home voice status unavailable.") }
+    }
+
+    @Command fun enableLunaWake(invoke: Invoke) {
+        try { HomeLunaBridge.enable(activity); invoke.resolve() }
+        catch (_: Exception) { invoke.reject("Could not enable listening. Allow microphone access and check that the local model is installed.") }
+    }
+
+    @Command fun requestLunaMicrophone(invoke: Invoke) {
+        try { HomeLunaBridge.requestMicrophone(activity); invoke.resolve() }
+        catch (_: Exception) { invoke.reject("Could not request microphone access.") }
+    }
+
+    @Command fun disableLunaWake(invoke: Invoke) {
+        try { HomeLunaBridge.disable(activity); invoke.resolve() }
+        catch (_: Exception) { invoke.reject("Could not disable listening.") }
+    }
+
+    @Command fun cancelLunaTimer(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(LunaTimerArgs::class.java)
+            HomeLunaBridge.cancel(activity, args.id)
+            invoke.resolve()
+        } catch (_: Exception) { invoke.reject("Could not cancel that Luna timer.") }
     }
     @Command
     fun openVehicle(invoke: Invoke) {
