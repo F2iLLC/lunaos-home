@@ -31,7 +31,26 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const stateText = luna.querySelector('#luna-state');
   const stateDetails = luna.querySelector('#luna-details');
   const refreshState = luna.querySelector('#refresh-luna-state');
+  const statusPollIntervalMs = 5000;
+  let snapshotPoll;
+  let snapshotRefreshInFlight = false;
+  const stopSnapshotPoll = () => {
+    if (snapshotPoll !== undefined) {
+      clearTimeout(snapshotPoll);
+      snapshotPoll = undefined;
+    }
+  };
+  const scheduleSnapshotPoll = () => {
+    stopSnapshotPoll();
+    if (typeof location === 'undefined' || location.hash.split('?')[0] !== '#luna' || document.hidden) return;
+    snapshotPoll = setTimeout(async () => {
+      snapshotPoll = undefined;
+      await refreshSnapshot();
+    }, statusPollIntervalMs);
+  };
   const refreshSnapshot = async () => {
+    if (snapshotRefreshInFlight) return;
+    snapshotRefreshInFlight = true;
     refreshState.disabled = true;
     stateText.textContent = 'Checking Home voice status…';
     try {
@@ -60,9 +79,15 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     } catch {
       stateText.textContent = 'Voice status unavailable.';
       stateDetails.textContent = 'Home could not confirm microphone or timer state.';
-    } finally { refreshState.disabled = false; }
+    } finally {
+      snapshotRefreshInFlight = false;
+      refreshState.disabled = false;
+      scheduleSnapshotPoll();
+    }
   };
   refreshState.addEventListener('click', refreshSnapshot);
+  window.addEventListener?.('hashchange', scheduleSnapshotPoll);
+  document.addEventListener?.('visibilitychange', scheduleSnapshotPoll);
   void refreshSnapshot();
   luna.querySelector('#allow-luna-mic').addEventListener('click', async () => {
       try { await window.__TAURI__.core.invoke('request_luna_microphone'); }
@@ -81,9 +106,6 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     catch { stateText.textContent = 'Could not confirm listening stopped. Refresh status.'; }
     finally { button.disabled = false; await refreshSnapshot(); }
   });
-  const snapshotPoll = setInterval(() => { if (!luna.hidden) void refreshSnapshot(); }, 1000);
-  // Node's DOM harness should not stay alive for a browser-only status poll.
-  snapshotPoll.unref?.();
   const launch = document.createElement('button');
   launch.type = 'button';
   launch.className = 'primary-button';
