@@ -8,9 +8,9 @@ const bundled = await build({
   plugins: [{
     name: 'isolate-unrelated-home-services',
     setup(builder) {
-      builder.onResolve({ filter: /(?:offline-drafts|draft-client|app)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+      builder.onResolve({ filter: /(?:offline-drafts|draft-client|vault|draft-storage)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
-        contents: 'export const createOfflineDraftClient = () => ({}); export const useOfflineDraftClient = () => {};',
+        contents: 'export const createOfflineDraftClient = () => ({}); export const useOfflineDraftClient = () => {}; export const refreshDraft = () => {}; export const preserveSaveRoutes = () => {};',
       }));
     },
   }],
@@ -30,7 +30,11 @@ function createHarness() {
     children: [],
     textContent: '',
     setAttribute() {},
-    append(...children) { this.children.push(...children); },
+    focus() {},
+    append(...children) {
+      this.children.push(...children);
+      for (const child of children) if (child.id) rootNodes.set(`#${child.id}`, child);
+    },
     replaceChildren(...children) { this.children = children; },
     addEventListener(type, listener) { this[`on${type}`] = listener; },
     querySelector(selector) {
@@ -50,7 +54,12 @@ function createHarness() {
     addEventListener(type, listener) { documentListeners.set(type, listener); },
   };
   const window = {
-    addEventListener(type, listener) { windowListeners.set(type, listener); },
+    addEventListener(type, listener) {
+      const listeners = windowListeners.get(type) ?? [];
+      listeners.push(listener);
+      windowListeners.set(type, listeners);
+    },
+    scrollTo() {},
     __TAURI__: { core: { invoke(command) {
       calls.push(command);
       if (command !== 'get_luna_snapshot') return Promise.resolve();
@@ -66,17 +75,23 @@ function createHarness() {
     return id;
   };
   const fakeClearTimeout = id => timers.delete(id);
+  const location = { hash: '#welcome' };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
   return {
-    calls, document, documentListeners, pendingSnapshots, timers, window, windowListeners,
+    calls, document, documentListeners, location, pendingSnapshots, timers, window, windowListeners,
     async start() {
-      await new AsyncFunction('document', 'window', 'setTimeout', 'clearTimeout', 'queueMicrotask', bundled.outputFiles[0].text)(
-        document, window, fakeSetTimeout, fakeClearTimeout, queueMicrotask,
+      await new AsyncFunction('document', 'window', 'location', 'setTimeout', 'clearTimeout', 'queueMicrotask', bundled.outputFiles[0].text)(
+        document, window, location, fakeSetTimeout, fakeClearTimeout, queueMicrotask,
       );
       return document.querySelector('main').children.find(child => child.id === 'luna');
     },
     async flush() { await Promise.resolve(); await Promise.resolve(); },
+    async navigate(hash) {
+      location.hash = hash;
+      for (const listener of windowListeners.get('hashchange') ?? []) listener();
+      await this.flush();
+    },
     resolveSnapshot() { pendingSnapshots.shift()?.(); },
     runNextTimer() {
       const [id, timer] = timers.entries().next().value ?? [];
@@ -92,21 +107,18 @@ test('Luna status polling follows visible route and document state at five-secon
   const luna = await harness.start();
   assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 1);
 
-  luna.hidden = false;
-  harness.windowListeners.get('hashchange')();
-  await harness.flush();
+  await harness.navigate('#luna?source=home');
+  assert.equal(luna.hidden, false, 'the real app router shows Luna for a query-bearing route');
   harness.resolveSnapshot();
   await harness.flush();
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
 
-  luna.hidden = true;
-  harness.windowListeners.get('hashchange')();
-  await harness.flush();
+  await harness.navigate('#checklist');
+  assert.equal(luna.hidden, true, 'the real app router hides Luna after leaving its route');
   assert.equal(harness.timers.size, 0, 'leaving Luna clears the pending poll');
 
-  luna.hidden = false;
-  harness.windowListeners.get('hashchange')();
-  await harness.flush();
+  await harness.navigate('#luna');
+  assert.equal(luna.hidden, false);
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
 
   harness.document.hidden = true;
