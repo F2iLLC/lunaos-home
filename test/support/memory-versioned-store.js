@@ -1,5 +1,5 @@
 import {
-  vaultRecordId, vaultRevision, vaultRecordData, vaultRecordDetail,
+  vaultRecordId, vaultRevision, vaultRecordData, vaultRecordDetail, versionedVaultRecord,
   VaultConflictError, VaultUnsupportedRecordError,
 } from '../../lib/vault-record-contract.js';
 
@@ -16,13 +16,19 @@ export function createMemoryVersionedStore(backing = new Map()) {
     return result.data;
   };
   /**
-   * Read and decode a stored row, or return null when the record is missing.
+   * Read and validate a stored row, or return null when the record is missing.
    * @param {string} recordId
    * @returns {Record<string, unknown> | null}
+   * @throws {TypeError} When stored JSON or the versioned record is invalid.
    */
   const readRow = recordId => {
     const encoded = backing.get(recordId);
-    return encoded === undefined ? null : JSON.parse(encoded);
+    if (encoded === undefined) return null;
+    try {
+      return check(versionedVaultRecord, JSON.parse(encoded));
+    } catch {
+      throw new TypeError('Invalid synthetic store row.');
+    }
   };
   function commit(recordId, data) {
     const revision = crypto.randomUUID();
