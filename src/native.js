@@ -42,12 +42,13 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   };
   const scheduleSnapshotPoll = () => {
     stopSnapshotPoll();
-    if (typeof location === 'undefined' || location.hash.split('?')[0] !== '#luna' || document.hidden) return;
+    if (luna.hidden || document.hidden) return;
     snapshotPoll = setTimeout(async () => {
       snapshotPoll = undefined;
       await refreshSnapshot();
     }, statusPollIntervalMs);
   };
+  const scheduleSnapshotPollAfterNavigation = () => queueMicrotask(scheduleSnapshotPoll);
   const refreshSnapshot = async () => {
     if (snapshotRefreshInFlight) return;
     snapshotRefreshInFlight = true;
@@ -86,7 +87,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
   };
   refreshState.addEventListener('click', refreshSnapshot);
-  window.addEventListener?.('hashchange', scheduleSnapshotPoll);
+  window.addEventListener?.('hashchange', scheduleSnapshotPollAfterNavigation);
   document.addEventListener?.('visibilitychange', scheduleSnapshotPoll);
   void refreshSnapshot();
   luna.querySelector('#allow-luna-mic').addEventListener('click', async () => {
