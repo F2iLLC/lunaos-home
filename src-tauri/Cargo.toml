@@ -20,4 +20,4 @@ tauri = { version = "=2.12.4", features = [] }
 windows = { version = "=0.62.2", features = ["Security_Credentials_UI", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_System_WinRT", "Win32_System_Power", "Win32_System_RemoteDesktop", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 # Match windows 0.62.2's windows-core version. 0.100.0 uses a distinct
 # windows-core API and makes the Windows Hello interop types incompatible.
-windows-future = "=0.3.2"
+windows-future = "=0.100.0"
