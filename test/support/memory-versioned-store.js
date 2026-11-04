@@ -15,6 +15,11 @@ export function createMemoryVersionedStore(backing = new Map()) {
     if (!result.success) throw new TypeError('Invalid synthetic store input.');
     return result.data;
   };
+  /**
+   * Read and decode a stored row, or return null when the record is missing.
+   * @param {string} recordId
+   * @returns {Record<string, unknown> | null}
+   */
   const readRow = recordId => {
     const encoded = backing.get(recordId);
     return encoded === undefined ? null : JSON.parse(encoded);
