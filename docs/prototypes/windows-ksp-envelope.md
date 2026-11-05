@@ -122,6 +122,33 @@ readback reports whether revision 2 is already committed. Do not run `commit`
 or `write-unknown` a second time to resolve that outcome. Clean up each fixture
 explicitly after its sequence.
 
+### Recover an abandoned lost-acknowledgement run
+
+If the console closes during `write-unknown`, retain the fixture directory,
+`runner.json`, and every `attempt-*.json` file. The runner writes an
+`INCOMPLETE` attempt before invoking the native operation, so an incomplete
+receipt does not establish whether replacement happened. The request ID in
+`runner.json` stays the same; the committed mutation receipt lives inside the
+encrypted snapshot, not in that runner metadata.
+
+Return to the same clean source head and pinned executable, with the same
+Windows account and fixture directory. Wait until the previous native probe
+and its dialog have exited before starting another step. Choose one path:
+
+| Intent | Attended next step | Interpretation |
+| --- | --- | --- |
+| Determine whether the expected revision-2 fixture committed | Run `reconcile` with the retained directory. | `PASS_COMMITTED` requires validated revision 2, unchanged ciphertext and a passing post-read lock check. An incomplete readback does not prove rollback; preserve its evidence. |
+| Abandon the disposable fixture | Run `cleanup` with the retained directory. | A passing cleanup removes the disposable protector and envelope, retaining result files. It does not resolve the prior commit outcome or establish that the write test passed. |
+
+Each command still requires its own typed `begin`. Do not rerun `prepare`,
+`commit`, or `write-unknown` against that directory to recover an uncertain
+outcome. Do not edit the metadata or delete the directory by hand: cleanup
+needs the retained protector identity. If cleanup fails, preserve the files
+for repair; do not claim a clean environment. Once cleanup passes, use a new
+directory and a new `prepare` step if another test sequence is wanted.
+
+### Continue the attended sequence
+
 Run one command at a time and check its result before starting the next.
 The runner requires a TTY and a separate typed begin decision for each step.
 After each successful Windows password dialog, click the Home test window
