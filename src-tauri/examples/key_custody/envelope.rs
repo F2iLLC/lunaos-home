@@ -1,5 +1,7 @@
 //! Fictional native envelope experiment. Not linked into the Home application.
 use super::*;
+#[path = "envelope/commit.rs"]
+mod commit;
 #[path = "envelope/snapshot.rs"]
 mod snapshot;
 use snapshot::{Snapshot, FIXTURE_RECORD, UPDATED_FIXTURE_RECORD};
@@ -247,12 +249,14 @@ enum Fault {
     PartialDiskFull,
     BeforeRename,
     LostReceipt,
+    ReadbackUnavailable,
 }
 fn atomic_commit(path: &Path, bytes: &[u8], replace: bool, fault: Fault) -> Result<()> {
     // Unique sibling, create-new and no cross-volume copy. A crash can leave only
     // ciphertext in a .pending file; readers never promote or replay that file.
     let pending = path.with_file_name(format!("fictional-{}.pending", hex(&random::<16>()?)));
     let mut owned = false;
+    let mut attempt = commit::CommitAttempt::default();
     let result = (|| {
         let mut file = OpenOptions::new()
             .write(true)
@@ -279,20 +283,26 @@ fn atomic_commit(path: &Path, bytes: &[u8], replace: bool, fault: Fault) -> Resu
         } else {
             MOVEFILE_WRITE_THROUGH
         };
+        attempt.replacing();
         unsafe { MoveFileExW(PCWSTR(source.as_ptr()), PCWSTR(target.as_ptr()), flags) }
             .map_err(|_| "commit-unknown-readback-required")?;
         if fault == Fault::LostReceipt {
             return Err("commit-unknown-readback-required");
+        }
+        if fault == Fault::ReadbackUnavailable {
+            return Err("envelope-unavailable");
         }
         if read_bytes(path)? != bytes {
             return Err("commit-unknown-readback-required");
         }
         Ok(())
     })();
-    if owned && pending.exists() {
-        fs::remove_file(&pending).map_err(|_| "pending-cleanup-failed")?;
-    }
-    result
+    let cleanup = if owned && pending.exists() {
+        fs::remove_file(&pending).map_err(|_| "pending-cleanup-failed")
+    } else {
+        Ok(())
+    };
+    attempt.finish(result, cleanup)
 }
 fn read_bytes(path: &Path) -> Result<Vec<u8>> {
     use std::os::windows::fs::MetadataExt;
@@ -506,12 +516,12 @@ fn commit_snapshot(
         .clone();
         foreground(hwnd, start)?;
         atomic_commit(path, &next_envelope.encode(), true, fault)?;
-        let committed = read(path)?;
+        let committed = commit::verify(read(path))?;
         if committed.encode() != next_envelope.encode() {
             return Err("commit-unknown-readback-required");
         }
-        let committed_plain = committed.decrypt(&secret)?;
-        let verified = Snapshot::decode(&committed_plain.0, committed.revision)?;
+        let committed_plain = commit::verify(committed.decrypt(&secret))?;
+        let verified = commit::verify(Snapshot::decode(&committed_plain.0, committed.revision))?;
         if verified != next_snapshot {
             return Err("commit-unknown-readback-required");
         }
@@ -940,6 +950,13 @@ mod tests {
         assert_eq!(read_bytes(&path).unwrap(), old.encode());
         assert!(atomic_commit(&path, &new.encode(), true, Fault::LostReceipt).is_err());
         assert_eq!(read_bytes(&path).unwrap(), new.encode());
+        assert_eq!(
+            atomic_commit(&path, &old.encode(), true, Fault::ReadbackUnavailable),
+            Err("commit-unknown-readback-required")
+        );
+        assert_eq!(read_bytes(&path).unwrap(), old.encode());
+        // Restore the new envelope for the stale-pending-file assertion below.
+        atomic_commit(&path, &new.encode(), true, Fault::None).unwrap();
         let pending = directory.join("stale.pending");
         fs::write(&pending, &old.encode()[..100]).unwrap();
         assert_eq!(read(&path).unwrap().encode(), new.encode());

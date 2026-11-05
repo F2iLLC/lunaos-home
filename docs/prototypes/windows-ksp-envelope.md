@@ -80,6 +80,15 @@ committed envelope. Uncommitted pending files are never promoted by reads. A
 process crash can leave ciphertext-only pending files; physical power-loss
 durability and real disk exhaustion remain untested.
 
+The commit attempt tracks whether replacement has been attempted. Before that
+boundary, write and pending-file cleanup errors remain preparation failures.
+From that boundary onward, replacement, readback and pending-file cleanup
+failures return `commit-unknown-readback-required`. Failures to decode,
+authenticate or validate the committed snapshot use the same outcome. This
+requires reconciliation; it does not imply that replacement failed or authorize
+a retry. The error classifier is covered by synthetic tests, including an
+injected readback failure after a successful replacement.
+
 An exclusive Windows file lease serializes operations in the selected fixture
 directory. Before key creation, an ownership receipt records only the random
 disposable key name. Explicit cleanup can therefore remove a protector after
