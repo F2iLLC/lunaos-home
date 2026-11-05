@@ -44,7 +44,7 @@ for (const [name, encoded] of [
       () => store.editProfile('record', profile, revision),
       () => store.delete('record', revision),
     ]) {
-      await assert.rejects(attempt(), { name: 'TypeError', message: 'Invalid synthetic store row.' });
+      await assert.rejects(attempt(), { name: 'TypeError', message: 'Invalid synthetic store row for record ID "record".' });
       assert.deepEqual(backing, before);
     }
   });
