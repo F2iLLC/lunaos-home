@@ -27,7 +27,7 @@ export function createMemoryVersionedStore(backing = new Map()) {
     try {
       return check(versionedVaultRecord, JSON.parse(encoded));
     } catch {
-      throw new TypeError('Invalid synthetic store row.');
+      throw new TypeError(`Invalid synthetic store row for record ID ${JSON.stringify(recordId)}.`);
     }
   };
   function commit(recordId, data) {
