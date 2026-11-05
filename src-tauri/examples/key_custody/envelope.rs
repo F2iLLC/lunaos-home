@@ -1,5 +1,8 @@
 //! Fictional native envelope experiment. Not linked into the Home application.
 use super::*;
+#[path = "envelope/snapshot.rs"]
+mod snapshot;
+use snapshot::{Snapshot, FIXTURE_RECORD, UPDATED_FIXTURE_RECORD};
 use std::io::Read;
 use std::os::windows::ffi::OsStrExt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,9 +18,6 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 mod session;
 
 const MAGIC: &str = "LunaOSHome.FictionalSnapshotEnvelope.1";
-const FIXTURE_RECORD: &str = "Fictional Alex: blue paper kite";
-const UPDATED_FIXTURE_RECORD: &str = "Fictional Alex: green paper kite";
-const SNAPSHOT_MAGIC: &str = "LunaOSHome.FictionalSnapshot.1";
 const MAX_FILE: u64 = 8192;
 type Result<T> = std::result::Result<T, &'static str>;
 static KEY_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -238,79 +238,6 @@ impl Envelope {
             uptime_ms: 0,
             boot_time_ticks: Some(self.boot),
         })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Snapshot {
-    revision: u64,
-    record: String,
-    last_request: Option<String>,
-    receipt_revision: Option<u64>,
-}
-impl Snapshot {
-    fn initial() -> Self {
-        Self {
-            revision: 1,
-            record: FIXTURE_RECORD.to_owned(),
-            last_request: None,
-            receipt_revision: None,
-        }
-    }
-    fn encode(&self) -> Vec<u8> {
-        format!(
-            "{SNAPSHOT_MAGIC}\n{}\n{}\n{}\n{}\n",
-            self.revision,
-            self.record,
-            self.last_request.as_deref().unwrap_or("-"),
-            self.receipt_revision
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "-".to_owned())
-        )
-        .into_bytes()
-    }
-    fn decode(bytes: &[u8], envelope_revision: u64) -> Result<Self> {
-        let text = std::str::from_utf8(bytes).map_err(|_| "snapshot-invalid")?;
-        let parts: Vec<&str> = text.split('\n').collect();
-        if parts.len() != 6 || parts[0] != SNAPSHOT_MAGIC || parts[5] != "" {
-            return Err("snapshot-invalid");
-        }
-        let revision = parts[1].parse::<u64>().map_err(|_| "snapshot-invalid")?;
-        let record = parts[2];
-        if revision == 0
-            || revision != envelope_revision
-            || ![FIXTURE_RECORD, UPDATED_FIXTURE_RECORD].contains(&record)
-        {
-            return Err("snapshot-invalid");
-        }
-        let (last_request, receipt_revision) = if parts[3] == "-" && parts[4] == "-" {
-            (None, None)
-        } else {
-            if parts[3].len() != 32 || !parts[3].bytes().all(|value| value.is_ascii_hexdigit()) {
-                return Err("snapshot-invalid");
-            }
-            let receipt = parts[4].parse::<u64>().map_err(|_| "snapshot-invalid")?;
-            if receipt != revision || record != UPDATED_FIXTURE_RECORD {
-                return Err("snapshot-invalid");
-            }
-            (Some(parts[3].to_owned()), Some(receipt))
-        };
-        match (record, revision, last_request.is_some(), receipt_revision) {
-            (FIXTURE_RECORD, 1, false, None) => {}
-            (UPDATED_FIXTURE_RECORD, value, true, Some(receipt))
-                if value >= 2 && receipt == value => {}
-            _ => return Err("snapshot-invalid"),
-        }
-        let snapshot = Self {
-            revision,
-            record: record.to_owned(),
-            last_request,
-            receipt_revision,
-        };
-        if snapshot.encode() != bytes {
-            return Err("snapshot-invalid");
-        }
-        Ok(snapshot)
     }
 }
 
