@@ -204,7 +204,7 @@ impl Envelope {
             return Err("envelope-invalid");
         }
         let get = |index| unhex(parts[index]).ok_or("envelope-invalid");
-        let wrapped = get(4)?;
+        let wrapped = get(5)?;
         if wrapped.len() != 256 {
             return Err("envelope-invalid");
         }
@@ -212,7 +212,7 @@ impl Envelope {
             name: name.to_owned(),
             boot: parse_boot_time(parts[3]).ok_or("envelope-invalid")?,
             revision: parts[4].parse::<u64>().map_err(|_| "envelope-invalid")?,
-            wrapped: get(5)?,
+            wrapped,
             nonce: get(6)?.try_into().map_err(|_| "envelope-invalid")?,
             cipher: get(7)?,
             tag: get(8)?.try_into().map_err(|_| "envelope-invalid")?,
@@ -909,6 +909,9 @@ mod tests {
         let (envelope, _) = sample();
         let bytes = envelope.encode();
         assert_eq!(Envelope::decode(&bytes).unwrap().encode(), bytes);
+        let mut short_key = envelope.clone();
+        short_key.wrapped.pop();
+        assert!(Envelope::decode(&short_key.encode()).is_err());
         for index in 0..bytes.len() {
             let mut broken = bytes.clone();
             broken[index] = 0xff;
