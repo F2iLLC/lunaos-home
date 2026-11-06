@@ -45,14 +45,22 @@ final class QuestionReply implements AutoCloseable {
     private byte[] audio;
     private boolean played;
     QuestionReply(Context context, String question, Completion completion) {
+        this(context, question, completion, false);
+    }
+    private QuestionReply(Context context, String question, Completion completion, boolean confirmation) {
+        this.confirmation = confirmation;
         this.completion = completion;
         main.postDelayed(this::finish, 90000);
-        new Thread(() -> request(context.getApplicationContext(), question), "luna-question").start();
+        new Thread(() -> request(context.getApplicationContext(), question), confirmation ? "luna-confirmation" : "luna-question").start();
+    }
+    private final boolean confirmation;
+    static void confirmEnabled(Context context) {
+        new QuestionReply(context, null, played -> {}, true);
     }
     private void request(Context context, String question) {
         byte[] wave = null;
         try {
-            if (!enabled(context) || !QuestionPolicy.accepts(question) || closed || ProbeCapture.blocked(context)) throw new IOException();
+            if (!enabled(context) || (!confirmation && !QuestionPolicy.accepts(question)) || closed || ProbeCapture.blocked(context)) throw new IOException();
             JSONObject config = readConfig(context);
             String token = config.getString("token");
             if (!token.matches("[a-f0-9]{64}")) throw new IOException();
@@ -61,14 +69,16 @@ final class QuestionReply implements AutoCloseable {
                 new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
             TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
             SSLContext tls = SSLContext.getInstance("TLS"); tls.init(null, trust.getTrustManagers(), null);
-            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL(endpoint(config)).openConnection();
+            String path = confirmation ? "/confirmation" : "/question";
+            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL(endpoint(config).replace("/question", path)).openConnection();
             synchronized (this) { if (closed) throw new IOException(); connection = next; }
             next.setSSLSocketFactory(tls.getSocketFactory()); // Default hostname verification remains enabled.
             next.setInstanceFollowRedirects(false); next.setConnectTimeout(5000); next.setReadTimeout(60000);
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
-            byte[] body = new JSONObject().put("question", question).toString().getBytes(StandardCharsets.UTF_8);
+            byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")
+                : new JSONObject().put("question", question)).toString().getBytes(StandardCharsets.UTF_8);
             next.setFixedLengthStreamingMode(body.length);
             try (OutputStream out = next.getOutputStream()) { if (closed) throw new IOException(); out.write(body); }
             finally { Arrays.fill(body, (byte) 0); }
@@ -117,7 +127,8 @@ final class QuestionReply implements AutoCloseable {
         } finally { Arrays.fill(buffer, (byte) 0); }
     }
     private void play(Context context, byte[] wave) {
-        if (closed || !BackgroundWakeService.running || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
+        if (closed || (confirmation && !enabled(context)) || (!confirmation && !BackgroundWakeService.running)
+            || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
         audio = wave;
         try {
             player = new MediaPlayer();
@@ -132,7 +143,8 @@ final class QuestionReply implements AutoCloseable {
                 public long getSize() { return wave.length; }
                 public void close() { }
             });
-            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) p.start(); else finish(); });
+            player.setOnPreparedListener(p -> { if (!closed && (confirmation ? enabled(context) : BackgroundWakeService.running)
+                && !ProbeCapture.blocked(context)) p.start(); else finish(); });
             player.setOnCompletionListener(p -> { played = true; finish(); });
             player.setOnErrorListener((p, what, extra) -> { finish(); return true; });
             player.prepareAsync();

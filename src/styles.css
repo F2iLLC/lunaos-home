@@ -61,6 +61,12 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .checklist-intro .eyebrow { margin-bottom: 14px; }
 .checklist-intro > p:last-child { color: #e8ddeb; font-size: 14px; line-height: 1.7; }
 .list-panel { background: #292e4be8; border: 1px solid #a69ab04a; border-radius: 24px; padding: 28px; box-shadow: 0 16px 60px #25243924; }
+.luna-panel { text-align: center; }
+.luna-avatar { display: block; width: min(100%, 240px); height: auto; aspect-ratio: 400 / 410; object-fit: contain; margin: 0 auto 12px; border-radius: 22px; }
+.luna-online-toggle { display: inline-flex; align-items: center; justify-content: center; width: min(100%, 520px); min-height: 64px; margin: 14px auto 0; padding: 16px 24px; border: 2px solid #8cefd9; border-radius: 18px; background: #d7fff3; color: #24273d; font-size: 17px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.luna-online-toggle[aria-pressed="true"] { background: #8cefd9; }
+.luna-online-toggle:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
+#luna-online-label { margin: 10px auto 0; max-width: 520px; color: #f4e7ed; font-size: 14px; line-height: 1.6; }
 label { display: block; font-size: 13px; color: #f4e7ed; }
 input[type=text], select { width: 100%; min-height: 48px; border: 1px solid #a99bb366; border-radius: 12px; background: #383952; color: #fff5ef; padding: 12px 14px; margin-top: 9px; }
 input::placeholder { color: #c4b7ce; font-size: 13px; }

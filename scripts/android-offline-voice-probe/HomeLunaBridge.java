@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.SystemClock;
@@ -22,6 +23,11 @@ public final class HomeLunaBridge {
         for (String name : acoustic) if ("final.mdl".equals(name)) decoder = true;
         for (String name : config) if ("model.conf".equals(name)) settings = true;
         return decoder && settings;
+    }
+
+    private static boolean debugApiAvailable(Context context) {
+        return (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            && Build.VERSION.SDK_INT >= 26;
     }
 
     public static JSObject snapshot(Context context) {
@@ -58,13 +64,13 @@ public final class HomeLunaBridge {
     }
 
     public static void requestMicrophone(Activity activity) {
-        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) throw new IllegalStateException("Debug Android API 26+ required");
+        if (!debugApiAvailable(activity)) throw new IllegalStateException("Debug Android API 26+ required");
         if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             activity.requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 902);
     }
 
     public static void enable(Activity activity) throws Exception {
-        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) throw new IllegalStateException("Debug Android API 26+ required");
+        if (!debugApiAvailable(activity)) throw new IllegalStateException("Debug Android API 26+ required");
         if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestMicrophone(activity);
             throw new IllegalStateException("Allow microphone access, then tap Enable again");
@@ -77,11 +83,12 @@ public final class HomeLunaBridge {
     public static void disable(Context context) { BackgroundWakeService.revoke(context); }
 
     public static void setOnlineAnswers(Context context, boolean enabled) {
-        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) throw new IllegalStateException("Debug Android API 26+ required");
+        if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android API 26+ required");
         BackgroundWakeService.revoke(context);
         if (enabled && !QuestionReply.configured(context)) throw new IllegalStateException("Qwen relay is not configured");
         if (!context.getSharedPreferences(QuestionReply.PREFERENCES, Context.MODE_PRIVATE).edit()
             .putBoolean(QuestionReply.ENABLED, enabled).commit()) throw new IllegalStateException("Could not save setting");
+        if (enabled) QuestionReply.confirmEnabled(context);
     }
 
     public static void cancel(Context context, int id) {

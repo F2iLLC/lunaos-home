@@ -18,10 +18,18 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div class="checklist-intro"><p class="eyebrow">LUNA</p>
     <h1 id="luna-heading" tabindex="-1">Meet Luna.</h1>
     <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you enable it here.</p></div>
-    <div class="list-panel"><h2>Home voice status</h2>
+    <div class="list-panel luna-panel"><svg class="luna-avatar" viewBox="0 0 400 410" role="img" aria-labelledby="luna-avatar-title"><title id="luna-avatar-title">Luna, your chibi voice companion</title>
+      <circle cx="200" cy="166" r="139" fill="#b7a9f2" opacity=".14"/>
+      <path d="M91 119C57 98 28 133 37 169c7 26-8 51 2 70 28-3 48-31 44-55-4-26 25-41 8-65Z" fill="#b7a9f2"/><path d="M309 119c34-21 63 14 54 50-7 26 8 51-2 70-28-3-48-31-44-55 4-26-25-41-8-65Z" fill="#b7a9f2"/>
+      <rect x="69" y="100" width="262" height="164" rx="78" fill="#fff1e0"/><path d="M73 169C55 82 119 55 195 72c78-23 152 24 134 99-14-14-19-37-19-60-43 10-80-9-94-25-14 35-70 46-105 29-17 13-24 36-38 54Z" fill="#b7a9f2"/>
+      <path d="M200 65C177 42 143 24 130 36c-11 12-2 51 13 58 15 6 42-15 57-29Zm0 0c23-23 57-41 70-29 11 12 2 51-13 58-15 6-42-15-57-29Z" fill="#8cefd9" stroke="#fff1e0" stroke-width="5"/><circle cx="200" cy="66" r="15" fill="#6dd6c3"/>
+      <path d="M122 174q23-29 46 0m64 0q23-29 46 0" fill="none" stroke="#111426" stroke-width="9" stroke-linecap="round"/><ellipse cx="112" cy="213" rx="18" ry="8" fill="#f2a8ae"/><ellipse cx="288" cy="213" rx="18" ry="8" fill="#f2a8ae"/><path d="M184 211q16 23 32 0" fill="none" stroke="#111426" stroke-width="6" stroke-linecap="round"/><path d="M304 96a18 18 0 1 0 15 29 19 19 0 0 1-15-29Z" fill="#ffda86"/>
+    </svg>
+    <h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
       <p id="luna-details">Online answers are off. Questions are not sent anywhere.</p>
-    <label><input id="luna-online-answers" type="checkbox" disabled> Send finalized questions to Qwen on my Mac Studio for spoken answers</label>
+    <button id="luna-online-answers" class="luna-online-toggle" type="button" aria-pressed="false" disabled>Turn on Qwen answers</button>
+    <p id="luna-online-label">Send finalized questions to Qwen on my Mac Studio for spoken answers</p>
     <p id="luna-online-help">Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.</p>
     <button id="refresh-luna-state" type="button">Refresh status</button>
     <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
@@ -67,7 +75,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
           stateText.textContent = snapshot.microphoneInUse ? (phases[snapshot.capturePhase] || 'Microphone is on.') : (phases[snapshot.capturePhase] || 'Microphone off.');
         }
       stateDetails.textContent = snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.';
-      onlineAnswers.checked = snapshot.onlineAnswersEnabled === true;
+      onlineAnswers.setAttribute('aria-pressed', snapshot.onlineAnswersEnabled === true ? 'true' : 'false');
+      onlineAnswers.textContent = snapshot.onlineAnswersEnabled === true ? 'Turn off Qwen answers' : 'Turn on Qwen answers';
       onlineAnswers.disabled = snapshot.onlineAnswersAvailable !== true;
       onlineHelp.textContent = snapshot.onlineAnswersAvailable
         ? 'Questions are sent to your configured Mac Studio relay. Changing this setting stops listening; enable wake listening again when ready.'
@@ -96,9 +105,10 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
   };
   refreshState.addEventListener('click', refreshSnapshot);
-  onlineAnswers.addEventListener('change', async () => {
+  onlineAnswers.addEventListener('click', async () => {
+    const enabled = onlineAnswers.getAttribute('aria-pressed') !== 'true';
     onlineAnswers.disabled = true;
-    try { await window.__TAURI__.core.invoke('set_luna_online_answers', { enabled: onlineAnswers.checked }); }
+    try { await window.__TAURI__.core.invoke('set_luna_online_answers', { enabled }); }
     catch { stateText.textContent = 'Could not change online-answer setting. Check the private relay configuration.'; }
     await refreshSnapshot();
   });
