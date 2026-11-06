@@ -20,7 +20,18 @@ public final class TimerPhrase {
     }
     public static int commandSeconds(String text) {
         if (text == null) return 0;
-        return text.startsWith("set a timer for ") ? seconds("hey luna " + text) : seconds(text);
+        String normalized = text.toLowerCase(java.util.Locale.ROOT).trim()
+            .replaceAll("[.,!?]+$", "").replaceAll("\\s+", " ");
+        normalized = normalized.replaceFirst("^hey luna[, ]+", "");
+        if (normalized.endsWith(" please")) normalized = normalized.substring(0, normalized.length() - 7).trim();
+        // ASR commonly omits the article, emits digits, or uses a concise "timer for" form.
+        normalized = normalized.replaceFirst("^set (?:a )?timer for ", "set a timer for ")
+            .replaceFirst("^start (?:a )?timer for ", "set a timer for ")
+            .replaceFirst("^timer for ", "set a timer for ");
+        for (int n = 1; n <= 60; n++) {
+            normalized = normalized.replaceAll("(?<![a-z])" + n + "(?= (?:second|seconds|minute|minutes)$)", number(n));
+        }
+        return seconds(normalized.startsWith("set a timer for ") ? "hey luna " + normalized : normalized);
     }
     /** Fixed diagnostic categories only; never return recognized speech. */
     public static String commandDiagnostic(String text) {
@@ -67,6 +78,18 @@ public final class TimerPhrase {
                 String bare = ",\"set a timer for " + number(n);
                 out.append(bare).append(n == 1 ? " second\"" : " seconds\"");
                 out.append(bare).append(n == 1 ? " minute\"" : " minutes\"");
+                String unitSecond = n == 1 ? " second" : " seconds";
+                String unitMinute = n == 1 ? " minute" : " minutes";
+                out.append(bare).append(unitSecond).append(" please\"");
+                out.append(bare).append(unitMinute).append(" please\"");
+                for (String form : new String[] {"set timer for ", "start a timer for ", "timer for "}) {
+                    out.append(",\"").append(form).append(number(n)).append(unitSecond).append('"');
+                    out.append(",\"").append(form).append(number(n)).append(unitMinute).append('"');
+                    out.append(",\"").append(form).append(number(n)).append(unitSecond).append(" please\"");
+                    out.append(",\"").append(form).append(number(n)).append(unitMinute).append(" please\"");
+                }
+                out.append(",\"set a timer for ").append(n).append(unitSecond).append('"');
+                out.append(",\"set a timer for ").append(n).append(unitMinute).append('"');
             }
         }
         if (command) TimerCommand.grammar(out);

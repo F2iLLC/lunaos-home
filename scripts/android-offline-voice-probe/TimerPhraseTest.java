@@ -24,14 +24,25 @@ public final class TimerPhraseTest {
             if (!item[1].equals("SUPPORTED_TIMER") && TimerPhrase.commandSeconds(item[0]) != 0)
                 throw new AssertionError("Diagnostic must not authorize rejected speech");
         }
+        String[][] natural = { {"set timer for five seconds", "5"}, {"start a timer for one minute", "60"},
+            {"timer for twenty five minutes", "1500"}, {"set a timer for 10 seconds", "10"},
+            {"set a timer for five seconds please", "5"}, {"hey luna, set timer for five seconds.", "5"} };
+        for (String[] item : natural) {
+            int actual = TimerPhrase.commandSeconds(item[0]);
+            if (actual != Integer.parseInt(item[1])) throw new AssertionError("Natural timer wording was not recognized");
+        }
+        for (String rejected : new String[] {"set a timer for zero seconds", "set a timer for 61 minutes",
+            "set a timer for 5 seconds tomorrow", "please set a timer for five seconds", "cancel a timer"}) {
+            if (TimerPhrase.commandSeconds(rejected) != 0) throw new AssertionError("Unsafe timer wording was accepted");
+        }
         String[][] details = {{"set a timer for", "MISSING_DURATION_AND_UNIT"},
-            {"set timer for five seconds", "MISSING_ARTICLE"},
+            {"set timer for five", "TIMER_WORDING_MISMATCH"},
             {"set a timer for seconds", "MISSING_DURATION"},
             {"set a timer for five", "MISSING_UNIT"},
             {"hey luna set a timer for five", "MISSING_UNIT"},
             {"set a timer for one seconds", "UNIT_NUMBER_MISMATCH"},
             {"set a timer for five second", "UNIT_NUMBER_MISMATCH"},
-            {"set a timer for five seconds please", "EXTRA_WORDS_AFTER_TIMER"},
+            {"set a timer for five seconds please", "SUPPORTED_TIMER"},
             {"timer set five seconds", "TIMER_WORDING_MISMATCH"},
             {"set timer for zero seconds", "TIMER_WORDING_MISMATCH"},
             {"set a timer for sixty one seconds", "TIMER_WORDING_MISMATCH"},
@@ -40,7 +51,8 @@ public final class TimerPhraseTest {
             {"fictional unrelated words", "OTHER_SPEECH"},
             {"set a timer for five seconds", "SUPPORTED_TIMER"}};
         for (String[] item : details) {
-            if (!TimerPhrase.commandDetail(item[0]).equals(item[1])) throw new AssertionError("Detailed category mismatch");
+            String actualDetail = TimerPhrase.commandDetail(item[0]);
+            if (!actualDetail.equals(item[1])) throw new AssertionError("Detailed category mismatch: " + actualDetail + " != " + item[1]);
             if (!item[1].equals("SUPPORTED_TIMER") && TimerPhrase.commandSeconds(item[0]) != 0)
                 throw new AssertionError("Structural diagnosis must not authorize rejected speech");
         }

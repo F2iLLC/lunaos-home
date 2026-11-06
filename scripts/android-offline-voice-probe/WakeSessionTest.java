@@ -15,17 +15,20 @@ public final class WakeSessionTest {
             check(session.acceptFinal(rejected, 2002) == 0);
         check(session.acceptFinal("hey luna", 3000) == WakeSession.WAKE);
         check(session.awaitingCommand());
-        check(session.deadline() == 13000);
+        check(session.deadline() == 18000);
         check(session.acceptFinal("hey luna", 4000) == 0);
-        check(session.deadline() == 13000); // Duplicate wake never extends command capture.
-        check(session.acceptFinal("set a timer for ten seconds please", 5000) == 0);
+        check(session.deadline() == 18000); // Duplicate wake never extends command capture.
+        check(session.acceptFinal("set a timer for ten seconds please tomorrow", 5000) == 0);
         check(session.acceptFinal("set a timer for ten seconds", 6000) == 10);
         check(session.acceptFinal("set a timer for ten seconds", 6001) == 0);
         check(session.expired(6001));
         WakeSession timed = new WakeSession(0);
         check(timed.acceptFinal("hey luna", 1) == WakeSession.WAKE);
-        check(timed.acceptFinal("set a timer for ten seconds", 10001) == 0);
-        check(timed.expired(10001));
+        check(timed.acceptFinal("set a timer for ten seconds", 14999) == 10);
+        WakeSession timedOut = new WakeSession(0);
+        check(timedOut.acceptFinal("hey luna", 1) == WakeSession.WAKE);
+        check(timedOut.acceptFinal("set a timer for ten seconds", 15001) == 0);
+        check(timedOut.expired(15001));
         WakeSession late = new WakeSession(0);
         check(late.acceptFinal("hey luna", 299999) == WakeSession.WAKE);
         check(late.deadline() == 300000);
@@ -47,14 +50,14 @@ public final class WakeSessionTest {
         check(persistent.acceptFinal("set a timer for five seconds", hours) == 0);
         check(!persistent.awaitingCommand());
         check(persistent.acceptFinal("hey luna", hours + 1) == WakeSession.WAKE);
-        check(persistent.deadline() == hours + 10001);
+        check(persistent.deadline() == hours + 15001);
         check(persistent.acceptFinal("hey luna", hours + 2) == 0);
-        check(persistent.deadline() == hours + 10001);
-        check(persistent.acceptFinal("set a timer for five seconds", hours + 10001) == 0);
-        WakeSession renewed = new WakeSession(hours + 10002, true);
-        check(renewed.acceptFinal("hey luna", hours + 10003) == WakeSession.WAKE);
-        check(renewed.acceptFinal("set a timer for five seconds", hours + 10004) == 5);
-        check(renewed.acceptFinal("set a timer for five seconds", hours + 10005) == 0);
+        check(persistent.deadline() == hours + 15001);
+        check(persistent.acceptFinal("set a timer for five seconds", hours + 15001) == 0);
+        WakeSession renewed = new WakeSession(hours + 15002, true);
+        check(renewed.acceptFinal("hey luna", hours + 15003) == WakeSession.WAKE);
+        check(renewed.acceptFinal("set a timer for five seconds", hours + 15004) == 5);
+        check(renewed.acceptFinal("set a timer for five seconds", hours + 15005) == 0);
         System.out.println("Wake session checks passed (" + checks + " cases).");
     }
 }

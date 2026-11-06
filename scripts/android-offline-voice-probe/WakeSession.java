@@ -3,7 +3,7 @@ package io.github.f2illc.lunaos.home.voiceprobe;
 /** One wake/command exchange. Final results only; no text or audio retained. */
 public final class WakeSession {
     public static final long WAIT_MS = 300000;
-    public static final long COMMAND_MS = 10000;
+    public static final long COMMAND_MS = 15000;
     public static final int NONE = 0, WAKE = -1;
     private final long end;
     private long deadline;

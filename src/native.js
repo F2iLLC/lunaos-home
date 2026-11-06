@@ -18,12 +18,14 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div class="checklist-intro"><p class="eyebrow">LUNA</p>
     <h1 id="luna-heading" tabindex="-1">Meet Luna.</h1>
     <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you enable it here.</p></div>
-    <div class="list-panel luna-panel"><svg class="luna-avatar" viewBox="0 0 400 410" role="img" aria-labelledby="luna-avatar-title"><title id="luna-avatar-title">Luna, your chibi voice companion</title>
-      <circle cx="200" cy="166" r="139" fill="#b7a9f2" opacity=".14"/>
+    <div class="list-panel luna-panel"><svg class="luna-avatar" data-capture-phase="off" viewBox="0 0 400 410" role="img" aria-labelledby="luna-avatar-title"><title id="luna-avatar-title">Luna, your chibi voice companion</title>
+      <circle class="luna-avatar-halo" cx="200" cy="166" r="139" fill="#b7a9f2" opacity=".14"/>
       <path d="M91 119C57 98 28 133 37 169c7 26-8 51 2 70 28-3 48-31 44-55-4-26 25-41 8-65Z" fill="#b7a9f2"/><path d="M309 119c34-21 63 14 54 50-7 26 8 51-2 70-28-3-48-31-44-55 4-26-25-41-8-65Z" fill="#b7a9f2"/>
       <rect x="69" y="100" width="262" height="164" rx="78" fill="#fff1e0"/><path d="M73 169C55 82 119 55 195 72c78-23 152 24 134 99-14-14-19-37-19-60-43 10-80-9-94-25-14 35-70 46-105 29-17 13-24 36-38 54Z" fill="#b7a9f2"/>
       <path d="M200 65C177 42 143 24 130 36c-11 12-2 51 13 58 15 6 42-15 57-29Zm0 0c23-23 57-41 70-29 11 12 2 51-13 58-15 6-42-15-57-29Z" fill="#8cefd9" stroke="#fff1e0" stroke-width="5"/><circle cx="200" cy="66" r="15" fill="#6dd6c3"/>
-      <path d="M122 174q23-29 46 0m64 0q23-29 46 0" fill="none" stroke="#111426" stroke-width="9" stroke-linecap="round"/><ellipse cx="112" cy="213" rx="18" ry="8" fill="#f2a8ae"/><ellipse cx="288" cy="213" rx="18" ry="8" fill="#f2a8ae"/><path d="M184 211q16 23 32 0" fill="none" stroke="#111426" stroke-width="6" stroke-linecap="round"/><path d="M304 96a18 18 0 1 0 15 29 19 19 0 0 1-15-29Z" fill="#ffda86"/>
+      <g class="luna-avatar-eyes-closed" fill="none" stroke="#111426" stroke-width="9" stroke-linecap="round"><path d="M122 174q23-29 46 0m64 0q23-29 46 0"/></g>
+      <g class="luna-avatar-eyes-open"><ellipse cx="145" cy="168" rx="13" ry="19" fill="#28243d"/><ellipse cx="255" cy="168" rx="13" ry="19" fill="#28243d"/><circle cx="149" cy="161" r="4" fill="white"/><circle cx="259" cy="161" r="4" fill="white"/></g>
+      <ellipse cx="112" cy="213" rx="18" ry="8" fill="#f2a8ae"/><ellipse cx="288" cy="213" rx="18" ry="8" fill="#f2a8ae"/><path d="M184 211q16 23 32 0" fill="none" stroke="#111426" stroke-width="6" stroke-linecap="round"/><path d="M304 96a18 18 0 1 0 15 29 19 19 0 0 1-15-29Z" fill="#ffda86"/>
     </svg>
     <h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
@@ -106,6 +108,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     try {
       const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
         const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening locally for Hey Luna.', awake: 'Luna heard the wake phrase and is listening for a timer command.', response: 'Luna is responding; microphone paused.', retry: 'Listening paused. Enable it again when ready.' };
+        luna.querySelector('.luna-avatar').dataset.capturePhase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
         if (snapshot.status !== 'ready') {
           stateText.textContent = snapshot.reason === 'local_model_unavailable' ? 'Local wake model unavailable. Listening is off.' : 'Home voice service unavailable.';
         } else {

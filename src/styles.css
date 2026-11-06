@@ -70,6 +70,29 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .list-panel { background: #292e4be8; border: 1px solid #a69ab04a; border-radius: 24px; padding: 28px; box-shadow: 0 16px 60px #25243924; }
 .luna-panel { text-align: center; }
 .luna-avatar { display: block; width: min(100%, 240px); height: auto; aspect-ratio: 400 / 410; object-fit: contain; margin: 0 auto 12px; border-radius: 22px; }
+.luna-avatar-eyes-open { opacity: 0; transform: scaleY(.08); transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-closed,
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-closed,
+.luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-closed { opacity: 0; }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-open,
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-open,
+.luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-open { opacity: 1; transform: scaleY(1); }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-open { animation: luna-avatar-blink 5.2s ease-in-out infinite; }
+.luna-avatar[data-capture-phase="waiting"],
+.luna-avatar[data-capture-phase="awake"] { animation: luna-avatar-listen-bob 2.8s ease-in-out infinite; }
+.luna-avatar[data-capture-phase="preparing"] { animation: luna-avatar-wake 1.8s ease-in-out infinite alternate; }
+.luna-avatar-halo { transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-halo,
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-halo { animation: luna-avatar-halo 2.4s ease-in-out infinite alternate; }
+@keyframes luna-avatar-blink { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.08); } }
+@keyframes luna-avatar-listen-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes luna-avatar-wake { from { transform: translateY(2px) scale(.99); } to { transform: translateY(-2px) scale(1); } }
+@keyframes luna-avatar-halo { from { opacity: .14; transform: scale(.98); } to { opacity: .35; transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) {
+  .luna-avatar[data-capture-phase] { animation: none; }
+  .luna-avatar[data-capture-phase] .luna-avatar-eyes-open,
+  .luna-avatar[data-capture-phase] .luna-avatar-halo { animation: none; }
+}
 .luna-timer-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #bfb0ce30; text-align: left; }
 .luna-timer-section h2 { margin: 0 0 12px; color: #fff5ef; font-size: 18px; font-weight: 700; }
 #luna-timers { display: grid; gap: 12px; }

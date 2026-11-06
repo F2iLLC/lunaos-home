@@ -149,8 +149,9 @@ final class ProbeCapture {
                     .invokeInt(new Object[] { model.getPointer(), "luna" });
                 if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
                 try (Recognizer recognizer = new Recognizer(model, 16000, wait ? WakeSession.grammar() : TimerPhrase.grammar());
-                     Recognizer command = wait ? (questions ? new Recognizer(model, 16000)
-                         : new Recognizer(model, 16000, TimerPhrase.commandGrammar())) : null) {
+                     // Keep wake recognition constrained, but let local ASR hear natural command phrasing.
+                     // TimerCommand.parse remains the strict allowlist before any native timer dispatch.
+                     Recognizer command = wait ? new Recognizer(model, 16000) : null) {
                     if (!capture) { code = "ENGINE_READY_NO_CAPTURE"; message = "Offline engine ready. Microphone stayed off."; return; }
                     phase = "CAPTURE";
                     int size = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
@@ -188,8 +189,8 @@ final class ProbeCapture {
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
-                                show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within 10 seconds."
-                                    : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 10 seconds.", LunaFace.State.AWAKE);
+                                show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within 15 seconds."
+                                    : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 15 seconds.", LunaFace.State.AWAKE);
                                 main.post(this::wakeCue);
                             } else if (TimerCommand.valid(seconds)) {
                                 matched = seconds; code = "COMMAND_MATCH";
