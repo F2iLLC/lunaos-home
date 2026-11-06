@@ -37,6 +37,13 @@ h1:focus { outline: none; }
 .header-note { font-size: 12px; letter-spacing: .025em; color: #e0d5e5; }
 main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .welcome { text-align: center; width: min(100% - 40px, 680px); margin: 0 auto; padding: 28px 0 58px; }
+.luna-companion { display: block; width: min(58vw, 228px); height: auto; margin: 0 auto 10px; overflow: visible; }
+.luna-companion-float { transform-box: fill-box; transform-origin: center; animation: luna-float 3.2s ease-in-out infinite; }
+.luna-companion-eyes { transform-box: fill-box; transform-origin: center; animation: luna-blink 5.2s ease-in-out infinite; }
+.luna-companion-sparkle { animation: luna-twinkle 2.4s ease-in-out infinite alternate; }
+@keyframes luna-float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-7px) rotate(1deg); } }
+@keyframes luna-blink { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.12); } }
+@keyframes luna-twinkle { from { opacity: .35; } to { opacity: 1; } }
 .moon-scene { position: relative; width: 176px; height: 142px; margin: 0 auto 30px; }
 .moon-halo { position: absolute; inset: -32px; border-radius: 50%; background: radial-gradient(ellipse, #e6bfc21c 0%, transparent 65%); }
 .moon { position: absolute; width: 80px; height: 80px; top: 20px; left: 42px; border-radius: 50%; box-shadow: inset -22px -8px 0 #ffe9d2; transform: rotate(-25deg); filter: drop-shadow(0 0 24px #ffd5ba20); }
@@ -118,7 +125,7 @@ small { display: block; color: #c8bbd3; margin-top: 4px; font-size: 11px; }
   .moon-scene { height: 110px; margin-bottom: 12px; }
   .intro { margin: 18px 0 24px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 .home-actions { display: grid; gap: 10px; max-width: 370px; margin: 22px auto 0; text-align: left; }
 .home-actions a { border: 1px solid #f5e8e440; border-radius: 16px; padding: 16px 20px; text-decoration: none; background: #292e4b99; }
 .home-actions a:hover { background: #292e4b; }
