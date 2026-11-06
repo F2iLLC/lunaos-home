@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-luna-online-answers"
+description = "Enables explicit changes to Luna online answers."
+commands.allow = ["set_luna_online_answers"]
+
+[[permission]]
+identifier = "deny-set-luna-online-answers"
+description = "Denies changes to Luna online answers."
+commands.deny = ["set_luna_online_answers"]

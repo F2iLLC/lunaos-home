@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)][string] $OutputDirectory,
     [Parameter(Mandatory)][string] $EnvFile,
     [Parameter(Mandatory)][string] $VoiceId,
-    [string] $Model = 'gpt-6-luna'
+    [string] $Model = 'qwen3:32b'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -36,10 +36,11 @@ try {
     [IO.File]::WriteAllText((Join-Path $output 'relay-cert.pem'), $pem)
     [IO.File]::WriteAllText((Join-Path $output 'relay-key.pem'), $rsa.ExportPkcs8PrivateKeyPem())
     $token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
-    @{enabled=$true;envFile=[IO.Path]::GetFullPath($EnvFile);voiceId=$VoiceId;model=$Model;token=$token;
+    @{enabled=$true;provider='ollama-qwen';bindAddress='127.0.0.1';ollamaEndpoint='http://127.0.0.1:11434/api/chat';
+        envFile=[IO.Path]::GetFullPath($EnvFile);voiceId=$VoiceId;model=$Model;token=$token;
         cert=(Join-Path $output 'relay-cert.pem');key=(Join-Path $output 'relay-key.pem')} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'host.json')
-    @{certificate=$pem;token=$token} | ConvertTo-Json |
+    @{endpoint='https://localhost:18743/question';certificate=$pem;token=$token} | ConvertTo-Json |
         Set-Content -LiteralPath (Join-Path $output 'question-relay.json')
     Write-Output 'Private relay configuration prepared. No provider keys copied; no capture or service started.'
 } finally { $rsa.Dispose(); if ($certificate) { $certificate.Dispose() } }

@@ -9,6 +9,7 @@ pub struct LunaSnapshot {
     pub capture_phase: String,
     pub microphone_in_use: Option<bool>,
     pub online_answers_enabled: Option<bool>,
+    pub online_answers_available: Option<bool>,
     pub active_timers: Option<Vec<LunaTimerSnapshot>>,
 }
 
@@ -78,6 +79,16 @@ pub async fn request_luna_microphone<R: Runtime>(window: tauri::WebviewWindow<R>
 pub async fn disable_luna_wake<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>) -> Result<(), String> {
     if window.label() != "main" { return Err("Only the local main window may disable Luna".into()); }
     state.0.run_mobile_plugin_async::<()>("disableLunaWake", ()).await.map_err(|_| "Could not disable Luna listening".into())
+}
+
+#[derive(Serialize)]
+struct LunaOnlineRequest { enabled: bool }
+
+#[tauri::command]
+pub async fn set_luna_online_answers<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>, enabled: bool) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may change Luna online answers".into()); }
+    state.0.run_mobile_plugin_async::<()>("setLunaOnlineAnswers", LunaOnlineRequest { enabled }).await
+        .map_err(|_| "Could not change Luna online answers".into())
 }
 
 #[tauri::command]

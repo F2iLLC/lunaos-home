@@ -13,6 +13,8 @@ import io.github.f2illc.lunaos.home.voiceprobe.HomeLunaBridge
 
 @InvokeArg
 internal class LunaTimerArgs { var id: Int = 0 }
+@InvokeArg
+internal class LunaOnlineArgs { var enabled: Boolean = false }
 
 @TauriPlugin
 class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
@@ -34,6 +36,14 @@ class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
     @Command fun disableLunaWake(invoke: Invoke) {
         try { HomeLunaBridge.disable(activity); invoke.resolve() }
         catch (_: Exception) { invoke.reject("Could not disable listening.") }
+    }
+
+    @Command fun setLunaOnlineAnswers(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(LunaOnlineArgs::class.java)
+            HomeLunaBridge.setOnlineAnswers(activity, args.enabled)
+            invoke.resolve()
+        } catch (_: Exception) { invoke.reject("Could not change Luna online-answer setting. Check the relay configuration.") }
     }
 
     @Command fun cancelLunaTimer(invoke: Invoke) {
