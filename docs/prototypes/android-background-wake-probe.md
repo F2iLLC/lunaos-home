@@ -661,6 +661,17 @@ consumed audio duration, elapsed duration, maximum decoder-call duration and
 the number of decoder calls exceeding buffer duration. It never emits audio,
 transcripts or configuration. These counters can identify capture starvation
 risk; they do not independently prove dropped samples. The parser, question
-policy and eye-state transitions are unchanged. The Android diagnostic build
-succeeded, but USB disconnected during installation. Timing evidence and
-installation readback still require reconnection and an attended test.
+policy and eye-state transitions are unchanged. The initial universal APK
+installation was interrupted by USB loss. A subsequent ARM debug diagnostic
+APK installed successfully, and the package update timestamp was read back.
+Immediately before installation, native state confirmed capture off and no
+active timers. No microphone test has run on the updated diagnostic build.
+
+ADB transport remains unstable: the device repeatedly becomes offline or
+disappears, including during read-only checks. Windows reports the ADB USB
+interface without a driver problem. ADB 37.0.1's documented session-local
+`ADB_USB_LEGACY=1` fallback allowed installation, but the connection dropped
+again afterward; the new USB backend alone is therefore not an established
+cause. Relay reverse was restored before installation and must be reverified
+after every reconnect. Timing evidence, updated-app native-state readback,
+and attended timer countdown/cancellation remain pending a stable connection.
