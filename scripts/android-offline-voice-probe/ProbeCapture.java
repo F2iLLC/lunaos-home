@@ -132,6 +132,7 @@ final class ProbeCapture {
     }
     private void recognize() {
         short[] samples = new short[1600];
+        CaptureTiming timing = new CaptureTiming();
         boolean questions = persistent && QuestionReply.enabled(context);
         String code = "ENGINE_UNAVAILABLE", message = "Offline engine could not start. No timer started.", phase = "NATIVE_LOAD";
         int matched = 0;
@@ -163,6 +164,7 @@ final class ProbeCapture {
                         if (recorder.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException();
                         recorder.startRecording();
                         if (recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException();
+                        timing.start(recorder.getBufferSizeInFrames(), wait ? "WAKE" : "COMMAND");
                         RECORDING.set(true);
                     }
                     WakeSession wake = wait ? new WakeSession(SystemClock.elapsedRealtime(), persistent) : null;
@@ -180,12 +182,16 @@ final class ProbeCapture {
                         }
                         if (count < 0) throw new IllegalStateException();
                         Recognizer current = wake != null && wake.awaitingCommand() ? command : recognizer;
+                        long decodeStarted = SystemClock.elapsedRealtime();
                         boolean complete = count > 0 && current.acceptWaveForm(samples, count);
+                        timing.decoded(count, SystemClock.elapsedRealtime() - decodeStarted);
                         Arrays.fill(samples, (short) 0);
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
                             int seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
                             if (seconds == WakeSession.WAKE) {
+                                timing.report();
+                                timing.start(timing.bufferFrames, "COMMAND");
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
@@ -217,6 +223,7 @@ final class ProbeCapture {
         } catch (Exception | LinkageError failure) {
             code = phase + "_FAILED"; message = "Offline engine failed at " + phase + ". No timer started.";
         } finally {
+            timing.report();
             closeRecorder(); Arrays.fill(samples, (short) 0);
             String resultCode = watchdogCode != null ? watchdogCode : code;
             String resultMessage = watchdogMessage != null ? watchdogMessage : message; int seconds = matched;
@@ -226,6 +233,37 @@ final class ProbeCapture {
                 if (!canceled) Log.i("HomeVoiceProbe", resultCode);
                 listener.finished(resultCode, resultMessage, seconds, deadline, canceled);
             });
+        }
+    }
+
+    // Numeric capture diagnostics only: never audio, recognition text or private config.
+    // A decode call longer than the recorder buffer can starve this single-threaded
+    // capture loop. These measurements identify that risk without claiming data loss.
+    private static final class CaptureTiming {
+        int bufferFrames;
+        long started, lastObserved, frames, maxDecodeMs, slowDecodeCalls;
+        String phase;
+        void start(int bufferFrames, String phase) {
+            this.bufferFrames = bufferFrames;
+            this.phase = phase;
+            started = lastObserved = SystemClock.elapsedRealtime();
+            frames = maxDecodeMs = slowDecodeCalls = 0;
+        }
+        void decoded(int count, long elapsedMs) {
+            if (phase == null) return;
+            lastObserved = SystemClock.elapsedRealtime();
+            if (count <= 0) return;
+            frames += count;
+            maxDecodeMs = Math.max(maxDecodeMs, elapsedMs);
+            if (elapsedMs * 16 > bufferFrames) slowDecodeCalls++;
+        }
+        void report() {
+            if (phase == null) return;
+            Log.i("HomeVoiceProbe", "CAPTURE_TIMING phase=" + phase
+                + " bufferMs=" + bufferFrames / 16 + " audioMs=" + frames / 16
+                + " elapsedMs=" + (lastObserved - started)
+                + " maxDecodeMs=" + maxDecodeMs + " slowDecodeCalls=" + slowDecodeCalls);
+            phase = null;
         }
     }
 }
