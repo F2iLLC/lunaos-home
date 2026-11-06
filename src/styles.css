@@ -71,20 +71,18 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .luna-panel { text-align: center; }
 .luna-avatar { display: block; width: min(100%, 240px); height: auto; aspect-ratio: 400 / 410; object-fit: contain; margin: 0 auto 12px; border-radius: 22px; }
 .luna-avatar-eyes-open { opacity: 0; transform: scaleY(.08); transform-box: fill-box; transform-origin: center; }
-.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-closed,
 .luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-closed,
 .luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-closed { opacity: 0; }
-.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-open,
 .luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-open,
 .luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-open { opacity: 1; transform: scaleY(1); }
-.luna-avatar[data-capture-phase="waiting"] .luna-avatar-eyes-open { animation: luna-avatar-blink 5.2s ease-in-out infinite; }
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-open { animation: luna-avatar-eyes-wake 420ms cubic-bezier(.2,.8,.3,1) both; }
 .luna-avatar[data-capture-phase="waiting"],
 .luna-avatar[data-capture-phase="awake"] { animation: luna-avatar-listen-bob 2.8s ease-in-out infinite; }
 .luna-avatar[data-capture-phase="preparing"] { animation: luna-avatar-wake 1.8s ease-in-out infinite alternate; }
 .luna-avatar-halo { transform-box: fill-box; transform-origin: center; }
 .luna-avatar[data-capture-phase="waiting"] .luna-avatar-halo,
 .luna-avatar[data-capture-phase="awake"] .luna-avatar-halo { animation: luna-avatar-halo 2.4s ease-in-out infinite alternate; }
-@keyframes luna-avatar-blink { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.08); } }
+@keyframes luna-avatar-eyes-wake { 0% { opacity: 0; transform: scaleY(.08); } 62% { opacity: 1; transform: scaleY(1.12); } 100% { opacity: 1; transform: scaleY(1); } }
 @keyframes luna-avatar-listen-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 @keyframes luna-avatar-wake { from { transform: translateY(2px) scale(.99); } to { transform: translateY(-2px) scale(1); } }
 @keyframes luna-avatar-halo { from { opacity: .14; transform: scale(.98); } to { opacity: .35; transform: scale(1.05); } }
