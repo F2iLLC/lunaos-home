@@ -4,5 +4,5 @@
   "local": true,
   "windows": ["main"],
   "platforms": ["android"],
-  "permissions": ["allow-open-fictional-vault", "allow-get-luna-snapshot", "allow-enable-luna-wake", "allow-request-luna-microphone", "allow-disable-luna-wake", "allow-cancel-luna-timer"]
+  "permissions": ["allow-open-fictional-vault", "allow-get-luna-snapshot", "allow-enable-luna-wake", "allow-request-luna-microphone", "allow-disable-luna-wake", "allow-set-luna-online-answers", "allow-cancel-luna-timer"]
 }
