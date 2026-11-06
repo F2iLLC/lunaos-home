@@ -568,11 +568,11 @@ returns to waiting. Queued work cannot re-enable capture. Existing timers remain
 independent, including during network failure. This is not qualified unattended
 or genuine secure-lock evidence.
 
-Prepare private config with `scripts/prepare-spoken-question-relay.ps1`, passing
-an external new output directory, the existing env file, and selected voice ID.
-The file must define `OPENAI_API_KEY_LUNAOS_HOME` and
-`LUNA_HOME_ELEVENLABS_API_KEY` (the secret value, not the provider key ID).
-Start `node scripts/spoken-question-relay.mjs <external-host.json>` explicitly.
+For the legacy standalone probe only, prepare private config with
+`scripts/prepare-spoken-question-relay.ps1`, passing an external new output
+directory, an env file containing `LUNA_HOME_ELEVENLABS_API_KEY`, and selected
+voice ID. Start Ollama with the configured Qwen model on the same host, then
+start `node scripts/spoken-question-relay.mjs <external-host.json>` explicitly.
 Provision only `question-relay.json` into the probe's private files directory
 while listening is off; configure `adb reverse tcp:18743 tcp:18743`. Open the UI,
 locally check Answer questions online, then locally Enable wake-word listening.
@@ -580,13 +580,14 @@ No script starts capture, grants mic permission or changes lock settings.
 Disable listening and stop the host process to end the trial; remove that
 specific reverse with `adb reverse --remove tcp:18743` when no longer needed.
 
-Implementation checks: 355 repository tests passed with no failures or skips.
+Historical implementation checks: 355 repository tests passed with no failures or skips.
 Focused relay/service checks additionally cover authorization, bounded input,
 provider failure, disconnect cancellation, concurrent request rejection, strict
 timer isolation, opt-out and stale completion callbacks. A live OpenAI
-gpt-6-luna answer passed the existing bounded adapter. Full spoken device
-question/answer and audible delivery require an attended trial; these checks
-do not establish recognition reliability or resolve earlier rejection causes.
+gpt-6-luna answer passed the earlier adapter before the Qwen migration; that is
+not evidence for the current adapter. Full spoken device question/answer and
+audible delivery require an attended trial; these checks do not establish
+recognition reliability or resolve earlier rejection causes.
 
 The final version 0.15 offline build passed 350 policy checks, Java/DEX/APK
 construction and signature verification. It was signed with the existing test

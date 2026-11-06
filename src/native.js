@@ -21,6 +21,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div class="list-panel"><h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
       <p id="luna-details">Online answers are off. Questions are not sent anywhere.</p>
+    <label><input id="luna-online-answers" type="checkbox" disabled> Send finalized questions to Qwen on my Mac Studio for spoken answers</label>
+    <p id="luna-online-help">Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.</p>
     <button id="refresh-luna-state" type="button">Refresh status</button>
     <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
     <button id="allow-luna-mic" type="button">Allow microphone</button>
@@ -30,6 +32,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   document.querySelector('main').append(luna);
   const stateText = luna.querySelector('#luna-state');
   const stateDetails = luna.querySelector('#luna-details');
+  const onlineAnswers = luna.querySelector('#luna-online-answers');
+  const onlineHelp = luna.querySelector('#luna-online-help');
   const refreshState = luna.querySelector('#refresh-luna-state');
   const statusPollIntervalMs = 5000;
   let snapshotPoll;
@@ -63,6 +67,11 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
           stateText.textContent = snapshot.microphoneInUse ? (phases[snapshot.capturePhase] || 'Microphone is on.') : (phases[snapshot.capturePhase] || 'Microphone off.');
         }
       stateDetails.textContent = snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.';
+      onlineAnswers.checked = snapshot.onlineAnswersEnabled === true;
+      onlineAnswers.disabled = snapshot.onlineAnswersAvailable !== true;
+      onlineHelp.textContent = snapshot.onlineAnswersAvailable
+        ? 'Questions are sent to your configured Mac Studio relay. Changing this setting stops listening; enable wake listening again when ready.'
+        : 'Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.';
       const timers = luna.querySelector('#luna-timers');
       timers.replaceChildren();
       for (const timer of snapshot.activeTimers || []) {
@@ -87,6 +96,12 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
   };
   refreshState.addEventListener('click', refreshSnapshot);
+  onlineAnswers.addEventListener('change', async () => {
+    onlineAnswers.disabled = true;
+    try { await window.__TAURI__.core.invoke('set_luna_online_answers', { enabled: onlineAnswers.checked }); }
+    catch { stateText.textContent = 'Could not change online-answer setting. Check the private relay configuration.'; }
+    await refreshSnapshot();
+  });
   window.addEventListener?.('hashchange', scheduleSnapshotPollAfterNavigation);
   document.addEventListener?.('visibilitychange', scheduleSnapshotPoll);
   void refreshSnapshot();

@@ -48,8 +48,8 @@ public final class HomeLunaBridge {
             out.put("reason", reason);
             out.put("capturePhase", phase);
             out.put("microphoneInUse", microphone);
-            // The USB development relay is deliberately not enabled in Home.
-            out.put("onlineAnswersEnabled", false);
+            out.put("onlineAnswersEnabled", QuestionReply.enabled(context));
+            out.put("onlineAnswersAvailable", QuestionReply.configured(context));
             out.put("activeTimers", timers);
         } catch (Exception failure) {
             throw new IllegalStateException("Luna snapshot unavailable");
@@ -75,6 +75,14 @@ public final class HomeLunaBridge {
     }
 
     public static void disable(Context context) { BackgroundWakeService.revoke(context); }
+
+    public static void setOnlineAnswers(Context context, boolean enabled) {
+        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < 26) throw new IllegalStateException("Debug Android API 26+ required");
+        BackgroundWakeService.revoke(context);
+        if (enabled && !QuestionReply.configured(context)) throw new IllegalStateException("Qwen relay is not configured");
+        if (!context.getSharedPreferences(QuestionReply.PREFERENCES, Context.MODE_PRIVATE).edit()
+            .putBoolean(QuestionReply.ENABLED, enabled).commit()) throw new IllegalStateException("Could not save setting");
+    }
 
     public static void cancel(Context context, int id) {
         if (id < 1 || id > TimerLedger.LIMIT) throw new IllegalArgumentException("Invalid timer");

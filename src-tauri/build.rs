@@ -6,6 +6,7 @@ fn main() {
             "enable_luna_wake",
             "request_luna_microphone",
             "disable_luna_wake",
+            "set_luna_online_answers",
             "cancel_luna_timer",
         ]),
     ))
