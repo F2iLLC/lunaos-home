@@ -110,7 +110,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
         const local = new Map();
         const element = { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
-            if (!local.has(selector)) local.set(selector, { addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
+            if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);
           } };
         return element;
