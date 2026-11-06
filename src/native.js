@@ -36,16 +36,42 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <button id="allow-luna-mic" type="button">Allow microphone</button>
     <button id="enable-luna-wake" class="primary-button" type="button">Enable wake-word listening</button>
     <button id="disable-luna-wake" type="button">Disable listening</button>
-    <div id="luna-timers" aria-live="polite"></div></div>`;
+    <section class="luna-timer-section" aria-labelledby="luna-timers-heading">
+      <h2 id="luna-timers-heading">Active timers</h2>
+      <div id="luna-timers" aria-live="off"></div>
+      <p id="luna-timer-status" role="status" aria-live="polite"></p>
+    </section></div>`;
   document.querySelector('main').append(luna);
   const stateText = luna.querySelector('#luna-state');
   const stateDetails = luna.querySelector('#luna-details');
   const onlineAnswers = luna.querySelector('#luna-online-answers');
   const onlineHelp = luna.querySelector('#luna-online-help');
   const refreshState = luna.querySelector('#refresh-luna-state');
+  const timers = luna.querySelector('#luna-timers');
+  const timerStatus = luna.querySelector('#luna-timer-status');
   const statusPollIntervalMs = 5000;
   let snapshotPoll;
+  let timerCountdownPoll;
   let snapshotRefreshInFlight = false;
+  const formatTimerDuration = seconds => {
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return `${minutes}:${String(remainder).padStart(2, '0')}`;
+  };
+  const stopTimerCountdown = () => {
+    if (timerCountdownPoll !== undefined) {
+      clearInterval(timerCountdownPoll);
+      timerCountdownPoll = undefined;
+    }
+  };
+  const updateTimerCountdowns = () => {
+    const now = performance.now();
+    for (const countdown of timers.querySelectorAll('[data-deadline]')) {
+      const remaining = Math.max(0, Math.ceil((Number(countdown.dataset.deadline) - now) / 1000));
+      countdown.textContent = formatTimerDuration(remaining);
+      countdown.setAttribute('aria-label', `${remaining} seconds remaining`);
+    }
+  };
   const stopSnapshotPoll = () => {
     if (snapshotPoll !== undefined) {
       clearTimeout(snapshotPoll);
@@ -54,13 +80,24 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   };
   const scheduleSnapshotPoll = () => {
     stopSnapshotPoll();
-    if (luna.hidden || document.hidden) return;
+    if (luna.hidden || document.hidden) {
+      stopTimerCountdown();
+      return;
+    }
+    if (timerCountdownPoll === undefined) timerCountdownPoll = setInterval(updateTimerCountdowns, 1000);
     snapshotPoll = setTimeout(async () => {
       snapshotPoll = undefined;
       await refreshSnapshot();
     }, statusPollIntervalMs);
   };
-  const scheduleSnapshotPollAfterNavigation = () => queueMicrotask(scheduleSnapshotPoll);
+  const scheduleSnapshotPollAfterNavigation = () => queueMicrotask(() => {
+    if (luna.hidden || document.hidden) {
+      stopSnapshotPoll();
+      stopTimerCountdown();
+      return;
+    }
+    void refreshSnapshot();
+  });
   const refreshSnapshot = async () => {
     if (snapshotRefreshInFlight) return;
     snapshotRefreshInFlight = true;
@@ -81,19 +118,50 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       onlineHelp.textContent = snapshot.onlineAnswersAvailable
         ? 'Questions are sent to your configured Mac Studio relay. Changing this setting stops listening; enable wake listening again when ready.'
         : 'Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.';
-      const timers = luna.querySelector('#luna-timers');
       timers.replaceChildren();
-      for (const timer of snapshot.activeTimers || []) {
-        const row = document.createElement('p');
-        row.textContent = `Timer ${timer.id}: ${timer.remainingSeconds} seconds remaining. `;
+      const activeTimers = snapshot.activeTimers || [];
+      if (!activeTimers.length) {
+        const empty = document.createElement('p');
+        empty.className = 'luna-timers-empty';
+        empty.textContent = 'No active timers.';
+        timers.append(empty);
+      }
+      for (const timer of activeTimers) {
+        const row = document.createElement('article');
+        row.className = 'luna-timer-card';
+        const label = document.createElement('span');
+        label.className = 'luna-timer-label';
+        label.textContent = `Timer ${timer.id}`;
+        const countdown = document.createElement('time');
+        countdown.className = 'luna-timer-countdown';
+        countdown.setAttribute('role', 'timer');
+        countdown.setAttribute('aria-live', 'off');
+        countdown.dataset.deadline = String(performance.now() + Math.max(0, Number(timer.remainingSeconds) || 0) * 1000);
+        countdown.textContent = formatTimerDuration(Math.max(0, Math.ceil(Number(timer.remainingSeconds) || 0)));
+        countdown.setAttribute('aria-label', `${Math.max(0, Math.ceil(Number(timer.remainingSeconds) || 0))} seconds remaining`);
         const cancel = document.createElement('button');
-        cancel.type = 'button'; cancel.textContent = `Cancel timer ${timer.id}`;
+        cancel.type = 'button';
+        cancel.className = 'luna-timer-cancel';
+        cancel.textContent = 'Stop and cancel timer';
+        cancel.setAttribute('aria-label', `Stop and cancel timer ${timer.id}`);
         cancel.addEventListener('click', async () => {
           cancel.disabled = true;
-          try { await window.__TAURI__.core.invoke('cancel_luna_timer', { id: Number(timer.id) }); await refreshSnapshot(); }
-          catch { cancel.disabled = false; stateText.textContent = 'Could not confirm timer cancellation. Refresh the status before retrying.'; }
+          cancel.textContent = 'Stopping timer…';
+          try {
+            await window.__TAURI__.core.invoke('cancel_luna_timer', { id: Number(timer.id) });
+            timerStatus.textContent = `Timer ${timer.id} canceled.`;
+            await refreshSnapshot();
+          } catch {
+            cancel.disabled = false;
+            cancel.textContent = 'Stop and cancel timer';
+            timerStatus.textContent = `Could not cancel timer ${timer.id}. Refresh status and try again.`;
+          }
         });
-        row.append(cancel); timers.append(row);
+        const details = document.createElement('div');
+        details.className = 'luna-timer-details';
+        details.append(label, countdown);
+        row.append(details, cancel);
+        timers.append(row);
       }
     } catch {
       stateText.textContent = 'Voice status unavailable.';
@@ -113,7 +181,14 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     await refreshSnapshot();
   });
   window.addEventListener?.('hashchange', scheduleSnapshotPollAfterNavigation);
-  document.addEventListener?.('visibilitychange', scheduleSnapshotPoll);
+  document.addEventListener?.('visibilitychange', () => {
+    if (document.hidden) {
+      stopSnapshotPoll();
+      stopTimerCountdown();
+    } else if (!luna.hidden) {
+      void refreshSnapshot();
+    }
+  });
   void refreshSnapshot();
   luna.querySelector('#allow-luna-mic').addEventListener('click', async () => {
       try { await window.__TAURI__.core.invoke('request_luna_microphone'); }

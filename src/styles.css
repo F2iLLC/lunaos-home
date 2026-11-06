@@ -70,6 +70,18 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .list-panel { background: #292e4be8; border: 1px solid #a69ab04a; border-radius: 24px; padding: 28px; box-shadow: 0 16px 60px #25243924; }
 .luna-panel { text-align: center; }
 .luna-avatar { display: block; width: min(100%, 240px); height: auto; aspect-ratio: 400 / 410; object-fit: contain; margin: 0 auto 12px; border-radius: 22px; }
+.luna-timer-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #bfb0ce30; text-align: left; }
+.luna-timer-section h2 { margin: 0 0 12px; color: #fff5ef; font-size: 18px; font-weight: 700; }
+#luna-timers { display: grid; gap: 12px; }
+.luna-timers-empty { margin: 0; padding: 16px; border-radius: 14px; background: #383952; color: #d7c9df; text-align: center; }
+.luna-timer-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 16px; border: 1px solid #8cefd966; border-radius: 18px; background: #222740; }
+.luna-timer-details { display: grid; gap: 5px; }
+.luna-timer-label { color: #f4e7ed; font-size: 14px; font-weight: 600; }
+.luna-timer-countdown { color: #8cefd9; font-variant-numeric: tabular-nums; font-size: clamp(28px, 7vw, 40px); font-weight: 800; line-height: 1.1; }
+.luna-timer-cancel { grid-column: 1 / -1; width: 100%; min-height: 60px; padding: 14px 18px; border: 2px solid #ff9187; border-radius: 14px; background: #ffd2cc; color: #421e28; font-size: 17px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.luna-timer-cancel:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
+.luna-timer-cancel:disabled { cursor: wait; opacity: .72; }
+#luna-timer-status { min-height: 1.5em; margin: 8px 0 0; color: #d7fff3; font-size: 14px; }
 .luna-online-toggle { display: inline-flex; align-items: center; justify-content: center; width: min(100%, 520px); min-height: 64px; margin: 14px auto 0; padding: 16px 24px; border: 2px solid #8cefd9; border-radius: 18px; background: #d7fff3; color: #24273d; font-size: 17px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .luna-online-toggle[aria-pressed="true"] { background: #8cefd9; }
 .luna-online-toggle:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
