@@ -300,30 +300,56 @@ impl Store {
         Ok(revision)
     }
 
-    /// Remove this store's own files and its directory. Unknown files are
-    /// retained and make cleanup fail; nothing is deleted recursively.
+    /// Remove this store's own files and its directory. Authenticate the
+    /// snapshot and inspect every entry before deleting anything. Unknown
+    /// files are retained and make cleanup fail; nothing is deleted recursively.
     pub fn cleanup(self) -> Outcome<()> {
         {
             let _lock = self.lock()?;
-            let snapshot = self.snapshot_path();
-            if snapshot.exists() {
-                fs::remove_file(&snapshot)
-                    .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-            }
+            self.load()?;
+            let mut pending = Vec::new();
             let entries = fs::read_dir(&self.directory)
                 .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-            for entry in entries.flatten() {
+            for entry in entries {
+                let entry = entry.map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
                 let name = entry.file_name();
-                let Some(name) = name.to_str() else { continue };
-                if name.starts_with(PENDING_PREFIX) && name.ends_with(PENDING_SUFFIX) {
-                    fs::remove_file(entry.path())
-                        .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+                let name = name
+                    .to_str()
+                    .ok_or(Failure::StorageFailed("cleanup-incomplete"))?;
+                let metadata = fs::symlink_metadata(entry.path())
+                    .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+                if !metadata.is_file() || metadata.file_attributes() & REPARSE_POINT != 0 {
+                    return Err(Failure::StorageFailed("cleanup-incomplete"));
+                }
+                match name {
+                    SNAPSHOT_FILE | LOCK_FILE => {}
+                    _ if owned_pending(name) => pending.push(entry.path()),
+                    _ => return Err(Failure::StorageFailed("cleanup-incomplete")),
                 }
             }
+            let snapshot = self.snapshot_path();
+            for path in pending {
+                fs::remove_file(path).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+            }
+            fs::remove_file(snapshot).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
         }
-        let _ = fs::remove_file(self.directory.join(LOCK_FILE));
+        fs::remove_file(self.directory.join(LOCK_FILE))
+            .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
         fs::remove_dir(&self.directory).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))
     }
+}
+
+fn owned_pending(name: &str) -> bool {
+    let Some(hex) = name
+        .strip_prefix(PENDING_PREFIX)
+        .and_then(|name| name.strip_suffix(PENDING_SUFFIX))
+    else {
+        return false;
+    };
+    hex.len() == 32
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn is_contention(error: &std::io::Error) -> bool {
@@ -682,6 +708,43 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(1));
         fs::remove_dir(&lock_path).unwrap();
         store.cleanup().unwrap();
+    }
+
+    #[test]
+    fn cleanup_preserves_a_store_when_foreign_files_or_authentication_fail() {
+        let id = crypto::uuid_v4().unwrap();
+        let store = Store::init(&id, protector(12)).unwrap();
+        let revision = store.create("alex-work", profile("Still here")).unwrap();
+        let directory = store.directory().to_path_buf();
+        let snapshot = store.snapshot_path();
+        let original = read_bytes(&snapshot).unwrap();
+        let foreign = directory.join("family-photo.txt");
+        fs::write(&foreign, b"synthetic fixture").unwrap();
+
+        assert_eq!(
+            store.cleanup(),
+            Err(Failure::StorageFailed("cleanup-incomplete"))
+        );
+        assert_eq!(read_bytes(&snapshot).unwrap(), original);
+        assert!(foreign.exists());
+        fs::remove_file(foreign).unwrap();
+
+        let store = Store::open(&id, protector(12)).unwrap();
+        assert_eq!(store.read("alex-work").unwrap().unwrap().revision, revision);
+        let mut tampered = original.clone();
+        *tampered.last_mut().unwrap() ^= 1;
+        fs::write(&snapshot, &tampered).unwrap();
+        assert_eq!(
+            store.cleanup(),
+            Err(Failure::StorageFailed("authentication-failed"))
+        );
+        assert_eq!(read_bytes(&snapshot).unwrap(), tampered);
+
+        fs::write(&snapshot, original).unwrap();
+        let pending = directory.join("snapshot-0123456789abcdef0123456789abcdef.pending");
+        fs::write(&pending, b"synthetic interrupted write").unwrap();
+        Store::open(&id, protector(12)).unwrap().cleanup().unwrap();
+        assert!(!directory.exists());
     }
 
     #[test]
