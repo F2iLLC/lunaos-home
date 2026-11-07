@@ -18,6 +18,7 @@ const bundled = await build({
 
 function createHarness() {
   const timers = new Map();
+  const intervals = new Map();
   const windowListeners = new Map();
   const documentListeners = new Map();
   const calls = [];
@@ -75,14 +76,20 @@ function createHarness() {
     return id;
   };
   const fakeClearTimeout = id => timers.delete(id);
+  const fakeSetInterval = (callback, delay) => {
+    const id = ++timerId;
+    intervals.set(id, { callback, delay });
+    return id;
+  };
+  const fakeClearInterval = id => intervals.delete(id);
   const location = { hash: '#welcome' };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
   return {
-    calls, document, documentListeners, location, pendingSnapshots, timers, window, windowListeners,
+    calls, document, documentListeners, intervals, location, pendingSnapshots, timers, window, windowListeners,
     async start() {
-      await new AsyncFunction('document', 'window', 'location', 'setTimeout', 'clearTimeout', 'queueMicrotask', bundled.outputFiles[0].text)(
-        document, window, location, fakeSetTimeout, fakeClearTimeout, queueMicrotask,
+      await new AsyncFunction('document', 'window', 'location', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask', bundled.outputFiles[0].text)(
+        document, window, location, fakeSetTimeout, fakeClearTimeout, fakeSetInterval, fakeClearInterval, queueMicrotask,
       );
       return document.querySelector('main').children.find(child => child.id === 'luna');
     },
@@ -119,6 +126,8 @@ test('Luna status polling follows visible route and document state at five-secon
 
   await harness.navigate('#luna');
   assert.equal(luna.hidden, false);
+  harness.resolveSnapshot();
+  await harness.flush();
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
 
   harness.document.hidden = true;
@@ -127,14 +136,17 @@ test('Luna status polling follows visible route and document state at five-secon
 
   harness.document.hidden = false;
   harness.documentListeners.get('visibilitychange')();
+  harness.resolveSnapshot();
+  await harness.flush();
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
+  const snapshotCountBeforePoll = harness.calls.filter(command => command === 'get_luna_snapshot').length;
   harness.runNextTimer();
   await harness.flush();
-  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 2);
+  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, snapshotCountBeforePoll + 1);
   assert.equal(harness.timers.size, 0, 'the next poll waits until the native request finishes');
 
   luna.querySelector('#refresh-luna-state').onclick();
-  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 2,
+  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, snapshotCountBeforePoll + 1,
     'manual refresh does not overlap an in-flight poll');
 
   harness.resolveSnapshot();
@@ -145,7 +157,7 @@ test('Luna status polling follows visible route and document state at five-secon
 
   const manualRefresh = refreshButton.onclick();
   assert.equal(refreshButton.disabled, true);
-  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 3,
+  assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, snapshotCountBeforePoll + 2,
     'manual refresh starts a fresh snapshot request when no request is in flight');
   harness.resolveSnapshot();
   await manualRefresh;

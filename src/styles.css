@@ -37,6 +37,13 @@ h1:focus { outline: none; }
 .header-note { font-size: 12px; letter-spacing: .025em; color: #e0d5e5; }
 main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .welcome { text-align: center; width: min(100% - 40px, 680px); margin: 0 auto; padding: 28px 0 58px; }
+.luna-companion { display: block; width: min(58vw, 228px); height: auto; margin: 0 auto 10px; overflow: visible; }
+.luna-companion-float { transform-box: fill-box; transform-origin: center; animation: luna-float 3.2s ease-in-out infinite; }
+.luna-companion-eyes { transform-box: fill-box; transform-origin: center; animation: luna-blink 5.2s ease-in-out infinite; }
+.luna-companion-sparkle { animation: luna-twinkle 2.4s ease-in-out infinite alternate; }
+@keyframes luna-float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-7px) rotate(1deg); } }
+@keyframes luna-blink { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.12); } }
+@keyframes luna-twinkle { from { opacity: .35; } to { opacity: 1; } }
 .moon-scene { position: relative; width: 176px; height: 142px; margin: 0 auto 30px; }
 .moon-halo { position: absolute; inset: -32px; border-radius: 50%; background: radial-gradient(ellipse, #e6bfc21c 0%, transparent 65%); }
 .moon { position: absolute; width: 80px; height: 80px; top: 20px; left: 42px; border-radius: 50%; box-shadow: inset -22px -8px 0 #ffe9d2; transform: rotate(-25deg); filter: drop-shadow(0 0 24px #ffd5ba20); }
@@ -61,6 +68,45 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .checklist-intro .eyebrow { margin-bottom: 14px; }
 .checklist-intro > p:last-child { color: #e8ddeb; font-size: 14px; line-height: 1.7; }
 .list-panel { background: #292e4be8; border: 1px solid #a69ab04a; border-radius: 24px; padding: 28px; box-shadow: 0 16px 60px #25243924; }
+.luna-panel { text-align: center; }
+.luna-avatar { display: block; width: min(100%, 240px); height: auto; aspect-ratio: 400 / 410; object-fit: contain; margin: 0 auto 12px; border-radius: 22px; }
+.luna-avatar-eyes-open { opacity: 0; transform: scaleY(.08); transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-closed,
+.luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-closed { opacity: 0; }
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-open,
+.luna-avatar[data-capture-phase="response"] .luna-avatar-eyes-open { opacity: 1; transform: scaleY(1); }
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-eyes-open { animation: luna-avatar-eyes-wake 420ms cubic-bezier(.2,.8,.3,1) both; }
+.luna-avatar[data-capture-phase="waiting"],
+.luna-avatar[data-capture-phase="awake"] { animation: luna-avatar-listen-bob 2.8s ease-in-out infinite; }
+.luna-avatar[data-capture-phase="preparing"] { animation: luna-avatar-wake 1.8s ease-in-out infinite alternate; }
+.luna-avatar-halo { transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-halo,
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-halo { animation: luna-avatar-halo 2.4s ease-in-out infinite alternate; }
+@keyframes luna-avatar-eyes-wake { 0% { opacity: 0; transform: scaleY(.08); } 62% { opacity: 1; transform: scaleY(1.12); } 100% { opacity: 1; transform: scaleY(1); } }
+@keyframes luna-avatar-listen-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes luna-avatar-wake { from { transform: translateY(2px) scale(.99); } to { transform: translateY(-2px) scale(1); } }
+@keyframes luna-avatar-halo { from { opacity: .14; transform: scale(.98); } to { opacity: .35; transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) {
+  .luna-avatar[data-capture-phase] { animation: none; }
+  .luna-avatar[data-capture-phase] .luna-avatar-eyes-open,
+  .luna-avatar[data-capture-phase] .luna-avatar-halo { animation: none; }
+}
+.luna-timer-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #bfb0ce30; text-align: left; }
+.luna-timer-section h2 { margin: 0 0 12px; color: #fff5ef; font-size: 18px; font-weight: 700; }
+#luna-timers { display: grid; gap: 12px; }
+.luna-timers-empty { margin: 0; padding: 16px; border-radius: 14px; background: #383952; color: #d7c9df; text-align: center; }
+.luna-timer-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 16px; border: 1px solid #8cefd966; border-radius: 18px; background: #222740; }
+.luna-timer-details { display: grid; gap: 5px; }
+.luna-timer-label { color: #f4e7ed; font-size: 14px; font-weight: 600; }
+.luna-timer-countdown { color: #8cefd9; font-variant-numeric: tabular-nums; font-size: clamp(28px, 7vw, 40px); font-weight: 800; line-height: 1.1; }
+.luna-timer-cancel { grid-column: 1 / -1; width: 100%; min-height: 60px; padding: 14px 18px; border: 2px solid #ff9187; border-radius: 14px; background: #ffd2cc; color: #421e28; font-size: 17px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.luna-timer-cancel:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
+.luna-timer-cancel:disabled { cursor: wait; opacity: .72; }
+#luna-timer-status { min-height: 1.5em; margin: 8px 0 0; color: #d7fff3; font-size: 14px; }
+.luna-online-toggle { display: inline-flex; align-items: center; justify-content: center; width: min(100%, 520px); min-height: 64px; margin: 14px auto 0; padding: 16px 24px; border: 2px solid #8cefd9; border-radius: 18px; background: #d7fff3; color: #24273d; font-size: 17px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.luna-online-toggle[aria-pressed="true"] { background: #8cefd9; }
+.luna-online-toggle:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
+#luna-online-label { margin: 10px auto 0; max-width: 520px; color: #f4e7ed; font-size: 14px; line-height: 1.6; }
 label { display: block; font-size: 13px; color: #f4e7ed; }
 input[type=text], select { width: 100%; min-height: 48px; border: 1px solid #a99bb366; border-radius: 12px; background: #383952; color: #fff5ef; padding: 12px 14px; margin-top: 9px; }
 input::placeholder { color: #c4b7ce; font-size: 13px; }
@@ -112,7 +158,7 @@ small { display: block; color: #c8bbd3; margin-top: 4px; font-size: 11px; }
   .moon-scene { height: 110px; margin-bottom: 12px; }
   .intro { margin: 18px 0 24px; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 .home-actions { display: grid; gap: 10px; max-width: 370px; margin: 22px auto 0; text-align: left; }
 .home-actions a { border: 1px solid #f5e8e440; border-radius: 16px; padding: 16px 20px; text-decoration: none; background: #292e4b99; }
 .home-actions a:hover { background: #292e4b; }

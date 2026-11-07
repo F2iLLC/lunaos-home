@@ -45,40 +45,78 @@ final class QuestionReply implements AutoCloseable {
     private byte[] audio;
     private boolean played;
     QuestionReply(Context context, String question, Completion completion) {
+        this(context, question, completion, false);
+    }
+    private QuestionReply(Context context, String question, Completion completion, boolean confirmation) {
+        this.confirmation = confirmation;
         this.completion = completion;
         main.postDelayed(this::finish, 90000);
-        new Thread(() -> request(context.getApplicationContext(), question), "luna-question").start();
+        new Thread(() -> request(context.getApplicationContext(), question), confirmation ? "luna-confirmation" : "luna-question").start();
+    }
+    private final boolean confirmation;
+    static void confirmEnabled(Context context) {
+        new QuestionReply(context, null, played -> {}, true);
     }
     private void request(Context context, String question) {
         byte[] wave = null;
+        String stage = "preflight";
         try {
-            if (!enabled(context) || !QuestionPolicy.accepts(question) || closed || ProbeCapture.blocked(context)) throw new IOException();
+            if (!enabled(context) || (!confirmation && !QuestionPolicy.accepts(question)) || closed || ProbeCapture.blocked(context)) throw new IOException();
+            stage = "configuration";
             JSONObject config = readConfig(context);
             String token = config.getString("token");
             if (!token.matches("[a-f0-9]{64}")) throw new IOException();
+            stage = "tls_setup";
             KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType()); store.load(null);
             store.setCertificateEntry("relay", CertificateFactory.getInstance("X.509").generateCertificate(
                 new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
             TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
-            SSLContext tls = SSLContext.getInstance("TLS"); tls.init(null, trust.getTrustManagers(), null);
-            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL(endpoint(config)).openConnection();
+            // The local relay supports TLS 1.2; pin the protocol for compatibility with Fire OS TLS stacks.
+            SSLContext tls = SSLContext.getInstance("TLSv1.2"); tls.init(null, trust.getTrustManagers(), null);
+            String path = confirmation ? "/confirmation" : "/question";
+            stage = "connect";
+            HttpsURLConnection next = (HttpsURLConnection) new java.net.URL(endpoint(config).replace("/question", path)).openConnection();
             synchronized (this) { if (closed) throw new IOException(); connection = next; }
             next.setSSLSocketFactory(tls.getSocketFactory()); // Default hostname verification remains enabled.
             next.setInstanceFollowRedirects(false); next.setConnectTimeout(5000); next.setReadTimeout(60000);
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
-            byte[] body = new JSONObject().put("question", question).toString().getBytes(StandardCharsets.UTF_8);
+            stage = "request_body";
+            byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")
+                : new JSONObject().put("question", question)).toString().getBytes(StandardCharsets.UTF_8);
             next.setFixedLengthStreamingMode(body.length);
-            try (OutputStream out = next.getOutputStream()) { if (closed) throw new IOException(); out.write(body); }
+            stage = "request_stream";
+            OutputStream stream = next.getOutputStream();
+            stage = "request_write";
+            try (OutputStream out = stream) { if (closed) throw new IOException(); out.write(body); }
             finally { Arrays.fill(body, (byte) 0); }
+            stage = "response_status";
             if (closed || next.getResponseCode() != 200 || !"audio/wav".equals(next.getContentType())) throw new IOException();
+            stage = "response_audio";
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
+            android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_AUDIO_RECEIVED");
+            stage = "playback_handoff";
             main.post(() -> play(context, result));
         } catch (Exception failure) {
-            android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_UNAVAILABLE"); main.post(this::finish);
+            // Stage labels only: never log exception text, request data, or credentials.
+            Throwable cause = failure.getCause();
+            String causeType = cause == null ? "none" : cause.getClass().getSimpleName();
+            Throwable root = cause == null ? null : cause.getCause();
+            String rootType = root == null ? "none" : root.getClass().getSimpleName();
+            String detail = "other";
+            String diagnostic = (cause == null ? "" : cause.getMessage()) + " " + failure.getMessage();
+            String normalized = diagnostic.toUpperCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
+            for (String marker : new String[] {"CERTIFICATE_VERIFY_FAILED", "NO_TRUST_ANCHOR", "WRONG_VERSION_NUMBER",
+                "PROTOCOL_VERSION", "NO_SHARED_CIPHER", "HANDSHAKE_FAILURE", "UNEXPECTED_MESSAGE",
+                "UNEXPECTED_EOF", "CONNECTION_RESET", "BAD_CERTIFICATE"}) {
+                if (normalized.contains(marker)) { detail = marker.toLowerCase(java.util.Locale.ROOT); break; }
+            }
+            if ("other".equals(detail) && (normalized.contains("CERTIFICATE") || normalized.contains("CERTPATH"))) detail = "certificate";
+            android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_UNAVAILABLE_" + stage + "_"
+                + failure.getClass().getSimpleName() + "_" + causeType + "_" + rootType + "_" + detail); main.post(this::finish);
         } finally {
             if (wave != null) Arrays.fill(wave, (byte) 0);
             synchronized (this) { if (connection != null) connection.disconnect(); connection = null; }
@@ -117,7 +155,8 @@ final class QuestionReply implements AutoCloseable {
         } finally { Arrays.fill(buffer, (byte) 0); }
     }
     private void play(Context context, byte[] wave) {
-        if (closed || !BackgroundWakeService.running || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
+        if (closed || (confirmation && !enabled(context)) || (!confirmation && !BackgroundWakeService.running)
+            || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
         audio = wave;
         try {
             player = new MediaPlayer();
@@ -132,9 +171,10 @@ final class QuestionReply implements AutoCloseable {
                 public long getSize() { return wave.length; }
                 public void close() { }
             });
-            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) p.start(); else finish(); });
-            player.setOnCompletionListener(p -> { played = true; finish(); });
-            player.setOnErrorListener((p, what, extra) -> { finish(); return true; });
+            player.setOnPreparedListener(p -> { if (!closed && (confirmation ? enabled(context) : BackgroundWakeService.running)
+                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); p.start(); } else finish(); });
+            player.setOnCompletionListener(p -> { played = true; android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_COMPLETED"); finish(); });
+            player.setOnErrorListener((p, what, extra) -> { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_ERROR"); finish(); return true; });
             player.prepareAsync();
         } catch (Exception failure) { finish(); }
     }

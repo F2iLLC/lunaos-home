@@ -632,3 +632,46 @@ that does not depend on this computer and USB. Do not ship the development
 loopback relay as an appliance endpoint. Validate migration with unit and
 native lifecycle checks, then a fresh attended device trial, including the
 unresolved intermittent timer recognition and genuine secure-lock cases.
+
+### Home integration diagnostic follow-up (2026-11-06)
+
+At Home head `0cd7bec`, an attended question matched the wake phrase, produced
+`QUESTION_FINAL`, received relay audio, and completed playback. The owner
+confirmed audible speech and eyes opening after the wake phrase. The answer
+did not address the intended question, so this qualifies transport, playback
+and eye timing, not question-recognition accuracy.
+
+Two subsequent attended two-minute timer attempts matched the wake phrase but
+ended as `QUESTION_FINAL`, with no native timer. A debugger comparison against
+the scripted command reported four recognized words and no expected command
+words; it did not print or save the recognized transcript. Native snapshots
+after each attempt showed capture off and no active timers. Live timer
+countdown and cancellation remain unverified in this Home build.
+
+The installed probe and Home acoustic model, decoding graphs and configuration
+hashes matched. The original timer probe used constrained grammar. Online
+questions already used unrestricted post-wake recognition; commit `75bdaeb`
+extended unrestricted recognition to offline timer mode too. Constrained
+timer evidence cannot qualify either unrestricted path. However, the earlier
+probe also had attended question success, so the grammar difference alone
+does not establish the cause of this Home recognition failure.
+
+`CAPTURE_TIMING` now reports fixed phase names, recorder buffer duration,
+consumed audio duration, elapsed duration, maximum decoder-call duration and
+the number of decoder calls exceeding buffer duration. It never emits audio,
+transcripts or configuration. These counters can identify capture starvation
+risk; they do not independently prove dropped samples. The parser, question
+policy and eye-state transitions are unchanged. The initial universal APK
+installation was interrupted by USB loss. A subsequent ARM debug diagnostic
+APK installed successfully, and the package update timestamp was read back.
+Immediately before installation, native state confirmed capture off and no
+active timers. No microphone test has run on the updated diagnostic build.
+
+ADB transport remains unstable: the device repeatedly becomes offline or
+disappears, including during read-only checks. Windows reports the ADB USB
+interface without a driver problem. ADB 37.0.1's documented session-local
+`ADB_USB_LEGACY=1` fallback allowed installation, but the connection dropped
+again afterward; the new USB backend alone is therefore not an established
+cause. Relay reverse was restored before installation and must be reverified
+after every reconnect. Timing evidence, updated-app native-state readback,
+and attended timer countdown/cancellation remain pending a stable connection.
