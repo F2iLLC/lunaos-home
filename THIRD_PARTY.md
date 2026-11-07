@@ -44,6 +44,10 @@ The bundled JavaScript uses only Home and Zod; the build rejects accidental MCP 
 
 The opt-in Windows native verification experiment directly references the already locked Microsoft `windows` 0.62.2 and `windows-future` 0.3.2 crates (MIT OR Apache-2.0, [windows-rs](https://github.com/microsoft/windows-rs)). Their installed manifests and license files were inspected by the native inventory. That experiment changed only direct dependency edges/features; it introduced no new crate versions or copied implementation. Following the later `tauri-build` update, the four-target inventory contains 287 distinct packages with the same 11 license/source-review gaps. Microsoft desktop API documentation informed original Home integration code. Existing notice, source-availability and binary-distribution gates remain.
 
+## Windows snapshot store crate
+
+The standalone `src-tauri/crates/windows-snapshot-store` crate ([record](docs/prototypes/windows-snapshot-store.md)) pins `windows` 0.62.2, `serde` 1.0.229 and `serde_json` 1.0.154 and commits its own `Cargo.lock`. Every third-party package/version it resolves is already present in `src-tauri/Cargo.lock`, so it adds no entry to the native license inventory; `test/windows-snapshot-store.test.js` fails if that stops being true. The crate uses Windows CNG and file-system APIs through those crates and implements no cryptographic primitive of its own. Its worker executable is built locally for developer tests and is not distributed; the binary-distribution gates above are unchanged.
+
 ## Android build probe
 
 The separate [Android storage experiment](docs/prototypes/android-storage.md) compiles original Java instrumentation source directly with the installed JDK and Android SDK tools. It calls platform Keystore, Cipher and AtomicFile APIs; it adds no runtime dependency, copied SDK example or vendored source. Android's SDK/platform and JDK distributions retain their existing terms and are not included in the repository. Its disposable signed APK is for local synthetic testing only, not public binary distribution or clearance of the Home native notice gates below.

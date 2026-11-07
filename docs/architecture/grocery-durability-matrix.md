@@ -78,11 +78,12 @@ not in the first production-support scope. No other platform is claimed.
 
 | Target | Intended production adapter / implementation under test | Decision and qualification |
 | --- | --- | --- |
-| Windows 11 x64 desktop (first edition: Home) | Selected target/design: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot) using Microsoft Software KSP high-protection UI and a separate vault-key password; **not implemented**. Existing evidence: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Key-method direction selected for this PC; adapter integration and operator-run key lifecycle evidence remain open. KSP key loss/password loss locks the snapshot until the separately reviewed VLT-07 recovery route (portable backup and recovery, #10) succeeds. Probe remains developer-only. Production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
+| Windows 11 x64 desktop (first edition: Home) | Selected target/design: `WindowsSnapshotFileStore v1` (native Tauri/Rust, encrypted whole-record snapshot) using Microsoft Software KSP high-protection UI and a separate vault-key password. The snapshot/commit layer is **implemented as a standalone developer-harness crate** (`src-tauri/crates/windows-snapshot-store`, Node adapter `lib/windows-snapshot-store.js`, [record](../prototypes/windows-snapshot-store.md)) that passes the adapter conformance suite and the fault matrix below with a fixture key protector; the Software KSP protector and Home integration are **not implemented**. Earlier evidence: `WindowsProbeStore v2` in `lib/windows-probe-store.js` + `scripts/windows-vault-worker.ps1`, DPAPI `CurrentUser`, `records.bin`, flushed same-directory temp and `File.Move`. | Key-method direction selected for this PC; the snapshot store is conformance-checked behind a protector seam, but the KSP protector integration, Home integration and operator-run key lifecycle evidence remain open. KSP key loss/password loss locks the snapshot until the separately reviewed VLT-07 recovery route (portable backup and recovery, #10) succeeds. Probe remains developer-only. Production path/ACLs, hard-crash durability, recovery and hostile-process boundary remain open. |
 | Android follow-on | Intended: `AndroidSnapshotFileStore` (native adapter, Keystore and app-private no-backup snapshot). No grocery persistence implementation exists. | Follow-on qualification target only; excluded from first support scope. Minimum OS, provider/hardware requirement, backup/transfer behavior and atomic replacement semantics remain open. |
 
-The snapshot adapter names describe intended designs; neither is implemented
-as a production adapter yet. Android emulator or native-shell tests elsewhere
+`WindowsSnapshotFileStore v1` exists as a standalone crate with a fixture
+protector only; it is not linked into Home and is not a production adapter.
+`AndroidSnapshotFileStore` is not implemented. Android emulator or native-shell tests elsewhere
 in the repository do not qualify grocery persistence.
 
 ### Native integration blocker
@@ -90,16 +91,19 @@ in the repository do not qualify grocery persistence.
 `WindowsSnapshotFileStore v1` cannot yet be integrated safely into the current
 Home application. `src-tauri/tauri.conf.json` has bundling disabled and labels
 the app as having no secure vault storage. `src-tauri/src/lib.rs` exposes only
-debug-only preview/demo modules and no Windows grocery command or native store
-that implements the shared JavaScript `VersionedVaultRecordStore` v2 contract.
-The KSP example encrypts one fixed fictional envelope; it has no list/receipt
-serialization, compare-and-swap commit, or app lifecycle integration. The
-application also has no accepted enrollment, unlock, method-change, credential
-reset, migration or recovery flow for this vault method. Connecting the example
-as grocery storage would silently turn a fictional preview into real vault
-storage before the #6 setup/recovery boundaries exist. The blocking work is
-therefore product integration and lifecycle design, not KSP availability on
-this PC. No native adapter qualification is claimed.
+debug-only preview/demo modules and no Windows grocery command. The native
+store that implements the shared JavaScript `VersionedVaultRecordStore` v2
+contract now exists as the standalone `windows-snapshot-store` crate, with
+list/receipt serialization, compare-and-swap commit and atomic replacement,
+but it is deliberately not a dependency of the application and compiles only
+a developer-harness fixture protector. The KSP example still encrypts one fixed
+fictional envelope and is not connected to that store. The application also
+has no accepted enrollment, unlock, method-change, credential reset, migration
+or recovery flow for this vault method. Connecting the crate as grocery
+storage would silently turn a fictional preview into real vault storage before
+the #6 setup/recovery boundaries exist. The blocking work is therefore the KSP
+protector integration, product integration and lifecycle design, not KSP
+availability on this PC. No native adapter qualification is claimed.
 
 ### VLT-03 lifecycle qualification gates
 
@@ -115,7 +119,7 @@ others.
 | Start locked and release only for bounded foreground use | The native example denies silent unwrap in fresh processes and bounds a fictional read to an attended foreground visit. | Integrate a native owner and explicit lock/unlock lifecycle into Home. Prove process restart, manual lock, suspend/session transitions, foreground loss, cancellation, and expiry on the integrated source. Keep key bytes out of JavaScript, IPC payloads, logs, and evidence. |
 | Change or remove the unlock method safely | No Home method enrollment, replacement, removal, or key-rotation route exists. | Reauthenticate locally, verify a working replacement or recovery path, commit the new protector transactionally, read it back, and show that failure leaves the previous committed protector usable. No silent DPAPI fallback. |
 | Handle wrong credentials and OS credential reset | The prototype has an operator-reported wrong-password denial and an explicit disposable-key cleanup receipt. No Windows account or live Hello reset was attempted. | On disposable credentials, record wrong-password and cancellation outcomes without collecting the password. Define key loss/reset behavior as locked until the separately qualified recovery path succeeds; never imply that resetting Windows recovers this key. |
-| Preserve last committed data on write failure | Envelope creation uses a flushed sibling and same-volume rename, readback, and injected pre-rename/lost-receipt cases. The grocery DPAPI probe's disk-full and interruption cases are simulated. | Integrate versioned record/document snapshots and compare-and-swap in the same native adapter. On its exact source, prove pre-commit and post-commit uncertainty by fresh readback, tamper refusal, interrupted writes, and disk-full behavior; do not replay an unknown mutation. Physical power-loss durability remains separately labeled. |
+| Preserve last committed data on write failure | `WindowsSnapshotFileStore v1` commits the complete versioned snapshot with compare-and-swap, pre-replacement verification of the pending file, atomic replacement and readback; its native fault matrix below (eight stages, including a tampered pending file and abrupt worker exit) reopens only complete old or new state, under the fixture protector. The grocery DPAPI probe's disk-full and interruption cases remain simulated. | Repeat these cases on the integrated source with the Software KSP protector; do not replay an unknown mutation. Physical power-loss durability and real disk exhaustion remain separately labeled. |
 | Migrate schema and recover data | No production schema migration or clean-device restore for this key hierarchy exists. The current VLT-07 archive covers a different, bounded profile schema. | Specify migration and rollback rules, then test failed migration without changing the last committed snapshot. Separately prove user-held backup recovery on a clean supported device with fresh device enrollment; do not treat archive creation or same-device re-open as recovery. |
 
 VLT-03 remains open until these gates are implemented and reviewed against the
@@ -126,8 +130,9 @@ this candidate before the gates and independent review pass.
 
 ## Fault-injection matrix
 
-The Windows rows below execute the actual developer-only DPAPI probe and reopen
-the encrypted store after each injected error. `old` means the previous list
+The Windows rows below execute the actual developer-only DPAPI probe, or the
+native `WindowsSnapshotFileStore v1` worker with its fixture protector, and
+reopen the encrypted store after each injected error. `old` means the previous list
 and its existing receipt history remain, with no receipt for the attempted
 request. `new` means the updated list and its matching success receipt are both
 present. The generic contract rows use a commit-boundary simulator. They
@@ -145,6 +150,14 @@ filesystem evidence.
 | Windows probe v2: disk full | old pair | simulated partial write and exception; not a volume quota or physical disk-full condition |
 | Windows probe v2: process interruption | old pair | simulated partial-write worker failure; not a hard process kill, OS crash or power-loss test |
 | Windows probe v2: tampered temporary | old pair | temporary ciphertext bit changed before replacement; actual adapter |
+| `WindowsSnapshotFileStore v1`: before write | old pair | native Rust adapter, fixture protector; `test/windows-snapshot-store.test.js` |
+| `WindowsSnapshotFileStore v1`: during write | old pair | half of the pending ciphertext written, then injected error; pending file removed |
+| `WindowsSnapshotFileStore v1`: after write, before flush | old pair | full pending ciphertext, injected error before `sync_all`; pending file removed |
+| `WindowsSnapshotFileStore v1`: before replacement | old pair | pending file flushed and verified, injected error before `MoveFileExW` |
+| `WindowsSnapshotFileStore v1`: after replacement | new pair | replacement completed, injected lost acknowledgement; worker reports `COMMIT_UNKNOWN` |
+| `WindowsSnapshotFileStore v1`: disk full | old pair | simulated partial write and error; not a volume quota or physical disk-full condition |
+| `WindowsSnapshotFileStore v1`: process interruption | old pair | worker exits abruptly mid-write; one ciphertext-only pending file remains and is never promoted; not an OS crash or power-loss test |
+| `WindowsSnapshotFileStore v1`: tampered pending file | old pair | one ciphertext byte changed before replacement; pre-replacement verification refuses it |
 | Generic contract simulator: before write, partial write, after write/before replace, before replace, simulated disk full, simulated interruption, tampered temp | old pair | in-memory commit-slot model only |
 | Generic contract simulator: after replace, simulated interruption after replace | new pair | in-memory commit-slot model only |
 
@@ -239,6 +252,9 @@ the Rust rows were recorded during #222 and have not been re-run.
 | `node --test test/grocery-persistence.test.js test/windows-grocery-persistence.test.js test/portable-vault-backup.test.js` | 34 passed, 0 failed, 0 skipped. Synthetic probe/contract evidence only. |
 | `node --test test/windows-grocery-persistence.test.js test/windows-record-revisions.test.js test/windows-portable-backup.test.js test/vault-store-lifecycle.test.js test/portable-backup-enrollment.test.js` | 11 passed, 0 failed, 0 skipped on Windows |
 | `npm test` | 375 tests: 368 passed, 7 failed, 0 skipped. All 7 failures are JVM tests that need `javac`, which this host lacks (`spawnSync javac ENOENT`); none is a grocery or vault test. The 405-pass figure recorded during #222 was not reproduced. |
+| `npm run build:snapshot-store` and `npm run test:snapshot-store` (recorded for #273, cargo 1.99.1, rustc 1.99.1) | Built the developer-harness worker; 19 crate tests passed. `cargo build --locked` and `cargo clippy --all-targets` also passed without the feature. |
+| `node --test test/windows-snapshot-store.test.js` (recorded for #273) | 24 passed, 0 failed, 0 skipped on Windows: conformance C-01 to C-16 on the native adapter, the eight-stage fault matrix above, protector/tamper refusals, directory DACL, shared service over the adapter, fault-name parity and lockfile inventory. Fixture protector only; not key-release or production evidence. |
+| `npm test` (recorded for #273) | 457 tests: 449 passed, 7 failed, 1 skipped. The same 7 `javac` environment failures as on `main`; the skip is the reference adapter's C-14. |
 | `git diff --check` | passed |
 
 Attended local compatibility check (not grocery or production qualification):
@@ -274,11 +290,14 @@ Per-commit review and approval history belongs to the pull requests that
 produced this record (#206, #212, #220, #221, #222), not to this document.
 
 The first adapter/platform and compatible key-method direction are recorded
-above. The work still requires implementing `WindowsSnapshotFileStore v1`,
+above. `WindowsSnapshotFileStore v1` now passes the draft conformance suite
+and this fault matrix with a developer-harness fixture protector
+([record](../prototypes/windows-snapshot-store.md)). The work still requires
 reviewing the governing conformance specification (draft:
-[adapter conformance](versioned-record-store-conformance.md)), passing its
-suite on that adapter, and rerunning this
-exact-version matrix against that adapter. The selected separate-password
+[adapter conformance](versioned-record-store-conformance.md)), implementing
+the Software KSP protector behind the crate's protector seam with the attended
+owner-window lifecycle, rerunning the suite and this exact-version matrix on
+that build, and the Home integration and lifecycle gates above. The selected separate-password
 method is not Windows-account authentication and makes no TPM-backed claim.
 Android requires a separate adapter and independent qualification before it is
 added to supported platforms. Backup/restore and schema rollback remain under

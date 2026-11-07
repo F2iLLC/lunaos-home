@@ -19,7 +19,9 @@
     "native": "tauri",
     "tauri": "tauri",
     "native:build": "tauri build --debug --no-bundle",
-    "native:android": "tauri android"
+    "native:android": "tauri android",
+    "build:snapshot-store": "node scripts/build-snapshot-store.mjs",
+    "test:snapshot-store": "node scripts/build-snapshot-store.mjs test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

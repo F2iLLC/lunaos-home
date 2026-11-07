@@ -30,7 +30,7 @@ jobs:
   windows-grocery-probe:
     name: Windows grocery probe
     runs-on: windows-2025
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Require GitHub-hosted runner
         shell: pwsh
@@ -48,4 +48,13 @@ jobs:
           pwsh --version
           Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
       - run: npm ci --ignore-scripts
-      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js
+      - name: Record Rust toolchain and build the snapshot store developer-harness worker
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+          node scripts/build-snapshot-store.mjs
+      - name: Snapshot store crate tests
+        shell: pwsh
+        run: node scripts/build-snapshot-store.mjs test
+      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js test/windows-snapshot-store.test.js
