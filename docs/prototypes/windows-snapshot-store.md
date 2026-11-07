@@ -108,11 +108,10 @@ node --test test/windows-snapshot-store.test.js
 A default-feature build (`cargo build --locked` in the crate) lands in
 `target/debug` and cannot be mistaken for the harness worker; the adapter
 looks only in `target/developer-harness`. The Node tests skip with an explicit
-reason when the worker is not built or the platform is not Windows. Extending the hosted
-`windows-2025` job to build the worker and run the crate tests and this suite is
-a follow-up commit on the same branch that needs a workflow-scoped push; until
-it lands, hosted CI does not exercise this adapter, and a hosted run would
-corroborate the probe without exercising Windows 11 Home.
+reason when the worker is not built or the platform is not Windows. The hosted
+`windows-2025` job builds the worker, runs the crate tests and runs the suite on
+every pull request; it corroborates the probe but does not exercise Windows 11
+Home.
 
 ## Observed result
 
