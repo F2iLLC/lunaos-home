@@ -16,7 +16,12 @@ use std::time::{Duration, Instant};
 pub const SNAPSHOT_FILE: &str = "snapshot.bin";
 pub const LOCK_FILE: &str = ".lock";
 const LOCK_WAIT: Duration = Duration::from_secs(5);
-const LOCK_POLL: Duration = Duration::from_millis(20);
+const LOCK_POLL_MIN: Duration = Duration::from_millis(10);
+const LOCK_POLL_MAX: Duration = Duration::from_millis(200);
+// Windows sharing/lock violations mean another holder has the lease; every
+// other open error (access denied, a directory in the way) is permanent.
+const ERROR_SHARING_VIOLATION: i32 = 32;
+const ERROR_LOCK_VIOLATION: i32 = 33;
 const REPARSE_POINT: u32 = 0x400;
 
 /// Store directories live under the current user's local application data,
@@ -133,11 +138,14 @@ impl Store {
     }
 
     // Exclusive lease for the whole operation, including readback. Another
-    // holder is waited for briefly; the lock file is never deleted by a
-    // competing process. Abandoned handles are released by the OS.
+    // holder is waited for briefly with exponential backoff; the lock file is
+    // never deleted by a competing process. Abandoned handles are released by
+    // the OS. Only a sharing or lock violation is treated as contention; any
+    // other open error is a definite, immediate storage failure.
     fn lock(&self) -> Outcome<File> {
         let path = self.directory.join(LOCK_FILE);
         let start = Instant::now();
+        let mut pause = LOCK_POLL_MIN;
         loop {
             match OpenOptions::new()
                 .read(true)
@@ -148,7 +156,13 @@ impl Store {
                 .open(&path)
             {
                 Ok(file) => return Ok(file),
-                Err(_) if start.elapsed() < LOCK_WAIT => std::thread::sleep(LOCK_POLL),
+                Err(error) if !is_contention(&error) => {
+                    return Err(Failure::StorageFailed("lock-unavailable"))
+                }
+                Err(_) if start.elapsed() < LOCK_WAIT => {
+                    std::thread::sleep(pause);
+                    pause = (pause * 2).min(LOCK_POLL_MAX);
+                }
                 Err(_) => return Err(Failure::Busy),
             }
         }
@@ -310,6 +324,13 @@ impl Store {
         let _ = fs::remove_file(self.directory.join(LOCK_FILE));
         fs::remove_dir(&self.directory).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))
     }
+}
+
+fn is_contention(error: &std::io::Error) -> bool {
+    matches!(
+        error.raw_os_error(),
+        Some(ERROR_SHARING_VIOLATION) | Some(ERROR_LOCK_VIOLATION)
+    )
 }
 
 fn fresh_row(data: Value) -> Outcome<Row> {
@@ -627,6 +648,40 @@ mod tests {
             );
         }
         base.cleanup().unwrap();
+    }
+
+    #[test]
+    fn lock_contention_waits_then_reports_busy_while_other_open_errors_fail_at_once() {
+        let id = crypto::uuid_v4().unwrap();
+        let store = Store::init(&id, protector(11)).unwrap();
+        let lock_path = store.directory().join(LOCK_FILE);
+        // Another holder: an exclusive handle on the lock file.
+        let holder = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&lock_path)
+            .unwrap();
+        let started = Instant::now();
+        assert_eq!(store.read("alex-work"), Err(Failure::Busy));
+        let waited = started.elapsed();
+        assert!(
+            waited >= LOCK_WAIT && waited < LOCK_WAIT + Duration::from_secs(2),
+            "{waited:?}"
+        );
+        drop(holder);
+        assert_eq!(store.read("alex-work").unwrap(), None);
+        // A directory in the lock file's place is a permanent error, not contention.
+        fs::remove_file(&lock_path).unwrap();
+        fs::create_dir(&lock_path).unwrap();
+        let started = Instant::now();
+        assert_eq!(
+            store.read("alex-work"),
+            Err(Failure::StorageFailed("lock-unavailable"))
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        fs::remove_dir(&lock_path).unwrap();
+        store.cleanup().unwrap();
     }
 
     #[test]
