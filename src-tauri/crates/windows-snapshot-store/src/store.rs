@@ -306,7 +306,7 @@ impl Store {
     pub fn cleanup(self) -> Outcome<()> {
         {
             let _lock = self.lock()?;
-            self.load()?;
+            let _authenticated_snapshot = self.load()?;
             let mut pending = Vec::new();
             let entries = fs::read_dir(&self.directory)
                 .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
