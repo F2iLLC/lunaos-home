@@ -90,6 +90,26 @@ verification gates.
 
 ## Qwen relay setup (Mac Studio)
 
+### Timer and question routing
+
+After the finalized wake phrase, the local parser accepts `set a timer for five
+seconds`, `set another timer for 5 seconds`, `start a five minute timer`,
+`add 5 minutes to timer 2`, and `cancel timer 2`. Numbers may be words or digits;
+case, terminal punctuation, a repeated wake prefix and a trailing `please` are
+normalized consistently. Durations remain bounded to 1–60 seconds or minutes,
+and numbered targets to 1–8. `The timer` remains valid only when the native
+ledger has one unambiguous target. Negatives, fractions, compound commands and
+extra trailing words are rejected.
+
+A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
+Once a timer attempt is recognized in a wake window, later fragments cannot
+fall through to Qwen in that window. A complete timer retry can still succeed;
+a separate question requires a new wake exchange. This is deterministic routing
+of finalized text, not a guarantee that the speech recognizer heard it correctly.
+The JVM routing suite covers these boundaries without microphone capture.
+
+### Private host configuration
+
 Install and start Ollama on the Mac Studio, then pull the selected Qwen model
 (default `qwen3:32b`). Leave Ollama bound to `127.0.0.1:11434`; the relay's
 adapter rejects non-loopback Ollama URLs. Choose a Tailscale IPv4 address for

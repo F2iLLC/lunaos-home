@@ -18,20 +18,39 @@ public final class TimerPhrase {
         }
         return 0;
     }
-    public static int commandSeconds(String text) {
-        if (text == null) return 0;
+    static String normalizeCommand(String text) {
+        if (text == null || text.length() > 1000) return "";
+        for (int i = 0; i < text.length(); i++) if (Character.isISOControl(text.charAt(i))) return "";
         String normalized = text.toLowerCase(java.util.Locale.ROOT).trim()
             .replaceAll("[.,!?]+$", "").replaceAll("\\s+", " ");
         normalized = normalized.replaceFirst("^hey luna[, ]+", "");
         if (normalized.endsWith(" please")) normalized = normalized.substring(0, normalized.length() - 7).trim();
-        // ASR commonly omits the article, emits digits, or uses a concise "timer for" form.
-        normalized = normalized.replaceFirst("^set (?:a )?timer for ", "set a timer for ")
-            .replaceFirst("^start (?:a )?timer for ", "set a timer for ")
-            .replaceFirst("^timer for ", "set a timer for ");
+        return normalized;
+    }
+    static int durationSeconds(String text) {
         for (int n = 1; n <= 60; n++) {
-            normalized = normalized.replaceAll("(?<![a-z])" + n + "(?= (?:second|seconds|minute|minutes)$)", number(n));
+            for (String value : new String[] {number(n), Integer.toString(n)}) {
+                if (text.equals(value + (n == 1 ? " second" : " seconds"))) return n;
+                if (text.equals(value + (n == 1 ? " minute" : " minutes"))) return n * 60;
+            }
         }
-        return seconds(normalized.startsWith("set a timer for ") ? "hey luna " + normalized : normalized);
+        return 0;
+    }
+    public static int commandSeconds(String text) {
+        String normalized = normalizeCommand(text);
+        java.util.regex.Matcher standard = java.util.regex.Pattern.compile(
+            "^(?:(?:set|start) (?:a |another )?)?timer for (.+)$").matcher(normalized);
+        if (standard.matches()) return durationSeconds(standard.group(1));
+        // Adjectival units are singular: "start a five minute timer".
+        java.util.regex.Matcher adjective = java.util.regex.Pattern.compile(
+            "^(?:set|start) (?:a |another )?(.+) (second|minute) timer$").matcher(normalized);
+        if (adjective.matches()) {
+            for (int n = 1; n <= 60; n++) {
+                if (adjective.group(1).equals(number(n)) || adjective.group(1).equals(Integer.toString(n)))
+                    return n * (adjective.group(2).equals("minute") ? 60 : 1);
+            }
+        }
+        return 0;
     }
     /** Fixed diagnostic categories only; never return recognized speech. */
     public static String commandDiagnostic(String text) {

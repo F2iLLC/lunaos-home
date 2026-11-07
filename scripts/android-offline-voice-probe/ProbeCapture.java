@@ -202,7 +202,7 @@ final class ProbeCapture {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Supported timer command recognized. Microphone closing.";
                                 return;
-                            } else if (questions && wake != null && wake.awaitingCommand() && QuestionPolicy.accepts(text)) {
+                            } else if (questions && wake != null && wake.acceptQuestion(text, SystemClock.elapsedRealtime())) {
                                 code = "QUESTION_FINAL"; message = text; return;
                             } else if (wake != null && wake.awaitingCommand()) {
                                 String diagnostic = TimerPhrase.commandDetail(text);

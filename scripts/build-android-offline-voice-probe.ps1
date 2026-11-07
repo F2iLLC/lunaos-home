@@ -61,7 +61,7 @@ $savedPassword = $env:LUNA_VOICE_PROBE_SIGNING_PASSWORD
 try {
     $env:JAVA_HOME = $Jdk
     $env:LUNA_VOICE_PROBE_SIGNING_PASSWORD = 'fictional-probe-only'
-    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-d', "$output/tests", "$source/TimerPhrase.java", "$source/TimerCommand.java", "$source/TimerLedger.java", "$source/TimerPhraseTest.java", "$source/TimerHandoffGate.java", "$source/TimerHandoffGateTest.java", "$source/WakeSession.java", "$source/WakeSessionTest.java", "$source/PendingTimerRequest.java", "$source/PendingTimerRequestTest.java")
+    Invoke-ProbeTool $javac @('-encoding', 'UTF-8', '-source', '8', '-target', '8', '-d', "$output/tests", "$source/TimerPhrase.java", "$source/TimerCommand.java", "$source/TimerLedger.java", "$source/TimerPhraseTest.java", "$source/TimerHandoffGate.java", "$source/TimerHandoffGateTest.java", "$source/WakeSession.java", "$source/QuestionPolicy.java", "$source/WakeSessionTest.java", "$source/PendingTimerRequest.java", "$source/PendingTimerRequestTest.java")
     Invoke-ProbeTool $java @('-cp', "$output/tests", 'io.github.f2illc.lunaos.home.voiceprobe.TimerPhraseTest')
     Invoke-ProbeTool $java @('-cp', "$output/tests", 'io.github.f2illc.lunaos.home.voiceprobe.TimerHandoffGateTest')
     Invoke-ProbeTool $java @('-cp', "$output/tests", 'io.github.f2illc.lunaos.home.voiceprobe.WakeSessionTest')

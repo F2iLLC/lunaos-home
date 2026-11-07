@@ -13,17 +13,19 @@ final class TimerCommand {
     static int duration(int value) { return (-value - 100000) % 10000; }
     static int parse(String text) {
         if (text == null) return 0;
-        String bare = text.startsWith("hey luna ") ? text.substring(9) : text;
+        String bare = TimerPhrase.normalizeCommand(text);
         int seconds = TimerPhrase.commandSeconds(text);
         if (seconds > 0) return seconds;
-        if (bare.startsWith("set another timer for "))
-            return TimerPhrase.commandSeconds("set a timer for " + bare.substring(22));
         for (int target = 0; target <= 8; target++) {
-            String timer = target == 0 ? "the timer" : "timer " + TimerPhrase.number(target);
-            if (bare.equals("cancel " + timer)) return cancel(target);
-            for (int n = 1; n <= 60; n++) {
-                if (bare.equals("add " + TimerPhrase.number(n) + (n == 1 ? " second to " : " seconds to ") + timer)) return add(target, n);
-                if (bare.equals("add " + TimerPhrase.number(n) + (n == 1 ? " minute to " : " minutes to ") + timer)) return add(target, n * 60);
+            String[] names = target == 0 ? new String[] {"the timer"}
+                : new String[] {"timer " + TimerPhrase.number(target), "timer " + target};
+            for (String timer : names) {
+                if (bare.equals("cancel " + timer)) return cancel(target);
+                String suffix = " to " + timer;
+                if (bare.startsWith("add ") && bare.endsWith(suffix) && bare.length() > 4 + suffix.length()) {
+                    int duration = TimerPhrase.durationSeconds(bare.substring(4, bare.length() - suffix.length()));
+                    if (duration > 0) return add(target, duration);
+                }
             }
         }
         return 0;
