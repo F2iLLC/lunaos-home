@@ -1,0 +1,649 @@
+//! `WindowsSnapshotFileStore v1`: one encrypted snapshot per store directory,
+//! compare-and-swap on record revisions, exclusive lock per operation.
+use crate::commit::{atomic_commit, read_bytes, PENDING_PREFIX, PENDING_SUFFIX};
+use crate::crypto::{self, Secret};
+use crate::fault::Fault;
+use crate::format::{Header, Row, Snapshot, SnapshotFile, FORMAT};
+use crate::outcome::{Failure, Outcome};
+use crate::protector::{self, KeyProtector};
+use crate::validate::{self, Kind};
+use serde_json::Value;
+use std::fs::{self, File, OpenOptions};
+use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+pub const SNAPSHOT_FILE: &str = "snapshot.bin";
+pub const LOCK_FILE: &str = ".lock";
+const LOCK_WAIT: Duration = Duration::from_secs(5);
+const LOCK_POLL: Duration = Duration::from_millis(20);
+const REPARSE_POINT: u32 = 0x400;
+
+/// Store directories live under the current user's local application data,
+/// never under the checkout or a cloud-synchronized folder. The user-selected
+/// production location and its backup exclusions are later Home setup work.
+pub fn directory_for(store_id: &str) -> Outcome<PathBuf> {
+    if !validate::is_uuid(store_id) {
+        return Err(Failure::Invalid("store-id"));
+    }
+    let base = std::env::var_os("LOCALAPPDATA")
+        .ok_or(Failure::StorageFailed("local-app-data-unavailable"))?;
+    let directory = PathBuf::from(base)
+        .join("LunaOSHome")
+        .join("SnapshotStores")
+        .join(store_id);
+    ordinary_path(&directory)?;
+    Ok(directory)
+}
+
+fn ordinary_path(path: &Path) -> Outcome<()> {
+    for ancestor in path.ancestors() {
+        if let Ok(metadata) = fs::symlink_metadata(ancestor) {
+            if metadata.file_attributes() & REPARSE_POINT != 0 {
+                return Err(Failure::Invalid("reparse-point"));
+            }
+        }
+    }
+    Ok(())
+}
+
+struct Loaded {
+    header: Header,
+    key: Secret,
+    snapshot: Snapshot,
+}
+
+pub struct Store {
+    directory: PathBuf,
+    store_id: String,
+    protector: Box<dyn KeyProtector>,
+    fault: Fault,
+}
+
+impl Store {
+    /// Create a new empty store. Refuses an existing directory.
+    pub fn init(store_id: &str, protector: Box<dyn KeyProtector>) -> Outcome<Self> {
+        let directory = directory_for(store_id)?;
+        if directory.exists() {
+            return Err(Failure::StorageFailed("exists"));
+        }
+        if let Some(parent) = directory.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|_| Failure::StorageFailed("directory-create-failed"))?;
+        }
+        acl::create_private_directory(&directory)?;
+        let store = Self {
+            directory,
+            store_id: store_id.to_owned(),
+            protector,
+            fault: Fault::None,
+        };
+        let _lock = store.lock()?;
+        let key = crypto::data_key()?;
+        let wrapped = store.protector.wrap(&key)?;
+        let header = Header {
+            format: FORMAT,
+            store_id: store_id.to_owned(),
+            protector: store.protector.kind().to_owned(),
+            wrapped_key: crypto::hex(&wrapped),
+            commit: crypto::uuid_v4()?,
+        };
+        let plaintext = Snapshot::default().encode()?;
+        let bytes = SnapshotFile::seal(header, &key, &plaintext)?.encode()?;
+        atomic_commit(
+            &store.snapshot_path(),
+            &bytes,
+            false,
+            Fault::None,
+            |candidate| store.verify(candidate, &key, |snapshot| snapshot.records.is_empty()),
+        )?;
+        Ok(store)
+    }
+
+    /// Open an existing store and prove the protector can release its key.
+    pub fn open(store_id: &str, protector: Box<dyn KeyProtector>) -> Outcome<Self> {
+        let directory = directory_for(store_id)?;
+        if !directory.is_dir() {
+            return Err(Failure::StorageFailed("missing-store"));
+        }
+        let store = Self {
+            directory,
+            store_id: store_id.to_owned(),
+            protector,
+            fault: Fault::None,
+        };
+        let _lock = store.lock()?;
+        store.load()?;
+        Ok(store)
+    }
+
+    /// Developer harness only: inject one commit-stage fault into mutations.
+    #[cfg(feature = "developer-harness")]
+    pub fn with_fault(mut self, fault: Fault) -> Self {
+        self.fault = fault;
+        self
+    }
+
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+
+    fn snapshot_path(&self) -> PathBuf {
+        self.directory.join(SNAPSHOT_FILE)
+    }
+
+    // Exclusive lease for the whole operation, including readback. Another
+    // holder is waited for briefly; the lock file is never deleted by a
+    // competing process. Abandoned handles are released by the OS.
+    fn lock(&self) -> Outcome<File> {
+        let path = self.directory.join(LOCK_FILE);
+        let start = Instant::now();
+        loop {
+            match OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .share_mode(0)
+                .open(&path)
+            {
+                Ok(file) => return Ok(file),
+                Err(_) if start.elapsed() < LOCK_WAIT => std::thread::sleep(LOCK_POLL),
+                Err(_) => return Err(Failure::Busy),
+            }
+        }
+    }
+
+    fn load(&self) -> Outcome<Loaded> {
+        let bytes = read_bytes(&self.snapshot_path())?;
+        let file = SnapshotFile::decode(&bytes)?;
+        if file.header.store_id != self.store_id {
+            return Err(Failure::Invalid("store-id-mismatch"));
+        }
+        protector::require_kind(&file.header.protector, &*self.protector)?;
+        let key = self.protector.unwrap(&file.header.wrapped_key_bytes()?)?;
+        let plaintext = file.open(&key)?;
+        let snapshot = Snapshot::decode(&plaintext.0)?;
+        Ok(Loaded {
+            header: file.header,
+            key,
+            snapshot,
+        })
+    }
+
+    fn verify(&self, bytes: &[u8], key: &Secret, check: impl Fn(&Snapshot) -> bool) -> Outcome<()> {
+        let file = SnapshotFile::decode(bytes)?;
+        if file.header.store_id != self.store_id {
+            return Err(Failure::Invalid("store-id-mismatch"));
+        }
+        let snapshot = Snapshot::decode(&file.open(key)?.0)?;
+        if !check(&snapshot) {
+            return Err(Failure::Invalid("snapshot-state"));
+        }
+        Ok(())
+    }
+
+    pub fn read(&self, record_id: &str) -> Outcome<Option<Row>> {
+        validate::record_id(record_id)?;
+        let _lock = self.lock()?;
+        Ok(self.load()?.snapshot.records.get(record_id).cloned())
+    }
+
+    pub fn create(&self, record_id: &str, data: Value) -> Outcome<String> {
+        validate::record_id(record_id)?;
+        validate::record_data(&data)?;
+        let row = fresh_row(data)?;
+        self.mutate(record_id, None, |current| {
+            if current.is_some() {
+                return Err(Failure::Conflict);
+            }
+            Ok(Some(row))
+        })
+    }
+
+    pub fn edit(&self, record_id: &str, data: Value, expected_revision: &str) -> Outcome<String> {
+        validate::record_id(record_id)?;
+        validate::record_data(&data)?;
+        validate::revision(expected_revision)?;
+        let row = fresh_row(data)?;
+        self.mutate(record_id, Some(expected_revision), |_| Ok(Some(row)))
+    }
+
+    pub fn edit_profile(
+        &self,
+        record_id: &str,
+        data: Value,
+        expected_revision: &str,
+    ) -> Outcome<String> {
+        validate::record_id(record_id)?;
+        validate::profile_data(&data)?;
+        validate::revision(expected_revision)?;
+        let row = fresh_row(data)?;
+        self.mutate(record_id, Some(expected_revision), |current| match current
+            .map(|row| validate::kind_of(&row.data))
+        {
+            Some(Kind::Grocery) => Err(Failure::Unsupported),
+            _ => Ok(Some(row)),
+        })
+    }
+
+    pub fn delete(&self, record_id: &str, expected_revision: &str) -> Outcome<String> {
+        validate::record_id(record_id)?;
+        validate::revision(expected_revision)?;
+        self.mutate(record_id, Some(expected_revision), |_| Ok(None))?;
+        Ok(expected_revision.to_owned())
+    }
+
+    // Compare under the lock, encrypt the complete next snapshot, commit it
+    // atomically, and verify the committed record state by readback. Returns
+    // the committed revision for upserts, or the removed revision for deletes.
+    fn mutate(
+        &self,
+        record_id: &str,
+        expected_revision: Option<&str>,
+        change: impl FnOnce(Option<&Row>) -> Outcome<Option<Row>>,
+    ) -> Outcome<String> {
+        let _lock = self.lock()?;
+        let loaded = self.load()?;
+        let current = loaded.snapshot.records.get(record_id);
+        if let Some(expected) = expected_revision {
+            match current {
+                Some(row) if row.revision == expected => {}
+                _ => return Err(Failure::Conflict),
+            }
+        }
+        let next_row = change(current)?;
+        let revision = match &next_row {
+            Some(row) => row.revision.clone(),
+            None => expected_revision.unwrap_or_default().to_owned(),
+        };
+        let mut next = loaded.snapshot.clone();
+        match next_row.clone() {
+            Some(row) => {
+                next.records.insert(record_id.to_owned(), row);
+            }
+            None => {
+                next.records.remove(record_id);
+            }
+        }
+        let plaintext = next.encode()?;
+        let header = Header {
+            commit: crypto::uuid_v4()?,
+            ..loaded.header
+        };
+        let bytes = SnapshotFile::seal(header, &loaded.key, &plaintext)?.encode()?;
+        atomic_commit(
+            &self.snapshot_path(),
+            &bytes,
+            true,
+            self.fault,
+            |candidate| {
+                self.verify(candidate, &loaded.key, |snapshot| {
+                    snapshot.records.get(record_id) == next_row.as_ref()
+                })
+            },
+        )?;
+        Ok(revision)
+    }
+
+    /// Remove this store's own files and its directory. Unknown files are
+    /// retained and make cleanup fail; nothing is deleted recursively.
+    pub fn cleanup(self) -> Outcome<()> {
+        {
+            let _lock = self.lock()?;
+            let snapshot = self.snapshot_path();
+            if snapshot.exists() {
+                fs::remove_file(&snapshot)
+                    .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+            }
+            let entries = fs::read_dir(&self.directory)
+                .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let Some(name) = name.to_str() else { continue };
+                if name.starts_with(PENDING_PREFIX) && name.ends_with(PENDING_SUFFIX) {
+                    fs::remove_file(entry.path())
+                        .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+                }
+            }
+        }
+        let _ = fs::remove_file(self.directory.join(LOCK_FILE));
+        fs::remove_dir(&self.directory).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))
+    }
+}
+
+fn fresh_row(data: Value) -> Outcome<Row> {
+    let row = Row {
+        revision: crypto::uuid_v4()?,
+        data,
+    };
+    row.check_size()?;
+    Ok(row)
+}
+
+mod acl {
+    //! Create the store directory with an explicit DACL: full control for the
+    //! current user and LocalSystem only, inheritance disabled. This is
+    //! defense in depth under the user profile, not proof of cross-account
+    //! denial; that remains an acceptance check.
+    use crate::outcome::{Failure, Outcome};
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::Path;
+    use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::Foundation::{CloseHandle, LocalFree, HANDLE, HLOCAL};
+    use windows::Win32::Security::Authorization::{
+        ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
+        SDDL_REVISION_1,
+    };
+    use windows::Win32::Security::{
+        GetTokenInformation, TokenUser, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY,
+        TOKEN_USER,
+    };
+    use windows::Win32::Storage::FileSystem::CreateDirectoryW;
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    struct Token(HANDLE);
+    impl Drop for Token {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = CloseHandle(self.0);
+            }
+        }
+    }
+
+    fn current_user_sid() -> Outcome<String> {
+        let mut handle = HANDLE::default();
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut handle) }
+            .map_err(|_| Failure::StorageFailed("token-unavailable"))?;
+        let token = Token(handle);
+        let mut length = 0u32;
+        let _ = unsafe { GetTokenInformation(token.0, TokenUser, None, 0, &mut length) };
+        if length == 0 || length > 4096 {
+            return Err(Failure::StorageFailed("token-unavailable"));
+        }
+        let mut buffer = vec![0u8; length as usize];
+        unsafe {
+            GetTokenInformation(
+                token.0,
+                TokenUser,
+                Some(buffer.as_mut_ptr() as *mut _),
+                length,
+                &mut length,
+            )
+        }
+        .map_err(|_| Failure::StorageFailed("token-unavailable"))?;
+        let user = unsafe { &*(buffer.as_ptr() as *const TOKEN_USER) };
+        let mut text = PWSTR::null();
+        unsafe { ConvertSidToStringSidW(user.User.Sid, &mut text) }
+            .map_err(|_| Failure::StorageFailed("token-unavailable"))?;
+        let sid = unsafe { text.to_string() };
+        unsafe {
+            let _ = LocalFree(Some(HLOCAL(text.0 as *mut _)));
+        }
+        let sid = sid.map_err(|_| Failure::StorageFailed("token-unavailable"))?;
+        if sid.is_empty() || sid.len() > 184 || !sid.starts_with("S-1-") {
+            return Err(Failure::StorageFailed("token-unavailable"));
+        }
+        Ok(sid)
+    }
+
+    pub(super) fn create_private_directory(path: &Path) -> Outcome<()> {
+        let sid = current_user_sid()?;
+        let sddl: Vec<u16> = format!("D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;{sid})")
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        let mut descriptor = PSECURITY_DESCRIPTOR::default();
+        unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                PCWSTR(sddl.as_ptr()),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                None,
+            )
+        }
+        .map_err(|_| Failure::StorageFailed("directory-acl-failed"))?;
+        let attributes = SECURITY_ATTRIBUTES {
+            nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: descriptor.0,
+            bInheritHandle: false.into(),
+        };
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        let created = unsafe { CreateDirectoryW(PCWSTR(wide.as_ptr()), Some(&attributes)) };
+        unsafe {
+            let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+        }
+        created.map_err(|_| Failure::StorageFailed("directory-create-failed"))
+    }
+}
+
+#[cfg(all(test, feature = "developer-harness"))]
+mod tests {
+    use super::*;
+    use crate::protector::FixtureProtector;
+    use serde_json::json;
+
+    fn protector(byte: u8) -> Box<dyn KeyProtector> {
+        Box::new(FixtureProtector::new([byte; 32]))
+    }
+
+    fn profile(value: &str) -> Value {
+        json!({ "memberId": "alex-example", "label": "Workplace", "value": value })
+    }
+
+    fn grocery() -> Value {
+        json!({ "kind": "grocery-list", "outcomes": [],
+            "list": { "id": "weekly", "householdId": "home-example", "label": "Weekly", "items": [],
+                "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "person-example" } } })
+    }
+
+    #[test]
+    fn compare_and_swap_lifecycle_round_trips_through_reopen() {
+        let id = crypto::uuid_v4().unwrap();
+        let store = Store::init(&id, protector(1)).unwrap();
+        assert!(
+            Store::init(&id, protector(1)).is_err(),
+            "init refuses an existing store"
+        );
+        assert_eq!(store.read("alex-work").unwrap(), None);
+        let first = store.create("alex-work", profile("Willow Studio")).unwrap();
+        assert_eq!(
+            store.create("alex-work", profile("Other")),
+            Err(Failure::Conflict)
+        );
+        let row = store.read("alex-work").unwrap().unwrap();
+        assert_eq!(
+            row,
+            Row {
+                revision: first.clone(),
+                data: profile("Willow Studio")
+            }
+        );
+        let second = store
+            .edit("alex-work", profile("Willow Studio"), &first)
+            .unwrap();
+        assert_ne!(
+            second, first,
+            "identical data still produces a fresh revision"
+        );
+        assert_eq!(
+            store.edit("alex-work", profile("Stale"), &first),
+            Err(Failure::Conflict)
+        );
+        assert_eq!(store.delete("alex-work", &first), Err(Failure::Conflict));
+        assert_eq!(
+            store.edit("missing", profile("x"), &second),
+            Err(Failure::Conflict)
+        );
+        let grocery_revision = store.create("weekly", grocery()).unwrap();
+        assert_eq!(
+            store.edit_profile("weekly", profile("x"), &grocery_revision),
+            Err(Failure::Unsupported)
+        );
+        assert_eq!(
+            store.edit_profile("alex-work", grocery(), &second),
+            Err(Failure::Invalid("profile-data"))
+        );
+        assert_eq!(store.read("weekly").unwrap().unwrap().data, grocery());
+
+        let reopened = Store::open(&id, protector(1)).unwrap();
+        assert_eq!(
+            reopened.read("alex-work").unwrap().unwrap().revision,
+            second
+        );
+        assert_eq!(reopened.delete("alex-work", &second).unwrap(), second);
+        assert_eq!(reopened.read("alex-work").unwrap(), None);
+        assert_eq!(
+            store.edit("alex-work", profile("x"), &second),
+            Err(Failure::Conflict)
+        );
+        let recreated = store.create("alex-work", profile("Again")).unwrap();
+        assert_ne!(recreated, first);
+        assert_eq!(
+            store.edit("alex-work", profile("x"), &second),
+            Err(Failure::Conflict)
+        );
+
+        assert!(matches!(
+            Store::open(&id, protector(2)),
+            Err(Failure::StorageFailed("key-release-denied"))
+        ));
+        assert!(matches!(
+            Store::open(&crypto::uuid_v4().unwrap(), protector(1)),
+            Err(Failure::StorageFailed("missing-store"))
+        ));
+        store.cleanup().unwrap();
+        assert!(!directory_for(&id).unwrap().exists());
+    }
+
+    #[test]
+    fn malformed_input_is_refused_before_storage_and_bytes_never_hold_plaintext() {
+        let id = crypto::uuid_v4().unwrap();
+        let store = Store::init(&id, protector(5)).unwrap();
+        let revision = store
+            .create("alex-work", profile("Distinctive plaintext 4471"))
+            .unwrap();
+        let before = read_bytes(&store.snapshot_path()).unwrap();
+        for (result, reason) in [
+            (store.edit("alex-work", profile("x"), "*"), "revision"),
+            (
+                store.edit("../outside", profile("x"), &revision),
+                "record-id",
+            ),
+            (store.create("Alex Work", profile("x")), "record-id"),
+            (
+                store.edit(
+                    "alex-work",
+                    json!({ "memberId": "a", "label": "b", "value": "c", "extra": true }),
+                    &revision,
+                ),
+                "record-data",
+            ),
+            (
+                store.edit(
+                    "alex-work",
+                    json!({ "kind": "grocery-list", "list": { "id": "weekly" }, "outcomes": [] }),
+                    &revision,
+                ),
+                "record-data",
+            ),
+        ] {
+            assert_eq!(result, Err(Failure::Invalid(reason)));
+        }
+        let oversized = json!({ "kind": "grocery-list", "list": { "id": "weekly", "householdId": "home", "label": "Weekly",
+            "items": (0..500).map(|i| json!({ "id": format!("item-{i}"), "label": "Item", "notes": "n".repeat(1000), "completed": false })).collect::<Vec<_>>(),
+            "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "p" } }, "outcomes": [] });
+        assert_eq!(
+            store.edit("alex-work", oversized, &revision),
+            Err(Failure::Invalid("record-ceiling"))
+        );
+        assert_eq!(
+            read_bytes(&store.snapshot_path()).unwrap(),
+            before,
+            "refused input changes no bytes"
+        );
+        let needle = b"Distinctive plaintext 4471";
+        assert!(!before.windows(needle.len()).any(|window| window == needle));
+        assert!(!before
+            .windows(revision.len())
+            .any(|window| window == revision.as_bytes()));
+        // Tampering with the committed file is refused without overwriting it.
+        let mut tampered = before.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 1;
+        fs::write(store.snapshot_path(), &tampered).unwrap();
+        assert!(store.read("alex-work").is_err());
+        assert_eq!(
+            store.edit("alex-work", profile("x"), &revision),
+            Err(Failure::StorageFailed("authentication-failed"))
+        );
+        assert_eq!(read_bytes(&store.snapshot_path()).unwrap(), tampered);
+        fs::write(store.snapshot_path(), &before).unwrap();
+        assert_eq!(store.read("alex-work").unwrap().unwrap().revision, revision);
+        store.cleanup().unwrap();
+    }
+
+    #[test]
+    fn injected_faults_keep_old_or_new_snapshot_and_never_both() {
+        let id = crypto::uuid_v4().unwrap();
+        let base = Store::init(&id, protector(9)).unwrap();
+        let mut revision = base.create("alex-work", profile("Original")).unwrap();
+        for (fault, outcome) in [
+            (Fault::BeforeWrite, "old"),
+            (Fault::DuringWrite, "old"),
+            (Fault::AfterWrite, "old"),
+            (Fault::BeforeReplacement, "old"),
+            (Fault::DiskFull, "old"),
+            (Fault::TamperedTemporary, "old"),
+            (Fault::AfterReplacement, "new"),
+        ] {
+            let faulty = Store::open(&id, protector(9)).unwrap().with_fault(fault);
+            let value = format!("Fixture {fault:?}");
+            let result = faulty.edit("alex-work", profile(&value), &revision);
+            let row = base.read("alex-work").unwrap().unwrap();
+            if outcome == "new" {
+                assert!(
+                    matches!(result, Err(Failure::CommitUnknown(_))),
+                    "{fault:?}: {result:?}"
+                );
+                assert_eq!(row.data, profile(&value));
+                assert_ne!(row.revision, revision);
+            } else {
+                assert!(
+                    matches!(result, Err(Failure::StorageFailed(_))),
+                    "{fault:?}: {result:?}"
+                );
+                assert_eq!(
+                    row.revision, revision,
+                    "{fault:?} must keep the old revision"
+                );
+            }
+            revision = row.revision;
+            assert_eq!(
+                fs::read_dir(base.directory()).unwrap().count(),
+                2,
+                "{fault:?}: only snapshot and lock remain"
+            );
+        }
+        base.cleanup().unwrap();
+    }
+
+    #[test]
+    fn store_directory_is_derived_from_a_canonical_identifier_only() {
+        assert_eq!(
+            directory_for("not-a-uuid"),
+            Err(Failure::Invalid("store-id"))
+        );
+        assert_eq!(
+            directory_for("3D735C0E-3176-4502-8717-8E62F59D3A91"),
+            Err(Failure::Invalid("store-id"))
+        );
+        let directory = directory_for("3d735c0e-3176-4502-8717-8e62f59d3a91").unwrap();
+        assert!(directory.ends_with(
+            Path::new("LunaOSHome")
+                .join("SnapshotStores")
+                .join("3d735c0e-3176-4502-8717-8e62f59d3a91")
+        ));
+    }
+}

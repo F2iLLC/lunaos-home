@@ -21,13 +21,17 @@ decision, its non-claims and its references are recorded once in the
 The adapter must fail closed and must never fall back to DPAPI `CurrentUser`.
 
 The current native preview has bundling disabled and no Windows grocery
-command/store implementing the shared v2 contract. The KSP example only wraps a
-fixed fictional envelope and lacks the app's enrollment, unlock, reset,
-migration and recovery lifecycle. Wiring it into grocery persistence now would
-create real vault storage without the accepted #6 lifecycle boundary. This is
-the concrete integration blocker recorded in the
+command. The store implementing the shared v2 contract now exists as the
+standalone `windows-snapshot-store` crate ([record](../prototypes/windows-snapshot-store.md)),
+conformance-checked with a developer-harness fixture protector behind a
+`KeyProtector` seam; it is not a dependency of the application. The KSP
+example still only wraps a fixed fictional envelope and is not connected to
+that seam, and the app lacks the enrollment, unlock, reset, migration and
+recovery lifecycle. Wiring the crate into grocery persistence now would create
+real vault storage without the accepted #6 lifecycle boundary. This is the
+concrete integration blocker recorded in the
 [durability matrix](grocery-durability-matrix.md); the Software KSP is locally
-available, but the app integration and grocery adapter do not exist.
+available, but the protector integration and app integration do not exist.
 
 Android is a follow-on support target, not part of the first supported release.
 The intended native `AndroidSnapshotFileStore` would use Keystore and an

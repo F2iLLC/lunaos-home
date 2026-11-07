@@ -1,0 +1,38 @@
+[package]
+name = "lunaos-home-windows-snapshot-store"
+version = "0.1.0"
+description = "WindowsSnapshotFileStore v1: native encrypted whole-snapshot record store behind the shared VersionedVaultRecordStore v2 contract. Not linked into the Home application."
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "lunaos_home_windows_snapshot_store"
+path = "src/lib.rs"
+
+[[bin]]
+name = "windows-snapshot-store-worker"
+path = "src/bin/worker.rs"
+
+[features]
+default = []
+# Developer harness only: a harness-supplied fixture key protector and the
+# injected fault stages used by the automated conformance and fault matrices.
+# Production builds exclude both; there is no fixture, DPAPI or prompt fallback.
+developer-harness = []
+
+[dependencies]
+# Pinned to the versions already locked in ../../Cargo.lock so this crate adds
+# no new third-party package/version to the native license inventory.
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Security_Cryptography",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Threading",
+] }

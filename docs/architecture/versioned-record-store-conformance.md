@@ -101,6 +101,7 @@ It currently runs against:
 | --- | --- | --- |
 | In-memory reference (`test/support/memory-versioned-store.js`) | every platform | not applicable |
 | Windows DPAPI probe v2 (`lib/windows-probe-store.js`) | Windows only, including the hosted `windows-2025` job | applies |
+| `WindowsSnapshotFileStore v1` (`src-tauri/crates/windows-snapshot-store`, Node adapter `lib/windows-snapshot-store.js`, harness in `test/windows-snapshot-store.test.js`) | Windows only, with the developer-harness worker built (`npm run build:snapshot-store`), hosted `windows-2025` coverage pending the follow-up workflow commit; fixture protector, not production key release | applies |
 
 A new adapter claims conformance by adding a harness and passing every clause
 on the exact build and platform it claims. Record the commit, OS, runtime and
