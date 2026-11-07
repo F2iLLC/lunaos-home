@@ -207,7 +207,10 @@ test(
     await writeFile(file, committed);
     assert.equal((await store.read('alex-work')).revision, revision);
 
-    const stale = path.join(store.directory, 'snapshot-00ff.pending');
+    const stale = path.join(
+      store.directory,
+      'snapshot-0123456789abcdef0123456789abcdef.pending',
+    );
     await writeFile(stale, committed.subarray(0, 64));
     assert.equal(
       (await store.read('alex-work')).revision,
