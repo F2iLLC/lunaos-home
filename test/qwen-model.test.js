@@ -18,7 +18,7 @@ test('Qwen adapter calls only local Ollama with a bounded single-turn request', 
     assert.equal(options.headers['Content-Type'], 'application/json');
     const body = JSON.parse(options.body);
     assert.deepEqual(body, {
-      model: 'qwen3:32b', stream: false, think: false,
+      model: 'qwen3:32b', stream: false, think: false, keep_alive: '30m',
       messages: [
         { role: 'system', content: request.instructions },
         { role: 'user', content: 'What is a rainbow?' },
