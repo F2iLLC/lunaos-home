@@ -2,11 +2,11 @@
 //! initialization and unwraps it for each operation. The store never persists
 //! the data key and never falls back to another protector.
 //!
-//! The selected production protector for Windows 11 Home (Microsoft Software
-//! KSP with CNG high-protection UI and a separate vault-key password) is not
-//! implemented in this crate yet; its attended owner-window lifecycle lives in
-//! the key-custody example and must be integrated deliberately. Neither DPAPI
-//! `CurrentUser` nor an application prompt is an acceptable fallback.
+//! The selected protector for Windows 11 Home (Microsoft Software KSP with CNG
+//! high-protection UI and a separate vault-key password) is [`crate::ksp`].
+//! Neither DPAPI `CurrentUser` nor an application prompt is an acceptable
+//! fallback, and a snapshot is never opened under a protector other than the
+//! one its authenticated header names.
 use crate::crypto::Secret;
 use crate::outcome::{Failure, Outcome};
 

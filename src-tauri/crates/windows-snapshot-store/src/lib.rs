@@ -7,17 +7,20 @@
 //!
 //! This crate is deliberately standalone: it is not a dependency of the Home
 //! application and exposes no Tauri command. The key-release seam is the
-//! [`protector::KeyProtector`] trait. The only protector compiled here is the
-//! developer-harness fixture protector (feature `developer-harness`); the
-//! selected production protector (Microsoft Software KSP with high-protection
-//! UI) and the Home enrollment/unlock/recovery lifecycle are separate work.
+//! [`protector::KeyProtector`] trait. Two protectors exist: the developer-harness
+//! fixture protector (feature `developer-harness`) and the selected Microsoft
+//! Software KSP protector ([`ksp`]), which is used through one process-bounded
+//! unlock session ([`owner`]). Home's enrollment/unlock/recovery product
+//! lifecycle is separate work.
 #![cfg(target_os = "windows")]
 
 pub mod commit;
 pub mod crypto;
 pub mod fault;
 pub mod format;
+pub mod ksp;
 pub mod outcome;
+pub mod owner;
 pub mod protector;
 pub mod store;
 pub mod validate;

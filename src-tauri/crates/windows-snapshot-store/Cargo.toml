@@ -18,7 +18,8 @@ path = "src/bin/worker.rs"
 default = []
 # Developer harness only: a harness-supplied fixture key protector and the
 # injected fault stages used by the automated conformance and fault matrices.
-# Production builds exclude both; there is no fixture, DPAPI or prompt fallback.
+# Default builds exclude both and carry only the Software KSP protector; there
+# is no fixture, DPAPI or prompt fallback.
 developer-harness = []
 
 [dependencies]
@@ -34,5 +35,9 @@ windows = { version = "=0.62.2", features = [
   "Win32_Security_Authorization",
   "Win32_Security_Cryptography",
   "Win32_Storage_FileSystem",
+  "Win32_System_Power",
+  "Win32_System_RemoteDesktop",
   "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
 ] }

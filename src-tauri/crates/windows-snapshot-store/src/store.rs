@@ -143,7 +143,13 @@ impl Store {
     // the OS. Only a sharing or lock violation is treated as contention; any
     // other open error is a definite, immediate storage failure.
     fn lock(&self) -> Outcome<File> {
-        let path = self.directory.join(LOCK_FILE);
+        lock_directory(&self.directory)
+    }
+}
+
+fn lock_directory(directory: &Path) -> Outcome<File> {
+    {
+        let path = directory.join(LOCK_FILE);
         let start = Instant::now();
         let mut pause = LOCK_POLL_MIN;
         loop {
@@ -167,7 +173,9 @@ impl Store {
             }
         }
     }
+}
 
+impl Store {
     fn load(&self) -> Outcome<Loaded> {
         let bytes = read_bytes(&self.snapshot_path())?;
         let file = SnapshotFile::decode(&bytes)?;
@@ -300,6 +308,19 @@ impl Store {
         Ok(revision)
     }
 
+    /// Prove under the lock that the protector releases this store's key and
+    /// the committed snapshot authenticates. Returns nothing from the snapshot.
+    pub fn verify_release(&self) -> Outcome<()> {
+        let _lock = self.lock()?;
+        self.load().map(|_| ())
+    }
+
+    /// Developer harness only: set the commit-stage fault for later mutations.
+    #[cfg(feature = "developer-harness")]
+    pub fn set_fault(&mut self, fault: Fault) {
+        self.fault = fault;
+    }
+
     /// Remove this store's own files and its directory. Authenticate the
     /// snapshot and inspect every entry before deleting anything. Unknown
     /// files are retained and make cleanup fail; nothing is deleted recursively.
@@ -307,36 +328,62 @@ impl Store {
         {
             let _lock = self.lock()?;
             let _authenticated_snapshot = self.load()?;
-            let mut pending = Vec::new();
-            let entries = fs::read_dir(&self.directory)
-                .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-            for entry in entries {
-                let entry = entry.map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-                let name = entry.file_name();
-                let name = name
-                    .to_str()
-                    .ok_or(Failure::StorageFailed("cleanup-incomplete"))?;
-                let metadata = fs::symlink_metadata(entry.path())
-                    .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-                if !metadata.is_file() || metadata.file_attributes() & REPARSE_POINT != 0 {
-                    return Err(Failure::StorageFailed("cleanup-incomplete"));
-                }
-                match name {
-                    SNAPSHOT_FILE | LOCK_FILE => {}
-                    _ if owned_pending(name) => pending.push(entry.path()),
-                    _ => return Err(Failure::StorageFailed("cleanup-incomplete")),
-                }
-            }
-            let snapshot = self.snapshot_path();
-            for path in pending {
-                fs::remove_file(path).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-            }
-            fs::remove_file(snapshot).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+            remove_owned_files(&self.directory)?;
         }
-        fs::remove_file(self.directory.join(LOCK_FILE))
-            .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
-        fs::remove_dir(&self.directory).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))
+        remove_lock_and_directory(&self.directory)
     }
+
+    /// Remove a store without releasing its key: the only way to clear a
+    /// store whose protector or password is lost, or a setup that was
+    /// abandoned before its first unlock. The records become unrecoverable
+    /// except through a separately held backup, so a caller must obtain the
+    /// owner's explicit confirmation first. Every entry is inspected before
+    /// anything is deleted; foreign, reparse and malformed entries are
+    /// retained and make the removal fail.
+    pub fn discard(store_id: &str) -> Outcome<()> {
+        let directory = directory_for(store_id)?;
+        if !directory.is_dir() {
+            return Err(Failure::StorageFailed("missing-store"));
+        }
+        {
+            let _lock = lock_directory(&directory)?;
+            remove_owned_files(&directory)?;
+        }
+        remove_lock_and_directory(&directory)
+    }
+}
+
+// Inspect every entry first; delete only the snapshot and exactly named
+// pending files. The caller holds the lock and removes it afterwards.
+fn remove_owned_files(directory: &Path) -> Outcome<()> {
+    let incomplete = || Failure::StorageFailed("cleanup-incomplete");
+    let mut owned = Vec::new();
+    for entry in fs::read_dir(directory).map_err(|_| incomplete())? {
+        let entry = entry.map_err(|_| incomplete())?;
+        let name = entry.file_name();
+        let name = name.to_str().ok_or_else(incomplete)?;
+        let metadata = fs::symlink_metadata(entry.path()).map_err(|_| incomplete())?;
+        if !metadata.is_file() || metadata.file_attributes() & REPARSE_POINT != 0 {
+            return Err(incomplete());
+        }
+        match name {
+            LOCK_FILE => {}
+            SNAPSHOT_FILE => owned.push(entry.path()),
+            _ if owned_pending(name) => owned.insert(0, entry.path()),
+            _ => return Err(incomplete()),
+        }
+    }
+    // Pending files first, the committed snapshot last.
+    for path in owned {
+        fs::remove_file(path).map_err(|_| incomplete())?;
+    }
+    Ok(())
+}
+
+fn remove_lock_and_directory(directory: &Path) -> Outcome<()> {
+    fs::remove_file(directory.join(LOCK_FILE))
+        .map_err(|_| Failure::StorageFailed("cleanup-incomplete"))?;
+    fs::remove_dir(directory).map_err(|_| Failure::StorageFailed("cleanup-incomplete"))
 }
 
 fn owned_pending(name: &str) -> bool {
