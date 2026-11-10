@@ -24,13 +24,18 @@ function createHarness() {
   const calls = [];
   const pendingSnapshots = [];
   let timerId = 0;
+  const state = { capturePhase: 'off' };
 
   const makeElement = () => ({
     hidden: false,
     disabled: false,
     children: [],
     textContent: '',
-    setAttribute() {},
+    dataset: {},
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+    replaceWith(node) { this.replacement = node; },
+    after() {},
     focus() {},
     append(...children) {
       this.children.push(...children);
@@ -65,7 +70,7 @@ function createHarness() {
       calls.push(command);
       if (command !== 'get_luna_snapshot') return Promise.resolve();
       return new Promise(resolve => pendingSnapshots.push(() => resolve({
-        status: 'ready', capturePhase: 'off', microphoneInUse: false,
+        status: 'ready', capturePhase: state.capturePhase, microphoneInUse: false,
         onlineAnswersEnabled: false, activeTimers: [],
       })));
     } } },
@@ -86,7 +91,7 @@ function createHarness() {
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
   return {
-    calls, document, documentListeners, intervals, location, pendingSnapshots, timers, window, windowListeners,
+    state, calls, document, documentListeners, intervals, location, pendingSnapshots, timers, window, windowListeners,
     async start() {
       await new AsyncFunction('document', 'window', 'location', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask', bundled.outputFiles[0].text)(
         document, window, location, fakeSetTimeout, fakeClearTimeout, fakeSetInterval, fakeClearInterval, queueMicrotask,
@@ -94,6 +99,10 @@ function createHarness() {
       return document.querySelector('main').children.find(child => child.id === 'luna');
     },
     async flush() { await Promise.resolve(); await Promise.resolve(); },
+    async untilSnapshotRequested() {
+      for (let turn = 0; turn < 50 && pendingSnapshots.length === 0; turn += 1) await Promise.resolve();
+      assert.equal(pendingSnapshots.length, 1, 'a snapshot request should be waiting');
+    },
     async navigate(hash) {
       location.hash = hash;
       for (const listener of windowListeners.get('hashchange') ?? []) listener();
@@ -113,6 +122,9 @@ test('Luna status polling follows visible route and document state at five-secon
   const harness = createHarness();
   const luna = await harness.start();
   assert.equal(harness.calls.filter(command => command === 'get_luna_snapshot').length, 1);
+  harness.resolveSnapshot();
+  await harness.flush();
+  assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000], 'the home page shows Luna, so it polls too');
 
   await harness.navigate('#luna?source=home');
   assert.equal(luna.hidden, false, 'the real app router shows Luna for a query-bearing route');
@@ -162,4 +174,35 @@ test('Luna status polling follows visible route and document state at five-secon
   harness.resolveSnapshot();
   await manualRefresh;
   assert.equal(refreshButton.disabled, false, 'manual refresh re-enables its button after completion');
+});
+
+test('pressing Luna on the home page turns listening on and off, and her face follows closely while she listens', async () => {
+  const harness = createHarness();
+  await harness.start();
+  const face = harness.document.querySelector('.luna-companion').replacement;
+  assert.equal(face.id, 'home-luna-toggle');
+  harness.resolveSnapshot();
+  await harness.flush();
+  assert.equal(face.attributes['aria-pressed'], 'false');
+  assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
+
+  harness.state.capturePhase = 'waiting';
+  const waking = face.onclick();
+  assert.equal(face.disabled, true);
+  await harness.untilSnapshotRequested();
+  harness.resolveSnapshot();
+  await waking;
+  assert.equal(face.attributes['aria-pressed'], 'true');
+  assert.equal(face.querySelector('.luna-avatar').dataset.capturePhase, 'waiting');
+  assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [1000]);
+
+  harness.state.capturePhase = 'off';
+  const sleeping = face.onclick();
+  await harness.untilSnapshotRequested();
+  harness.resolveSnapshot();
+  await sleeping;
+  assert.equal(face.attributes['aria-pressed'], 'false');
+  assert.equal(face.disabled, false);
+  assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
+  assert.deepEqual(harness.calls.filter(command => /enable|disable/.test(command)), ['enable_luna_wake', 'disable_luna_wake']);
 });

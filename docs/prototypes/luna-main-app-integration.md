@@ -79,11 +79,22 @@ on a device.
 
 ## Initial debug entry slice
 
-The debug Android Home build offers a dedicated Meet Luna page. It reads Home's
+The debug Android Home build puts Luna on the home page. Her face is a button:
+pressing it turns wake listening on or off, and it is the only thing on the
+home page that does. Asleep, with a sleep mask and drifting z's, means the
+microphone is off; a faint glow means she is listening for the wake phrase; a
+bright glow means she is ready for a command. Active timers appear under her
+with their countdown and a stop button, and the area stays empty when none are
+running. While she is listening the page asks Home for its state once a
+second so the face keeps up; otherwise every five seconds.
+
+A gear at the bottom right of the home page opens the settings and
+troubleshooting page (formerly Meet Luna, still at `#luna`). It reads Home's
 own service and timer ledger, reports an unavailable local model, and supports
-explicit microphone permission, listening Enable/Disable and timer cancellation.
-Online answers require private relay configuration and a separate explicit
-setting in Home. The page is omitted from desktop and non-debug Android builds.
+explicit microphone permission, listening Enable/Disable and the online-answer
+setting. Online answers require private relay configuration and a separate
+explicit setting in Home. All of this is omitted from desktop and non-debug
+Android builds, which keep the static companion.
 This source migration does not establish installed-device reliability, audible
 behavior, lock handling, or hosted service operation; those remain separate
 verification gates.
@@ -155,7 +166,7 @@ the Home app's private `question-relay.json` with the same token, the PEM
 certificate text, and `endpoint` set to
 `https://<certificate-dns-name>:18743/question`. The endpoint hostname must
 match the certificate. Install that file under the Home Android app's private
-files directory. Then open Meet Luna, explicitly enable Qwen answers, and
+files directory. Then open settings (the gear), explicitly enable Qwen answers, and
 separately enable wake listening. Keep the phone connected to the same tailnet.
 Disabling or changing the online-answer setting stops wake listening.
 

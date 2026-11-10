@@ -20,7 +20,7 @@ function showPage(moveFocus = true) {
   checklist.hidden = page !== 'checklist';
   document.querySelector('#vault').hidden = page !== 'vault';
   if (document.querySelector('#luna')) document.querySelector('#luna').hidden = page !== 'luna';
-  document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : page === 'luna' ? 'Meet Luna' : 'Your checklist'} · Luna OS Home`;
+  document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : page === 'luna' ? 'Luna settings' : 'Your checklist'} · Luna OS Home`;
   if (page === 'vault') refreshDraft();
   if (moveFocus) {
     document.querySelector(`#${page}-heading`).focus();
