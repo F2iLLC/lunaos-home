@@ -150,27 +150,65 @@ Ollama to the public internet.
 
 ## Command capture after the wake phrase
 
-Wake detection uses a small fixed grammar and decodes faster than real time.
-After the wake phrase the recognizer is free-form, and on the 32-bit Echo Show
-8 development device that decoding is slower than real time: fixed diagnostic
-timings from an attended exchange showed single decode calls of about 3 s
-against a 200 ms recorder buffer, and command windows in which 25% to 58% of
-the captured audio never reached the recognizer. Spoken questions mostly
-survived that; timer commands, which must match exactly, did not.
+Wake detection uses a fixed phrase list and decodes in real time. Free-form
+recognition does not on the 32-bit Echo Show 8 development device: fixed
+diagnostic timings from attended exchanges showed single decode calls of about
+3 s against a 200 ms recorder buffer, and command windows in which 25% to 58%
+of the captured audio never reached the recognizer. Spoken questions mostly
+survived that; timer commands, which must match exactly, never did.
 
-`CommandAudio` removes the loss without changing what is recognized. From the
-wake match until the end of that command window a capture thread keeps
-reading the recorder into a bounded in-memory queue and the decoder takes
-audio from it at its own pace. The queue holds at most the 15 second command
-window, overwrites its oldest chunk when full, zeroes every chunk it drops or
-hands over, and is cleared whenever capture closes (deadline, Disable, lock,
-mute, permission change, a matched command or a finished question). It does
-not exist before the wake phrase, so the pre-wake path keeps its small
-recorder buffer and no queue. Nothing is written to storage or sent anywhere.
+The capture path now works in two stages:
 
-The trade is latency for completeness: a command is recognized from all of its
-audio, a little after it was spoken, instead of immediately from part of it.
-`CAPTURE_TIMING` now also reports `maxQueuedMs` and `droppedMs` for the command
-phase, still numbers only. Whether the complete audio is recognized as the
-intended timer wording on the device is an attended check, not something the
-JVM tests establish.
+1. **Live, fixed phrases.** One fixed-phrase recognizer hears the wake phrase
+   and, after it, timer commands. From the wake match a capture thread keeps
+   every sample of the command window in `CommandAudio`, and the recognizer
+   follows it in real time. A supported timer command is acted on directly.
+   Before the wake phrase `WakeSession` still accepts nothing but an exact
+   "hey luna".
+2. **Once, free-form.** If the fixed-phrase recognizer hears speech that is
+   not a supported timer command and online answers are enabled, the
+   microphone stops and the complete captured command is decoded once with the
+   free-form recognizer, within a bounded time. The text is then routed as
+   before: the strict timer parser first, then the question policy.
+
+`CommandAudio` holds at most the 15 second command window, refuses and counts
+anything beyond it, and is zeroed whenever capture closes. It does not exist
+before the wake phrase, so the pre-wake path keeps its small recorder buffer.
+Nothing is written to storage or sent anywhere. `CAPTURE_TIMING` reports
+`maxQueuedMs` and `droppedMs`, and a `REPLAY` phase for the second stage,
+still numbers only.
+
+There is deliberately one fixed-phrase recognizer. A build with a separate
+one for timer commands crashed inside the speech library on the device twice
+in a handful of wakes (a segmentation fault in its lookahead composition);
+the single-recognizer build has not crashed in the attended use so far, which
+is an observation, not a qualification.
+
+Attended on the device with the single-recognizer build: timers set from
+"two minutes", "one hour" and "one minute and thirty seconds" with the spoken
+confirmation, and a spoken question answered correctly. A timer command was
+matched with `audioMs` equal to `elapsedMs` and nothing dropped; a question
+took about 5 s of capture, 6 s of local decoding and 3 s for the answer.
+Recognition across voices, distance, noise and a ringing alarm is not
+established.
+
+## Timer durations and the spoken confirmation
+
+A new timer accepts seconds (1-60), minutes (1-60) or hours (1-24), "an hour",
+"a minute", and descending combinations such as "one hour and thirty minutes"
+or "two minutes thirty seconds", up to twenty four hours in total. Parsing is
+strict: wrong order, repeated units, plural mismatches and out-of-range parts
+are refused, never repaired. Adding time to a running timer stays within an
+hour.
+
+Luna confirms a new timer with "Setting a timer for" followed by its hour,
+minute and second parts, and the timer's number when it is not timer one. The
+words come from bundled clips, so the confirmation works without the relay.
+The clips are generic generated prompts listed in `reply-prompts.json`; the
+audio stays outside Git. To include it in a debug build, set
+`LUNA_HOME_VOICE_REPLY_DIRECTORY` to a prepared pack (`pack.json` plus one
+canonical 24 kHz mono WAV per manifest entry). The build validates every
+clip's text, checksum and format and refuses an incomplete pack. Without the
+variable, timers work and Luna stays silent. Generate every clip with the same
+voice: a pack mixing two voices is audible as soon as a second timer is
+announced.
