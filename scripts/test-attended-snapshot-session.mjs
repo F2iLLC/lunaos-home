@@ -1,7 +1,11 @@
 // Attended Software KSP unlock-session journey for WindowsSnapshotFileStore v1.
 // Fictional records and a disposable key only. This runner never asks for,
 // reads or logs a password: every password is typed into the Windows-owned
-// dialog. Evidence holds stage names and results, nothing else.
+// dialog. Evidence holds stage names, results, the operator's yes/no answers
+// and unlock durations in milliseconds, nothing else.
+//
+// A failed step is recorded and the journey continues with the next step, so
+// one run reports everything it can.
 //
 //   node scripts/test-attended-snapshot-session.mjs
 //   node scripts/test-attended-snapshot-session.mjs --cleanup <store id>
@@ -20,6 +24,9 @@ import { VaultConflictError } from '../lib/vault-record-contract.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const protector = { kind: 'software-ksp' };
+// A person cannot read a dialog, type a password and confirm it faster than
+// this. An unlock that finishes sooner released the key without a gesture.
+const FASTEST_HUMAN_GESTURE_MS = 700;
 assert.equal(process.platform, 'win32', 'Windows is required');
 const [mode, argument] = process.argv.slice(2);
 if (mode === '--cleanup') {
@@ -59,7 +66,7 @@ mkdirSync(evidenceRoot, { recursive: true });
 const storeId = randomUUID();
 const evidencePath = path.join(evidenceRoot, `snapshot-session-${storeId}.json`);
 const evidence = {
-  schema: 1,
+  schema: 2,
   runner: 'test-attended-snapshot-session',
   fictional: true,
   attended: true,
@@ -75,31 +82,75 @@ const save = () =>
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
 save(); // Leave an incomplete receipt even if the console is closed.
 const stage = (name, result = 'PASS', detail) => {
-  evidence.stages.push({ name, result, ...(detail ? { detail } : {}) });
+  evidence.stages.push({
+    name,
+    result,
+    ...(detail ? { detail } : {}),
+    at: new Date().toISOString(),
+  });
   save();
   console.log(`  ${result}  ${name}${detail ? ` (${detail})` : ''}`);
 };
 
 const terminal = createInterface({ input: process.stdin, output: process.stdout });
 const say = (text) => console.log(`\n${text}`);
-const confirm = async (question) =>
-  (await terminal.question(`${question} [y/n] `)).trim().toLowerCase() === 'y';
+const choose = async (question, choices) => {
+  for (;;) {
+    const answer = (await terminal.question(`${question} [${choices.join('/')}] `))
+      .trim()
+      .toLowerCase();
+    if (choices.includes(answer)) return answer;
+  }
+};
 const proceed = async (text) => {
   say(text);
-  const answer = (await terminal.question('Type go to continue, s to skip: '))
-    .trim()
-    .toLowerCase();
-  if (answer === 's') return false;
-  assert.equal(answer, 'go', 'Stopped by the operator');
-  return true;
+  return (await choose('Type go to continue, s to skip:', ['go', 's'])) === 'go';
 };
 const profile = (value) => ({
   memberId: 'alex-example',
   label: 'Workplace',
   value,
 });
-const refusedWith = (reason) => (error) =>
-  error.code === 'STORAGE_FAILED' && error.reason === reason;
+const refusedWith = (...reasons) => (error) =>
+  error.code === 'STORAGE_FAILED' && reasons.includes(error.reason);
+// Fixed identifiers only: never free text from an error, and never a record
+// revision (revisions are UUIDs; identifiers here are words and hyphens).
+const identifier = (value) =>
+  typeof value === 'string' && /^[a-z]+(?:-[a-z]+){0,7}$/.test(value)
+    ? value
+    : null;
+const describe = (error) => {
+  if (identifier(error?.reason)) return error.reason;
+  if (error instanceof VaultLockedError) return 'vault-locked';
+  if (error?.code === 'ERR_ASSERTION') {
+    const actual = identifier(error.actual);
+    const expected = identifier(error.expected);
+    return actual && expected ? `expected ${expected}, got ${actual}` : 'assertion';
+  }
+  const code =
+    typeof error?.code === 'string'
+      ? error.code.toLowerCase().replaceAll('_', '-')
+      : null;
+  return identifier(code) ?? 'error';
+};
+// The operator pressed Ctrl+C or closed the input: stop asking, still clean up.
+const aborted = (error) =>
+  error?.code === 'ABORT_ERR' || error?.code === 'ERR_USE_AFTER_CLOSE';
+const refusal = (reason) => Object.assign(new Error(reason), { reason });
+// Resolves with the promise, or with `fallback` after the limit.
+const within = async (promise, milliseconds, fallback) => {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 const inSessionFaults = [
   ['before-write', 'old'],
   ['during-write', 'old'],
@@ -110,30 +161,89 @@ const inSessionFaults = [
   ['tampered-temporary', 'old'],
 ];
 
-let failed = null;
-try {
-  say(
-    `Fictional vault journey ${storeId}\n` +
-      'You will be asked for a DISPOSABLE vault password several times, always in a\n' +
-      'Windows-owned dialog. Invent a new one for this test. Never use your Windows\n' +
-      'password, and never type any password into this terminal.',
+let session = null;
+let revision = null;
+const lockQuietly = async () => {
+  try {
+    await session?.lock();
+  } catch {
+    // Already ended.
+  }
+};
+// Unlock an existing store and record whether Windows really asked: the
+// operator's answer and the measured duration must agree.
+const unlock = async (name) => {
+  const began = Date.now();
+  session = await openWindowsSnapshotSession({ storeId, protector });
+  const unlockMs = Date.now() - began;
+  assert.equal((await session.read('alex-work')).revision, revision);
+  const asked = await choose(
+    'Did Windows show a password dialog for this unlock, and did you type the password?',
+    ['y', 'n'],
   );
+  stage(
+    `${name}-required-the-password`,
+    asked === 'y' && unlockMs >= FASTEST_HUMAN_GESTURE_MS ? 'PASS' : 'FAIL',
+    `operator=${asked} unlockMs=${unlockMs}`,
+  );
+};
+// One numbered step: skipped, or run to its end; a failure is recorded, the
+// session is locked and the journey goes on.
+const step = async (name, text, body) => {
+  if (!(await proceed(text))) return stage(name, 'SKIPPED');
+  try {
+    await body();
+  } catch (error) {
+    await lockQuietly();
+    if (aborted(error)) throw error;
+    stage(name, 'FAIL', describe(error));
+  }
+};
+// An unlock that must be refused. If Windows releases the key anyway, the
+// session is locked at once and the step fails.
+const mustBeRefused = async () => {
+  let opened;
+  try {
+    opened = await openWindowsSnapshotSession({ storeId, protector });
+  } catch (error) {
+    if (refusedWith('key-release-denied')(error)) return;
+    throw error;
+  }
+  try {
+    await opened.lock();
+  } catch {
+    // Already ended.
+  }
+  throw refusal('unlocked-unexpectedly');
+};
+
+say(
+  `Fictional vault journey ${storeId}\n` +
+    'You will be asked for a DISPOSABLE vault password several times, always in a\n' +
+    'Windows-owned dialog. Invent a new one for this test. Never use your Windows\n' +
+    'password, and never type any password into this terminal.',
+);
+let created = false;
+try {
   assert.ok(
     await proceed(
-      'Step 1 of 7. Windows will ask you to CREATE the disposable vault password,\n' +
-        'and may then ask you to ENTER it once to unlock.',
+      'Step 1 of 7. Windows will ask you to CREATE the disposable vault password.\n' +
+        'It may or may not then ask you to ENTER it. Count the Windows dialogs.',
     ),
     'The first step cannot be skipped',
   );
-  let session = await openWindowsSnapshotSessionForTest(
+  const began = Date.now();
+  session = await openWindowsSnapshotSessionForTest(
     { storeId, create: true, protector },
     {},
   );
-  stage('create-password-then-unlock');
+  const createMs = Date.now() - began;
+  created = true;
+  stage('create-password-then-unlock', 'PASS', `unlockMs=${createMs}`);
   const directory = session.directory;
 
-  const created = await session.create('alex-work', profile('Willow Studio'));
-  let revision = created.revision;
+  const first = await session.create('alex-work', profile('Willow Studio'));
+  revision = first.revision;
   for (let index = 0; index < 5; index += 1)
     ({ revision } = await session.edit(
       'alex-work',
@@ -141,7 +251,7 @@ try {
       revision,
     ));
   await assert.rejects(
-    session.edit('alex-work', profile('Stale'), created.revision),
+    session.edit('alex-work', profile('Stale'), first.revision),
     VaultConflictError,
   );
   const removable = await session.create('sam-school', profile('Meadow'));
@@ -149,14 +259,18 @@ try {
   assert.equal(await session.read('sam-school'), null);
   assert.equal((await session.read('alex-work')).data.value, 'Edit 4');
   stage('nine-requests-in-one-session');
+  const dialogs = await choose(
+    'How many Windows password dialogs have appeared so far?\n' +
+      '  1 = only the one where you created the password\n' +
+      '  2 = that one, then one asking you to enter it\n' +
+      '  3 = more than two\n' +
+      'Answer',
+    ['1', '2', '3'],
+  );
   stage(
     'single-gesture-per-session',
-    (await confirm(
-      'Since you created the password, has Windows asked you to enter it at most once?',
-    ))
-      ? 'PASS'
-      : 'FAIL',
-    'operator observation',
+    dialogs === '3' ? 'FAIL' : 'PASS',
+    `operator-dialog-count=${dialogs === '3' ? 'more-than-2' : dialogs}`,
   );
 
   for (const [fault, expected] of inSessionFaults) {
@@ -187,114 +301,123 @@ try {
   assert.equal(await session.ended, 'ended');
   await assert.rejects(session.read('alex-work'), VaultLockedError);
   stage('abrupt-worker-exit-ends-session');
-
-  if (
-    await proceed(
-      'Step 2 of 7. The session process is gone, so the vault is locked.\n' +
-        'Windows will ask for the disposable vault password once to unlock again.',
-    )
-  ) {
-    session = await openWindowsSnapshotSession({ storeId, protector });
-    assert.deepEqual(await session.read('alex-work'), {
-      revision,
-      data: profile('Edit 4'),
-    });
-    assert.equal((await session.read('fault-after-replacement')).data.value, 'new');
-    assert.equal((await session.read('fault-before-write')).data.value, 'old');
-    stage('reopen-after-interruption-keeps-last-committed-state');
-    assert.equal(await session.lock(), 'locked');
-    await assert.rejects(session.read('alex-work'), VaultLockedError);
-    stage('manual-lock-ends-session');
-  } else stage('reopen-after-interruption', 'SKIPPED');
-
-  if (
-    await proceed(
-      'Step 3 of 7. WRONG password. When Windows asks, type an intentionally wrong\n' +
-        'disposable password and choose Allow. Windows should refuse it; then close\n' +
-        'that dialog with its top-right X.',
-    )
-  ) {
-    await assert.rejects(
-      openWindowsSnapshotSession({ storeId, protector }),
-      refusedWith('key-release-denied'),
-    );
-    stage('wrong-password-denied');
-  } else stage('wrong-password-denied', 'SKIPPED');
-
-  if (
-    await proceed(
-      'Step 4 of 7. CANCEL. When Windows asks, do not type anything: close the\n' +
-        'dialog with its top-right X.',
-    )
-  ) {
-    await assert.rejects(
-      openWindowsSnapshotSession({ storeId, protector }),
-      refusedWith('key-release-denied'),
-    );
-    stage('cancelled-dialog-denied');
-  } else stage('cancelled-dialog-denied', 'SKIPPED');
-
-  if (
-    await proceed(
-      'Step 5 of 7. CLOSE TO LOCK. Enter the correct disposable password. Then find\n' +
-        'the minimized window "Luna OS Home vault is unlocked" on the taskbar, restore\n' +
-        'it and close it with its X. You have 60 seconds.',
-    )
-  ) {
-    session = await openWindowsSnapshotSession({ storeId, protector });
-    assert.equal((await session.read('alex-work')).revision, revision);
-    const reason = await Promise.race([
-      session.ended,
-      new Promise((resolve) => setTimeout(() => resolve('not-closed'), 60_000)),
-    ]);
-    if (reason === 'not-closed') await session.lock();
-    assert.equal(reason, 'window-closed');
-    await assert.rejects(session.read('alex-work'), VaultLockedError);
-    stage('closing-the-session-window-locks');
-  } else stage('closing-the-session-window-locks', 'SKIPPED');
-
-  if (
-    await proceed(
-      'Step 6 of 7. WINDOWS LOCK. Enter the correct disposable password. When this\n' +
-        'terminal says "unlocked", press Windows+L, then sign back in to Windows.\n' +
-        'You have 3 minutes.',
-    )
-  ) {
-    session = await openWindowsSnapshotSession({ storeId, protector });
-    assert.equal((await session.read('alex-work')).revision, revision);
-    console.log('  unlocked - press Windows+L now, then sign back in');
-    const reason = await Promise.race([
-      session.ended,
-      new Promise((resolve) => setTimeout(() => resolve('not-locked'), 180_000)),
-    ]);
-    if (reason === 'not-locked') await session.lock();
-    assert.equal(reason, 'windows-lock');
-    await assert.rejects(session.read('alex-work'), VaultLockedError);
-    stage('windows-lock-ends-session');
-  } else stage('windows-lock-ends-session', 'SKIPPED');
-
-  evidence.result = evidence.stages.some((entry) => entry.result === 'FAIL')
-    ? 'FAIL'
-    : evidence.stages.some((entry) => entry.result === 'SKIPPED')
-      ? 'PASS_WITH_SKIPS'
-      : 'PASS';
 } catch (error) {
-  failed = error;
-  evidence.result = 'FAIL';
-  // Assertion text and static worker identifiers only.
-  stage('journey', 'FAIL', String(error?.reason ?? error?.message ?? error).slice(0, 200));
+  stage('first-session', 'FAIL', aborted(error) ? 'operator-abort' : describe(error));
+  await lockQuietly();
 }
+
+// Later steps need the store and the revision the first session left.
+try {
+if (created && revision) {
+  await step(
+    'reopen-after-interruption',
+    'Step 2 of 7. The session process is gone, so the vault is locked.\n' +
+      'Windows should ask for the disposable vault password to unlock again.\n' +
+      'If no dialog appears, that is a finding: just answer the question after.',
+    async () => {
+      await unlock('reopen-after-interruption');
+      assert.equal((await session.read('alex-work')).data.value, 'Edit 4');
+      assert.equal((await session.read('fault-after-replacement')).data.value, 'new');
+      assert.equal((await session.read('fault-before-write')).data.value, 'old');
+      stage('reopen-after-interruption-keeps-last-committed-state');
+      assert.equal(await session.lock(), 'locked');
+      await assert.rejects(session.read('alex-work'), VaultLockedError);
+      stage('manual-lock-ends-session');
+    },
+  );
+
+  await step(
+    'wrong-password-denied',
+    'Step 3 of 7. WRONG password. When Windows asks, type an intentionally wrong\n' +
+      'disposable password and choose Allow. Windows should refuse it; then close\n' +
+      'that dialog with its top-right X.',
+    async () => {
+      await mustBeRefused();
+      stage('wrong-password-denied');
+    },
+  );
+
+  await step(
+    'cancelled-dialog-denied',
+    'Step 4 of 7. CANCEL. When Windows asks, do not type anything: close the\n' +
+      'dialog with its top-right X.',
+    async () => {
+      await mustBeRefused();
+      stage('cancelled-dialog-denied');
+    },
+  );
+
+  await step(
+    'closing-the-session-window-locks',
+    'Step 5 of 7. CLOSE TO LOCK. Enter the correct disposable password and answer\n' +
+      'the question here. You will then be told to close the session window.',
+    async () => {
+      await unlock('close-to-lock');
+      console.log(
+        '  Now find the minimized window "Luna OS Home vault is unlocked" on the\n' +
+          '  taskbar, restore it and close it with its X. You have 90 seconds.',
+      );
+      const reason = await within(session.ended, 90_000, 'not-closed');
+      assert.equal(reason, 'window-closed');
+      await assert.rejects(session.read('alex-work'), VaultLockedError);
+      stage('closing-the-session-window-locks');
+      // The taskbar's Close command ends the session too; only the operator
+      // can say which one was used.
+      const byButton = await choose(
+        'Did the X in the window\'s own title bar close it (not the taskbar menu)?',
+        ['y', 'n'],
+      );
+      stage(
+        'title-bar-close-button-works',
+        byButton === 'y' ? 'PASS' : 'FAIL',
+        `operator=${byButton}`,
+      );
+    },
+  );
+
+  await step(
+    'windows-lock-ends-session',
+    'Step 6 of 7. WINDOWS LOCK. Enter the correct disposable password and answer\n' +
+      'the question here. You will then be told to press Windows+L.',
+    async () => {
+      await unlock('windows-lock');
+      console.log(
+        '  Now press Windows+L, then sign back in to Windows. You have 3 minutes.',
+      );
+      const reason = await within(session.ended, 180_000, 'not-locked');
+      assert.equal(reason, 'windows-lock');
+      await assert.rejects(session.read('alex-work'), VaultLockedError);
+      stage('windows-lock-ends-session');
+    },
+  );
+}
+} catch (error) {
+  // Only an operator abort reaches here; every other failure is a stage.
+  await lockQuietly();
+  stage('journey', 'FAIL', aborted(error) ? 'operator-abort' : describe(error));
+}
+
+evidence.result = evidence.stages.some((entry) => entry.result === 'FAIL')
+  ? 'FAIL'
+  : evidence.stages.some((entry) => entry.result === 'SKIPPED')
+    ? 'PASS_WITH_SKIPS'
+    : 'PASS';
+save(); // The verdict is on disk before anything else is printed.
 
 try {
   say('Step 7 of 7. Cleanup: removing the disposable key and the fictional store.');
+  await lockQuietly();
   await discardSyntheticKspStore({ storeId });
+  // With both gone, the store is reported missing before the key is looked at.
   await assert.rejects(
     openWindowsSnapshotSession({ storeId, protector }),
-    refusedWith('protector-missing'),
+    refusedWith('missing-store', 'protector-missing'),
   );
   evidence.cleanup = 'disposable-key-and-store-removed';
+  save();
 } catch {
   evidence.cleanup = 'CLEANUP_REQUIRED';
+  save();
   console.log(
     `Cleanup did not finish. Run: node scripts/test-attended-snapshot-session.mjs --cleanup ${storeId}`,
   );
@@ -304,4 +427,5 @@ save();
 terminal.close();
 console.log(`\nResult: ${evidence.result}; cleanup: ${evidence.cleanup}`);
 console.log(`Evidence (no passwords, keys or records): ${evidencePath}`);
-if (failed || evidence.cleanup === 'CLEANUP_REQUIRED') process.exit(1);
+if (evidence.result === 'FAIL' || evidence.cleanup === 'CLEANUP_REQUIRED')
+  process.exit(1);

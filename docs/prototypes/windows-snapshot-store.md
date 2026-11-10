@@ -214,6 +214,53 @@ asks for a password in the terminal, and removes the key and store at the end:
 node scripts/test-attended-snapshot-session.mjs
 ```
 
+A failed step is recorded and the journey continues. For each unlock of an
+existing store the runner records the operator's answer to "did Windows show a
+password dialog" next to the measured unlock time; an unlock faster than a
+person can type is recorded as a failure whatever the answer.
+
+Three attended runs on 2026-11-10 (Windows 11 Home 10.0.26300), none a
+complete pass:
+
+- **Run 1 (source head `4c3acab`): the session window could not be closed.**
+  The runner then stopped at that first failed step, so the Windows-lock step
+  never ran. The operator also reported that reopening the store in a new
+  process showed no password dialog; that run did not measure it.
+- **Run 2 (source head `6c14689`, measuring runner): every unlock of the
+  existing store required the password.** Three unlocks in new processes, each
+  confirmed by the operator and each taking 5.6 to 7.1 seconds; the report
+  from run 1 was not reproduced. Creating the store showed one dialog (create
+  the password) and no second one. A wrong password and a cancelled dialog
+  were refused, Windows lock ended the session with `windows-lock`, and the
+  storage checks inside the session passed (nine requests, seven fault
+  stages, nothing readable at rest, abrupt exit).
+- **Run 2 also showed the first window fix was not enough.** The window
+  closed, and the session locked, only through the taskbar's Close command;
+  the X in its title bar still did nothing. The window borrowed the system
+  `STATIC` class. Answering hit tests for it (the first fix) made the X
+  report correctly but a real click still did not close it, which a probe
+  with synthetic mouse input reproduced. The window now has its own plain
+  window class; the same probe closes it with a click, shown normally and
+  restored from minimized.
+- Run 2's runner did not write its final result or run its cleanup: it
+  stopped after the last stage for a reason not yet known. Its evidence file
+  therefore says `INCOMPLETE`. The disposable key and store were removed
+  afterwards with `--cleanup`.
+
+- **Run 3 (source head `a0b3aab`, own window class): the operator closed the
+  session window with its X and the session locked.** The runner of that head
+  did not ask which control was used, so this rests on the operator's report
+  to the developer, not on the evidence file; the runner now asks. Both later
+  unlocks required the password (10.2 and 8.2 seconds). The run still failed:
+  the reopen step returned `key-release-denied`, which a mistyped password or
+  a dismissed dialog produces. The same key released twice afterwards in that
+  run. The cause was not confirmed. The runner finished and cleaned up.
+
+No attended run has passed end to end. The synthetic-click probe mentioned
+above was a temporary program and is not in the repository; the committed
+crate test checks only that the title bar answers hit tests, which the
+insufficient first fix also satisfied.
+
 A default-feature build (`cargo build --locked` in the crate) lands in
 `target/debug` and cannot be mistaken for the harness worker; the adapter
 looks only in `target/developer-harness`. The Node tests skip with an explicit
