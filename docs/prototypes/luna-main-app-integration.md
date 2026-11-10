@@ -127,3 +127,51 @@ The existing PowerShell setup script provisions the standalone local probe and
 is not the Mac Studio setup path. The private Mac relay is development setup;
 it is not tenant enrollment or a production service. Never open port 18743 or
 Ollama to the public internet.
+
+### Keeping the relay available
+
+A relay started by hand stops at the next Mac restart or logout, and Luna
+then answers no questions until someone starts it again; local timers keep
+working. For a development Mac that should keep answering, run the relay as a
+per-user launch agent instead. Save this as
+`~/Library/LaunchAgents/io.lunaos.home.question-relay.plist`, with the three
+absolute paths adjusted, and load it with
+`launchctl bootstrap gui/$(id -u) <that file>`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.lunaos.home.question-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/absolute/path/to/node</string>
+    <string>/absolute/path/to/scripts/spoken-question-relay.mjs</string>
+    <string>/private/path/host.json</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>20</integer>
+  <key>StandardErrorPath</key><string>/private/path/relay.log</string>
+</dict>
+</plist>
+```
+
+`KeepAlive` also covers the relay starting before Tailscale has assigned its
+address: the bind fails, the relay exits, and launchd retries. The relay logs
+one readiness line and never question text, speech or secrets. Remove the
+agent with `launchctl bootout gui/$(id -u)/io.lunaos.home.question-relay`.
+
+The relay asks Ollama to keep the Qwen model loaded for 30 minutes after each
+question. Without that, Ollama unloads the model after five idle minutes and
+the next spoken question waits several seconds for a cold start (observed on
+the Mac Studio: about 7 s cold against 1 to 2 s warm, synthetic questions).
+The first question after a longer pause, or after an Ollama restart, is still
+a cold start.
+
+A device that cannot join the tailnet reaches the relay only through a
+forward that someone maintains explicitly, such as an ADB reverse port to a
+computer that tunnels to the Mac. That path is development convenience: when
+the forward, the tunnel or the relay is down, questions fail. Check the three
+links separately before concluding that recognition is at fault.
