@@ -33,14 +33,14 @@ use windows::Win32::System::RemoteDesktop::{
 };
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, DispatchMessageW, IsWindowVisible, PeekMessageW,
-    SetForegroundWindow, SetWindowTextW, ShowWindow, TranslateMessage, CW_USEDEFAULT,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, IsWindowVisible,
+    PeekMessageW, SetForegroundWindow, SetWindowTextW, ShowWindow, TranslateMessage, CW_USEDEFAULT,
     DEVICE_NOTIFY_WINDOW_HANDLE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMECRITICAL,
     PBT_APMRESUMESUSPEND, PBT_APMSUSPEND, PM_REMOVE, SW_SHOWMINNOACTIVE, SW_SHOWNORMAL,
-    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCDESTROY, WM_POWERBROADCAST, WM_QUIT,
-    WM_WTSSESSION_CHANGE, WS_EX_APPWINDOW, WS_OVERLAPPED, WS_OVERLAPPEDWINDOW,
-    WTS_CONSOLE_DISCONNECT, WTS_REMOTE_DISCONNECT, WTS_SESSION_LOCK, WTS_SESSION_LOGOFF,
-    WTS_SESSION_REMOTE_CONTROL, WTS_SESSION_UNLOCK,
+    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCDESTROY, WM_NCHITTEST,
+    WM_POWERBROADCAST, WM_QUIT, WM_WTSSESSION_CHANGE, WS_EX_APPWINDOW, WS_OVERLAPPED,
+    WS_OVERLAPPEDWINDOW, WTS_CONSOLE_DISCONNECT, WTS_REMOTE_DISCONNECT, WTS_SESSION_LOCK,
+    WTS_SESSION_LOGOFF, WTS_SESSION_REMOTE_CONTROL, WTS_SESSION_UNLOCK,
 };
 
 /// Called with a fixed reason when the session has to stop. It must end the
@@ -203,6 +203,11 @@ unsafe extern "system" fn window_procedure(
             (monitor.end)(reason);
         }
     }
+    if message == WM_NCHITTEST {
+        // The STATIC class reports every point as transparent, which leaves
+        // the title bar and its close button deaf to the mouse.
+        return DefWindowProcW(hwnd, message, wparam, lparam);
+    }
     if message == WM_NCDESTROY {
         let _ = WTSUnRegisterSessionNotification(hwnd);
         let _ = UnregisterSuspendResumeNotification(monitor.power);
@@ -253,31 +258,7 @@ pub fn run<T: Send + 'static>(
     operation: impl FnOnce(isize, Arc<Clock>) -> T + Send + 'static,
 ) -> Result<T, &'static str> {
     let visible = presentation == Presentation::Visible;
-    let hwnd = unsafe {
-        CreateWindowExW(
-            if visible {
-                WS_EX_APPWINDOW
-            } else {
-                WINDOW_EX_STYLE::default()
-            },
-            w!("STATIC"),
-            w!("Luna OS Home vault - waiting for your vault password"),
-            if visible {
-                WS_OVERLAPPEDWINDOW
-            } else {
-                WS_OVERLAPPED
-            },
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            if visible { 620 } else { 1 },
-            if visible { 160 } else { 1 },
-            None,
-            None,
-            None,
-            None,
-        )
-    }
-    .map_err(|_| "owner-window-unavailable")?;
+    let hwnd = create(visible)?;
     let finishing = Arc::new(AtomicBool::new(false));
     let destroy = |hwnd: HWND| unsafe {
         finishing.store(true, Ordering::SeqCst);
@@ -342,6 +323,35 @@ pub fn run<T: Send + 'static>(
     let result = worker.join().map_err(|_| "session-worker-failed");
     destroy(hwnd);
     result
+}
+
+// The session window, not yet shown.
+fn create(visible: bool) -> Result<HWND, &'static str> {
+    unsafe {
+        CreateWindowExW(
+            if visible {
+                WS_EX_APPWINDOW
+            } else {
+                WINDOW_EX_STYLE::default()
+            },
+            w!("STATIC"),
+            w!("Luna OS Home vault - waiting for your vault password"),
+            if visible {
+                WS_OVERLAPPEDWINDOW
+            } else {
+                WS_OVERLAPPED
+            },
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            if visible { 620 } else { 1 },
+            if visible { 160 } else { 1 },
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+    .map_err(|_| "owner-window-unavailable")
 }
 
 #[cfg(test)]
@@ -416,6 +426,40 @@ mod tests {
             assert_eq!(ending_message(message, 0), Some("window-closed"));
         }
         assert_eq!(ending_message(0x0113, 0), None, "a timer tick is ignored");
+    }
+
+    // The window uses the system STATIC class, whose own procedure reports
+    // every point as transparent: without the subclass answering hit tests,
+    // the title bar and its close button ignore the mouse.
+    #[test]
+    fn the_session_window_answers_hit_tests_on_its_title_bar() {
+        use windows::Win32::Foundation::RECT;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowRect, SendMessageW, HTCAPTION, WM_NCHITTEST,
+        };
+        fn never(_: &'static str) -> ! {
+            panic!("the session must not end early")
+        }
+        let hwnd = create(true).unwrap();
+        let finishing = Arc::new(AtomicBool::new(false));
+        install(hwnd, never, finishing.clone()).unwrap();
+        let mut rect = RECT::default();
+        unsafe { GetWindowRect(hwnd, &mut rect) }.unwrap();
+        let x = ((rect.left + rect.right) / 2) as i16 as u16 as u32;
+        let y = (rect.top + 16) as i16 as u16 as u32;
+        let hit = unsafe {
+            SendMessageW(
+                hwnd,
+                WM_NCHITTEST,
+                Some(WPARAM(0)),
+                Some(LPARAM(((y << 16) | x) as isize)),
+            )
+        };
+        finishing.store(true, Ordering::SeqCst);
+        unsafe {
+            let _ = DestroyWindow(hwnd);
+        }
+        assert_eq!(hit.0, HTCAPTION as isize);
     }
 
     #[test]

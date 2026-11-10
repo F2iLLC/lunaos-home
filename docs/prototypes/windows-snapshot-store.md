@@ -214,6 +214,28 @@ asks for a password in the terminal, and removes the key and store at the end:
 node scripts/test-attended-snapshot-session.mjs
 ```
 
+A failed step is recorded and the journey continues. For each unlock of an
+existing store the runner records the operator's answer to "did Windows show a
+password dialog" next to the measured unlock time; an unlock faster than a
+person can type is recorded as a failure whatever the answer.
+
+The first attended run (2026-11-10, Windows 11 Home 10.0.26300, source head
+`4c3acab`) did not pass, and found:
+
+- **The session window could not be closed.** Its system `STATIC` class
+  reports every point as transparent, so the title bar and close button
+  ignored the mouse. Fixed: the window now answers hit tests itself, and a
+  crate test covers it. Not yet re-observed by a person.
+- **Open: an unlock in a new process may not have asked for the password.**
+  The operator reported that reopening the store after the first session's
+  process had ended showed no password dialog, while the wrong-password and
+  cancelled-dialog steps behaved as designed. That run did not measure it.
+  Until a run with the measurement above settles this, the claim that every
+  new session requires the vault password is unproven.
+- The Windows-lock step was never reached, because that runner stopped at the
+  first failed step. Storage results inside the unlocked session (nine
+  requests, seven fault stages, nothing readable at rest, abrupt exit) passed.
+
 A default-feature build (`cargo build --locked` in the crate) lands in
 `target/debug` and cannot be mistaken for the harness worker; the adapter
 looks only in `target/developer-harness`. The Node tests skip with an explicit
