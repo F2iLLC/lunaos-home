@@ -57,4 +57,4 @@ jobs:
       - name: Snapshot store crate tests
         shell: pwsh
         run: node scripts/build-snapshot-store.mjs test
-      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js test/windows-snapshot-store.test.js
+      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js test/windows-snapshot-store.test.js test/windows-snapshot-session.test.js

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -207,7 +207,10 @@ test(
     await writeFile(file, committed);
     assert.equal((await store.read('alex-work')).revision, revision);
 
-    const stale = path.join(store.directory, 'snapshot-00ff.pending');
+    const stale = path.join(
+      store.directory,
+      'snapshot-0123456789abcdef0123456789abcdef.pending',
+    );
     await writeFile(stale, committed.subarray(0, 64));
     assert.equal(
       (await store.read('alex-work')).revision,
@@ -230,6 +233,45 @@ test(
       false,
       'cleanup removes the store directory and its own pending files',
     );
+  },
+);
+
+test(
+  'cleanup rejects foreign and malformed pending files without deleting the committed snapshot',
+  windows,
+  async (t) => {
+    const { store, protector } = await openFixtureStore();
+    const foreign = path.join(store.directory, 'family-photo.txt');
+    const malformed = path.join(store.directory, 'snapshot-00ff.pending');
+    t.after(async () => {
+      await Promise.all([foreign, malformed].map((file) => unlink(file).catch(() => {})));
+      await store.removeSyntheticStore().catch(() => {});
+    });
+    const { revision } = await store.create('alex-work', {
+      memberId: 'alex-example',
+      label: 'Workplace',
+      value: 'Willow Studio',
+    });
+    const snapshot = path.join(store.directory, 'snapshot.bin');
+    const committed = await readFile(snapshot);
+
+    for (const file of [foreign, malformed]) {
+      await writeFile(file, 'synthetic fixture');
+      await assert.rejects(store.removeSyntheticStore(), {
+        message: 'Windows snapshot storage operation failed.',
+      });
+      assert.deepEqual(await readFile(snapshot), committed);
+      assert.ok(existsSync(file), 'cleanup preserves the unrecognized file');
+      await unlink(file);
+    }
+
+    const reopened = await openWindowsSnapshotStore({
+      storeId: store.storeId,
+      protector,
+    });
+    assert.equal((await reopened.read('alex-work')).revision, revision);
+    await store.removeSyntheticStore();
+    assert.equal(existsSync(store.directory), false);
   },
 );
 
