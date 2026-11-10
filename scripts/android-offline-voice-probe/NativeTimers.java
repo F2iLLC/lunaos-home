@@ -28,6 +28,26 @@ final class NativeTimers {
     static synchronized String execute(Context c, int command) {
         if (!TimerCommand.valid(command)) return "Unsupported timer command. Nothing changed.";
         TimerLedger ledger = read(c);
+        if (command == TimerCommand.STOP) {
+            // Silence everything that is ringing; timers still counting are left alone.
+            long now = SystemClock.elapsedRealtime();
+            long[] stopped = new long[TimerLedger.LIMIT + 1];
+            int count = 0;
+            for (int ringing = 1; ringing <= TimerLedger.LIMIT; ringing++)
+                if (ledger.deadlines[ringing] > 0 && ledger.deadlines[ringing] <= now) {
+                    stopped[ringing] = ledger.revisions[ringing]; ledger.set(ringing, 0); count++;
+                }
+            if (count > 0) {
+                save(c, ledger); // Invalidate queued alarms before touching platform resources.
+                for (int ringing = 1; ringing <= TimerLedger.LIMIT; ringing++) if (stopped[ringing] > 0) {
+                    ((AlarmManager)c.getSystemService(Context.ALARM_SERVICE)).cancel(event(c, ringing, stopped[ringing]));
+                    ((NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel(100 + ringing);
+                }
+                TimerAlarmService.refresh(c);
+                return "Alarm stopped.";
+            }
+            command = TimerCommand.cancel(0); // Nothing is ringing: the one active timer.
+        }
         boolean start = command > 0, cancel = command <= -10 && command >= -18;
         int id = start ? ledger.free() : ledger.select(TimerCommand.target(command));
         if (id < 0) return "More than one timer is active. Say the timer number, for example, cancel timer one, or add one minute to timer two.";

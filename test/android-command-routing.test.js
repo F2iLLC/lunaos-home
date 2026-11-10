@@ -10,9 +10,9 @@ test('finalized speech keeps timer commands local and questions behind a wake', 
   t.after(() => rm(output, { recursive: true, force: true }));
   const tool = name => process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', name + (process.platform === 'win32' ? '.exe' : '')) : name;
   const run = (name, args) => execFileSync(tool(name), args, { windowsHide: true, timeout: 30_000, encoding: 'utf8', stdio: 'pipe' });
-  const classes = ['TimerPhrase', 'TimerCommand', 'QuestionPolicy', 'WakeSession', 'CommandAudio', 'TimerPhraseTest', 'WakeSessionTest', 'CommandAudioTest', 'TimerDurationTest'];
+  const classes = ['TimerPhrase', 'TimerCommand', 'QuestionPolicy', 'WakeSession', 'CommandAudio', 'TimerPhraseTest', 'WakeSessionTest', 'CommandAudioTest', 'TimerDurationTest', 'TimerStopTest'];
   run('javac', ['-d', output, ...classes.map(name => `scripts/android-offline-voice-probe/${name}.java`), 'test/fixtures/CommandRoutingProbe.java']);
-  for (const name of ['TimerPhraseTest', 'WakeSessionTest', 'CommandAudioTest', 'TimerDurationTest', 'CommandRoutingProbe']) {
+  for (const name of ['TimerPhraseTest', 'WakeSessionTest', 'CommandAudioTest', 'TimerDurationTest', 'TimerStopTest', 'CommandRoutingProbe']) {
     assert.match(run('java', ['-cp', output, `io.github.f2illc.lunaos.home.voiceprobe.${name}`]), /checks passed/);
   }
 });

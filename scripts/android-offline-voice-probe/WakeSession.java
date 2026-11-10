@@ -17,9 +17,16 @@ public final class WakeSession {
     public boolean awaitingCommand() { return awake; }
     public long deadline() { return deadline; }
     public boolean expired(long now) { return finished || now >= deadline; }
-    public int acceptFinal(String text, long now) {
+    public int acceptFinal(String text, long now) { return acceptFinal(text, now, false); }
+    /**
+     * While a timer is ringing, a plain request for silence ("stop", "luna stop",
+     * "turn it off") is honored without the wake phrase: nobody should have to
+     * hold a conversation with an alarm. It can do nothing else.
+     */
+    public int acceptFinal(String text, long now, boolean ringing) {
         if (expired(now)) { finished = true; return NONE; }
         if (!awake) {
+            if (ringing && TimerCommand.stop(text) == TimerCommand.STOP) { finished = true; return TimerCommand.STOP; }
             if (!"hey luna".equals(text)) return NONE;
             awake = true;
             deadline = Math.min(end, now + COMMAND_MS);

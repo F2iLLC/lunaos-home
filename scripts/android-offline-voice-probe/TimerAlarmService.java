@@ -13,6 +13,7 @@ public final class TimerAlarmService extends Service {
     private int foregroundId;
     private final Handler handler = new Handler();
     private final Runnable watch = new Runnable() { public void run() { update(); if (active == TimerAlarmService.this) handler.postDelayed(this, 250); } };
+    static boolean ringing() { return active != null; }
     static void refresh(Context c) { if (active != null) active.update(); }
     static void duck(boolean value) { if (active != null && active.player != null) try { active.player.setVolume(value ? 0.12f : 1f, value ? 0.12f : 1f); } catch (RuntimeException ignored) {} }
     private void update() {

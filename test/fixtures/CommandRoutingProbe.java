@@ -15,7 +15,8 @@ public final class CommandRoutingProbe {
             String number = TimerPhrase.number(n);
             for (int target = 0; target <= 8; target++) {
                 String timer = target == 0 ? "the timer" : "timer " + target;
-                check(TimerCommand.parse("cancel " + timer) == TimerCommand.cancel(target), "cancel target");
+                // "the timer" names no number: it stops what is ringing, else the one active timer.
+                check(TimerCommand.parse("cancel " + timer) == (target == 0 ? TimerCommand.STOP : TimerCommand.cancel(target)), "cancel target");
                 for (String unit : new String[] {n == 1 ? "second" : "seconds", n == 1 ? "minute" : "minutes"}) {
                     int duration = n * (unit.startsWith("minute") ? 60 : 1);
                     check(TimerCommand.parse("add " + n + " " + unit + " to " + timer) == TimerCommand.add(target, duration), "exact extension");

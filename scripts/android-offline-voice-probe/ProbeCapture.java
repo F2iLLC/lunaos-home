@@ -270,7 +270,8 @@ final class ProbeCapture {
                             String text = new JSONObject(current.getResult()).optString("text", "");
                             int seconds;
                             if (!commandStage) {
-                                seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
+                                seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime(), TimerAlarmService.ringing()) : TimerPhrase.seconds(text);
+                                if (seconds == TimerCommand.STOP) Log.i("HomeVoiceProbe", "ALARM_STOP_WITHOUT_WAKE");
                             } else if (TimerCommand.valid(TimerCommand.parse(text))) {
                                 seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
                             } else if (questions && queued != null && !text.trim().isEmpty()) {

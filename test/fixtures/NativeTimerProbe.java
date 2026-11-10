@@ -10,14 +10,14 @@ public final class NativeTimerProbe {
    check(TimerCommand.parse("set another timer for "+TimerPhrase.number(n)+(n==1?" second":" seconds"))==n);
    for(int id=0;id<=8;id++) {
     String timer=id==0?"the timer":"timer "+TimerPhrase.number(id);
-    check(TimerCommand.parse("cancel "+timer)==TimerCommand.cancel(id));
+    check(TimerCommand.parse("cancel "+timer)==(id==0?TimerCommand.STOP:TimerCommand.cancel(id)));
     int command=TimerCommand.parse("add "+TimerPhrase.number(n)+(n==1?" minute to ":" minutes to ")+timer);
     check(TimerCommand.valid(command)&&TimerCommand.duration(command)==n*60&&TimerCommand.target(command)==id);
    }
   }
-  check(TimerCommand.parse("cancel the timer please")==TimerCommand.cancel(0));
-  for(String text:new String[]{"cancel","cancel all timers","add a minute","add one minutes to the timer","cancel timer nine","cancel the timer please tomorrow","set another timer for [unk] seconds"}) check(TimerCommand.parse(text)==0);
-  WakeSession wake=new WakeSession(0,true);check(wake.acceptFinal("cancel the timer",1)==0);check(wake.acceptFinal("hey luna",2)==WakeSession.WAKE);check(wake.acceptFinal("cancel the timer",3)==TimerCommand.cancel(0));check(wake.acceptFinal("cancel the timer",4)==0);
+  check(TimerCommand.parse("cancel the timer please")==TimerCommand.STOP);
+  for(String text:new String[]{"cancel all timers","add a minute","add one minutes to the timer","cancel timer nine","cancel the timer please tomorrow","set another timer for [unk] seconds"}) check(TimerCommand.parse(text)==0);
+  WakeSession wake=new WakeSession(0,true);check(wake.acceptFinal("cancel the timer",1)==0);check(wake.acceptFinal("hey luna",2)==WakeSession.WAKE);check(wake.acceptFinal("cancel the timer",3)==TimerCommand.STOP);check(wake.acceptFinal("cancel the timer",4)==0);
   check(NativeTimers.execute(c,60).contains("started"));Intent old=c.alarms.last.intent;
   check(NativeTimers.execute(c,120).contains("started"));check(NativeTimers.execute(c,TimerCommand.cancel(0)).contains("More than one"));
   check(NativeTimers.read(c).deadlines[1]==61000&&NativeTimers.read(c).deadlines[2]==121000);
@@ -47,6 +47,20 @@ public final class NativeTimerProbe {
   alarm.onStartCommand(new Intent(alarm,TimerAlarmService.class),0,3);check(alarm.foreground);
   int released=android.media.MediaPlayer.releases;android.os.Handler.advance(500);check(android.media.MediaPlayer.releases==released); // No failed-playback retry loop.
   NativeTimers.execute(alarm,TimerCommand.cancel(1));alarm.onDestroy();
+  // Stop: silences every ringing timer, leaves counting ones, and is silent itself.
+  android.media.MediaPlayer.fail=false;TimerAlarmService ringing=new TimerAlarmService();SystemClock.now=1000;
+  check(!TimerAlarmService.ringing());
+  check(NativeTimers.execute(ringing,TimerCommand.STOP).equals("That timer is not active."));
+  NativeTimers.execute(ringing,5);NativeTimers.execute(ringing,5);NativeTimers.execute(ringing,600);
+  check(NativeTimers.execute(ringing,TimerCommand.STOP).contains("More than one")); // Nothing rings yet: ambiguous, nothing changed.
+  check(NativeTimers.read(ringing).deadlines[1]>0&&NativeTimers.read(ringing).deadlines[3]>0);
+  SystemClock.now=6000;ringing.onStartCommand(new Intent(ringing,TimerAlarmService.class),0,4);check(ringing.foreground&&TimerAlarmService.ringing());
+  int before=android.media.MediaPlayer.releases;
+  check(NativeTimers.execute(ringing,TimerCommand.STOP).equals("Alarm stopped."));
+  TimerLedger left=NativeTimers.read(ringing);check(left.deadlines[1]==0&&left.deadlines[2]==0&&left.deadlines[3]==601000);
+  check(!ringing.foreground&&!TimerAlarmService.ringing()&&android.media.MediaPlayer.releases==before+1);
+  check(NativeTimers.execute(ringing,TimerCommand.STOP).equals("Timer three canceled.")); // One counting timer left: stop means it.
+  ringing.onDestroy();
   System.out.println("Native timer checks passed ("+checks+" cases).");
  }
 }

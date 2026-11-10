@@ -101,6 +101,22 @@ and numbered targets to 1–8. `The timer` remains valid only when the native
 ledger has one unambiguous target. Negatives, fractions, compound commands and
 extra trailing words are rejected.
 
+**Stopping.** `stop`, `cancel`, `stop it`, `turn it off`, `shut it off`, and
+`stop`, `cancel`, `end`, `turn off` or `shut off` followed by `the timer` or
+`the alarm` (also `turn the alarm off`) all mean one thing: silence every timer
+that is ringing and leave timers that are still counting alone. With nothing
+ringing they mean the one active timer, as `cancel the timer` always did, and
+are refused as ambiguous when several are counting. The same verbs with a
+number (`stop timer two`) cancel that timer. A stopped alarm is confirmed by
+the silence, not by a spoken reply.
+
+While a timer is ringing, and only then, that plain request is honored without
+the wake phrase, so `stop` or `Luna, stop` is enough. Nothing else is accepted
+without the wake phrase, and numbered timers still need it. This is not yet
+established on the device: whether `stop` is heard over the alarm at full
+volume, and whether the alarm's own sound is ever mistaken for it, each need
+attended use. Pausing and resuming a timer are not supported.
+
 A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
 Once a timer attempt is recognized in a wake window, later fragments cannot
 fall through to Qwen in that window. A complete timer retry can still succeed;
