@@ -5,6 +5,7 @@ import { preserveSaveRoutes } from './draft-storage.js';
 preserveSaveRoutes();
 
 let tasks = [];
+let saved = null; // the notebook's checklist list id ('' until it exists), once the vault answers
 const form = document.querySelector('#task-form');
 const title = document.querySelector('#task-title');
 const category = document.querySelector('#task-category');
@@ -23,6 +24,7 @@ function showPage(moveFocus = true) {
   if (document.querySelector('#notebook')) document.querySelector('#notebook').hidden = page !== 'notebook';
   document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : page === 'luna' ? 'Meet Luna' : page === 'notebook' ? "Luna's notebook" : 'Your checklist'} · Luna OS Home`;
   if (page === 'vault') refreshDraft();
+  if (page === 'checklist' && saved !== null) connectChecklist(); // pick up what Luna or another page changed
   if (moveFocus) {
     document.querySelector(`#${page}-heading`).focus();
     window.scrollTo(0, 0);
@@ -57,10 +59,15 @@ function render() {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.checked = task.completed;
-    checkbox.addEventListener('change', () => {
-      tasks = toggleTask(tasks, task.id);
-      render();
-      list.querySelector(`[data-task-id="${task.id}"]`).focus();
+    checkbox.addEventListener('change', async () => {
+      if (saved !== null) {
+        try { await change({ op: 'complete_item', list: saved, item: task.id, completed: checkbox.checked }); error.textContent = ''; }
+        catch (failure) { error.textContent = failure.message; render(); }
+      } else {
+        tasks = toggleTask(tasks, task.id);
+        render();
+      }
+      list.querySelector(`[data-task-id="${task.id}"]`)?.focus();
     });
     checkbox.dataset.taskId = task.id;
     const text = document.createElement('span');
@@ -76,9 +83,14 @@ function render() {
     remove.className = 'remove';
     remove.textContent = 'Remove';
     remove.setAttribute('aria-label', `Remove ${task.title}`);
-    remove.addEventListener('click', () => {
-      tasks = removeTask(tasks, task.id);
-      render();
+    remove.addEventListener('click', async () => {
+      if (saved !== null) {
+        try { await change({ op: 'remove_item', list: saved, item: task.id }); error.textContent = ''; }
+        catch (failure) { error.textContent = failure.message; }
+      } else {
+        tasks = removeTask(tasks, task.id);
+        render();
+      }
       title.focus();
     });
     row.append(label, remove);
@@ -86,10 +98,15 @@ function render() {
   }
 }
 
-form.addEventListener('submit', event => {
+form.addEventListener('submit', async event => {
   event.preventDefault();
   try {
-    tasks = [...tasks, createTask(title.value, category.value)];
+    const task = createTask(title.value, category.value);
+    if (saved !== null) {
+      // Saved first; the list shown afterwards is what the vault returned.
+      if (saved === '') await change({ op: 'create_list', ...CHECKLIST });
+      await change({ op: 'add_items', list: saved, allowDuplicate: true, items: [{ text: task.title, category: task.category }] });
+    } else tasks = [...tasks, task];
     error.textContent = '';
     form.reset();
     render();
@@ -100,3 +117,38 @@ form.addEventListener('submit', event => {
 });
 
 render();
+
+// When Home is connected to the household vault, this checklist is one of the
+// lists in Luna's notebook: the same record the notebook page and Luna change.
+// Without a vault it stays a list for this visit only, as before.
+const CHECKLIST = { name: 'My checklist', type: 'checklist' };
+async function notebook(body) {
+  const response = await fetch('/api/notebook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Home-Preview': '1' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error('unavailable');
+  return response.json();
+}
+function adopt(data) {
+  if (!data.notebook) return;
+  const found = data.notebook.lists.find(entry => entry.type === CHECKLIST.type);
+  saved = found?.id ?? '';
+  tasks = (found?.items ?? []).map(item => ({
+    id: item.id, title: item.text, category: item.category ?? categories[0], completed: item.completed,
+  }));
+  document.querySelector('#checklist-saved-note').hidden = false;
+  document.querySelector('#checklist-visit-note').hidden = true;
+  render();
+}
+async function change(operation) {
+  const data = await notebook({ action: 'op', operation });
+  adopt(data);
+  if (data.status !== 'applied') throw new Error(data.reply ?? 'Nothing was changed.');
+}
+async function connectChecklist() {
+  if (typeof fetch !== 'function') return;
+  try { adopt(await notebook({ action: 'snapshot' })); } catch { /* no vault: this visit only */ }
+}
+connectChecklist();

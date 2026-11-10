@@ -36,6 +36,13 @@ function Assert-NotebookKeys($Value, [string[]] $Required, [string[]] $Optional)
 function Assert-NotebookText($Value, [int] $Max) {
     if ($Value -isnot [string] -or $Value.Trim().Length -lt 1 -or $Value.Length -gt $Max) { throw 'notebook-data' }
 }
+function Assert-NotebookActor($Owner) {
+    if (-not $Owner.Contains('updatedBy')) { return }
+    $actor = $Owner.updatedBy
+    Assert-NotebookKeys $actor @('kind', 'id') @()
+    if ($actor.kind -cnotin @('human', 'assistant')) { throw 'notebook-data' }
+    Assert-NotebookId $actor.id
+}
 function Assert-NotebookId($Value) {
     if ($Value -isnot [string] -or $Value -cnotmatch '^[A-Za-z0-9_-]{1,80}$') { throw 'notebook-data' }
 }
@@ -52,14 +59,16 @@ function Assert-Notebook($Value) {
     Assert-NotebookId $book.householdId
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($list in $book.lists) {
-        Assert-NotebookKeys $list @('id', 'name', 'createdAt', 'updatedAt', 'items') @('description', 'type')
+        Assert-NotebookKeys $list @('id', 'name', 'createdAt', 'updatedAt', 'items') @('description', 'type', 'updatedBy')
         Assert-NotebookId $list.id
         Assert-NotebookText $list.name 80
+        Assert-NotebookActor $list
         if (-not $seen.Add($list.id) -or $list.items -isnot [array] -or $list.items.Count -gt 200) { throw 'notebook-data' }
         foreach ($item in $list.items) {
-            Assert-NotebookKeys $item @('id', 'text', 'completed', 'position', 'createdAt', 'updatedAt') @('quantity', 'unit', 'notes')
+            Assert-NotebookKeys $item @('id', 'text', 'completed', 'position', 'createdAt', 'updatedAt') @('quantity', 'unit', 'notes', 'category', 'updatedBy')
             Assert-NotebookId $item.id
             Assert-NotebookText $item.text 160
+            Assert-NotebookActor $item
             if ($item.completed -isnot [bool] -or ($item.position -isnot [int] -and $item.position -isnot [long]) -or
                 $item.position -lt 0 -or $item.position -gt 200) { throw 'notebook-data' }
         }
