@@ -34,11 +34,11 @@ use windows::Win32::System::RemoteDesktop::{
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, IsWindowVisible,
-    PeekMessageW, SetForegroundWindow, SetWindowTextW, ShowWindow, TranslateMessage, CW_USEDEFAULT,
-    DEVICE_NOTIFY_WINDOW_HANDLE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMECRITICAL,
-    PBT_APMRESUMESUSPEND, PBT_APMSUSPEND, PM_REMOVE, SW_SHOWMINNOACTIVE, SW_SHOWNORMAL,
-    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCDESTROY, WM_NCHITTEST,
-    WM_POWERBROADCAST, WM_QUIT, WM_WTSSESSION_CHANGE, WS_EX_APPWINDOW, WS_OVERLAPPED,
+    PeekMessageW, RegisterClassW, SetForegroundWindow, SetWindowTextW, ShowWindow,
+    TranslateMessage, CW_USEDEFAULT, DEVICE_NOTIFY_WINDOW_HANDLE, MSG, PBT_APMRESUMEAUTOMATIC,
+    PBT_APMRESUMECRITICAL, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND, PM_REMOVE, SW_SHOWMINNOACTIVE,
+    SW_SHOWNORMAL, WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCDESTROY,
+    WM_POWERBROADCAST, WM_QUIT, WM_WTSSESSION_CHANGE, WNDCLASSW, WS_EX_APPWINDOW, WS_OVERLAPPED,
     WS_OVERLAPPEDWINDOW, WTS_CONSOLE_DISCONNECT, WTS_REMOTE_DISCONNECT, WTS_SESSION_LOCK,
     WTS_SESSION_LOGOFF, WTS_SESSION_REMOTE_CONTROL, WTS_SESSION_UNLOCK,
 };
@@ -203,11 +203,6 @@ unsafe extern "system" fn window_procedure(
             (monitor.end)(reason);
         }
     }
-    if message == WM_NCHITTEST {
-        // The STATIC class reports every point as transparent, which leaves
-        // the title bar and its close button deaf to the mouse.
-        return DefWindowProcW(hwnd, message, wparam, lparam);
-    }
     if message == WM_NCDESTROY {
         let _ = WTSUnRegisterSessionNotification(hwnd);
         let _ = UnregisterSuspendResumeNotification(monitor.power);
@@ -325,16 +320,36 @@ pub fn run<T: Send + 'static>(
     result
 }
 
-// The session window, not yet shown.
+const WINDOW_CLASS: PCWSTR = w!("LunaOSHomeVaultSession");
+
+unsafe extern "system" fn class_procedure(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    DefWindowProcW(hwnd, message, wparam, lparam)
+}
+
+// The session window, not yet shown. It has its own plain window class: a
+// borrowed control class (STATIC) does not behave as a top-level window, and
+// its close button ignored the mouse.
 fn create(visible: bool) -> Result<HWND, &'static str> {
     unsafe {
+        // Registering twice in one process fails harmlessly; a class that is
+        // really unavailable fails the window creation below.
+        let _ = RegisterClassW(&WNDCLASSW {
+            lpfnWndProc: Some(class_procedure),
+            lpszClassName: WINDOW_CLASS,
+            ..Default::default()
+        });
         CreateWindowExW(
             if visible {
                 WS_EX_APPWINDOW
             } else {
                 WINDOW_EX_STYLE::default()
             },
-            w!("STATIC"),
+            WINDOW_CLASS,
             w!("Luna OS Home vault - waiting for your vault password"),
             if visible {
                 WS_OVERLAPPEDWINDOW
@@ -428,9 +443,8 @@ mod tests {
         assert_eq!(ending_message(0x0113, 0), None, "a timer tick is ignored");
     }
 
-    // The window uses the system STATIC class, whose own procedure reports
-    // every point as transparent: without the subclass answering hit tests,
-    // the title bar and its close button ignore the mouse.
+    // A borrowed STATIC class reported every point as transparent, so the
+    // title bar and its close button ignored the mouse.
     #[test]
     fn the_session_window_answers_hit_tests_on_its_title_bar() {
         use windows::Win32::Foundation::RECT;

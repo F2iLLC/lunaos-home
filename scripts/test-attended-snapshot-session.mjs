@@ -353,6 +353,7 @@ evidence.result = evidence.stages.some((entry) => entry.result === 'FAIL')
   : evidence.stages.some((entry) => entry.result === 'SKIPPED')
     ? 'PASS_WITH_SKIPS'
     : 'PASS';
+save(); // The verdict is on disk before anything else is printed.
 
 try {
   say('Step 7 of 7. Cleanup: removing the disposable key and the fictional store.');
@@ -364,8 +365,10 @@ try {
     refusedWith('missing-store', 'protector-missing'),
   );
   evidence.cleanup = 'disposable-key-and-store-removed';
+  save();
 } catch {
   evidence.cleanup = 'CLEANUP_REQUIRED';
+  save();
   console.log(
     `Cleanup did not finish. Run: node scripts/test-attended-snapshot-session.mjs --cleanup ${storeId}`,
   );

@@ -219,22 +219,33 @@ existing store the runner records the operator's answer to "did Windows show a
 password dialog" next to the measured unlock time; an unlock faster than a
 person can type is recorded as a failure whatever the answer.
 
-The first attended run (2026-11-10, Windows 11 Home 10.0.26300, source head
-`4c3acab`) did not pass, and found:
+Two attended runs on 2026-11-10 (Windows 11 Home 10.0.26300), neither a
+complete pass:
 
-- **The session window could not be closed.** Its system `STATIC` class
-  reports every point as transparent, so the title bar and close button
-  ignored the mouse. Fixed: the window now answers hit tests itself, and a
-  crate test covers it. Not yet re-observed by a person.
-- **Open: an unlock in a new process may not have asked for the password.**
-  The operator reported that reopening the store after the first session's
-  process had ended showed no password dialog, while the wrong-password and
-  cancelled-dialog steps behaved as designed. That run did not measure it.
-  Until a run with the measurement above settles this, the claim that every
-  new session requires the vault password is unproven.
-- The Windows-lock step was never reached, because that runner stopped at the
-  first failed step. Storage results inside the unlocked session (nine
-  requests, seven fault stages, nothing readable at rest, abrupt exit) passed.
+- **Run 1 (source head `4c3acab`): the session window could not be closed.**
+  The runner then stopped at that first failed step, so the Windows-lock step
+  never ran. The operator also reported that reopening the store in a new
+  process showed no password dialog; that run did not measure it.
+- **Run 2 (source head `6c14689`, measuring runner): every unlock of the
+  existing store required the password.** Three unlocks in new processes, each
+  confirmed by the operator and each taking 5.6 to 7.1 seconds; the report
+  from run 1 was not reproduced. Creating the store showed one dialog (create
+  the password) and no second one. A wrong password and a cancelled dialog
+  were refused, Windows lock ended the session with `windows-lock`, and the
+  storage checks inside the session passed (nine requests, seven fault
+  stages, nothing readable at rest, abrupt exit).
+- **Run 2 also showed the first window fix was not enough.** The window
+  closed, and the session locked, only through the taskbar's Close command;
+  the X in its title bar still did nothing. The window borrowed the system
+  `STATIC` class. Answering hit tests for it (the first fix) made the X
+  report correctly but a real click still did not close it, which a probe
+  with synthetic mouse input reproduced. The window now has its own plain
+  window class; the same probe closes it with a click, shown normally and
+  restored from minimized. No person has closed it by hand yet.
+- Run 2's runner did not write its final result or run its cleanup: it
+  stopped after the last stage for a reason not yet known. Its evidence file
+  therefore says `INCOMPLETE`. The disposable key and store were removed
+  afterwards with `--cleanup`.
 
 A default-feature build (`cargo build --locked` in the crate) lands in
 `target/debug` and cannot be mistaken for the harness worker; the adapter
