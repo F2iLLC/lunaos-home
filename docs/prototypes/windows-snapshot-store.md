@@ -219,7 +219,7 @@ existing store the runner records the operator's answer to "did Windows show a
 password dialog" next to the measured unlock time; an unlock faster than a
 person can type is recorded as a failure whatever the answer.
 
-Two attended runs on 2026-11-10 (Windows 11 Home 10.0.26300), neither a
+Three attended runs on 2026-11-10 (Windows 11 Home 10.0.26300), none a
 complete pass:
 
 - **Run 1 (source head `4c3acab`): the session window could not be closed.**
@@ -241,11 +241,25 @@ complete pass:
   report correctly but a real click still did not close it, which a probe
   with synthetic mouse input reproduced. The window now has its own plain
   window class; the same probe closes it with a click, shown normally and
-  restored from minimized. No person has closed it by hand yet.
+  restored from minimized.
 - Run 2's runner did not write its final result or run its cleanup: it
   stopped after the last stage for a reason not yet known. Its evidence file
   therefore says `INCOMPLETE`. The disposable key and store were removed
   afterwards with `--cleanup`.
+
+- **Run 3 (source head `a0b3aab`, own window class): the operator closed the
+  session window with its X and the session locked.** The runner of that head
+  did not ask which control was used, so this rests on the operator's report
+  to the developer, not on the evidence file; the runner now asks. Both later
+  unlocks required the password (10.2 and 8.2 seconds). The run still failed:
+  the reopen step returned `key-release-denied`, which a mistyped password or
+  a dismissed dialog produces. The same key released twice afterwards in that
+  run. The cause was not confirmed. The runner finished and cleaned up.
+
+No attended run has passed end to end. The synthetic-click probe mentioned
+above was a temporary program and is not in the repository; the committed
+crate test checks only that the title bar answers hit tests, which the
+insufficient first fix also satisfied.
 
 A default-feature build (`cargo build --locked` in the crate) lands in
 `target/debug` and cannot be mistaken for the harness worker; the adapter

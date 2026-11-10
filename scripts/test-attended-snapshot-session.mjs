@@ -113,17 +113,43 @@ const profile = (value) => ({
 });
 const refusedWith = (...reasons) => (error) =>
   error.code === 'STORAGE_FAILED' && reasons.includes(error.reason);
-// Fixed identifiers only: never free text from an error.
+// Fixed identifiers only: never free text from an error, and never a record
+// revision (revisions are UUIDs; identifiers here are words and hyphens).
 const identifier = (value) =>
-  typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
+  typeof value === 'string' && /^[a-z]+(?:-[a-z]+){0,7}$/.test(value)
+    ? value
+    : null;
 const describe = (error) => {
   if (identifier(error?.reason)) return error.reason;
+  if (error instanceof VaultLockedError) return 'vault-locked';
   if (error?.code === 'ERR_ASSERTION') {
     const actual = identifier(error.actual);
     const expected = identifier(error.expected);
     return actual && expected ? `expected ${expected}, got ${actual}` : 'assertion';
   }
-  return identifier(error?.code?.toLowerCase?.()) ?? 'error';
+  const code =
+    typeof error?.code === 'string'
+      ? error.code.toLowerCase().replaceAll('_', '-')
+      : null;
+  return identifier(code) ?? 'error';
+};
+// The operator pressed Ctrl+C or closed the input: stop asking, still clean up.
+const aborted = (error) =>
+  error?.code === 'ABORT_ERR' || error?.code === 'ERR_USE_AFTER_CLOSE';
+const refusal = (reason) => Object.assign(new Error(reason), { reason });
+// Resolves with the promise, or with `fallback` after the limit.
+const within = async (promise, milliseconds, fallback) => {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(fallback), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 const inSessionFaults = [
   ['before-write', 'old'],
@@ -168,9 +194,27 @@ const step = async (name, text, body) => {
   try {
     await body();
   } catch (error) {
-    stage(name, 'FAIL', describe(error));
     await lockQuietly();
+    if (aborted(error)) throw error;
+    stage(name, 'FAIL', describe(error));
   }
+};
+// An unlock that must be refused. If Windows releases the key anyway, the
+// session is locked at once and the step fails.
+const mustBeRefused = async () => {
+  let opened;
+  try {
+    opened = await openWindowsSnapshotSession({ storeId, protector });
+  } catch (error) {
+    if (refusedWith('key-release-denied')(error)) return;
+    throw error;
+  }
+  try {
+    await opened.lock();
+  } catch {
+    // Already ended.
+  }
+  throw refusal('unlocked-unexpectedly');
 };
 
 say(
@@ -258,11 +302,12 @@ try {
   await assert.rejects(session.read('alex-work'), VaultLockedError);
   stage('abrupt-worker-exit-ends-session');
 } catch (error) {
-  stage('first-session', 'FAIL', describe(error));
+  stage('first-session', 'FAIL', aborted(error) ? 'operator-abort' : describe(error));
   await lockQuietly();
 }
 
 // Later steps need the store and the revision the first session left.
+try {
 if (created && revision) {
   await step(
     'reopen-after-interruption',
@@ -287,10 +332,7 @@ if (created && revision) {
       'disposable password and choose Allow. Windows should refuse it; then close\n' +
       'that dialog with its top-right X.',
     async () => {
-      await assert.rejects(
-        openWindowsSnapshotSession({ storeId, protector }),
-        refusedWith('key-release-denied'),
-      );
+      await mustBeRefused();
       stage('wrong-password-denied');
     },
   );
@@ -300,10 +342,7 @@ if (created && revision) {
     'Step 4 of 7. CANCEL. When Windows asks, do not type anything: close the\n' +
       'dialog with its top-right X.',
     async () => {
-      await assert.rejects(
-        openWindowsSnapshotSession({ storeId, protector }),
-        refusedWith('key-release-denied'),
-      );
+      await mustBeRefused();
       stage('cancelled-dialog-denied');
     },
   );
@@ -318,13 +357,21 @@ if (created && revision) {
         '  Now find the minimized window "Luna OS Home vault is unlocked" on the\n' +
           '  taskbar, restore it and close it with its X. You have 90 seconds.',
       );
-      const reason = await Promise.race([
-        session.ended,
-        new Promise((resolve) => setTimeout(() => resolve('not-closed'), 90_000)),
-      ]);
+      const reason = await within(session.ended, 90_000, 'not-closed');
       assert.equal(reason, 'window-closed');
       await assert.rejects(session.read('alex-work'), VaultLockedError);
       stage('closing-the-session-window-locks');
+      // The taskbar's Close command ends the session too; only the operator
+      // can say which one was used.
+      const byButton = await choose(
+        'Did the X in the window\'s own title bar close it (not the taskbar menu)?',
+        ['y', 'n'],
+      );
+      stage(
+        'title-bar-close-button-works',
+        byButton === 'y' ? 'PASS' : 'FAIL',
+        `operator=${byButton}`,
+      );
     },
   );
 
@@ -337,15 +384,17 @@ if (created && revision) {
       console.log(
         '  Now press Windows+L, then sign back in to Windows. You have 3 minutes.',
       );
-      const reason = await Promise.race([
-        session.ended,
-        new Promise((resolve) => setTimeout(() => resolve('not-locked'), 180_000)),
-      ]);
+      const reason = await within(session.ended, 180_000, 'not-locked');
       assert.equal(reason, 'windows-lock');
       await assert.rejects(session.read('alex-work'), VaultLockedError);
       stage('windows-lock-ends-session');
     },
   );
+}
+} catch (error) {
+  // Only an operator abort reaches here; every other failure is a stage.
+  await lockQuietly();
+  stage('journey', 'FAIL', aborted(error) ? 'operator-abort' : describe(error));
 }
 
 evidence.result = evidence.stages.some((entry) => entry.result === 'FAIL')

@@ -443,8 +443,10 @@ mod tests {
         assert_eq!(ending_message(0x0113, 0), None, "a timer tick is ignored");
     }
 
-    // A borrowed STATIC class reported every point as transparent, so the
-    // title bar and its close button ignored the mouse.
+    // A borrowed STATIC class reported every point as transparent. This guards
+    // only that regression: answering hit tests was not enough for a click on
+    // the close button to work, which needed the window's own class and has
+    // been checked with real input, not here.
     #[test]
     fn the_session_window_answers_hit_tests_on_its_title_bar() {
         use windows::Win32::Foundation::RECT;
