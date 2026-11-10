@@ -37,15 +37,35 @@ test('bundled offline replies sequence exact clips, release playback, and recove
         public static void main(String[] args){
           SpokenReply reply=create();Handler.drain();
           for(int i=0;i<2;i++){MediaPlayer p=MediaPlayer.last;p.listener.onCompletion(p);check(p.released);}
-          Handler.drain();check(completed==1);check(AssetManager.opened.equals(java.util.Arrays.asList("replies/timer-1.wav","replies/started-1-minute.wav")));
+          Handler.drain();check(completed==1);check(AssetManager.opened.equals(java.util.Arrays.asList("replies/setting-timer.wav","replies/minute-1.wav")));
           reply=create();reply.close();Handler.drain();check(completed==1);
           reply=create();Handler.drain();MediaPlayer p=MediaPlayer.last;Handler.timeout();check(p.released&&completed==2);
           p.listener.onCompletion(p);Handler.drain();check(completed==2);
           reply=create();Handler.drain();p=MediaPlayer.last;p.error.onError(p,1,1);Handler.drain();check(p.released&&completed==3);
           MediaPlayer.fail=true;reply=create();Handler.drain();check(MediaPlayer.last.released&&completed==4);MediaPlayer.fail=false;
-          for(int id=1;id<=8;id++)for(int n=1;n<=60;n++)for(int scale:new int[]{1,60})for(String action:new String[]{" started for "," extended by "}){
-            String[] clips=ReplyPlan.clips("Timer "+TimerPhrase.number(id)+action+n*scale+" seconds.");check(clips.length==2&&clips[0].equals("timer-"+id)&&manifest.contains(clips[1]));
+          for(int id=1;id<=8;id++)for(int n=1;n<=60;n++)for(int scale:new int[]{1,60}){
+            String[] clips=ReplyPlan.clips("Timer "+TimerPhrase.number(id)+" extended by "+n*scale+" seconds.");check(clips.length==2&&clips[0].equals("timer-"+id)&&manifest.contains(clips[1]));
           }
+          // A new timer is announced as "Setting a timer for" plus its parts,
+          // and names its number only when it is not timer one.
+          for(int id=1;id<=8;id++)for(int seconds:new int[]{1,59,60,61,90,3599,3600,3660,5400,7325,86399,86400}){
+            String[] clips=ReplyPlan.clips("Timer "+TimerPhrase.number(id)+" started for "+seconds+" seconds.");
+            check(clips[0].equals("setting-timer"));
+            int total=0;
+            for(int i=1;i<clips.length;i++){
+              check(manifest.contains(clips[i]));
+              String[] part=clips[i].split("-");
+              if(part[0].equals("hour"))total+=Integer.parseInt(part[1])*3600;
+              else if(part[0].equals("minute"))total+=Integer.parseInt(part[1])*60;
+              else if(part[0].equals("second"))total+=Integer.parseInt(part[1]);
+              else check(part[0].equals("timer")&&i==clips.length-1&&id>1&&Integer.parseInt(part[1])==id);
+            }
+            check(total==seconds&&(id==1)==(!clips[clips.length-1].startsWith("timer-")));
+          }
+          check(java.util.Arrays.equals(ReplyPlan.clips("Timer one started for 5400 seconds."),new String[]{"setting-timer","hour-1","minute-30"}));
+          check(java.util.Arrays.equals(ReplyPlan.clips("Timer two started for 150 seconds."),new String[]{"setting-timer","minute-2","second-30","timer-2"}));
+          for(String bad:new String[]{"Timer one started for 0 seconds.","Timer one started for 86401 seconds.","Timer one started for -5 seconds.","Timer one started for 5 seconds. Extra","Timer nine started for 5 seconds."})
+            check(ReplyPlan.clips(bad)[0].equals("unsupported"));
           check(ReplyPlan.clips("Timer eight canceled.")[0].equals("cancel-8"));
           check(ReplyPlan.clips("untrusted speech")[0].equals("unsupported"));
           System.out.println("Offline reply checks passed");

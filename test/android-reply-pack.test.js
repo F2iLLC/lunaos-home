@@ -25,7 +25,8 @@ test('offline voice pack requires every exact prompt and rejects tampering and m
   const copy = () => execFileSync(process.platform==='win32'?'pwsh.exe':'pwsh',
     ['-NoProfile','-File','scripts/android-offline-voice-probe/copy-reply-prompts.ps1','-InputDirectory',input,'-OutputDirectory',join(root,'output-'+sequence++)],
     {windowsHide:true,stdio:'pipe',timeout:30000});
-  assert.match(copy().toString(),/262 offline ElevenLabs replies/);
+  assert.match(copy().toString(),new RegExp(prompts.length + ' offline ElevenLabs replies'));
+  assert.ok(prompts.length >= 405 && prompts.some(c => c.id === 'setting-timer'));
   pack.clips[0].text='Unexpected wording'; await save();
   assert.throws(copy,/Reply manifest mismatch/);
   pack.clips[0].text=prompts[0].text; await save();

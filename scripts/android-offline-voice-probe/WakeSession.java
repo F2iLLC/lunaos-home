@@ -7,7 +7,7 @@ public final class WakeSession {
     public static final int NONE = 0, WAKE = -1;
     private final long end;
     private long deadline;
-    private boolean awake, finished;
+    private boolean awake, finished, timerAttempted;
 
     public WakeSession(long now) { this(now, false); }
     public WakeSession(long now, boolean persistent) {
@@ -26,8 +26,18 @@ public final class WakeSession {
             return WAKE;
         }
         int seconds = TimerCommand.parse(text);
+        if (QuestionPolicy.timerAttempt(text)) timerAttempted = true;
         if (TimerCommand.valid(seconds)) finished = true;
         return seconds;
+    }
+    /** Capture has ended; allow bounded local decoding of the captured command. */
+    public void decodeUntil(long until) {
+        if (awake && !finished) deadline = Math.min(end, until);
+    }
+    public boolean acceptQuestion(String text, long now) {
+        if (!awake || expired(now) || timerAttempted || !QuestionPolicy.accepts(text)) return false;
+        finished = true;
+        return true;
     }
     public static String grammar() { return "[\"[unk]\",\"hey luna\"]"; }
 }

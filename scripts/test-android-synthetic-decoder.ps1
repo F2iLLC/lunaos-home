@@ -60,7 +60,7 @@ public final class SyntheticPolicy {
     }
 }
 '@ | Set-Content -LiteralPath "$output/SyntheticPolicy.java" -Encoding utf8
-& "$Jdk/bin/javac.exe" -d $output "$output/SyntheticPolicy.java" "$source/TimerPhrase.java" "$source/WakeSession.java"
+& "$Jdk/bin/javac.exe" -d $output "$output/SyntheticPolicy.java" "$source/TimerPhrase.java" "$source/TimerCommand.java" "$source/QuestionPolicy.java" "$source/WakeSession.java"
 if ($LASTEXITCODE -ne 0) { throw 'Policy compilation failed.' }
 Add-Type @'
 using System;

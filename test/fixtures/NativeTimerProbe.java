@@ -15,7 +15,8 @@ public final class NativeTimerProbe {
     check(TimerCommand.valid(command)&&TimerCommand.duration(command)==n*60&&TimerCommand.target(command)==id);
    }
   }
-  for(String text:new String[]{"cancel","cancel all timers","add a minute","add one minutes to the timer","cancel timer nine","cancel the timer please","set another timer for [unk] seconds"}) check(TimerCommand.parse(text)==0);
+  check(TimerCommand.parse("cancel the timer please")==TimerCommand.cancel(0));
+  for(String text:new String[]{"cancel","cancel all timers","add a minute","add one minutes to the timer","cancel timer nine","cancel the timer please tomorrow","set another timer for [unk] seconds"}) check(TimerCommand.parse(text)==0);
   WakeSession wake=new WakeSession(0,true);check(wake.acceptFinal("cancel the timer",1)==0);check(wake.acceptFinal("hey luna",2)==WakeSession.WAKE);check(wake.acceptFinal("cancel the timer",3)==TimerCommand.cancel(0));check(wake.acceptFinal("cancel the timer",4)==0);
   check(NativeTimers.execute(c,60).contains("started"));Intent old=c.alarms.last.intent;
   check(NativeTimers.execute(c,120).contains("started"));check(NativeTimers.execute(c,TimerCommand.cancel(0)).contains("More than one"));

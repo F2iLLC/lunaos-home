@@ -90,6 +90,26 @@ verification gates.
 
 ## Qwen relay setup (Mac Studio)
 
+### Timer and question routing
+
+After the finalized wake phrase, the local parser accepts `set a timer for five
+seconds`, `set another timer for 5 seconds`, `start a five minute timer`,
+`add 5 minutes to timer 2`, and `cancel timer 2`. Numbers may be words or digits;
+case, terminal punctuation, a repeated wake prefix and a trailing `please` are
+normalized consistently. Durations remain bounded to 1–60 seconds or minutes,
+and numbered targets to 1–8. `The timer` remains valid only when the native
+ledger has one unambiguous target. Negatives, fractions, compound commands and
+extra trailing words are rejected.
+
+A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
+Once a timer attempt is recognized in a wake window, later fragments cannot
+fall through to Qwen in that window. A complete timer retry can still succeed;
+a separate question requires a new wake exchange. This is deterministic routing
+of finalized text, not a guarantee that the speech recognizer heard it correctly.
+The JVM routing suite covers these boundaries without microphone capture.
+
+### Private host configuration
+
 Install and start Ollama on the Mac Studio, then pull the selected Qwen model
 (default `qwen3:32b`). Leave Ollama bound to `127.0.0.1:11434`; the relay's
 adapter rejects non-loopback Ollama URLs. Choose a Tailscale IPv4 address for
@@ -175,3 +195,68 @@ forward that someone maintains explicitly, such as an ADB reverse port to a
 computer that tunnels to the Mac. That path is development convenience: when
 the forward, the tunnel or the relay is down, questions fail. Check the three
 links separately before concluding that recognition is at fault.
+
+## Command capture after the wake phrase
+
+Wake detection uses a fixed phrase list and decodes in real time. Free-form
+recognition does not on the 32-bit Echo Show 8 development device: fixed
+diagnostic timings from attended exchanges showed single decode calls of about
+3 s against a 200 ms recorder buffer, and command windows in which 25% to 58%
+of the captured audio never reached the recognizer. Spoken questions mostly
+survived that; timer commands, which must match exactly, never did.
+
+The capture path now works in two stages:
+
+1. **Live, fixed phrases.** One fixed-phrase recognizer hears the wake phrase
+   and, after it, timer commands. From the wake match a capture thread keeps
+   every sample of the command window in `CommandAudio`, and the recognizer
+   follows it in real time. A supported timer command is acted on directly.
+   Before the wake phrase `WakeSession` still accepts nothing but an exact
+   "hey luna".
+2. **Once, free-form.** If the fixed-phrase recognizer hears speech that is
+   not a supported timer command and online answers are enabled, the
+   microphone stops and the complete captured command is decoded once with the
+   free-form recognizer, within a bounded time. The text is then routed as
+   before: the strict timer parser first, then the question policy.
+
+`CommandAudio` holds at most the 15 second command window, refuses and counts
+anything beyond it, and is zeroed whenever capture closes. It does not exist
+before the wake phrase, so the pre-wake path keeps its small recorder buffer.
+Nothing is written to storage or sent anywhere. `CAPTURE_TIMING` reports
+`maxQueuedMs` and `droppedMs`, and a `REPLAY` phase for the second stage,
+still numbers only.
+
+There is deliberately one fixed-phrase recognizer. A build with a separate
+one for timer commands crashed inside the speech library on the device twice
+in a handful of wakes (a segmentation fault in its lookahead composition);
+the single-recognizer build has not crashed in the attended use so far, which
+is an observation, not a qualification.
+
+Attended on the device with the single-recognizer build: timers set from
+"two minutes", "one hour" and "one minute and thirty seconds" with the spoken
+confirmation, and a spoken question answered correctly. A timer command was
+matched with `audioMs` equal to `elapsedMs` and nothing dropped; a question
+took about 5 s of capture, 6 s of local decoding and 3 s for the answer.
+Recognition across voices, distance, noise and a ringing alarm is not
+established.
+
+## Timer durations and the spoken confirmation
+
+A new timer accepts seconds (1-60), minutes (1-60) or hours (1-24), "an hour",
+"a minute", and descending combinations such as "one hour and thirty minutes"
+or "two minutes thirty seconds", up to twenty four hours in total. Parsing is
+strict: wrong order, repeated units, plural mismatches and out-of-range parts
+are refused, never repaired. Adding time to a running timer stays within an
+hour.
+
+Luna confirms a new timer with "Setting a timer for" followed by its hour,
+minute and second parts, and the timer's number when it is not timer one. The
+words come from bundled clips, so the confirmation works without the relay.
+The clips are generic generated prompts listed in `reply-prompts.json`; the
+audio stays outside Git. To include it in a debug build, set
+`LUNA_HOME_VOICE_REPLY_DIRECTORY` to a prepared pack (`pack.json` plus one
+canonical 24 kHz mono WAV per manifest entry). The build validates every
+clip's text, checksum and format and refuses an incomplete pack. Without the
+variable, timers work and Luna stays silent. Generate every clip with the same
+voice: a pack mixing two voices is audible as soon as a second timer is
+announced.
