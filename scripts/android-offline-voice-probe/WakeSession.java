@@ -30,6 +30,10 @@ public final class WakeSession {
         if (TimerCommand.valid(seconds)) finished = true;
         return seconds;
     }
+    /** Capture has ended; allow bounded local decoding of the captured command. */
+    public void decodeUntil(long until) {
+        if (awake && !finished) deadline = Math.min(end, until);
+    }
     public boolean acceptQuestion(String text, long now) {
         if (!awake || expired(now) || timerAttempted || !QuestionPolicy.accepts(text)) return false;
         finished = true;

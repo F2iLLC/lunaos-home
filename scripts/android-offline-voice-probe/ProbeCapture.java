@@ -47,8 +47,11 @@ final class ProbeCapture {
     private volatile String watchdogCode, watchdogMessage;
     private AudioRecord recorder;
     private ToneGenerator cue;
-    // Post-wake only: a capture thread keeps reading the recorder while the
-    // slower free-form decoder works, so the command is not chopped.
+    // Post-wake only: a capture thread keeps every sample of the command
+    // window. The fixed-phrase recognizer follows it live for timer commands;
+    // anything else is decoded once, free-form, from the complete audio after
+    // the microphone has been stopped.
+    private static final long REPLAY_MAX_MS = 45000;
     private volatile CommandAudio commandAudio;
     private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
@@ -97,7 +100,7 @@ final class ProbeCapture {
     private void pumpCommandAudio(CommandAudio audio) {
         short[] chunk = new short[CommandAudio.CHUNK_FRAMES];
         try {
-            while (!closed && !audio.closed()) {
+            while (!closed && audio.capturing()) {
                 int count;
                 synchronized (this) {
                     if (closed || recorder == null) return;
@@ -113,6 +116,43 @@ final class ProbeCapture {
         } finally {
             Arrays.fill(chunk, (short) 0);
         }
+    }
+    // End microphone capture but keep the worker alive to decode what it heard.
+    private synchronized void stopCapture() {
+        RECORDING.set(false);
+        if (recorder == null) return;
+        try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
+        catch (RuntimeException ignored) { }
+        finally { recorder.release(); recorder = null; }
+    }
+    // The fixed-phrase recognizer did not hear a supported timer command.
+    // Stop the microphone, then decode the complete captured command once with
+    // the free-form recognizer. Returns null if the worker must stop instead.
+    private String decodeCaptured(CommandAudio audio, Recognizer freeForm, WakeSession wake,
+            short[] samples, CaptureTiming timing) throws Exception {
+        audio.seal();
+        stopCapture();
+        long now = SystemClock.elapsedRealtime();
+        deadline = Math.min(maximum, now + Math.min(REPLAY_MAX_MS, audio.capturedMs() * 3 + 5000));
+        wake.decodeUntil(deadline);
+        Log.i("HomeVoiceProbe", "COMMAND_AUDIO_COMPLETE");
+        timing.queued(audio.pendingMs(), audio.droppedMs());
+        timing.report();
+        timing.start(timing.bufferFrames, "REPLAY");
+        show("Heard you. Working it out on this device. Microphone off.", LunaFace.State.REVIEW);
+        StringBuilder heard = new StringBuilder();
+        int offset = 0, count;
+        while ((count = audio.replay(offset, samples)) > 0) {
+            if (closed || blocked(context) || SystemClock.elapsedRealtime() >= deadline) return null;
+            long started = SystemClock.elapsedRealtime();
+            if (freeForm.acceptWaveForm(samples, count))
+                heard.append(' ').append(new JSONObject(freeForm.getResult()).optString("text", ""));
+            timing.decoded(count, SystemClock.elapsedRealtime() - started);
+            offset += count;
+            Arrays.fill(samples, (short) 0);
+        }
+        heard.append(' ').append(new JSONObject(freeForm.getFinalResult()).optString("text", ""));
+        return heard.toString().trim().replaceAll("\\s+", " ");
     }
     private synchronized void closeRecorder() {
         closed = true;
@@ -177,9 +217,15 @@ final class ProbeCapture {
                 int word = NativeLibrary.getInstance("vosk").getFunction("vosk_model_find_word")
                     .invokeInt(new Object[] { model.getPointer(), "luna" });
                 if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
-                try (Recognizer recognizer = new Recognizer(model, 16000, wait ? WakeSession.grammar() : TimerPhrase.grammar());
-                     // Keep wake recognition constrained, but let local ASR hear natural command phrasing.
-                     // TimerCommand.parse remains the strict allowlist before any native timer dispatch.
+                // One fixed-phrase recognizer hears both the wake phrase and, after it, timer commands:
+                // it keeps up with speech on small devices and does not mishear the phrases it knows.
+                // Before the wake phrase WakeSession accepts nothing but an exact "hey luna". A second
+                // fixed-phrase recognizer on the same model crashed inside the speech library on the
+                // development device, so there is deliberately only one.
+                try (Recognizer recognizer = new Recognizer(model, 16000, wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
+                     // Free-form recognition is for questions and natural timer wording. It decodes the
+                     // captured command once, after capture; TimerCommand.parse remains the strict
+                     // allowlist before any native timer dispatch.
                      Recognizer command = wait ? new Recognizer(model, 16000) : null) {
                     if (!capture) { code = "ENGINE_READY_NO_CAPTURE"; message = "Offline engine ready. Microphone stayed off."; return; }
                     phase = "CAPTURE";
@@ -208,20 +254,45 @@ final class ProbeCapture {
                         if (queued != null) {
                             if (captureFailed) throw new IllegalStateException();
                             count = queued.poll(samples);
-                            timing.queued(queued.maxQueuedMs(), queued.droppedMs());
+                            timing.queued(queued.pendingMs() + count / 16, queued.droppedMs());
                         } else synchronized (this) {
                             if (closed) return;
                             count = recorder.read(samples, 0, samples.length, AudioRecord.READ_NON_BLOCKING);
                         }
                         if (count < 0) throw new IllegalStateException();
-                        Recognizer current = wake != null && wake.awaitingCommand() ? command : recognizer;
+                        boolean commandStage = wake != null && wake.awaitingCommand();
+                        Recognizer current = recognizer;
                         long decodeStarted = SystemClock.elapsedRealtime();
                         boolean complete = count > 0 && current.acceptWaveForm(samples, count);
                         timing.decoded(count, SystemClock.elapsedRealtime() - decodeStarted);
                         Arrays.fill(samples, (short) 0);
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
-                            int seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
+                            int seconds;
+                            if (!commandStage) {
+                                seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime()) : TimerPhrase.seconds(text);
+                            } else if (TimerCommand.valid(TimerCommand.parse(text))) {
+                                seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
+                            } else if (questions && queued != null && !text.trim().isEmpty()) {
+                                String heard = decodeCaptured(queued, command, wake, samples, timing);
+                                if (heard == null) continue;
+                                long decoded = SystemClock.elapsedRealtime();
+                                seconds = wake.acceptFinal(heard, decoded);
+                                if (TimerCommand.valid(seconds)) {
+                                    matched = seconds; code = "COMMAND_MATCH";
+                                    message = "Supported timer command recognized. Microphone off.";
+                                    return;
+                                }
+                                if (wake.acceptQuestion(heard, decoded)) {
+                                    code = "QUESTION_FINAL"; message = heard; return;
+                                }
+                                commandDiagnostic = TimerPhrase.commandDetail(heard);
+                                Log.i("HomeVoiceProbe", "COMMAND_FINAL_" + commandDiagnostic);
+                                code = "COMMAND_WINDOW_EXPIRED";
+                                message = "Heard you, but not a supported timer command or a question. Decoder: "
+                                    + commandDiagnostic + ". Microphone off. No timer started.";
+                                return;
+                            } else seconds = WakeSession.NONE;
                             if (seconds == WakeSession.WAKE) {
                                 timing.report();
                                 timing.start(timing.bufferFrames, "COMMAND");
@@ -285,8 +356,9 @@ final class ProbeCapture {
             started = lastObserved = SystemClock.elapsedRealtime();
             frames = maxDecodeMs = slowDecodeCalls = maxQueuedMs = droppedMs = 0;
         }
-        void queued(long maxQueuedMs, long droppedMs) {
-            this.maxQueuedMs = maxQueuedMs;
+        void queued(long queuedMs, long droppedMs) {
+            if (phase == null) return;
+            maxQueuedMs = Math.max(maxQueuedMs, queuedMs);
             this.droppedMs = droppedMs;
         }
         void decoded(int count, long elapsedMs) {
