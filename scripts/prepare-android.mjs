@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, copyFile, lstat, readlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile, lstat, readlink, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -340,6 +340,36 @@ export async function prepareAndroid({
       await mkdir(dirname(destination), { recursive: true });
       await copyFile(source, destination);
     }
+  }
+  // Luna's spoken timer confirmations: a prepared, validated clip pack kept
+  // outside Git. Without it timers still work and Luna stays silent.
+  const replyAssetRoot = join(debugRoot, 'assets/replies');
+  await rm(replyAssetRoot, { recursive: true, force: true });
+  const configuredReplies = process.env.LUNA_HOME_VOICE_REPLY_DIRECTORY;
+  if (configuredReplies) {
+    const replyRoot = resolve(configuredReplies);
+    const manifest = JSON.parse(await readFile(new URL('./android-offline-voice-probe/reply-prompts.json', import.meta.url), 'utf8'));
+    const pack = JSON.parse(await readFile(join(replyRoot, 'pack.json'), 'utf8'));
+    if (pack.provider !== 'ElevenLabs' || !Array.isArray(pack.clips) || pack.clips.length !== manifest.length)
+      throw new Error('LUNA_HOME_VOICE_REPLY_DIRECTORY must hold a complete prepared reply pack.');
+    const clips = [];
+    for (const clip of manifest) {
+      const entries = pack.clips.filter(entry => entry.id === clip.id);
+      if (entries.length !== 1 || entries[0].text !== clip.text) throw new Error(`Reply manifest mismatch: ${clip.id}`);
+      const bytes = await readFile(join(replyRoot, `${clip.id}.wav`));
+      if (createHash('sha256').update(bytes).digest('hex') !== entries[0].sha256) throw new Error(`Reply checksum mismatch: ${clip.id}`);
+      // Canonical mono 24 kHz PCM16 WAV with a 44-byte header, as the preparer emits.
+      if (bytes.length < 4844 || bytes.length > 576044 || bytes.length % 2 !== 0 ||
+          bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 16) !== 'WAVEfmt ' ||
+          bytes.readUInt32LE(4) !== bytes.length - 8 || bytes.readUInt32LE(16) !== 16 ||
+          bytes.readUInt16LE(20) !== 1 || bytes.readUInt16LE(22) !== 1 || bytes.readUInt32LE(24) !== 24000 ||
+          bytes.readUInt32LE(28) !== 48000 || bytes.readUInt16LE(32) !== 2 || bytes.readUInt16LE(34) !== 16 ||
+          bytes.toString('ascii', 36, 40) !== 'data' || bytes.readUInt32LE(40) !== bytes.length - 44)
+        throw new Error(`Invalid or oversized reply WAV: ${clip.id}`);
+      clips.push([clip.id, bytes]);
+    }
+    await mkdir(replyAssetRoot, { recursive: true });
+    for (const [id, bytes] of clips) await writeFile(join(replyAssetRoot, `${id}.wav`), bytes);
   }
   await writeFile(join(debugRoot, 'AndroidManifest.xml'), vaultDebugManifest);
   await writeFile(path, preparedManifest);

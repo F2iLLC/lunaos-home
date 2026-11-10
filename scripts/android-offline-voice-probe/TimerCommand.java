@@ -5,7 +5,8 @@ final class TimerCommand {
     static int cancel(int target) { return -10 - target; }
     static int add(int target, int seconds) { return -(100000 + target * 10000 + seconds); }
     static boolean valid(int value) {
-        return value > 0 && value <= 3600 || value <= -10 && value >= -18
+        // A new timer may run up to twenty four hours; adding time stays within an hour.
+        return value > 0 && value <= 86400 || value <= -10 && value >= -18
             || value <= -100001 && value >= -183600 && target(value) <= 8
                 && duration(value) >= 1 && duration(value) <= 3600;
     }
@@ -24,7 +25,7 @@ final class TimerCommand {
                 String suffix = " to " + timer;
                 if (bare.startsWith("add ") && bare.endsWith(suffix) && bare.length() > 4 + suffix.length()) {
                     int duration = TimerPhrase.durationSeconds(bare.substring(4, bare.length() - suffix.length()));
-                    if (duration > 0) return add(target, duration);
+                    if (duration > 0 && duration <= 3600) return add(target, duration);
                 }
             }
         }
