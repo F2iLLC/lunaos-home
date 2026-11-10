@@ -140,7 +140,8 @@
           <div id="empty-state"><span aria-hidden="true">✧</span><p>Nothing to carry here yet.</p></div>
           <ul id="task-list"></ul>
           <aside class="notice" aria-label="About this checklist">
-            <p>Just for this visit. Your list clears when you reload or close this tab. Nothing is saved or sent.</p>
+            <p id="checklist-saved-note" hidden>Kept in your household vault on this computer, in Luna's notebook. You can also tell Luna to add to your checklist.</p>
+            <p id="checklist-visit-note">Just for this visit. Your list clears when you reload or close this tab. Nothing is saved or sent.</p>
             <p>Use generic task labels; keep personal details elsewhere. This early preview doesn't book appointments, read files, or send reminders.</p>
           </aside>
         </div>
@@ -172,6 +173,10 @@
           <input id="notebook-say-input" type="text" maxlength="300" autocomplete="off" placeholder="Put milk and eggs on the grocery list">
           <button class="primary-button" type="submit">Send</button>
         </form>
+        <p id="notebook-member-row" class="notebook-member" hidden>
+          <label for="notebook-member">Writing as</label>
+          <select id="notebook-member"></select>
+        </p>
         <p id="notebook-error" role="alert"></p>
         <div id="notebook-lists" class="notebook-lists"></div>
         <form id="notebook-new" class="form-row">

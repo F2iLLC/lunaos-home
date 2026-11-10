@@ -112,7 +112,10 @@ if (root) {
           .filter(Boolean)
           .join(" ");
         row.append(box, el("span", label));
+        if (item.category) row.append(el("small", item.category));
         if (item.notes) row.append(el("small", item.notes));
+        const author = names.get(item.updatedBy?.id);
+        if (author) row.append(el("small", `by ${author}`));
         row.append(
           button(
             "Edit",
@@ -180,7 +183,33 @@ if (root) {
     }
   }
 
+  // People come from the household vault. The choice is attribution only.
+  const names = new Map();
+  const memberRow = $("#notebook-member-row");
+  const memberSelect = $("#notebook-member");
+  function showMembers(members, current) {
+    names.clear();
+    for (const member of members) names.set(member.id, member.name);
+    memberRow.hidden = members.length === 0;
+    memberSelect.replaceChildren(
+      ...[{ id: "", name: "The household" }, ...members].map((member) => {
+        const option = el("option", member.name);
+        option.value = member.id;
+        return option;
+      }),
+    );
+    memberSelect.value = current ?? "";
+  }
+  memberSelect.addEventListener("change", async () => {
+    const data = await call({
+      action: "member",
+      memberId: memberSelect.value || null,
+    });
+    if (data) show(data, data.reply);
+  });
+
   function show(data, announce) {
+    if (data.members) showMembers(data.members, data.member);
     if (data.notebook) render(data.notebook);
     if (data.avatar) play(data.avatar);
     if (announce !== undefined) status.textContent = announce;

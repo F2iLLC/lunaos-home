@@ -5,15 +5,15 @@ gifts are the same lists with a `type` label; nothing branches on list type.
 
 ## Shape
 
-| Layer                   | File                                               | Role                                                                              |
-| ----------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Model + transitions     | `lib/notebook-contract.js`                         | Zod schemas, list/item resolution, pure `applyNotebookOperation`                  |
-| Persistence + authority | `lib/notebook-service.js`                          | Only path to the data; household gate, CAS retry, readback reconciliation         |
-| Language                | `lib/notebook-assistant.js`                        | Utterance parsing, active-list context, clarification, confirmation               |
-| Avatar                  | `lib/notebook-avatar.js`                           | Maps a real outcome to the notebook animation; overlay yields to sleep/timers     |
-| Transport               | `lib/notebook-api.js`, `server.js` `/api/notebook` | Same service for UI and spoken text                                               |
-| UI                      | `src/notebook.js`, `#notebook` in `src/index.html` | Renders what the service returned; keeps no list store                            |
-| Windows preview         | `lib/windows-notebook.js`                          | Opt-in wiring of the service to the DPAPI store for `npm start` and the assistant |
+| Layer                   | File                                               | Role                                                                                    |
+| ----------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Model + transitions     | `lib/notebook-contract.js`                         | Zod schemas, list/item resolution, pure `applyNotebookOperation`                        |
+| Persistence + authority | `lib/notebook-service.js`                          | Only path to the data; household gate, CAS retry, readback reconciliation               |
+| Language                | `lib/notebook-assistant.js`                        | Utterance parsing, active-list context, clarification, confirmation                     |
+| Avatar                  | `lib/notebook-avatar.js`                           | Maps a real outcome to the notebook animation; overlay yields to sleep/timers           |
+| Transport               | `lib/notebook-api.js`, `server.js` `/api/notebook` | Same service for UI and spoken text                                                     |
+| UI                      | `src/notebook.js`, `#notebook` in `src/index.html` | Renders what the service returned; keeps no list store                                  |
+| Vault connection        | `lib/vault-notebook.js`                            | The notebook as a record in the household vault; members and attribution from the vault |
 
 ## Reused, not rebuilt
 
@@ -33,17 +33,24 @@ gifts are the same lists with a `type` label; nothing branches on list type.
 - **Context:** the active list lasts 120 s and is set only by a successful notebook operation. With no fresh context, or an ambiguous name, Luna asks. A reply that names no list is treated as unrelated speech.
 - **Timers keep precedence.** `add 5 minutes to the timer` is not a notebook request.
 
-## Windows storage
+## Where the lists live: the household vault on the Mac
 
-Both Windows encrypted stores accept the `household-notebook` record kind: the DPAPI probe store (`scripts/windows-vault-worker.ps1`) and `WindowsSnapshotFileStore` (`src-tauri/crates/windows-snapshot-store`). Each checks the record's shape and bounds before any storage access, and each refuses a profile edit aimed at a notebook record. `test/windows-notebook-persistence.test.js` proves, on both, that spoken lists survive a restart unchanged and unreadable on disk, that a failed write is reported as failed, and that a lost acknowledgement is settled by readback. It runs in the `Windows grocery probe` CI job.
+Owner ruling, 2026-11-10: the Mac Studio is the vault host for everything. Luna's notebook is one record (`notebook-<household>`) in the household vault, next to the member details and the grocery list record. It is not a separate store. See [the Mac vault host record](mac-vault-host.md).
 
-The local preview keeps lists only when started with `LUNA_HOME_NOTEBOOK=1` on Windows (`npm start` or the assistant). It then uses a dedicated DPAPI store under the signed-in Windows account, created when the first list is saved. Without the variable `/api/notebook` answers 503 and nothing is stored. Each request starts a PowerShell worker, so a spoken change takes a few seconds in the preview.
+- `lib/vault-notebook.js` builds the notebook over whichever vault the process has. On the Mac with `LUNA_HOME_VAULT=1` that is the household vault. On Windows with `LUNA_HOME_FICTIONAL_SAVE=1` it is the developer preview store, which is not the household vault and is not for real household data.
+- People come from the vault. A member is someone with a saved detail there. The notebook page offers "Writing as"; the choice is stored on each list and item as `updatedBy`. It is attribution only, never a permission, and is not remembered across a restart.
+- The checklist page is the notebook list with type `checklist`. Its categories are the items' `category`. With no vault it stays a list for the visit, as before.
+- Without a vault `/api/notebook` answers 503 and nothing is stored.
 
-The PowerShell worker needs PowerShell 7.5 or later for notebook records. Earlier versions rewrite timestamp text when they parse JSON, so the worker refuses notebook records there instead of changing them. The snapshot-store crate is still not linked into Home; that waits for the vault lifecycle gates.
+Both Windows encrypted stores also accept the `household-notebook` record kind (`scripts/windows-vault-worker.ps1`, `src-tauri/crates/windows-snapshot-store`), covered by `test/windows-notebook-persistence.test.js` in the `Windows grocery probe` CI job. The PowerShell worker needs PowerShell 7.5 or later for notebook records and refuses them on older versions.
 
 ## Known limits
 
 - Items are split on commas and the word "and", so "Fast and Furious" becomes two items.
 - Speech recognizer casing is not corrected beyond capitalizing the first letter.
 - The Android voice listener and `LunaFace.java` are not wired to this assistant yet. On the device, "add ..." is still treated as a timer attempt and is not forwarded anywhere.
-- The device has no store this service can use yet, so lists made in the Windows preview are not visible on the Echo Show.
+- The Echo Show and the Windows page do not reach the Mac vault yet. The relay on the Mac still answers questions only.
+- The grocery list record and the notebook are in the same vault but are still two records with two contracts. "Put milk on the grocery list" writes a notebook list, not the grocery record.
+- The Windows developer store does not wait for its file lock, so two requests that overlap (a read during a write) can fail there. They are reported as failed and nothing is lost. The Mac vault store waits for its lock.
+- "Writing as" is one choice per running Home process, not per browser tab or per speaker. Everything written while it is set, including what Luna is told, is attributed to that member. Per-session identity comes with the vault sessions on the Mac.
+- Members are read from the saved example details (`fictionalDetails`). Household member records proper belong to VLT-04.

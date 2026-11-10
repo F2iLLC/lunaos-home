@@ -11,7 +11,7 @@ import {
   openWindowsProbeStoreForFaultTest,
   removeWindowsProbeStore,
 } from "../lib/windows-probe-store.js";
-import { notebookFromEnvironment } from "../lib/windows-notebook.js";
+import { notebookFromEnvironment } from "../lib/vault-notebook.js";
 import { createAppServer } from "../server.js";
 import {
   openWindowsSnapshotStore,
@@ -102,27 +102,27 @@ const texts = async (service, list, filter = "all") =>
   (await service.readList(list, filter)).view.items.map((item) => item.text);
 
 test(
-  "the Windows preview keeps Luna's notebook only when asked, and it is still there after a restart",
+  "the Windows developer preview keeps Luna's notebook in its vault store only when saving is on, across restarts",
   { skip: adapters[0].skip, timeout: 180000 },
   async (t) => {
-    assert.equal(notebookFromEnvironment({}, "win32"), undefined);
+    assert.equal(await notebookFromEnvironment({}, "win32"), undefined);
     assert.equal(
-      notebookFromEnvironment({ LUNA_HOME_NOTEBOOK: "1" }, "linux"),
+      await notebookFromEnvironment({ LUNA_HOME_FICTIONAL_SAVE: "1" }, "linux"),
       undefined,
     );
     const env = {
-      LUNA_HOME_NOTEBOOK: "1",
-      LUNA_HOME_NOTEBOOK_STORE_ID: crypto.randomUUID(),
+      LUNA_HOME_FICTIONAL_SAVE: "1",
+      LUNA_HOME_FICTIONAL_STORE_ID: crypto.randomUUID(),
     };
     t.after(() =>
       removeWindowsProbeStore({
-        probeId: env.LUNA_HOME_NOTEBOOK_STORE_ID,
+        probeId: env.LUNA_HOME_FICTIONAL_STORE_ID,
       }).catch(() => {}),
     );
     // Each call builds the whole preview again: server, service and store adapter.
     const ask = async (body) => {
       const server = createAppServer({
-        notebook: notebookFromEnvironment(env),
+        notebook: await notebookFromEnvironment(env),
       });
       await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
       try {

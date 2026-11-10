@@ -125,6 +125,20 @@ fn object_within<'a>(
     (known && required.iter().all(|key| object.contains_key(*key))).then_some(object)
 }
 
+/// Attribution from the vault session: who last changed a list or item.
+fn actor_or_absent(value: Option<&Value>) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    match object_with_keys(value, &["kind", "id"]) {
+        Some(actor) => {
+            matches!(actor.get("kind"), Some(Value::String(kind)) if kind == "human" || kind == "assistant")
+                && matches!(actor.get("id"), Some(Value::String(id)) if is_id(id))
+        }
+        None => false,
+    }
+}
+
 fn notebook_item_shape(value: &Value) -> bool {
     let Some(item) = object_within(
         value,
@@ -136,10 +150,13 @@ fn notebook_item_shape(value: &Value) -> bool {
             "createdAt",
             "updatedAt",
         ],
-        &["quantity", "unit", "notes"],
+        &["quantity", "unit", "notes", "category", "updatedBy"],
     ) else {
         return false;
     };
+    if !actor_or_absent(item.get("updatedBy")) {
+        return false;
+    }
     matches!(item.get("id"), Some(Value::String(id)) if is_id(id))
         && bounded_text(item.get("text"), 160)
         && matches!(item.get("completed"), Some(Value::Bool(_)))
@@ -150,10 +167,13 @@ fn notebook_list_shape(value: &Value) -> bool {
     let Some(list) = object_within(
         value,
         &["id", "name", "createdAt", "updatedAt", "items"],
-        &["description", "type"],
+        &["description", "type", "updatedBy"],
     ) else {
         return false;
     };
+    if !actor_or_absent(list.get("updatedBy")) {
+        return false;
+    }
     matches!(list.get("id"), Some(Value::String(id)) if is_id(id))
         && bounded_text(list.get("name"), 80)
         && matches!(list.get("items"), Some(Value::Array(items))
@@ -237,8 +257,10 @@ mod tests {
         json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home-example",
             "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91", "lists": [
                 { "id": "list-1", "name": "Movies to watch", "type": "entertainment",
+                    "updatedBy": { "kind": "human", "id": "alex-example" },
                     "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z",
-                    "items": [ { "id": "item-1", "text": "Tortillas", "quantity": 2, "unit": "packs", "notes": "corn",
+                    "items": [ { "id": "item-1", "text": "Tortillas", "quantity": 2, "unit": "packs", "notes": "corn", "category": "Forms",
+                        "updatedBy": { "kind": "assistant", "id": "luna" },
                         "completed": false, "position": 0,
                         "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z" } ] } ] } })
     }
@@ -279,6 +301,14 @@ mod tests {
             change(&["notebook", "lists", "0", "name"], json!("   ")),
             change(&["notebook", "lists", "0", "name"], json!("n".repeat(81))),
             change(&["notebook", "lists", "0", "extra"], json!(true)),
+            change(
+                &["notebook", "lists", "0", "updatedBy"],
+                json!("alex-example"),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "updatedBy", "kind"],
+                json!("device"),
+            ),
             change(
                 &["notebook", "lists", "0", "items"],
                 json!(vec![item.clone(); 201]),

@@ -98,8 +98,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       ...(process.env.LUNA_HOME_FICTIONAL_STORE_ID ? { probeId: process.env.LUNA_HOME_FICTIONAL_STORE_ID } : {}),
     }) });
   }
-  const { notebookFromEnvironment } = await import('./lib/windows-notebook.js');
-  const http = createAppServer({ drafts, draftVault, notebook: notebookFromEnvironment() });
+  const { notebookFromEnvironment } = await import('./lib/vault-notebook.js');
+  const http = createAppServer({ drafts, draftVault, notebook: await notebookFromEnvironment() });
   http.listen(port, '127.0.0.1');
   await once(http, 'listening');
   const reviewUrl = `http://127.0.0.1:${http.address().port}/#vault${draftVault ? `?save=${draftVault.key}` : ''}`;
