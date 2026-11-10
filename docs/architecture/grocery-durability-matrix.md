@@ -1,5 +1,14 @@
 # Grocery durability and adapter qualification matrix
 
+> **Retired as a feature, kept as a record (owner ruling, 2026-11-10).** There is
+> no separate grocery list function any more. A grocery list is an ordinary list
+> in Luna's notebook ([notebook](notebook.md)). The `grocery-list` record kind,
+> its command contract and `createGroceryPersistence` were removed. The adapter
+> and platform findings below still stand; the fault matrix they describe now
+> runs against the notebook record (`test/support/notebook-fault-matrix.js`).
+> Where this page says "grocery list and receipt", read "the household notebook
+> and its commit id".
+
 Status: synthetic qualification evidence only. This matrix does not close #6,
 #10, #151 or #141 and does not qualify a production adapter.
 

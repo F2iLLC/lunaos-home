@@ -354,7 +354,7 @@ impl Store {
         self.mutate(record_id, Some(expected_revision), |current| match current
             .map(|row| validate::kind_of(&row.data))
         {
-            Some(Kind::Grocery | Kind::Notebook) => Err(Failure::Unsupported),
+            Some(Kind::Notebook) => Err(Failure::Unsupported),
             _ => Ok(Some(row)),
         })
     }
@@ -636,10 +636,11 @@ mod tests {
         json!({ "memberId": "alex-example", "label": "Workplace", "value": value })
     }
 
-    fn grocery() -> Value {
-        json!({ "kind": "grocery-list", "outcomes": [],
-            "list": { "id": "weekly", "householdId": "home-example", "label": "Weekly", "items": [],
-                "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "person-example" } } })
+    fn notebook() -> Value {
+        json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home-example",
+            "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91", "lists": [
+                { "id": "groceries", "name": "Grocery list",
+                    "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z", "items": [] } ] } })
     }
 
     #[test]
@@ -680,16 +681,19 @@ mod tests {
             store.edit("missing", profile("x"), &second),
             Err(Failure::Conflict)
         );
-        let grocery_revision = store.create("weekly", grocery()).unwrap();
+        let list_revision = store.create("notebook-home", notebook()).unwrap();
         assert_eq!(
-            store.edit_profile("weekly", profile("x"), &grocery_revision),
+            store.edit_profile("notebook-home", profile("x"), &list_revision),
             Err(Failure::Unsupported)
         );
         assert_eq!(
-            store.edit_profile("alex-work", grocery(), &second),
+            store.edit_profile("alex-work", notebook(), &second),
             Err(Failure::Invalid("profile-data"))
         );
-        assert_eq!(store.read("weekly").unwrap().unwrap().data, grocery());
+        assert_eq!(
+            store.read("notebook-home").unwrap().unwrap().data,
+            notebook()
+        );
 
         let reopened = Store::open(&id, protector(1)).unwrap();
         assert_eq!(
@@ -755,9 +759,13 @@ mod tests {
         ] {
             assert_eq!(result, Err(Failure::Invalid(reason)));
         }
-        let oversized = json!({ "kind": "grocery-list", "list": { "id": "weekly", "householdId": "home", "label": "Weekly",
-            "items": (0..500).map(|i| json!({ "id": format!("item-{i}"), "label": "Item", "notes": "n".repeat(1000), "completed": false })).collect::<Vec<_>>(),
-            "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "p" } }, "outcomes": [] });
+        let oversized = json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home",
+            "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91",
+            "lists": (0..4).map(|l| json!({ "id": format!("list-{l}"), "name": "List",
+                "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z",
+                "items": (0..200).map(|i| json!({ "id": format!("item-{i}"), "text": "Item", "notes": "n".repeat(500),
+                    "completed": false, "position": i,
+                    "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z" })).collect::<Vec<_>>() })).collect::<Vec<_>>() } });
         assert_eq!(
             store.edit("alex-work", oversized, &revision),
             Err(Failure::Invalid("record-ceiling"))

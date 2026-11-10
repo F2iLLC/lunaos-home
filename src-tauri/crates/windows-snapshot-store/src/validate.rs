@@ -8,7 +8,6 @@ use serde_json::Value;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Kind {
     Profile,
-    Grocery,
     Notebook,
 }
 
@@ -78,38 +77,6 @@ fn profile_shape(value: &Value) -> bool {
         }
         None => false,
     }
-}
-
-fn grocery_shape(value: &Value) -> bool {
-    let Some(object) = object_with_keys(value, &["kind", "list", "outcomes"]) else {
-        return false;
-    };
-    if object.get("kind") != Some(&Value::String("grocery-list".into())) {
-        return false;
-    }
-    let Some(list) = object.get("list").and_then(|list| {
-        object_with_keys(
-            list,
-            &[
-                "id",
-                "householdId",
-                "label",
-                "items",
-                "revision",
-                "updatedBy",
-            ],
-        )
-    }) else {
-        return false;
-    };
-    let ids_ok = ["id", "householdId"]
-        .iter()
-        .all(|key| matches!(list.get(*key), Some(Value::String(id)) if is_id(id)));
-    let items_ok = matches!(list.get("items"), Some(Value::Array(items)) if items.len() <= 500);
-    let revision_ok = matches!(list.get("revision"), Some(Value::String(r)) if revision(r).is_ok());
-    let outcomes_ok =
-        matches!(object.get("outcomes"), Some(Value::Array(outcomes)) if outcomes.len() <= 512);
-    ids_ok && items_ok && revision_ok && bounded_text(list.get("label"), 120) && outcomes_ok
 }
 
 /// Only the named keys, with every key in `required` present.
@@ -213,8 +180,6 @@ fn notebook_shape(value: &Value) -> bool {
 pub fn record_data(value: &Value) -> Outcome<Kind> {
     if profile_shape(value) {
         Ok(Kind::Profile)
-    } else if grocery_shape(value) {
-        Ok(Kind::Grocery)
     } else if notebook_shape(value) {
         Ok(Kind::Notebook)
     } else {
@@ -222,8 +187,8 @@ pub fn record_data(value: &Value) -> Outcome<Kind> {
     }
 }
 
-/// Accept only the bounded profile record for `editProfile`. Grocery or
-/// notebook data on this path is invalid input, not a conflict.
+/// Accept only the bounded profile record for `editProfile`. Notebook data
+/// on this path is invalid input, not a conflict.
 pub fn profile_data(value: &Value) -> Outcome<()> {
     if profile_shape(value) {
         Ok(())
@@ -232,10 +197,10 @@ pub fn profile_data(value: &Value) -> Outcome<()> {
     }
 }
 
+/// Anything tagged with a `kind` is a list record and never a profile, so the
+/// profile-only path refuses it whatever the tag says.
 pub fn kind_of(value: &Value) -> Kind {
-    if value.get("kind") == Some(&Value::String("grocery-list".into())) {
-        Kind::Grocery
-    } else if value.get("kind") == Some(&Value::String("household-notebook".into())) {
+    if value.get("kind").is_some() {
         Kind::Notebook
     } else {
         Kind::Profile
@@ -246,12 +211,6 @@ pub fn kind_of(value: &Value) -> Kind {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    fn grocery() -> Value {
-        json!({ "kind": "grocery-list", "outcomes": [],
-            "list": { "id": "weekly", "householdId": "home-example", "label": "Weekly", "items": [],
-                "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "person-example" } } })
-    }
 
     fn notebook() -> Value {
         json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home-example",
@@ -359,12 +318,13 @@ mod tests {
             json!({ "memberId": "alex-example", "label": "Workplace", "value": "Willow Studio" });
         assert_eq!(record_data(&profile), Ok(Kind::Profile));
         assert!(profile_data(&profile).is_ok());
-        assert_eq!(record_data(&grocery()), Ok(Kind::Grocery));
-        assert_eq!(
-            profile_data(&grocery()),
-            Err(Failure::Invalid("profile-data"))
-        );
-        assert_eq!(kind_of(&grocery()), Kind::Grocery);
+        // The retired grocery record is no longer a record kind, and a stored
+        // one is still never treated as a profile.
+        let retired = json!({ "kind": "grocery-list", "outcomes": [],
+            "list": { "id": "weekly", "householdId": "home-example", "label": "Weekly", "items": [],
+                "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "person-example" } } });
+        assert_eq!(record_data(&retired), Err(Failure::Invalid("record-data")));
+        assert_eq!(kind_of(&retired), Kind::Notebook);
         assert_eq!(kind_of(&profile), Kind::Profile);
         for bad in [
             json!({ "memberId": "alex-example", "label": "Workplace", "value": "Willow Studio", "extra": true }),

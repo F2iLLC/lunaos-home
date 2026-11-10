@@ -43,11 +43,12 @@ test('backup input cannot include device grants, credentials or unknown fields',
   } }));
 });
 
-test('the VLT-07 profile archive rejects a grocery record instead of silently changing its schema', () => {
-  const grocery = { schema: 1, records: { weekly: {
-    kind: 'grocery-list', list: { id: 'weekly', householdId: 'home-example', items: [] }, outcomes: [],
+test('the VLT-07 profile archive rejects a list record instead of silently changing its schema', () => {
+  const lists = { schema: 1, records: { 'notebook-home-example': {
+    kind: 'household-notebook', notebook: { version: 1, householdId: 'home-example',
+      commitId: '3d735c0e-3176-4502-8717-8e62f59d3a91', lists: [] },
   } } };
-  assert.throws(() => createPortableBackup(grocery));
+  assert.throws(() => createPortableBackup(lists));
 });
 
 test('largest well-formed snapshot fits the authenticated archive', () => {

@@ -19,7 +19,7 @@ gifts are the same lists with a `type` label; nothing branches on list type.
 
 - The versioned encrypted-store contract (`store.read/create/edit`, per-record compare-and-swap, 262144-byte ceiling) and `VaultConflictError`.
 - `lib/vault-record-contract.js`: one new tagged record kind, `household-notebook`.
-- The grocery slice's rules: authorize first, a candidate is never evidence of a save, unknown outcomes stay unknown.
+- The rules first written for the retired grocery slice: authorize first, a candidate is never evidence of a save, unknown outcomes stay unknown.
 - The existing preview-server guards (host, origin, `X-Home-Preview`, CSP) and the `.list-panel`/`.quiet-button` UI patterns.
 
 ## Decisions
@@ -35,14 +35,20 @@ gifts are the same lists with a `type` label; nothing branches on list type.
 
 ## Where the lists live: the household vault on the Mac
 
-Owner ruling, 2026-11-10: the Mac Studio is the vault host for everything. Luna's notebook is one record (`notebook-<household>`) in the household vault, next to the member details and the grocery list record. It is not a separate store. See [the Mac vault host record](mac-vault-host.md).
+Owner ruling, 2026-11-10: the Mac Studio is the vault host for everything. Luna's notebook is one record (`notebook-<household>`) in the household vault, next to the member details. It is not a separate store. See [the Mac vault host record](mac-vault-host.md).
 
 - `lib/vault-notebook.js` builds the notebook over whichever vault the process has. On the Mac with `LUNA_HOME_VAULT=1` that is the household vault. On Windows with `LUNA_HOME_FICTIONAL_SAVE=1` it is the developer preview store, which is not the household vault and is not for real household data.
 - People come from the vault. A member is someone with a saved detail there. The notebook page offers "Writing as"; the choice is stored on each list and item as `updatedBy`. It is attribution only, never a permission, and is not remembered across a restart.
 - The checklist page is the notebook list with type `checklist`. Its categories are the items' `category`. With no vault it stays a list for the visit, as before.
 - Without a vault `/api/notebook` answers 503 and nothing is stored.
 
-Both Windows encrypted stores also accept the `household-notebook` record kind (`scripts/windows-vault-worker.ps1`, `src-tauri/crates/windows-snapshot-store`), covered by `test/windows-notebook-persistence.test.js` in the `Windows grocery probe` CI job. The PowerShell worker needs PowerShell 7.5 or later for notebook records and refuses them on older versions.
+Both Windows encrypted stores also accept the `household-notebook` record kind (`scripts/windows-vault-worker.ps1`, `src-tauri/crates/windows-snapshot-store`), covered by `test/windows-notebook-persistence.test.js` in the `Windows vault stores` CI job. The PowerShell worker needs PowerShell 7.5 or later for notebook records and refuses them on older versions.
+
+## One notebook, no separate grocery list
+
+Owner ruling, 2026-11-10: "i don't want a separate grocery list function just the notebook with lists." The grocery list is a list in the notebook like any other. The earlier `grocery-list` record kind, its command contract (`lib/grocery-contract.js`, `lib/grocery-list.js`, `lib/grocery-persistence.js`) and its tests were removed. Nothing user-facing used them. Their durability tests now run against the notebook record: the eight-stage interrupted-write matrix on both Windows stores (`test/support/notebook-fault-matrix.js`) and conformance clauses C-08 to C-16.
+
+A store that still holds a `grocery-list` record from before this change refuses it as an unknown record kind. Only developer and test stores ever held one.
 
 ## Known limits
 
@@ -50,7 +56,6 @@ Both Windows encrypted stores also accept the `household-notebook` record kind (
 - Speech recognizer casing is not corrected beyond capitalizing the first letter.
 - The Android voice listener and `LunaFace.java` are not wired to this assistant yet. On the device, "add ..." is still treated as a timer attempt and is not forwarded anywhere.
 - The Echo Show and the Windows page do not reach the Mac vault yet. The relay on the Mac still answers questions only.
-- The grocery list record and the notebook are in the same vault but are still two records with two contracts. "Put milk on the grocery list" writes a notebook list, not the grocery record.
 - The Windows developer store does not wait for its file lock, so two requests that overlap (a read during a write) can fail there. They are reported as failed and nothing is lost. The Mac vault store waits for its lock.
 - "Writing as" is one choice per running Home process, not per browser tab or per speaker. Everything written while it is set, including what Luna is told, is attributed to that member. Per-session identity comes with the vault sessions on the Mac.
 - Members are read from the saved example details (`fictionalDetails`). Household member records proper belong to VLT-04.

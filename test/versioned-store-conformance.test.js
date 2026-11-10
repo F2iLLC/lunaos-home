@@ -5,7 +5,7 @@ import path from 'node:path';
 import { openWindowsProbeStore } from '../lib/windows-probe-store.js';
 import { VaultConflictError } from '../lib/vault-record-contract.js';
 import { createMemoryVersionedStore, MEMORY_STORE_CEILING_BYTES } from './support/memory-versioned-store.js';
-import { CONFORMANCE_CLAUSES, defineVersionedStoreConformance, syntheticGroceryRecord } from './support/versioned-store-conformance.js';
+import { CONFORMANCE_CLAUSES, defineVersionedStoreConformance, oversizedNotebookRecord, syntheticNotebookRecord } from './support/versioned-store-conformance.js';
 
 defineVersionedStoreConformance(test, {
   name: 'memory reference',
@@ -30,37 +30,33 @@ defineVersionedStoreConformance(test, {
 test('memory reference counts the encoded backing bytes and preserves them after an oversized edit', async () => {
   const backing = new Map();
   const store = createMemoryVersionedStore(backing);
-  const { revision } = await store.create('weekly', syntheticGroceryRecord());
-  const encoded = backing.get('weekly');
+  const { revision } = await store.create('notebook-home-example', syntheticNotebookRecord());
+  const encoded = backing.get('notebook-home-example');
   assert.equal(typeof encoded, 'string');
-  assert.equal(encoded, JSON.stringify(await store.read('weekly')));
+  assert.equal(encoded, JSON.stringify(await store.read('notebook-home-example')));
   assert.ok(Buffer.byteLength(encoded) <= MEMORY_STORE_CEILING_BYTES);
 
-  const oversized = syntheticGroceryRecord(Array.from({ length: 500 }, (_, index) => ({
-    id: `item-${index}`, label: `Item ${index}`, notes: 'n'.repeat(1000), completed: false,
-  })));
-  await assert.rejects(store.edit('weekly', oversized, revision), error => !(error instanceof VaultConflictError));
-  assert.equal(backing.get('weekly'), encoded);
-  assert.deepEqual(await store.read('weekly'), JSON.parse(encoded));
+  const oversized = oversizedNotebookRecord();
+  await assert.rejects(store.edit('notebook-home-example', oversized, revision), error => !(error instanceof VaultConflictError));
+  assert.equal(backing.get('notebook-home-example'), encoded);
+  assert.deepEqual(await store.read('notebook-home-example'), JSON.parse(encoded));
 });
 
 test('memory reference rejects commits above its encoded byte ceiling without changing the current record', async () => {
   const backing = new Map();
   const store = createMemoryVersionedStore(backing);
-  const { revision } = await store.create('weekly', syntheticGroceryRecord());
-  const before = await store.read('weekly');
-  const encodedBefore = backing.get('weekly');
+  const { revision } = await store.create('notebook-home-example', syntheticNotebookRecord());
+  const before = await store.read('notebook-home-example');
+  const encodedBefore = backing.get('notebook-home-example');
   assert.equal(encodedBefore, JSON.stringify(before));
-  const oversized = syntheticGroceryRecord(Array.from({ length: 500 }, (_, index) => ({
-    id: `item-${index}`, label: `Item ${index}`, notes: 'n'.repeat(1000), completed: false,
-  })));
+  const oversized = oversizedNotebookRecord();
 
   assert.ok(Buffer.byteLength(JSON.stringify({ revision: crypto.randomUUID(), data: oversized })) > MEMORY_STORE_CEILING_BYTES);
-  await assert.rejects(store.edit('weekly', oversized, revision), {
+  await assert.rejects(store.edit('notebook-home-example', oversized, revision), {
     message: 'Synthetic store payload exceeds its commit ceiling.',
   });
-  assert.deepEqual(await store.read('weekly'), before);
-  assert.equal(backing.get('weekly'), encodedBefore);
+  assert.deepEqual(await store.read('notebook-home-example'), before);
+  assert.equal(backing.get('notebook-home-example'), encodedBefore);
   await assert.rejects(store.create('too-large', oversized), {
     message: 'Synthetic store payload exceeds its commit ceiling.',
   });
