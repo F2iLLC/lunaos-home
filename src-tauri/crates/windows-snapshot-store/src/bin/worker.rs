@@ -19,7 +19,7 @@ mod worker {
     use lunaos_home_windows_snapshot_store::ksp::SoftwareKspProtector;
     use lunaos_home_windows_snapshot_store::owner::{self, Clock, Limits, Phase, Presentation};
     use lunaos_home_windows_snapshot_store::protector::KeyProtector;
-    use lunaos_home_windows_snapshot_store::store::Store;
+    use lunaos_home_windows_snapshot_store::store::{Setup, Store};
     use lunaos_home_windows_snapshot_store::{Failure, Outcome};
     use serde_json::{json, Map, Value};
     use std::io::{BufRead, BufReader, Read, Stdin, Write};
@@ -353,9 +353,55 @@ mod worker {
         })
     }
 
+    // Ending the session must not depend on the caller reading our output:
+    // a stalled reader may leave another thread blocked in a write while it
+    // holds the stdout lock. Announce the reason from a helper thread, give it
+    // a moment, and exit regardless.
     fn end(reason: &'static str) -> ! {
-        emit(&json!({ "event": "ended", "reason": reason }));
+        let notice = std::thread::spawn(move || {
+            emit(&json!({ "event": "ended", "reason": reason }));
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(250);
+        while !notice.is_finished() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
         std::process::exit(3)
+    }
+
+    // Everything that can be refused is refused here, before any window or
+    // Windows dialog appears. For a new store this also claims its setup and
+    // clears whatever an earlier, never-unlocked setup left behind.
+    fn prepare(start: &Start) -> Outcome<Option<Setup>> {
+        let ksp = matches!(start.protector, Protector::SoftwareKsp);
+        let store_exists = Store::exists(&start.store_id)?;
+        let key_exists = SoftwareKspProtector::exists(&start.store_id)?;
+        let unfinished = Setup::resume(&start.store_id)?;
+        if !start.create {
+            if !store_exists {
+                return Err(Failure::StorageFailed("missing-store"));
+            }
+            if ksp && !key_exists {
+                return Err(Failure::StorageFailed("protector-missing"));
+            }
+            // An unfinished setup is completed by this session's unlock.
+            return Ok(unfinished);
+        }
+        match unfinished {
+            Some(setup) => {
+                // The marker proves this identifier's store and key were never
+                // unlocked: they hold nothing and block a fresh setup.
+                if store_exists {
+                    Store::discard(&start.store_id)?;
+                }
+                if key_exists {
+                    SoftwareKspProtector::delete(&start.store_id)?;
+                }
+                Ok(Some(setup))
+            }
+            None if store_exists => Err(Failure::StorageFailed("exists")),
+            None if key_exists => Err(Failure::StorageFailed("protector-exists")),
+            None => Ok(Some(Setup::begin(&start.store_id)?)),
+        }
     }
 
     fn session() {
@@ -372,28 +418,28 @@ mod worker {
                 std::process::exit(1);
             }
         };
-        // Refuse a missing or duplicate key before any window appears.
-        if matches!(start.protector, Protector::SoftwareKsp) {
-            let refusal = match SoftwareKspProtector::exists(&start.store_id) {
-                Ok(true) if start.create => Some(Failure::StorageFailed("protector-exists")),
-                Ok(false) if !start.create => Some(Failure::StorageFailed("protector-missing")),
-                Ok(_) => None,
-                Err(failure) => Some(failure),
-            };
-            if let Some(failure) = refusal {
+        let setup = match prepare(&start) {
+            Ok(setup) => setup,
+            Err(failure) => {
                 emit(&Value::Object(failure_response(failure)));
                 std::process::exit(1);
             }
-        }
+        };
         let presentation = match start.protector {
             Protector::SoftwareKsp => Presentation::Visible,
             #[cfg(feature = "developer-harness")]
             Protector::Fixture(_) => Presentation::Hidden,
         };
         let limits = start.limits;
-        match owner::run(presentation, limits, end, move |window, clock| {
-            serve(window, clock, start, reader)
-        }) {
+        // The request thread ends the process itself as soon as it has
+        // answered: a modal loop on the session window must not keep an
+        // answered lock request, or a closed pipe, waiting.
+        let served: Result<i32, &'static str> =
+            owner::run(presentation, limits, end, move |window, clock| {
+                let code = serve(window, clock, start, setup, reader);
+                std::process::exit(code)
+            });
+        match served {
             Ok(code) => std::process::exit(code),
             Err(_) => {
                 emit(&Value::Object(failure_response(Failure::StorageFailed(
@@ -405,48 +451,69 @@ mod worker {
     }
 
     // Unlock: build the protector, open or create the store, and prove the
-    // key is released before the session reports ready. A create that cannot
-    // complete its first unlock is rolled back so setup can be repeated.
-    fn unlock(window: isize, start: &Start) -> Outcome<Store> {
+    // key is released before the session reports ready.
+    //
+    // A new store keeps its setup marker until that first release succeeds.
+    // If the release fails, what this setup created is removed; if the removal
+    // is incomplete, or the process is ended first, the marker stays and the
+    // next setup clears the remains. Either way setup can always be repeated.
+    fn unlock(window: isize, start: &Start, setup: Option<Setup>) -> Outcome<Store> {
         let ksp = matches!(start.protector, Protector::SoftwareKsp);
-        let protector: Box<dyn KeyProtector> = match start.protector {
-            Protector::SoftwareKsp => Box::new(if start.create {
-                SoftwareKspProtector::enroll(&start.store_id, window)?
+        let protector: Outcome<Box<dyn KeyProtector>> = match start.protector {
+            Protector::SoftwareKsp => if start.create {
+                SoftwareKspProtector::enroll(&start.store_id, window)
             } else {
-                SoftwareKspProtector::open(&start.store_id, window)?
-            }),
+                SoftwareKspProtector::open(&start.store_id, window)
+            }
+            .map(|protector| Box::new(protector) as Box<dyn KeyProtector>),
             #[cfg(feature = "developer-harness")]
             Protector::Fixture(key) => {
                 use lunaos_home_windows_snapshot_store::protector::FixtureProtector;
-                Box::new(FixtureProtector::new(key))
+                Ok(Box::new(FixtureProtector::new(key)))
             }
         };
         if !start.create {
-            return Store::open(&start.store_id, protector);
+            let store = Store::open(&start.store_id, protector?)?;
+            if let Some(setup) = setup {
+                setup.finish()?;
+            }
+            return Ok(store);
         }
-        let created = Store::init(&start.store_id, protector);
-        let verified = match created {
+        let setup = setup.ok_or(Failure::StorageFailed("setup-marker-unavailable"))?;
+        let failure = match protector.and_then(|protector| Store::init(&start.store_id, protector))
+        {
             Ok(store) => match store.verify_release() {
-                Ok(()) => return Ok(store),
-                Err(failure) => {
-                    drop(store);
-                    let _ = Store::discard(&start.store_id);
-                    Err(failure)
+                Ok(()) => {
+                    setup.finish()?;
+                    return Ok(store);
                 }
+                Err(failure) => failure,
             },
-            // Nothing of this setup exists on disk; an earlier store with the
-            // same identifier, if any, is left exactly as it was.
-            Err(failure) => Err(failure),
+            Err(failure) => failure,
         };
-        if ksp {
-            let _ = SoftwareKspProtector::delete(&start.store_id);
+        // Roll back. Only this setup can have created a store or key for the
+        // identifier: `prepare` refused or cleared everything else.
+        let store_removed = match Store::exists(&start.store_id) {
+            Ok(true) => Store::discard(&start.store_id).is_ok(),
+            Ok(false) => true,
+            Err(_) => false,
+        };
+        let key_removed = !ksp || SoftwareKspProtector::delete(&start.store_id).is_ok();
+        if store_removed && key_removed {
+            let _ = setup.finish();
         }
-        verified
+        Err(failure)
     }
 
-    fn serve(window: isize, clock: Arc<Clock>, start: Start, mut reader: BufReader<Stdin>) -> i32 {
+    fn serve(
+        window: isize,
+        clock: Arc<Clock>,
+        start: Start,
+        setup: Option<Setup>,
+        mut reader: BufReader<Stdin>,
+    ) -> i32 {
         #[allow(unused_mut)]
-        let mut store = match unlock(window, &start) {
+        let mut store = match unlock(window, &start, setup) {
             Ok(store) => store,
             Err(failure) => {
                 emit(&Value::Object(failure_response(failure)));

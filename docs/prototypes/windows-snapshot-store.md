@@ -135,11 +135,21 @@ focus. The session ends by process exit, which closes every key handle, when:
 | Trigger | Reported reason |
 | --- | --- |
 | `lock` request, or the caller closing the pipe | `locked` |
-| Windows lock, unlock, logoff, disconnect, suspend or resume | `session-event` |
+| Windows lock | `windows-lock` |
+| Windows unlock, logoff, disconnect or remote-control change | `windows-session-change` |
+| Suspend, or resume from suspend | `suspend`, `resume` |
 | The owner closes the session window | `window-closed` |
 | No request for 5 minutes | `idle` |
 | The password gesture not completing within 120 seconds | `unlock-timeout` |
 | 30 minutes since the session started, whatever its activity | `expired` |
+
+Ending never waits for the caller. Session, power and close events are
+handled inside the window procedure, so they arrive even while the window's
+system menu or a drag runs its own message loop; the time limits run on a
+separate watchdog thread; and the reason is announced from a helper thread
+with a 250 ms bound before the process exits, so a caller that has stopped
+reading the pipe cannot keep a session alive. The request thread exits the
+process itself after answering `lock` or seeing the pipe close.
 
 The limits are constants in a default build; only a developer-harness worker
 accepts shortened test limits. A new process always starts locked: nothing is
@@ -149,15 +159,31 @@ cached on disk or handed to another process. The adapter
 generic storage failure, because its commit outcome is unknown and must be
 read back, exactly like `COMMIT_UNKNOWN`.
 
-**Setup and removal.** `session-create` enrolls the key, initializes the
-store and proves one release before reporting `unlocked`; if that first
-unlock is cancelled or fails, the new store and key are removed so setup can
-be repeated, and an existing store or key is refused untouched
-(`exists`, `protector-exists`). A missing or duplicate key is refused before
-any window appears. `Store::discard` removes a store without any key release
-(the only way to clear a store whose password is lost); it inspects every
-entry first and is reachable only from a developer-harness worker today.
-Authenticated `cleanup` is unchanged.
+**Setup and removal.** `session-create` first claims a setup marker,
+`<store id>.setup` beside the store directory, held exclusively until the
+store's first successful unlock. It then enrolls the key, initializes the
+store and proves one release before reporting `unlocked`, and only then
+removes the marker. The marker is what makes setup repeatable:
+
+- If the first unlock is denied or cancelled, the worker removes the new store
+  and key and then the marker.
+- If the process is ended first (the gesture limit, a Windows lock, the caller
+  giving up), or that removal is incomplete, the marker stays. It records that
+  whatever store or key exists for this identifier has never been unlocked and
+  holds nothing, so the next `session-create` clears the remains and starts
+  again, and a `session-open` that does unlock simply completes the setup.
+- A store without a marker has been unlocked at least once and is never
+  cleared this way: a second setup for it is refused untouched (`exists`,
+  `protector-exists`), and two setups racing for one identifier cannot both
+  proceed (`BUSY`).
+
+Every refusal that does not need the dialog (missing store, missing or
+duplicate key, existing store, busy setup) happens before any window appears.
+`Store::discard` removes a store without any key release, which is the only
+way to clear a store whose password is lost; it inspects every entry first.
+Apart from the setup recovery above, the worker protocol offers it only in a
+developer-harness build, because a product route needs the owner's explicit
+confirmation first. Authenticated `cleanup` is unchanged.
 
 **Deliberate difference from the envelope prototype.** The
 [KSP envelope prototype](windows-ksp-envelope.md) bounded each fictional read
@@ -221,12 +247,13 @@ dialog; they are not key-release evidence.
 
 | Check | Result |
 | --- | --- |
-| Crate unit tests (`developer-harness`) | 32 passed: the earlier tests plus the Software KSP protector against an unnamed, unprotected provider key (wrap/unwrap, tamper, wrong length, another key), rejection of a key that releases silently, missing-key refusal without a dialog, a store lifecycle on a provider key, the watchdog verdicts, the phase clock, a hidden session run, and the shared session-monitor tests. |
+| Crate unit tests (`developer-harness`) | 31 passed: the earlier tests plus the Software KSP protector against an unnamed, unprotected provider key (wrap/unwrap, tamper, wrong length, another key), rejection of a key that releases silently, missing-key refusal without a dialog, a store lifecycle on a provider key, the watchdog verdicts, the window messages that end a session, the phase clock, a hidden session run, the setup claim (exclusive, surviving a crash, cleared only by finish) and unauthenticated discard. |
 | Session conformance C-01 to C-16 | 16 passed through `openWindowsSnapshotSession` with the fixture protector, including C-12 across independent session processes. |
-| Session lifecycle | Many requests in one session; `lock` then `VaultLockedError`; another key cannot start a session; idle expiry with activity restarting the timer; lifetime expiry despite activity; abrupt worker exit mid-mutation reported as an unknown outcome and reopened to the old record. |
+| Session lifecycle | Many requests in one session; `lock` then `VaultLockedError`, including for a request made before the worker has exited; a caller that only closes the pipe still locks the session and a request cut off mid-line is never acted on; another key cannot start a session; idle expiry with activity restarting the timer; lifetime expiry despite activity; abrupt worker exit mid-mutation reported as an unknown outcome and reopened to the old record. |
+| Setup recovery | A completed setup leaves no marker; a second setup for an unlocked store is refused and the store is unchanged; a surviving marker is cleared by the next successful open; a marker plus leftovers is replaced by a fresh empty store under the new protector; of three setups racing for one identifier exactly one wins. The marker cases are planted, not produced by a real interrupted dialog. |
 | Session fault matrix | The eight stages reopen the complete old record, or the new one after replacement, both with one fault per session and with faults injected inside a single continuing session. |
-| Software KSP refusals | A session for a store with no key fails with `protector-missing` before any window; the one-request adapter cannot carry the protector. |
-| Default-feature worker | Refuses the fixture protector, test limits and unauthenticated discard in session mode; the Software KSP protector is compiled in. |
+| Software KSP refusals | A session for a store with no key fails with `protector-missing`, and for a missing store with `missing-store`, before any window; the worker refuses the protector outside a session (`protector-requires-session`) and the one-request adapter cannot carry it. |
+| Default-feature worker | Rebuilt by the test, then: refuses the fixture protector and test limits in session mode and the discard request; the Software KSP protector is compiled in. The `destroy` request is compiled out of a default build but cannot be exercised there without an unlocked session. |
 
 ## Limits and next steps
 

@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { readFile, readdir } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
-  VaultLockedError, discardSyntheticKspStore, openWindowsSnapshotSession, openWindowsSnapshotSessionForTest, openWindowsSnapshotStore, windowsSnapshotWorkerAvailable,
+  DEFAULT_WORKER, VaultLockedError, discardSyntheticKspStore, openWindowsSnapshotSession, openWindowsSnapshotSessionForTest, openWindowsSnapshotStore, windowsSnapshotWorkerAvailable,
 } from '../lib/windows-snapshot-store.js';
 import { windowsProbeTestFaults } from '../lib/windows-probe-store.js';
 import { VaultConflictError } from '../lib/vault-record-contract.js';
@@ -49,6 +49,30 @@ const faultMatrix = [
 async function remove(storeId, protector) {
   const store = await openWindowsSnapshotStore({ storeId, protector });
   await store.removeSyntheticStore();
+}
+
+// Speak the worker protocol directly: one input, the parsed output lines.
+function rawWorker(worker, args, input) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(worker, args, {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    let output = '';
+    const timer = setTimeout(() => child.kill(), 20000);
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => (output += chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const lines = output
+        .split('\n')
+        .filter((line) => line.trim())
+        .map((line) => JSON.parse(line));
+      resolve({ code, lines });
+    });
+    child.stdin.end(input);
+  });
 }
 
 defineVersionedStoreConformance(test, {
@@ -142,7 +166,13 @@ test(
     );
     assert.equal((await session.read('alex-work')).data.value, 'Edit 4');
 
-    assert.equal(await session.lock(), 'locked');
+    const locking = session.lock();
+    await assert.rejects(
+      session.read('alex-work'),
+      VaultLockedError,
+      'nothing is sent once a lock has been requested, even before the worker exits',
+    );
+    assert.equal(await locking, 'locked');
     assert.equal(session.locked, true);
     await assert.rejects(session.read('alex-work'), VaultLockedError);
     await assert.rejects(
@@ -222,7 +252,47 @@ test(
 );
 
 test(
-  'closing the pipe locks the session; a worker killed mid-session leaves the committed snapshot',
+  'a caller that goes away without locking still locks the session',
+  windows,
+  async (t) => {
+    const protector = fixture();
+    const session = await openWindowsSnapshotSessionForTest(
+      { create: true, protector },
+      {},
+    );
+    t.after(() => remove(session.storeId, protector).catch(() => {}));
+    const { revision } = await session.create('alex-work', workplace('Kept'));
+    // Only the pipe closes: no lock request is sent.
+    assert.equal(await session.abandon(), 'locked');
+    await assert.rejects(session.read('alex-work'), VaultLockedError);
+    const again = await openWindowsSnapshotSession({
+      storeId: session.storeId,
+      protector,
+    });
+    assert.equal((await again.read('alex-work')).revision, revision);
+    // A request cut off mid-line is never acted on.
+    const truncated = await rawWorker(
+      DEFAULT_WORKER,
+      ['--session'],
+      JSON.stringify({
+        operation: 'session-open',
+        storeId: session.storeId,
+        protector: {
+          kind: 'fixture',
+          key: Buffer.from(protector.key).toString('hex'),
+        },
+      }) +
+        '\n' +
+        JSON.stringify({ id: 1, operation: 'delete', recordId: 'alex-work' }),
+    );
+    assert.equal(truncated.lines.filter((line) => line.id === 1).length, 0);
+    assert.equal((await again.read('alex-work')).revision, revision);
+    await again.lock();
+  },
+);
+
+test(
+  'a worker killed mid-session leaves the committed snapshot',
   windows,
   async (t) => {
     const protector = fixture();
@@ -347,6 +417,78 @@ test(
 );
 
 test(
+  'an existing store is never set up again, and an interrupted setup can always be repeated',
+  windows,
+  async (t) => {
+    const protector = fixture();
+    const first = await openWindowsSnapshotSession({ create: true, protector });
+    const { storeId } = first;
+    t.after(() => remove(storeId, fixture()).catch(() => {}));
+    const { revision } = await first.create('alex-work', workplace('Kept'));
+    await first.lock();
+    const marker = `${first.directory}.setup`;
+    assert.equal(existsSync(marker), false, 'a completed setup leaves no marker');
+
+    // A store that has been unlocked is refused, untouched, by a second setup.
+    await assert.rejects(
+      openWindowsSnapshotSession({ storeId, create: true, protector: fixture() }),
+      (error) => error.code === 'STORAGE_FAILED' && error.reason === 'exists',
+    );
+    let again = await openWindowsSnapshotSession({ storeId, protector });
+    assert.equal((await again.read('alex-work')).revision, revision);
+    await again.lock();
+
+    // Opening a store whose setup marker survived finishes that setup.
+    await writeFile(marker, '');
+    again = await openWindowsSnapshotSession({ storeId, protector });
+    assert.equal(existsSync(marker), false, 'the first unlock clears the marker');
+    assert.equal((await again.read('alex-work')).revision, revision);
+    await again.lock();
+
+    // A marker means the store was never unlocked: the next setup replaces it.
+    await writeFile(marker, '');
+    const replacement = fixture();
+    const fresh = await openWindowsSnapshotSession({
+      storeId,
+      create: true,
+      protector: replacement,
+    });
+    assert.equal(existsSync(marker), false);
+    assert.equal(await fresh.read('alex-work'), null, 'a fresh, empty store');
+    await fresh.lock();
+    await assert.rejects(
+      openWindowsSnapshotSession({ storeId, protector }),
+      generic,
+      'the abandoned setup and its key are gone',
+    );
+
+    // Two setups racing for one identifier: exactly one wins.
+    const contested = crypto.randomUUID();
+    const outcomes = await Promise.allSettled(
+      [fixture(), fixture(), fixture()].map((key) =>
+        openWindowsSnapshotSession({
+          storeId: contested,
+          create: true,
+          protector: key,
+        }),
+      ),
+    );
+    const winners = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+    assert.equal(winners.length, 1);
+    for (const outcome of outcomes)
+      if (outcome.status === 'rejected')
+        assert.ok(
+          outcome.reason.code === 'BUSY' || outcome.reason.reason === 'exists',
+          'a losing setup is refused as busy or already existing',
+        );
+    await winners[0].value.destroySyntheticStore();
+    assert.equal(existsSync(`${winners[0].value.directory}.setup`), false);
+    assert.equal(existsSync(winners[0].value.directory), false);
+    await remove(storeId, replacement);
+  },
+);
+
+test(
   'the Software KSP protector is refused before any window or dialog when its key is missing',
   windows,
   async () => {
@@ -360,8 +502,37 @@ test(
       (error) =>
         error.message === generic.message &&
         error.code === 'STORAGE_FAILED' &&
-        error.reason === 'protector-missing',
+        error.reason === 'missing-store',
     );
+    // With a store present but no key, the refusal names the protector.
+    const protector = fixture();
+    const fixtureStore = await openWindowsSnapshotSession({
+      create: true,
+      protector,
+    });
+    await fixtureStore.lock();
+    await assert.rejects(
+      openWindowsSnapshotSession({
+        storeId: fixtureStore.storeId,
+        protector: { kind: 'software-ksp' },
+      }),
+      (error) => error.reason === 'protector-missing',
+    );
+    await remove(fixtureStore.storeId, protector);
+    // The worker itself refuses the protector outside a session.
+    const oneRequest = await rawWorker(
+      DEFAULT_WORKER,
+      [],
+      JSON.stringify({
+        operation: 'open',
+        storeId,
+        protector: { kind: 'software-ksp' },
+      }),
+    );
+    assert.equal(oneRequest.code, 1);
+    assert.deepEqual(oneRequest.lines, [
+      { ok: false, error: 'INVALID', reason: 'protector-requires-session' },
+    ]);
     assert.ok(Date.now() - started < 10000, 'refused without waiting');
     await assert.rejects(
       openWindowsSnapshotStore({ storeId, protector: { kind: 'software-ksp' } }),
@@ -386,16 +557,15 @@ test(
       'debug',
       'windows-snapshot-store-worker.exe',
     );
-    if (!existsSync(worker)) {
-      try {
-        await promisify(execFile)(
-          'cargo',
-          ['build', '--locked', '--manifest-path', path.join(crate, 'Cargo.toml')],
-          { windowsHide: true, timeout: 540000 },
-        );
-      } catch {
-        return t.skip('cargo is required to build the default-feature worker');
-      }
+    // Always rebuild: a stale default-feature worker would test old code.
+    try {
+      await promisify(execFile)(
+        'cargo',
+        ['build', '--locked', '--manifest-path', path.join(crate, 'Cargo.toml')],
+        { windowsHide: true, timeout: 540000 },
+      );
+    } catch {
+      return t.skip('cargo is required to build the default-feature worker');
     }
     await assert.rejects(
       openWindowsSnapshotSession({
@@ -426,7 +596,7 @@ test(
         storeId,
         protector: { kind: 'software-ksp' },
       }),
-      (error) => error.reason === 'protector-missing',
+      (error) => error.reason === 'missing-store',
       'the Software KSP protector itself is compiled into the default build',
     );
   },

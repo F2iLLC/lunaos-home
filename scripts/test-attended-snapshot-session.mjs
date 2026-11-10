@@ -268,7 +268,7 @@ try {
       new Promise((resolve) => setTimeout(() => resolve('not-locked'), 180_000)),
     ]);
     if (reason === 'not-locked') await session.lock();
-    assert.equal(reason, 'session-event');
+    assert.equal(reason, 'windows-lock');
     await assert.rejects(session.read('alex-work'), VaultLockedError);
     stage('windows-lock-ends-session');
   } else stage('windows-lock-ends-session', 'SKIPPED');

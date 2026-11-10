@@ -2,7 +2,7 @@
 //!
 //! An unlocked session is one process. Its native window owns the Windows
 //! key-password dialog and receives session and power notifications. The
-//! watchdog ends the process, and with it every open key handle, on:
+//! session ends, by process exit and with it every open key handle, on:
 //!
 //! - Windows lock, unlock, logoff, disconnect or remote-control change;
 //! - suspend or resume;
@@ -10,24 +10,42 @@
 //! - no request for the idle limit, the unlock gesture outliving its limit, or
 //!   the session reaching its maximum lifetime.
 //!
+//! Three threads take part and none of them waits for another before ending
+//! the process: the window thread delivers session, power and close events
+//! from inside the window procedure, so they arrive even while a system menu
+//! or a window drag runs its own message loop; a watchdog thread enforces the
+//! time limits without depending on the message pump; and the request thread
+//! serves the caller. The `end` callback must not block on the caller's pipes.
+//!
 //! Process exit is the hard boundary. No key is handed to another process and
 //! nothing is retained for a later session. Nothing here locks, unlocks or
 //! suspends Windows, and focus is never forced after the first activation.
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::Power::{
+    RegisterSuspendResumeNotification, UnregisterSuspendResumeNotification, HPOWERNOTIFY,
+};
+use windows::Win32::System::RemoteDesktop::{
+    WTSRegisterSessionNotification, WTSUnRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION,
+};
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, DispatchMessageW, IsWindow, IsWindowVisible, PeekMessageW,
-    SetForegroundWindow, SetWindowTextW, ShowWindow, TranslateMessage, CW_USEDEFAULT, MSG,
-    PM_REMOVE, SW_SHOWMINNOACTIVE, SW_SHOWNORMAL, WINDOW_EX_STYLE, WM_QUIT, WS_EX_APPWINDOW,
-    WS_OVERLAPPED, WS_OVERLAPPEDWINDOW,
+    CreateWindowExW, DestroyWindow, DispatchMessageW, IsWindowVisible, PeekMessageW,
+    SetForegroundWindow, SetWindowTextW, ShowWindow, TranslateMessage, CW_USEDEFAULT,
+    DEVICE_NOTIFY_WINDOW_HANDLE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMECRITICAL,
+    PBT_APMRESUMESUSPEND, PBT_APMSUSPEND, PM_REMOVE, SW_SHOWMINNOACTIVE, SW_SHOWNORMAL,
+    WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_ENDSESSION, WM_NCDESTROY, WM_POWERBROADCAST, WM_QUIT,
+    WM_WTSSESSION_CHANGE, WS_EX_APPWINDOW, WS_OVERLAPPED, WS_OVERLAPPEDWINDOW,
+    WTS_CONSOLE_DISCONNECT, WTS_REMOTE_DISCONNECT, WTS_SESSION_LOCK, WTS_SESSION_LOGOFF,
+    WTS_SESSION_REMOTE_CONTROL, WTS_SESSION_UNLOCK,
 };
 
-#[path = "../../../src/windows_session.rs"]
-#[allow(dead_code)]
-mod monitor;
+/// Called with a fixed reason when the session has to stop. It must end the
+/// process and must not wait on anything the caller controls.
+pub type End = fn(&'static str) -> !;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
@@ -116,6 +134,29 @@ pub fn verdict(
     }
 }
 
+/// The fixed reason for a window message that ends the session, if it does.
+pub fn ending_message(message: u32, value: usize) -> Option<&'static str> {
+    match message {
+        WM_WTSSESSION_CHANGE => match value as u32 {
+            WTS_SESSION_LOCK => Some("windows-lock"),
+            WTS_SESSION_UNLOCK
+            | WTS_SESSION_LOGOFF
+            | WTS_CONSOLE_DISCONNECT
+            | WTS_REMOTE_DISCONNECT
+            | WTS_SESSION_REMOTE_CONTROL => Some("windows-session-change"),
+            _ => None,
+        },
+        WM_POWERBROADCAST => match value as u32 {
+            PBT_APMSUSPEND => Some("suspend"),
+            PBT_APMRESUMEAUTOMATIC | PBT_APMRESUMESUSPEND | PBT_APMRESUMECRITICAL => Some("resume"),
+            _ => None,
+        },
+        WM_ENDSESSION if value != 0 => Some("windows-session-change"),
+        WM_CLOSE | WM_DESTROY | WM_NCDESTROY => Some("window-closed"),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Presentation {
     /// A visible window that owns the Windows key-password dialog.
@@ -137,13 +178,78 @@ pub fn minimize(window: isize) {
     }
 }
 
-/// Run `operation` on its own thread while this thread owns the window, pumps
-/// its messages and enforces the limits. `end` must not return; it is called
-/// with a fixed reason when the session has to stop.
+struct Monitor {
+    end: End,
+    power: HPOWERNOTIFY,
+    // Set when `run` itself tears the window down after a normal finish.
+    finishing: Arc<AtomicBool>,
+}
+
+const SUBCLASS_ID: usize = 0x4c55_4e41;
+
+unsafe extern "system" fn window_procedure(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _: usize,
+    data: usize,
+) -> LRESULT {
+    // The box is owned by this subclass from a successful install until the
+    // window's final message.
+    let monitor = &*(data as *const Monitor);
+    if let Some(reason) = ending_message(message, wparam.0) {
+        if !monitor.finishing.load(Ordering::SeqCst) {
+            (monitor.end)(reason);
+        }
+    }
+    if message == WM_NCDESTROY {
+        let _ = WTSUnRegisterSessionNotification(hwnd);
+        let _ = UnregisterSuspendResumeNotification(monitor.power);
+        if RemoveWindowSubclass(hwnd, Some(window_procedure), SUBCLASS_ID).as_bool() {
+            drop(Box::from_raw(data as *mut Monitor));
+        }
+    }
+    DefSubclassProc(hwnd, message, wparam, lparam)
+}
+
+// Must run on the window's own thread. A session never starts unmonitored.
+fn install(hwnd: HWND, end: End, finishing: Arc<AtomicBool>) -> Result<(), &'static str> {
+    unsafe {
+        WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION)
+            .map_err(|_| "session-monitor-unavailable")?;
+        let power =
+            match RegisterSuspendResumeNotification(HANDLE(hwnd.0), DEVICE_NOTIFY_WINDOW_HANDLE) {
+                Ok(power) => power,
+                Err(_) => {
+                    let _ = WTSUnRegisterSessionNotification(hwnd);
+                    return Err("session-monitor-unavailable");
+                }
+            };
+        let data = Box::into_raw(Box::new(Monitor {
+            end,
+            power,
+            finishing,
+        }));
+        if !SetWindowSubclass(hwnd, Some(window_procedure), SUBCLASS_ID, data as usize).as_bool() {
+            drop(Box::from_raw(data));
+            let _ = WTSUnRegisterSessionNotification(hwnd);
+            let _ = UnregisterSuspendResumeNotification(power);
+            return Err("session-monitor-unavailable");
+        }
+    }
+    Ok(())
+}
+
+/// Run `operation` on its own thread while this thread owns the window and a
+/// watchdog thread enforces the limits. Returns the operation's result when
+/// it finishes; a session that must not outlive its last response should end
+/// the process from `operation` itself, because a modal loop on the window
+/// (its system menu, a drag) delays this return.
 pub fn run<T: Send + 'static>(
     presentation: Presentation,
     limits: Limits,
-    end: fn(&'static str) -> !,
+    end: End,
     operation: impl FnOnce(isize, Arc<Clock>) -> T + Send + 'static,
 ) -> Result<T, &'static str> {
     let visible = presentation == Presentation::Visible;
@@ -172,6 +278,11 @@ pub fn run<T: Send + 'static>(
         )
     }
     .map_err(|_| "owner-window-unavailable")?;
+    let finishing = Arc::new(AtomicBool::new(false));
+    let destroy = |hwnd: HWND| unsafe {
+        finishing.store(true, Ordering::SeqCst);
+        let _ = DestroyWindow(hwnd);
+    };
     if visible {
         unsafe {
             // A parent may start this process with a hidden default show
@@ -179,30 +290,42 @@ pub fn run<T: Send + 'static>(
             let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
             let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
             if !IsWindowVisible(hwnd).as_bool() {
-                let _ = DestroyWindow(hwnd);
+                destroy(hwnd);
                 return Err("owner-window-hidden");
             }
             let _ = SetForegroundWindow(hwnd);
         }
     }
-    let _monitor = monitor::install(hwnd, move || end("session-event"))
-        .map_err(|_| "session-monitor-unavailable")?;
+    if let Err(reason) = install(hwnd, end, finishing.clone()) {
+        destroy(hwnd);
+        return Err(reason);
+    }
     let clock = Arc::new(Clock::new());
+    let done = Arc::new(AtomicBool::new(false));
+    {
+        // The time limits do not depend on this thread's message pump.
+        let clock = clock.clone();
+        let done = done.clone();
+        std::thread::spawn(move || {
+            while !done.load(Ordering::SeqCst) {
+                if let Some(reason) = verdict(
+                    &limits,
+                    clock.phase(),
+                    clock.in_phase(),
+                    clock.start.elapsed(),
+                ) {
+                    if !done.load(Ordering::SeqCst) {
+                        end(reason);
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        });
+    }
     let shared = clock.clone();
     let address = hwnd.0 as isize;
     let worker = std::thread::spawn(move || operation(address, shared));
     while !worker.is_finished() {
-        if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
-            end("window-closed");
-        }
-        if let Some(reason) = verdict(
-            &limits,
-            clock.phase(),
-            clock.in_phase(),
-            clock.start.elapsed(),
-        ) {
-            end(reason);
-        }
         let mut message = MSG::default();
         unsafe {
             while PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
@@ -215,10 +338,9 @@ pub fn run<T: Send + 'static>(
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    done.store(true, Ordering::SeqCst);
     let result = worker.join().map_err(|_| "session-worker-failed");
-    unsafe {
-        let _ = DestroyWindow(hwnd);
-    }
+    destroy(hwnd);
     result
 }
 
@@ -259,6 +381,41 @@ mod tests {
             verdict(&LIMITS, Phase::Unlocking, s(1), s(1800)),
             Some("expired")
         );
+    }
+
+    #[test]
+    fn session_power_and_close_messages_end_the_session_with_fixed_reasons() {
+        let session = |value: u32| ending_message(WM_WTSSESSION_CHANGE, value as usize);
+        assert_eq!(session(WTS_SESSION_LOCK), Some("windows-lock"));
+        for value in [
+            WTS_SESSION_UNLOCK,
+            WTS_SESSION_LOGOFF,
+            WTS_CONSOLE_DISCONNECT,
+            WTS_REMOTE_DISCONNECT,
+            WTS_SESSION_REMOTE_CONTROL,
+        ] {
+            assert_eq!(session(value), Some("windows-session-change"));
+        }
+        assert_eq!(session(0x1), None, "console connect does not end a session");
+        let power = |value: u32| ending_message(WM_POWERBROADCAST, value as usize);
+        assert_eq!(power(PBT_APMSUSPEND), Some("suspend"));
+        for value in [
+            PBT_APMRESUMEAUTOMATIC,
+            PBT_APMRESUMESUSPEND,
+            PBT_APMRESUMECRITICAL,
+        ] {
+            assert_eq!(power(value), Some("resume"));
+        }
+        assert_eq!(power(0xA), None, "a power status change is not a suspend");
+        assert_eq!(ending_message(WM_ENDSESSION, 0), None);
+        assert_eq!(
+            ending_message(WM_ENDSESSION, 1),
+            Some("windows-session-change")
+        );
+        for message in [WM_CLOSE, WM_DESTROY, WM_NCDESTROY] {
+            assert_eq!(ending_message(message, 0), Some("window-closed"));
+        }
+        assert_eq!(ending_message(0x0113, 0), None, "a timer tick is ignored");
     }
 
     #[test]

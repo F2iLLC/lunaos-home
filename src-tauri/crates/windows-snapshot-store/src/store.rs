@@ -58,6 +58,111 @@ struct Loaded {
     snapshot: Snapshot,
 }
 
+const SETUP_SUFFIX: &str = ".setup";
+const FILE_SHARE_DELETE: u32 = 0x4;
+
+/// Exclusive claim on one store identifier's first-time setup.
+///
+/// A marker file beside the store directory exists from before the protector
+/// is created until the store's first successful unlock. While a `Setup` is
+/// alive no other process can claim the same identifier. If the process dies
+/// in between, the marker stays: it is the durable record that whatever key or
+/// store exists for this identifier has never been unlocked and holds nothing,
+/// so the next setup may clear it and start again. A store that has been
+/// unlocked once has no marker and is never cleared this way.
+pub struct Setup {
+    path: PathBuf,
+    file: File,
+    leftover: bool,
+}
+
+impl Setup {
+    fn path_for(store_id: &str) -> Outcome<PathBuf> {
+        let directory = directory_for(store_id)?;
+        let path = directory.with_file_name(format!("{store_id}{SETUP_SUFFIX}"));
+        ordinary_path(&path)?;
+        Ok(path)
+    }
+
+    // Deny read and write sharing so a second claim fails, but allow delete
+    // sharing so this handle's owner can remove the marker while holding it.
+    fn open(path: &Path, create_new: bool) -> std::io::Result<File> {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(create_new)
+            .share_mode(FILE_SHARE_DELETE)
+            .open(path)
+    }
+
+    /// Claim an unfinished setup, if one exists. `Busy` when another process
+    /// is setting this identifier up right now.
+    pub fn resume(store_id: &str) -> Outcome<Option<Self>> {
+        let path = Self::path_for(store_id)?;
+        // A marker being removed by the process that just finished its setup
+        // answers "access denied" until the removal completes: still busy.
+        let busy = |error: &std::io::Error| {
+            is_contention(error) || error.kind() == std::io::ErrorKind::PermissionDenied
+        };
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if busy(&error) => return Err(Failure::Busy),
+            Err(_) => return Err(Failure::StorageFailed("setup-marker-unavailable")),
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.file_attributes() & REPARSE_POINT != 0 {
+                    return Err(Failure::StorageFailed("setup-marker-unavailable"));
+                }
+            }
+        }
+        match Self::open(&path, false) {
+            Ok(file) => Ok(Some(Self {
+                path,
+                file,
+                leftover: true,
+            })),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) if busy(&error) => Err(Failure::Busy),
+            Err(_) => Err(Failure::StorageFailed("setup-marker-unavailable")),
+        }
+    }
+
+    /// Claim a new setup. The caller has already checked that no store,
+    /// protector or unfinished setup exists for this identifier.
+    pub fn begin(store_id: &str) -> Outcome<Self> {
+        let path = Self::path_for(store_id)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|_| Failure::StorageFailed("directory-create-failed"))?;
+        }
+        match Self::open(&path, true) {
+            Ok(file) => {
+                file.sync_all()
+                    .map_err(|_| Failure::StorageFailed("setup-marker-unavailable"))?;
+                Ok(Self {
+                    path,
+                    file,
+                    leftover: false,
+                })
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(Failure::Busy),
+            Err(_) => Err(Failure::StorageFailed("setup-marker-unavailable")),
+        }
+    }
+
+    /// Whether this claim took over an earlier setup that never finished.
+    pub fn leftover(&self) -> bool {
+        self.leftover
+    }
+
+    /// The store has been unlocked once, or nothing of the setup remains:
+    /// remove the marker while still holding the claim.
+    pub fn finish(self) -> Outcome<()> {
+        let removed = fs::remove_file(&self.path);
+        drop(self.file);
+        removed.map_err(|_| Failure::StorageFailed("setup-marker-unavailable"))
+    }
+}
+
 pub struct Store {
     directory: PathBuf,
     store_id: String,
@@ -103,6 +208,11 @@ impl Store {
             |candidate| store.verify(candidate, &key, |snapshot| snapshot.records.is_empty()),
         )?;
         Ok(store)
+    }
+
+    /// Whether a store directory exists for this identifier.
+    pub fn exists(store_id: &str) -> Outcome<bool> {
+        Ok(directory_for(store_id)?.is_dir())
     }
 
     /// Open an existing store and prove the protector can release its key.
@@ -792,6 +902,64 @@ mod tests {
         fs::write(&pending, b"synthetic interrupted write").unwrap();
         Store::open(&id, protector(12)).unwrap().cleanup().unwrap();
         assert!(!directory.exists());
+    }
+
+    #[test]
+    fn a_setup_claim_is_exclusive_survives_a_crash_and_is_cleared_only_by_finish() {
+        let id = crypto::uuid_v4().unwrap();
+        assert!(Setup::resume(&id).unwrap().is_none());
+        let setup = Setup::begin(&id).unwrap();
+        assert!(!setup.leftover());
+        // While the claim is held nobody else can begin or take it over.
+        assert_eq!(Setup::begin(&id).err(), Some(Failure::Busy));
+        assert_eq!(Setup::resume(&id).err(), Some(Failure::Busy));
+        // The process dies before the first unlock: the claim is released but
+        // the marker stays as the record of an unfinished setup.
+        drop(setup);
+        assert_eq!(Setup::begin(&id).err(), Some(Failure::Busy));
+        let resumed = Setup::resume(&id).unwrap().expect("unfinished setup");
+        assert!(resumed.leftover());
+        resumed.finish().unwrap();
+        assert!(Setup::resume(&id).unwrap().is_none());
+        Setup::begin(&id).unwrap().finish().unwrap();
+        assert_eq!(
+            Setup::begin("not-a-uuid").err(),
+            Some(Failure::Invalid("store-id"))
+        );
+    }
+
+    #[test]
+    fn discard_removes_a_store_without_its_key_and_refuses_foreign_entries() {
+        let id = crypto::uuid_v4().unwrap();
+        assert_eq!(Store::exists(&id), Ok(false));
+        assert_eq!(
+            Store::discard(&id),
+            Err(Failure::StorageFailed("missing-store"))
+        );
+        let store = Store::init(&id, protector(21)).unwrap();
+        store.create("alex-work", profile("Unreachable")).unwrap();
+        let directory = store.directory().to_path_buf();
+        drop(store);
+        assert_eq!(Store::exists(&id), Ok(true));
+        let foreign = directory.join("family-photo.txt");
+        fs::write(&foreign, b"synthetic fixture").unwrap();
+        assert_eq!(
+            Store::discard(&id),
+            Err(Failure::StorageFailed("cleanup-incomplete"))
+        );
+        assert!(
+            directory.join(SNAPSHOT_FILE).exists(),
+            "nothing was deleted"
+        );
+        fs::remove_file(foreign).unwrap();
+        fs::write(
+            directory.join("snapshot-0123456789abcdef0123456789abcdef.pending"),
+            b"synthetic interrupted write",
+        )
+        .unwrap();
+        Store::discard(&id).unwrap();
+        assert!(!directory.exists());
+        assert_eq!(Store::exists(&id), Ok(false));
     }
 
     #[test]
