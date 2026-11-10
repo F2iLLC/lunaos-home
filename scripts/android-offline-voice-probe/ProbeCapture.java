@@ -47,6 +47,10 @@ final class ProbeCapture {
     private volatile String watchdogCode, watchdogMessage;
     private AudioRecord recorder;
     private ToneGenerator cue;
+    // Post-wake only: a capture thread keeps reading the recorder while the
+    // slower free-form decoder works, so the command is not chopped.
+    private volatile CommandAudio commandAudio;
+    private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
         @Override public void run() {
             if (closed) return;
@@ -88,9 +92,33 @@ final class ProbeCapture {
         return awake ? "Command timed out after Hey Luna. Decoder: " + commandDiagnostic + ". Microphone off. No timer started."
             : "Listening time limit reached. Microphone off. No timer started.";
     }
+    // Runs only between the wake phrase and the end of its command window.
+    // It reads under the same lock as closeRecorder, so no read can follow a close.
+    private void pumpCommandAudio(CommandAudio audio) {
+        short[] chunk = new short[CommandAudio.CHUNK_FRAMES];
+        try {
+            while (!closed && !audio.closed()) {
+                int count;
+                synchronized (this) {
+                    if (closed || recorder == null) return;
+                    count = recorder.read(chunk, 0, chunk.length, AudioRecord.READ_NON_BLOCKING);
+                }
+                if (count < 0) { captureFailed = true; return; }
+                if (count > 0 && !audio.offer(chunk, count)) return;
+                Arrays.fill(chunk, (short) 0);
+                SystemClock.sleep(count > 0 ? 5 : 10);
+            }
+        } catch (RuntimeException failure) {
+            captureFailed = true;
+        } finally {
+            Arrays.fill(chunk, (short) 0);
+        }
+    }
     private synchronized void closeRecorder() {
         closed = true;
         RECORDING.set(false);
+        CommandAudio audio = commandAudio;
+        if (audio != null) audio.close();
         closeCue();
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
@@ -176,7 +204,12 @@ final class ProbeCapture {
                     while (!closed && SystemClock.elapsedRealtime() < deadline) {
                         if (blocked(context)) { code = "ACCESS_STOP"; message = "Lock, mute or permission changed. No timer started."; return; }
                         int count;
-                        synchronized (this) {
+                        CommandAudio queued = commandAudio;
+                        if (queued != null) {
+                            if (captureFailed) throw new IllegalStateException();
+                            count = queued.poll(samples);
+                            timing.queued(queued.maxQueuedMs(), queued.droppedMs());
+                        } else synchronized (this) {
                             if (closed) return;
                             count = recorder.read(samples, 0, samples.length, AudioRecord.READ_NON_BLOCKING);
                         }
@@ -194,6 +227,9 @@ final class ProbeCapture {
                                 timing.start(timing.bufferFrames, "COMMAND");
                                 deadline = Math.min(maximum, wake.deadline());
                                 awake = true;
+                                CommandAudio audio = new CommandAudio(WakeSession.COMMAND_MS);
+                                commandAudio = audio;
+                                new Thread(() -> pumpCommandAudio(audio), "home-voice-capture").start();
                                 Log.i("HomeVoiceProbe", "WAKE_MATCH");
                                 show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within 15 seconds."
                                     : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 15 seconds.", LunaFace.State.AWAKE);
@@ -241,13 +277,17 @@ final class ProbeCapture {
     // capture loop. These measurements identify that risk without claiming data loss.
     private static final class CaptureTiming {
         int bufferFrames;
-        long started, lastObserved, frames, maxDecodeMs, slowDecodeCalls;
+        long started, lastObserved, frames, maxDecodeMs, slowDecodeCalls, maxQueuedMs, droppedMs;
         String phase;
         void start(int bufferFrames, String phase) {
             this.bufferFrames = bufferFrames;
             this.phase = phase;
             started = lastObserved = SystemClock.elapsedRealtime();
-            frames = maxDecodeMs = slowDecodeCalls = 0;
+            frames = maxDecodeMs = slowDecodeCalls = maxQueuedMs = droppedMs = 0;
+        }
+        void queued(long maxQueuedMs, long droppedMs) {
+            this.maxQueuedMs = maxQueuedMs;
+            this.droppedMs = droppedMs;
         }
         void decoded(int count, long elapsedMs) {
             if (phase == null) return;
@@ -262,7 +302,8 @@ final class ProbeCapture {
             Log.i("HomeVoiceProbe", "CAPTURE_TIMING phase=" + phase
                 + " bufferMs=" + bufferFrames / 16 + " audioMs=" + frames / 16
                 + " elapsedMs=" + (lastObserved - started)
-                + " maxDecodeMs=" + maxDecodeMs + " slowDecodeCalls=" + slowDecodeCalls);
+                + " maxDecodeMs=" + maxDecodeMs + " slowDecodeCalls=" + slowDecodeCalls
+                + " maxQueuedMs=" + maxQueuedMs + " droppedMs=" + droppedMs);
             phase = null;
         }
     }

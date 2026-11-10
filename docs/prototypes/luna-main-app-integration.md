@@ -147,3 +147,30 @@ The existing PowerShell setup script provisions the standalone local probe and
 is not the Mac Studio setup path. The private Mac relay is development setup;
 it is not tenant enrollment or a production service. Never open port 18743 or
 Ollama to the public internet.
+
+## Command capture after the wake phrase
+
+Wake detection uses a small fixed grammar and decodes faster than real time.
+After the wake phrase the recognizer is free-form, and on the 32-bit Echo Show
+8 development device that decoding is slower than real time: fixed diagnostic
+timings from an attended exchange showed single decode calls of about 3 s
+against a 200 ms recorder buffer, and command windows in which 25% to 58% of
+the captured audio never reached the recognizer. Spoken questions mostly
+survived that; timer commands, which must match exactly, did not.
+
+`CommandAudio` removes the loss without changing what is recognized. From the
+wake match until the end of that command window a capture thread keeps
+reading the recorder into a bounded in-memory queue and the decoder takes
+audio from it at its own pace. The queue holds at most the 15 second command
+window, overwrites its oldest chunk when full, zeroes every chunk it drops or
+hands over, and is cleared whenever capture closes (deadline, Disable, lock,
+mute, permission change, a matched command or a finished question). It does
+not exist before the wake phrase, so the pre-wake path keeps its small
+recorder buffer and no queue. Nothing is written to storage or sent anywhere.
+
+The trade is latency for completeness: a command is recognized from all of its
+audio, a little after it was spoken, instead of immediately from part of it.
+`CAPTURE_TIMING` now also reports `maxQueuedMs` and `droppedMs` for the command
+phase, still numbers only. Whether the complete audio is recognized as the
+intended timer wording on the device is an attended check, not something the
+JVM tests establish.
