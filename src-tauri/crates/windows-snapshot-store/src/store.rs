@@ -354,7 +354,7 @@ impl Store {
         self.mutate(record_id, Some(expected_revision), |current| match current
             .map(|row| validate::kind_of(&row.data))
         {
-            Some(Kind::Grocery) => Err(Failure::Unsupported),
+            Some(Kind::Grocery | Kind::Notebook) => Err(Failure::Unsupported),
             _ => Ok(Some(row)),
         })
     }

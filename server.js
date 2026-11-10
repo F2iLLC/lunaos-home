@@ -154,7 +154,8 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createAppServer();
+  const { notebookFromEnvironment } = await import('./lib/windows-notebook.js');
+  const server = createAppServer({ notebook: notebookFromEnvironment() });
   server.on('error', () => {
     console.error('Could not start Luna OS Home. Check whether port 4173 is already in use.');
     process.exitCode = 1;
