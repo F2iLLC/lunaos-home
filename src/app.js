@@ -133,7 +133,9 @@ async function notebook(body) {
 }
 function adopt(data) {
   if (!data.notebook) return;
-  const found = data.notebook.lists.find(entry => entry.type === CHECKLIST.type);
+  // By type; or the list of that name, so a "My checklist" made by voice is this checklist too.
+  const found = data.notebook.lists.find(entry => entry.type === CHECKLIST.type)
+    ?? data.notebook.lists.find(entry => entry.name.trim().toLowerCase() === CHECKLIST.name.toLowerCase());
   saved = found?.id ?? '';
   tasks = (found?.items ?? []).map(item => ({
     id: item.id, title: item.text, category: item.category ?? categories[0], completed: item.completed,
@@ -149,6 +151,14 @@ async function change(operation) {
 }
 async function connectChecklist() {
   if (typeof fetch !== 'function') return;
-  try { adopt(await notebook({ action: 'snapshot' })); } catch { /* no vault: this visit only */ }
+  // Anything typed before the vault answered is saved into it, not dropped.
+  const typed = saved === null ? tasks.filter(task => !task.completed) : [];
+  try {
+    adopt(await notebook({ action: 'snapshot' }));
+    if (saved !== null && typed.length) {
+      if (saved === '') await change({ op: 'create_list', ...CHECKLIST });
+      await change({ op: 'add_items', list: saved, allowDuplicate: true, items: typed.map(task => ({ text: task.title, category: task.category })) });
+    }
+  } catch { /* no vault: this visit only */ }
 }
 connectChecklist();

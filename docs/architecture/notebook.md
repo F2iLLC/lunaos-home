@@ -52,4 +52,5 @@ Both Windows encrypted stores also accept the `household-notebook` record kind (
 - The Echo Show and the Windows page do not reach the Mac vault yet. The relay on the Mac still answers questions only.
 - The grocery list record and the notebook are in the same vault but are still two records with two contracts. "Put milk on the grocery list" writes a notebook list, not the grocery record.
 - The Windows developer store does not wait for its file lock, so two requests that overlap (a read during a write) can fail there. They are reported as failed and nothing is lost. The Mac vault store waits for its lock.
+- "Writing as" is one choice per running Home process, not per browser tab or per speaker. Everything written while it is set, including what Luna is told, is attributed to that member. Per-session identity comes with the vault sessions on the Mac.
 - Members are read from the saved example details (`fictionalDetails`). Household member records proper belong to VLT-04.

@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import os, { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
 import {
   fixtureProtector,
@@ -93,7 +95,7 @@ test("member details, the grocery list and Luna's notebook live in one vault sto
     "alex-example",
   ])
     assert.equal(bytes.includes(Buffer.from(secret)), false, secret);
-  assert.deepEqual((await readdir(directory)).sort(), ["vault.bin"]);
+  assert.deepEqual((await readdir(directory)).sort(), [".lock", "vault.bin"]);
 
   // A new process: new adapter, new services, the same file.
   const again = await reopen();
@@ -218,16 +220,19 @@ test("an interrupted commit leaves the old snapshot or the new one, never a mixt
       assert.notEqual(row.revision, expected.revision);
       expected = row;
     } else assert.deepEqual(row, expected, `${stage}: old state`);
-    assert.deepEqual((await readdir(directory)).sort(), ["vault.bin"], stage);
+    assert.deepEqual(
+      (await readdir(directory)).sort(),
+      [".lock", "vault.bin"],
+      stage,
+    );
   }
 });
 
-test("a lock left by a process that no longer exists is released; a live holder is waited for", async (t) => {
-  const { store, reopen, directory, dispose } = await fresh();
+test("one process owns the store: its adapters are ordered, and another process is refused", async (t) => {
+  const { store, reopen, options, directory, dispose } = await fresh();
   t.after(dispose);
-  await writeFile(path.join(directory, ".lock"), "2147483646"); // no such process
-  assert.equal((await store.create("alex-work", alex)).revision.length, 36);
-  // Two adapters over one file: every conditional write is ordered by the lock.
+  await store.create("alex-work", alex);
+  // Two adapters in this process: every conditional write is ordered.
   const other = await reopen();
   const row = await store.read("alex-work");
   const results = await Promise.allSettled(
@@ -245,6 +250,130 @@ test("a lock left by a process that no longer exists is released; a live holder 
   );
   for (const result of results.filter((entry) => entry.status === "rejected"))
     assert.ok(result.reason instanceof VaultConflictError);
+
+  // A second process cannot open it while this one holds it, and changes nothing.
+  const before = await readFile(path.join(directory, "vault.bin"));
+  const lock = await readFile(path.join(directory, ".lock"), "utf8");
+  const script = `
+    import { openVaultFileStore, fixtureProtector } from ${JSON.stringify(pathToFileURL(path.resolve("lib/vault-file-store.js")).href)};
+    try {
+      await openVaultFileStore({ directory: ${JSON.stringify(directory)}, storeId: ${JSON.stringify(options.storeId)},
+        protector: fixtureProtector(new Uint8Array(32)) });
+      console.log("OPENED");
+    } catch (error) { console.log(error.code); }`;
+  const child = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", script],
+    { encoding: "utf8" },
+  );
+  assert.equal(child.stdout.trim(), "BUSY");
+  assert.deepEqual(await readFile(path.join(directory, "vault.bin")), before);
+  assert.equal(await readFile(path.join(directory, ".lock"), "utf8"), lock);
+
+  // After the last adapter closes the lock is gone and a new owner can open.
+  await store.close();
+  await other.close();
+  assert.deepEqual(await readdir(directory), ["vault.bin"]);
+  await assert.rejects(store.read("alex-work"), { code: "CLOSED" });
+  const next = await reopen();
+  assert.equal((await next.read("alex-work")).data.memberId, "alex-example");
+});
+
+test("a lock nobody can still hold is taken over at open; a live holder's lock is left alone", async (t) => {
+  const { store, reopen, directory, dispose } = await fresh();
+  t.after(dispose);
+  await store.create("alex-work", alex);
+  await store.close();
+  const lockFile = path.join(directory, ".lock");
+  const booted = Date.now() - os.uptime() * 1000;
+  const token = "3d735c0e-3176-4502-8717-8e62f59d3a91";
+  for (const [why, body] of [
+    ["empty", ""],
+    ["not a lock", "2147483646"],
+    [
+      "dead holder",
+      JSON.stringify({ pid: 2147483646, token, bootedAt: booted }),
+    ],
+    // The same pid now belongs to something else: the lock predates this boot.
+    [
+      "before this boot",
+      JSON.stringify({ pid: process.ppid, token, bootedAt: booted - 86400000 }),
+    ],
+  ]) {
+    await writeFile(lockFile, body);
+    await writeFile(path.join(directory, "vault-leftover.pending"), "partial");
+    const opened = await reopen();
+    assert.deepEqual((await opened.read("alex-work")).data, alex, why);
+    assert.deepEqual(
+      (await readdir(directory)).sort(),
+      [".lock", "vault.bin"],
+      why,
+    );
+    await opened.close();
+  }
+  const live = JSON.stringify({ pid: process.ppid, token, bootedAt: booted });
+  await writeFile(lockFile, live);
+  await assert.rejects(reopen(), { code: "BUSY" });
+  assert.equal(await readFile(lockFile, "utf8"), live);
+});
+
+test("record ids that are also Object property names are ordinary records", async (t) => {
+  const { store, reopen, dispose } = await fresh();
+  t.after(dispose);
+  for (const recordId of [
+    "constructor",
+    "toString",
+    "__proto__",
+    "hasOwnProperty",
+  ]) {
+    assert.equal(await store.read(recordId), null, recordId);
+    const { revision } = await store.create(recordId, alex);
+    assert.deepEqual(await (await reopen()).read(recordId), {
+      revision,
+      data: alex,
+    });
+    await assert.rejects(store.create(recordId, alex), VaultConflictError);
+  }
+});
+
+test("a setup that stopped after making the key can be finished, with that key", async (t) => {
+  const directory = path.join(
+    await mkdtemp(path.join(tmpdir(), "home-vault-")),
+    "store",
+  );
+  t.after(() => rm(path.dirname(directory), { recursive: true, force: true }));
+  const made = [];
+  let stored = null;
+  // Same rules as the Keychain protector: make once, never replace.
+  const protector = {
+    async key({ create = false } = {}) {
+      if (stored) return Buffer.from(stored);
+      if (!create) throw new Error("no key");
+      stored = crypto.getRandomValues(new Uint8Array(32));
+      made.push(stored);
+      return Buffer.from(stored);
+    },
+  };
+  const options = { directory, storeId: "household", protector };
+  await assert.rejects(
+    openVaultFileStore({
+      ...options,
+      create: true,
+      fault: (stage) => {
+        if (stage === "before-write") throw new Error("stopped during setup");
+      },
+    }),
+    /stopped during setup/,
+  );
+  assert.equal(made.length, 1, "the key exists but no store does");
+  const store = await openVaultFileStore({ ...options, create: true });
+  await store.create("alex-work", alex);
+  await store.close();
+  assert.equal(made.length, 1, "the same key, not a second one");
+  assert.deepEqual(
+    (await (await openVaultFileStore(options)).read("alex-work")).data,
+    alex,
+  );
 });
 
 test("the Keychain protector refuses to run anywhere but macOS", () => {
@@ -275,7 +404,10 @@ test(
     const again = await openVaultFileStore(options);
     assert.deepEqual((await again.read("alex-work")).data, alex);
     // The key that exists is never replaced by a second "create".
-    await assert.rejects(protector.key({ create: true }), /already exists/);
+    assert.deepEqual(
+      await protector.key({ create: true }),
+      await protector.key(),
+    );
     assert.equal((await protector.key()).length, 32);
   },
 );
