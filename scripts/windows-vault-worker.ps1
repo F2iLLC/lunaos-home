@@ -28,8 +28,50 @@ function Assert-Detail($Value) {
         catch { throw 'detail' }
     }
 }
+function Assert-NotebookKeys($Value, [string[]] $Required, [string[]] $Optional) {
+    if ($Value -isnot [Collections.IDictionary]) { throw 'notebook-data' }
+    foreach ($key in $Required) { if (-not $Value.Contains($key)) { throw 'notebook-data' } }
+    foreach ($key in $Value.psbase.Keys) { if ($key -cnotin $Required -and $key -cnotin $Optional) { throw 'notebook-data' } }
+}
+function Assert-NotebookText($Value, [int] $Max) {
+    if ($Value -isnot [string] -or $Value.Trim().Length -lt 1 -or $Value.Length -gt $Max) { throw 'notebook-data' }
+}
+function Assert-NotebookId($Value) {
+    if ($Value -isnot [string] -or $Value -cnotmatch '^[A-Za-z0-9_-]{1,80}$') { throw 'notebook-data' }
+}
+# One household's lists (lib/notebook-contract.js). List type is metadata only.
+function Assert-Notebook($Value) {
+    # Refuse rather than silently rewrite stored timestamps on older PowerShell.
+    if (-not $parse.ContainsKey('DateKind')) { throw 'notebook-needs-datekind' }
+    Assert-NotebookKeys $Value @('kind', 'notebook') @()
+    $book = $Value.notebook
+    Assert-NotebookKeys $book @('version', 'householdId', 'commitId', 'lists') @()
+    if (($book.version -isnot [int] -and $book.version -isnot [long]) -or $book.version -ne 1 -or
+        $book.commitId -isnot [string] -or $book.commitId -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' -or
+        $book.lists -isnot [array] -or $book.lists.Count -gt 50) { throw 'notebook-data' }
+    Assert-NotebookId $book.householdId
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($list in $book.lists) {
+        Assert-NotebookKeys $list @('id', 'name', 'createdAt', 'updatedAt', 'items') @('description', 'type')
+        Assert-NotebookId $list.id
+        Assert-NotebookText $list.name 80
+        if (-not $seen.Add($list.id) -or $list.items -isnot [array] -or $list.items.Count -gt 200) { throw 'notebook-data' }
+        foreach ($item in $list.items) {
+            Assert-NotebookKeys $item @('id', 'text', 'completed', 'position', 'createdAt', 'updatedAt') @('quantity', 'unit', 'notes')
+            Assert-NotebookId $item.id
+            Assert-NotebookText $item.text 160
+            if ($item.completed -isnot [bool] -or ($item.position -isnot [int] -and $item.position -isnot [long]) -or
+                $item.position -lt 0 -or $item.position -gt 200) { throw 'notebook-data' }
+        }
+    }
+}
+function Test-ListRecord($Value) {
+    return $Value -is [Collections.IDictionary] -and $Value.Contains('kind') -and
+        $Value.kind -cin @('grocery-list', 'household-notebook')
+}
 function Assert-RecordData($Value) {
     if ($Value -isnot [Collections.IDictionary]) { throw 'data' }
+    if ($Value.Contains('kind') -and $Value.kind -ceq 'household-notebook') { Assert-Notebook $Value; return }
     if ($Value.Contains('kind') -and $Value.kind -ceq 'grocery-list') {
         if ($Value.Count -ne 3 -or -not $Value.Contains('list') -or -not $Value.Contains('outcomes') -or
             $Value.list -isnot [Collections.IDictionary] -or $Value.list.Count -ne 6 -or
@@ -59,11 +101,16 @@ function Assert-RecordData($Value) {
 }
 try {
     if (-not $IsWindows) { throw 'platform' }
+    # Notebook records nest deeper than grocery lists, and their timestamps must
+    # come back as the text that was stored. DateKind exists from PowerShell 7.5;
+    # without it Assert-Notebook refuses notebook records.
+    $parse = @{ AsHashtable = $true; Depth = 16 }
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $parse.DateKind = 'String' }
     Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
     $buffer = [char[]]::new(262145)
     $length = [Console]::In.ReadBlock($buffer, 0, $buffer.Length)
     if ($length -gt 262144) { throw 'input-size' }
-    $request = [string]::new($buffer, 0, $length) | ConvertFrom-Json -AsHashtable -Depth 8
+    $request = [string]::new($buffer, 0, $length) | ConvertFrom-Json @parse
     if ($request -isnot [Collections.IDictionary] -or $request.probeId -cnotmatch '^[0-9a-f-]{36}$') { throw 'request' }
     $probeGuid = [Guid]::ParseExact($request.probeId, 'D')
     if ($probeGuid.ToString('D') -cne $request.probeId) { throw 'id' }
@@ -138,7 +185,7 @@ try {
             $size = (Get-Item -LiteralPath $file).Length
             if ($size -le 0 -or $size -gt 262144) { throw 'size' }
             $plain = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($file), $purpose, $scope)
-            try { $envelope = [Text.Encoding]::UTF8.GetString($plain) | ConvertFrom-Json -AsHashtable -Depth 8 }
+            try { $envelope = [Text.Encoding]::UTF8.GetString($plain) | ConvertFrom-Json @parse }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
             if ($envelope.Count -ne 2 -or $envelope.format -ne $contractVersion -or $envelope.records -isnot [Collections.IDictionary] -or $envelope.records.psbase.Count -gt 64) { throw 'format' }
             foreach ($key in $envelope.records.psbase.Keys) {
@@ -162,10 +209,7 @@ try {
                 $errorCode = 'CONFLICT'
                 throw 'conflict'
             }
-            if ($operation -eq 'edit-profile' -and
-                $envelope.records[$request.recordId].data -is [Collections.IDictionary] -and
-                $envelope.records[$request.recordId].data.Contains('kind') -and
-                $envelope.records[$request.recordId].data.kind -ceq 'grocery-list') {
+            if ($operation -eq 'edit-profile' -and (Test-ListRecord $envelope.records[$request.recordId].data)) {
                 $errorCode = 'UNSUPPORTED'
                 throw 'unsupported-record-type'
             }
@@ -205,7 +249,7 @@ try {
             }
         }
         if ($operation -cin @('init', 'create', 'edit', 'edit-profile', 'delete', 'restore')) {
-            $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 8 -Compress))
+            $plain = [Text.Encoding]::UTF8.GetBytes(($envelope | ConvertTo-Json -Depth 16 -Compress))
             try { $cipher = [Security.Cryptography.ProtectedData]::Protect($plain, $purpose, $scope) }
             finally { [Array]::Clear($plain, 0, $plain.Length) }
             if ($cipher.Length -gt 262144) { throw 'size' }
@@ -246,5 +290,5 @@ try {
         if ($cleanup) { [IO.Directory]::Delete($root, $false) }
     }
 }
-$result | ConvertTo-Json -Depth 8 -Compress
+$result | ConvertTo-Json -Depth 16 -Compress
 if (-not $result.ok) { exit 1 }

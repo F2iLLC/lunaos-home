@@ -15,12 +15,13 @@ const checklist = document.querySelector('#checklist');
 
 function showPage(moveFocus = true) {
   const hash = location.hash.split('?')[0];
-  const page = ['#checklist', '#vault', '#luna'].includes(hash) && document.querySelector(hash) ? hash.slice(1) : 'welcome';
+  const page = ['#checklist', '#vault', '#luna', '#notebook'].includes(hash) && document.querySelector(hash) ? hash.slice(1) : 'welcome';
   welcome.hidden = page !== 'welcome';
   checklist.hidden = page !== 'checklist';
   document.querySelector('#vault').hidden = page !== 'vault';
   if (document.querySelector('#luna')) document.querySelector('#luna').hidden = page !== 'luna';
-  document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : page === 'luna' ? 'Meet Luna' : 'Your checklist'} · Luna OS Home`;
+  if (document.querySelector('#notebook')) document.querySelector('#notebook').hidden = page !== 'notebook';
+  document.title = page === 'welcome' ? 'Luna OS Home' : `${page === 'vault' ? 'Your family draft' : page === 'luna' ? 'Meet Luna' : page === 'notebook' ? "Luna's notebook" : 'Your checklist'} · Luna OS Home`;
   if (page === 'vault') refreshDraft();
   if (moveFocus) {
     document.querySelector(`#${page}-heading`).focus();

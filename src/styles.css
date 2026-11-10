@@ -220,3 +220,26 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
   .vault .checklist-intro h1 { font-size: 38px; }
   .enter { max-width: 100%; gap: 12px; }
 }
+
+/* Luna's notebook */
+.notebook-luna { display: block; width: min(60vw, 240px); height: auto; margin: 0 auto 10px; overflow: visible; }
+.notebook-luna .nb-pencil, .notebook-luna .nb-check, .notebook-luna .nb-cross, .notebook-luna .nb-mouth-puzzled { opacity: 0; }
+.notebook-luna .nb-pencil, .notebook-luna .nb-notebook { transform-box: fill-box; transform-origin: center; }
+.notebook-luna[data-animation="new-page"] .nb-notebook { animation: nb-open .9s ease-out 2; }
+.notebook-luna[data-animation="scribble"] .nb-pencil { opacity: 1; animation: nb-scribble .35s ease-in-out 6 alternate; }
+.notebook-luna[data-animation="read"] .nb-notebook { animation: nb-open .9s ease-out 1; }
+.notebook-luna[data-animation="checkmark"] .nb-check { opacity: 1; animation: nb-draw .6s ease-out; }
+.notebook-luna[data-animation="cross-out"] .nb-cross { opacity: 1; animation: nb-draw .6s ease-out; }
+.notebook-luna[data-animation="erase-rewrite"] .nb-pencil { opacity: 1; animation: nb-scribble .25s ease-in-out 8 alternate; }
+.notebook-luna[data-animation="hover"] .nb-pencil { opacity: 1; animation: luna-float 1.6s ease-in-out infinite; }
+.notebook-luna[data-animation="puzzled"] .nb-mouth-puzzled { opacity: 1; }
+.notebook-luna[data-animation="puzzled"] .nb-mouth-happy { opacity: 0; }
+.notebook-status { min-height: 1.5em; text-align: center; color: #e8ddeb; }
+.nb-items { list-style: none; margin: 8px 0; padding: 0; }
+.nb-items li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 0; }
+.nb-items li.completed span { text-decoration: line-through; opacity: .65; }
+.notebook-lists { display: grid; gap: 16px; margin: 20px 0; }
+@keyframes nb-open { 0% { transform: scale(.85) rotate(-4deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes nb-scribble { from { transform: translate(-6px, 2px) rotate(-6deg); } to { transform: translate(6px, -2px) rotate(6deg); } }
+@keyframes nb-draw { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .notebook-luna * { animation: none !important; } }
