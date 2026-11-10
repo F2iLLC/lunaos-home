@@ -18,6 +18,8 @@ final class ReplyPlan {
         return clips.toArray(new String[0]);
     }
     static String[] clips(String result) {
+        // The silence is the confirmation.
+        if (result.equals("Alarm stopped.")) return new String[0];
         for (int id = 1; id <= 8; id++) {
             String prefix = "Timer " + TimerPhrase.number(id);
             if (result.equals(prefix + " canceled.")) return new String[] {"cancel-" + id};

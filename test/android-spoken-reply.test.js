@@ -67,6 +67,7 @@ test('bundled offline replies sequence exact clips, release playback, and recove
           for(String bad:new String[]{"Timer one started for 0 seconds.","Timer one started for 86401 seconds.","Timer one started for -5 seconds.","Timer one started for 5 seconds. Extra","Timer nine started for 5 seconds."})
             check(ReplyPlan.clips(bad)[0].equals("unsupported"));
           check(ReplyPlan.clips("Timer eight canceled.")[0].equals("cancel-8"));
+          check(ReplyPlan.clips("Alarm stopped.").length==0);
           check(ReplyPlan.clips("untrusted speech")[0].equals("unsupported"));
           System.out.println("Offline reply checks passed");
         }
