@@ -23,6 +23,8 @@ final class ReplyPlan {
         for (int id = 1; id <= 8; id++) {
             String prefix = "Timer " + TimerPhrase.number(id);
             if (result.equals(prefix + " canceled.")) return new String[] {"cancel-" + id};
+            if (result.equals(prefix + " paused.")) return new String[] {"timer-" + id, "paused"};
+            if (result.equals(prefix + " resumed.")) return new String[] {"timer-" + id, "resumed"};
             String start = prefix + " started for ", end = " seconds.";
             if (result.startsWith(start) && result.endsWith(end)) {
                 String amount = result.substring(start.length(), result.length() - end.length());

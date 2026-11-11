@@ -46,7 +46,9 @@ public final class HomeLunaBridge {
                     JSObject timer = new JSObject();
                     timer.put("id", Integer.toString(id));
                     timer.put("label", "Timer " + id);
-                    timer.put("remainingSeconds", Math.max(0, (ledger.deadlines[id] - now + 999) / 1000));
+                    boolean held = ledger.held(id);
+                    timer.put("remainingSeconds", Math.max(0, ((held ? ledger.paused[id] : ledger.deadlines[id] - now) + 999) / 1000));
+                    timer.put("paused", held);
                     timers.put(timer);
                 }
             }
