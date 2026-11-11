@@ -70,6 +70,8 @@ final class CommandAudio {
 
     synchronized boolean capturing() { return !sealed && !closed; }
     synchronized boolean closed() { return closed; }
+    /** How many samples live decoding has taken so far. */
+    synchronized int consumed() { return read; }
     synchronized long capturedMs() { return written / 16; }
     synchronized long pendingMs() { return (written - read) / 16; }
     synchronized long droppedMs() { return droppedFrames / 16; }

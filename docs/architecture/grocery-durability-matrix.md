@@ -1,5 +1,14 @@
 # Grocery durability and adapter qualification matrix
 
+> **Retired as a feature, kept as a record (owner ruling, 2026-11-10).** There is
+> no separate grocery list function any more. A grocery list is an ordinary list
+> in Luna's notebook ([notebook](notebook.md)). The `grocery-list` record kind,
+> its command contract and `createGroceryPersistence` were removed. The adapter
+> and platform findings below still stand; the fault matrix they describe now
+> runs against the notebook record (`test/support/notebook-fault-matrix.js`).
+> Where this page says "grocery list and receipt", read "the household notebook
+> and its commit id".
+
 Status: synthetic qualification evidence only. This matrix does not close #6,
 #10, #151 or #141 and does not qualify a production adapter.
 
@@ -278,9 +287,9 @@ disposable Software KSP key or envelope from this check remains on the host. No
 password or key material is recorded.
 
 The Ubuntu GitHub Actions job skips Windows-only tests. The separate
-`windows-2025` `Windows grocery probe` job in `.github/workflows/test.yml`
+`windows-2025` `Windows vault stores` job (formerly `Windows grocery probe`) in `.github/workflows/test.yml`
 records its Windows, Node and PowerShell versions and runs
-`node --test test/windows-grocery-persistence.test.js` on every pull request and push to `main`;
+`node --test test/windows-probe-faults.test.js` (formerly `test/windows-grocery-persistence.test.js`) on every pull request and push to `main`;
 its per-run results live in GitHub Actions, separate from the local evidence
 above. Hosted runners use Windows Server 2025, not Windows 11 Home, so they
 corroborate the probe but do not exercise the target edition.

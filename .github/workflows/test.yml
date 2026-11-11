@@ -27,8 +27,8 @@ jobs:
           openssl version
       - run: npm ci --ignore-scripts
       - run: npm test
-  windows-grocery-probe:
-    name: Windows grocery probe
+  windows-vault-stores:
+    name: Windows vault stores
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -57,4 +57,4 @@ jobs:
       - name: Snapshot store crate tests
         shell: pwsh
         run: node scripts/build-snapshot-store.mjs test
-      - run: node --test test/windows-grocery-persistence.test.js test/versioned-store-conformance.test.js test/windows-snapshot-store.test.js test/windows-snapshot-session.test.js test/windows-notebook-persistence.test.js
+      - run: node --test test/windows-probe-faults.test.js test/versioned-store-conformance.test.js test/windows-snapshot-store.test.js test/windows-snapshot-session.test.js test/windows-notebook-persistence.test.js

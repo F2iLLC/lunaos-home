@@ -36,7 +36,7 @@ for (const hasLuna of [true, false]) {
       }
     };
     assertPage(hasLuna ? 'luna' : 'welcome');
-    assert.equal(document.title, hasLuna ? 'Meet Luna · Luna OS Home' : 'Luna OS Home');
+    assert.equal(document.title, hasLuna ? 'Luna settings · Luna OS Home' : 'Luna OS Home');
     assert.equal(focused, undefined, 'initial load does not steal focus');
     assert.equal(scrolls, 0);
     location.hash = '#checklist';
@@ -46,7 +46,7 @@ for (const hasLuna of [true, false]) {
     location.hash = '#luna?source=home';
     listeners.hashchange();
     assertPage(hasLuna ? 'luna' : 'welcome');
-    assert.equal(document.title, hasLuna ? 'Meet Luna · Luna OS Home' : 'Luna OS Home');
+    assert.equal(document.title, hasLuna ? 'Luna settings · Luna OS Home' : 'Luna OS Home');
     assert.equal(focused, hasLuna ? 'luna-heading' : 'welcome-heading');
     assert.equal(scrolls, 2);
     location.hash = '#unknown';

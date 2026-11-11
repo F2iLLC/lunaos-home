@@ -73,7 +73,8 @@ export function createMemoryVersionedStore(backing = new Map()) {
       const value = check(vaultRecordDetail, data);
       check(vaultRevision, expectedRevision);
       const current = expect(recordId, expectedRevision);
-      if (current.data?.kind === 'grocery-list') throw new VaultUnsupportedRecordError();
+      // Anything tagged with a kind is a list record, never a member detail.
+      if (current.data?.kind !== undefined) throw new VaultUnsupportedRecordError();
       return commit(recordId, value);
     },
     async delete(recordId, expectedRevision) {

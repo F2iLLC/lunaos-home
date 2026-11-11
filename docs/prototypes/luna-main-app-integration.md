@@ -79,11 +79,22 @@ on a device.
 
 ## Initial debug entry slice
 
-The debug Android Home build offers a dedicated Meet Luna page. It reads Home's
+The debug Android Home build puts Luna on the home page. Her face is a button:
+pressing it turns wake listening on or off, and it is the only thing on the
+home page that does. Asleep, with a sleep mask and drifting z's, means the
+microphone is off; a faint glow means she is listening for the wake phrase; a
+bright glow means she is ready for a command. Active timers appear under her
+with their countdown and a stop button, and the area stays empty when none are
+running. While she is listening the page asks Home for its state once a
+second so the face keeps up; otherwise every five seconds.
+
+A gear at the bottom right of the home page opens the settings and
+troubleshooting page (formerly Meet Luna, still at `#luna`). It reads Home's
 own service and timer ledger, reports an unavailable local model, and supports
-explicit microphone permission, listening Enable/Disable and timer cancellation.
-Online answers require private relay configuration and a separate explicit
-setting in Home. The page is omitted from desktop and non-debug Android builds.
+explicit microphone permission, listening Enable/Disable and the online-answer
+setting. Online answers require private relay configuration and a separate
+explicit setting in Home. All of this is omitted from desktop and non-debug
+Android builds, which keep the static companion.
 This source migration does not establish installed-device reliability, audible
 behavior, lock handling, or hosted service operation; those remain separate
 verification gates.
@@ -112,10 +123,31 @@ the silence, not by a spoken reply.
 
 While a timer is ringing, and only then, that plain request is honored without
 the wake phrase, so `stop` or `Luna, stop` is enough. Nothing else is accepted
-without the wake phrase, and numbered timers still need it. This is not yet
-established on the device: whether `stop` is heard over the alarm at full
-volume, and whether the alarm's own sound is ever mistaken for it, each need
-attended use. Pausing and resuming a timer are not supported.
+without the wake phrase, and numbered timers still need it.
+
+On the device the first build silenced an alarm once, then stopped responding
+to `stop` a few seconds into the ringing. The likely cause is that the alarm
+fills the room, so the recognizer never hears the pause that ends an utterance
+and never issues a final result. While a timer rings, the words still being
+heard are therefore checked as well: a request for silence or the wake phrase
+counts when it is the last thing heard and reads the same on three checks in a
+row (log code `ALARM_STOP_OVER_RINGING`). The cause is inferred, not measured,
+and neither this fix nor whether the alarm's own sound can now be mistaken for
+`stop` is established without attended use. An alarm left alone rang past a
+minute on the first build.
+
+The alarm plays at the media volume, the one the device's volume buttons change
+and the one Luna speaks at. It used the separate alarm volume before, which the
+buttons do not reach. A timer is therefore silent if the media volume is zero.
+
+**Waiting less.** The command window after the wake phrase is 25 seconds. While
+wake listening stays enabled the speech model and its recognizers are kept and
+reset between exchanges instead of being reloaded, which took about five
+seconds during which nothing was heard; they are freed when listening is
+disabled. A question is decoded from just before the speech rather than from
+the wake phrase, so a pause before asking no longer adds to the wait. Decoding
+a question on this device still takes about as long as the question took to
+say, before the relay is asked. Pausing and resuming a timer are not supported.
 
 A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
 Once a timer attempt is recognized in a wake window, later fragments cannot
@@ -155,7 +187,7 @@ the Home app's private `question-relay.json` with the same token, the PEM
 certificate text, and `endpoint` set to
 `https://<certificate-dns-name>:18743/question`. The endpoint hostname must
 match the certificate. Install that file under the Home Android app's private
-files directory. Then open Meet Luna, explicitly enable Qwen answers, and
+files directory. Then open settings (the gear), explicitly enable Qwen answers, and
 separately enable wake listening. Keep the phone connected to the same tailnet.
 Disabling or changing the online-answer setting stops wake listening.
 

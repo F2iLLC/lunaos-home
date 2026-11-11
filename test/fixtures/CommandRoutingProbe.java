@@ -69,7 +69,7 @@ public final class CommandRoutingProbe {
         check(!wake.acceptQuestion("why is the sky blue", 3), "question is single use");
         wake = new WakeSession(0, true);
         wake.acceptFinal("hey luna", 1);
-        check(!wake.acceptQuestion("why is the sky blue", 15001), "expired question rejected");
+        check(!wake.acceptQuestion("why is the sky blue", 1 + WakeSession.COMMAND_MS), "expired question rejected");
         System.out.println("Command routing checks passed (" + checks + " cases).");
     }
 }

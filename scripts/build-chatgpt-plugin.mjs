@@ -13,7 +13,7 @@ const runtimeFiles = [
   'lib/notebook-sessions.js', 'lib/remote-notebook.js', 'src/notebook-client.js',
   'lib/vehicle-greetings.js',
   'lib/vault-sessions.js', 'lib/vault-store-lifecycle.js', 'lib/vault-record-contract.js', 'lib/notebook-contract.js',
-  'lib/notebook-service.js', 'lib/notebook-assistant.js', 'lib/notebook-avatar.js', 'lib/notebook-api.js', 'lib/vault-notebook.js', 'lib/vault-file-store.js', 'lib/mac-keychain-protector.js', 'lib/grocery-contract.js', 'lib/grocery-persistence.js',
+  'lib/notebook-service.js', 'lib/notebook-assistant.js', 'lib/notebook-avatar.js', 'lib/notebook-api.js', 'lib/vault-notebook.js', 'lib/vault-file-store.js', 'lib/mac-keychain-protector.js',
   'lib/reviewed-draft-vault.js', 'lib/windows-probe-store.js', 'scripts/windows-vault-worker.ps1',
   'src/draft-storage.js',
   'src/index.html', 'src/styles.css', 'src/app.js', 'src/notebook.js', 'src/tasks.js', 'src/vault.js', 'src/draft-client.js',

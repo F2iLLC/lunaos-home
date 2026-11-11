@@ -314,11 +314,13 @@ mod tests {
         bad_id.records.insert("Alex Work".into(), row);
         assert_eq!(bad_id.encode(), Err(Failure::Invalid("record-id")));
         let mut oversized = snapshot.clone();
-        oversized.records.get_mut("alex-work").unwrap().data = json!({
-            "kind": "grocery-list",
-            "list": { "id": "weekly", "householdId": "home", "label": "Weekly", "items": [], "revision": "0f3d5c2a-1b4e-4c6d-8e9f-0a1b2c3d4e5f", "updatedBy": { "kind": "human", "id": "p" } },
-            "outcomes": (0..64).map(|i| json!({ "requestId": format!("0f3d5c2a-1b4e-4c6d-8e9f-0a1b2c3d{:04x}", i), "fingerprint": "n".repeat(8000), "receipt": { "status": "applied" } })).collect::<Vec<_>>()
-        });
+        oversized.records.get_mut("alex-work").unwrap().data = json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home",
+            "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91",
+            "lists": (0..4).map(|l| json!({ "id": format!("list-{l}"), "name": "List",
+                "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z",
+                "items": (0..200).map(|i| json!({ "id": format!("item-{i}"), "text": "Item", "notes": "n".repeat(500),
+                    "completed": false, "position": i,
+                    "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z" })).collect::<Vec<_>>() })).collect::<Vec<_>>() } });
         assert_eq!(oversized.encode(), Err(Failure::Invalid("record-ceiling")));
     }
 }

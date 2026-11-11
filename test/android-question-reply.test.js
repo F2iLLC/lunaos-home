@@ -46,7 +46,7 @@ public class Handler {
 }`,
   'android/util/Log.java': 'package android.util; public class Log {public static int i(String t,String c){return 0;}}',
   'io/github/f2illc/lunaos/home/voiceprobe/BackgroundWakeService.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class BackgroundWakeService {static boolean running=true;}',
-  'io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class ProbeCapture {static boolean blocked(android.content.Context c){return false;}}',
+  'io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class ProbeCapture {static boolean blocked(android.content.Context c){return false;} static void releaseEngine(){}}',
   'org/json/JSONObject.java': `package org.json;
 public class JSONObject {
  private final java.util.Map<String,String> values=new java.util.HashMap<>();

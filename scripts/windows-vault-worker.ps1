@@ -75,42 +75,17 @@ function Assert-Notebook($Value) {
     }
 }
 function Test-ListRecord($Value) {
-    return $Value -is [Collections.IDictionary] -and $Value.Contains('kind') -and
-        $Value.kind -cin @('grocery-list', 'household-notebook')
+    # Anything tagged with a kind is a list record, never a member detail.
+    return $Value -is [Collections.IDictionary] -and $Value.Contains('kind')
 }
 function Assert-RecordData($Value) {
     if ($Value -isnot [Collections.IDictionary]) { throw 'data' }
     if ($Value.Contains('kind') -and $Value.kind -ceq 'household-notebook') { Assert-Notebook $Value; return }
-    if ($Value.Contains('kind') -and $Value.kind -ceq 'grocery-list') {
-        if ($Value.Count -ne 3 -or -not $Value.Contains('list') -or -not $Value.Contains('outcomes') -or
-            $Value.list -isnot [Collections.IDictionary] -or $Value.list.Count -ne 6 -or
-            $Value.outcomes -isnot [array] -or $Value.outcomes.Count -gt 512 -or
-            $Value.list.items -isnot [array] -or $Value.list.items.Count -gt 500) { throw 'grocery-data' }
-        foreach ($key in @('id', 'householdId')) { Assert-Id $Value.list[$key] }
-        Assert-Revision $Value.list.revision
-        if ($Value.list.label -isnot [string] -or $Value.list.label.Length -lt 1 -or $Value.list.label.Length -gt 120 -or
-            $Value.list.updatedBy -isnot [Collections.IDictionary] -or $Value.list.updatedBy.Count -ne 2 -or
-            $Value.list.updatedBy.kind -cnotin @('human', 'assistant')) { throw 'grocery-data' }
-        Assert-Id $Value.list.updatedBy.id
-        foreach ($item in $Value.list.items) {
-            if ($item -isnot [Collections.IDictionary] -or $item.Count -lt 3 -or $item.Count -gt 6 -or
-                $item.label -isnot [string] -or $item.label.Length -lt 1 -or $item.label.Length -gt 120 -or
-                $item.completed -isnot [bool]) { throw 'grocery-data' }
-            Assert-Id $item.id
-        }
-        foreach ($outcome in $Value.outcomes) {
-            if ($outcome -isnot [Collections.IDictionary] -or $outcome.Count -ne 3 -or
-                $outcome.requestId -isnot [string] -or $outcome.fingerprint -isnot [string] -or
-                $outcome.fingerprint.Length -lt 1 -or $outcome.fingerprint.Length -gt 8192 -or
-                $outcome.receipt -isnot [Collections.IDictionary] -or $outcome.receipt.status -cne 'applied') { throw 'grocery-data' }
-        }
-        return
-    }
     Assert-Detail $Value
 }
 try {
     if (-not $IsWindows) { throw 'platform' }
-    # Notebook records nest deeper than grocery lists, and their timestamps must
+    # Notebook records nest several levels deep, and their timestamps must
     # come back as the text that was stored. DateKind exists from PowerShell 7.5;
     # without it Assert-Notebook refuses notebook records.
     $parse = @{ AsHashtable = $true; Depth = 16 }

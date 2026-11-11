@@ -72,9 +72,9 @@ the Home reply variant. Native frontend bundling includes the notebook page.
 These are synthetic checks, not an Echo Show microphone, speaker, screen or APK
 acceptance run. No household vault or production relay is created or changed by
 the tests. Physical-device acceptance, native Android Rust/Kotlin build validation,
-native Windows integration, and migration of the legacy grocery record into the
-notebook still remain. The legacy grocery contract is not silently migrated or
-dual-written by this change. Issue #320 must remain open until these are resolved.
+native Windows integration still remain. Grocery unification landed separately
+in #345 and is included through the merge from main. Issue #320 remains open
+while deployment and acceptance are outstanding.
 
 On the development Mac, 39 focused tests passed, including the JVM transport and
 wake fixtures. Full suite: 425 passed, 13 failed, 87 skipped. An unchanged

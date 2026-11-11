@@ -52,6 +52,39 @@ final class ProbeCapture {
     // anything else is decoded once, free-form, from the complete audio after
     // the microphone has been stopped.
     private static final long REPLAY_MAX_MS = 45000;
+    // Silence before the command is not worth decoding twice: replay starts this
+    // far before the point where the fixed-phrase recognizer last heard nothing.
+    private static final int REPLAY_LEAD_FRAMES = 8000;
+    // Loading the model takes several seconds on a small device, and nothing is
+    // heard meanwhile. While wake listening stays enabled the model and its two
+    // recognizers are kept between exchanges and reset, never rebuilt, so there
+    // is still only ever one fixed-phrase recognizer on the model.
+    private static final class Engine {
+        final Model model;
+        Recognizer phrases, freeForm;
+        Engine(String path) throws java.io.IOException { model = new Model(path); }
+        void close() {
+            if (phrases != null) phrases.close();
+            if (freeForm != null) freeForm.close();
+            model.close();
+        }
+    }
+    private static final Object ENGINE_LOCK = new Object();
+    private static Engine kept;
+    private static boolean retire;
+    /** Listening was disabled: free the kept model once no worker is using it. */
+    static void releaseEngine() {
+        synchronized (ENGINE_LOCK) {
+            if (BUSY.get()) retire = true;
+            else if (kept != null) { kept.close(); kept = null; }
+        }
+    }
+    private static void settleEngine() {
+        synchronized (ENGINE_LOCK) {
+            if (retire && kept != null) { kept.close(); kept = null; }
+            retire = false;
+        }
+    }
     private volatile CommandAudio commandAudio;
     private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
@@ -129,11 +162,11 @@ final class ProbeCapture {
     // Stop the microphone, then decode the complete captured command once with
     // the free-form recognizer. Returns null if the worker must stop instead.
     private String decodeCaptured(CommandAudio audio, Recognizer freeForm, WakeSession wake,
-            short[] samples, CaptureTiming timing) throws Exception {
+            short[] samples, CaptureTiming timing, int from) throws Exception {
         audio.seal();
         stopCapture();
         long now = SystemClock.elapsedRealtime();
-        deadline = Math.min(maximum, now + Math.min(REPLAY_MAX_MS, audio.capturedMs() * 3 + 5000));
+        deadline = Math.min(maximum, now + Math.min(REPLAY_MAX_MS, (audio.capturedMs() - from / 16) * 3 + 5000));
         wake.decodeUntil(deadline);
         Log.i("HomeVoiceProbe", "COMMAND_AUDIO_COMPLETE");
         timing.queued(audio.pendingMs(), audio.droppedMs());
@@ -141,7 +174,7 @@ final class ProbeCapture {
         timing.start(timing.bufferFrames, "REPLAY");
         show("Heard you. Working it out on this device. Microphone off.", LunaFace.State.REVIEW);
         StringBuilder heard = new StringBuilder();
-        int offset = 0, count;
+        int offset = from, count;
         while ((count = audio.replay(offset, samples)) > 0) {
             if (closed || blocked(context) || SystemClock.elapsedRealtime() >= deadline) return null;
             long started = SystemClock.elapsedRealtime();
@@ -203,7 +236,9 @@ final class ProbeCapture {
         CaptureTiming timing = new CaptureTiming();
         boolean questions = persistent && QuestionReply.enabled(context);
         String code = "ENGINE_UNAVAILABLE", message = "Offline engine could not start. No timer started.", phase = "NATIVE_LOAD";
-        int matched = 0;
+        int matched = 0, quiet = 0;
+        Engine engine = null;
+        boolean failed = false;
         try {
             LibVosk.vosk_set_log_level(-1);
             phase = "MODEL_COPY";
@@ -212,21 +247,30 @@ final class ProbeCapture {
             if (!ready.exists()) { copyAsset("model", modelDir); if (!ready.createNewFile()) throw new IllegalStateException(); }
             if (closed || (capture && blocked(context))) return;
             phase = "MODEL_LOAD";
-            try (Model model = new Model(modelDir.getAbsolutePath())) {
-                phase = "VOCABULARY_CHECK";
-                int word = NativeLibrary.getInstance("vosk").getFunction("vosk_model_find_word")
-                    .invokeInt(new Object[] { model.getPointer(), "luna" });
-                if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
+            {
+                synchronized (ENGINE_LOCK) { engine = persistent ? kept : null; }
+                if (engine != null) { engine.phrases.reset(); engine.freeForm.reset(); }
+                else {
+                    engine = new Engine(modelDir.getAbsolutePath());
+                    phase = "VOCABULARY_CHECK";
+                    int word = NativeLibrary.getInstance("vosk").getFunction("vosk_model_find_word")
+                        .invokeInt(new Object[] { engine.model.getPointer(), "luna" });
+                    if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
+                    phase = "RECOGNIZER";
+                    engine.phrases = new Recognizer(engine.model, 16000, wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
+                    if (wait) engine.freeForm = new Recognizer(engine.model, 16000);
+                    if (persistent) synchronized (ENGINE_LOCK) { kept = engine; }
+                }
                 // One fixed-phrase recognizer hears both the wake phrase and, after it, timer commands:
                 // it keeps up with speech on small devices and does not mishear the phrases it knows.
                 // Before the wake phrase WakeSession accepts nothing but an exact "hey luna". A second
                 // fixed-phrase recognizer on the same model crashed inside the speech library on the
                 // development device, so there is deliberately only one.
-                try (Recognizer recognizer = new Recognizer(model, 16000, wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
-                     // Free-form recognition is for questions and natural timer wording. It decodes the
-                     // captured command once, after capture; TimerCommand.parse remains the strict
-                     // allowlist before any native timer dispatch.
-                     Recognizer command = wait ? new Recognizer(model, 16000) : null) {
+                {
+                    // Free-form recognition is for questions and natural timer wording. It decodes the
+                    // captured command once, after capture; TimerCommand.parse remains the strict
+                    // allowlist before any native timer dispatch.
+                    Recognizer recognizer = engine.phrases, command = engine.freeForm;
                     if (!capture) { code = "ENGINE_READY_NO_CAPTURE"; message = "Offline engine ready. Microphone stayed off."; return; }
                     phase = "CAPTURE";
                     int size = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
@@ -269,13 +313,14 @@ final class ProbeCapture {
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
                             int seconds;
+                            if (commandStage && queued != null && text.trim().isEmpty()) quiet = queued.consumed();
                             if (!commandStage) {
                                 seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime(), TimerAlarmService.ringing()) : TimerPhrase.seconds(text);
                                 if (seconds == TimerCommand.STOP) Log.i("HomeVoiceProbe", "ALARM_STOP_WITHOUT_WAKE");
                             } else if (TimerCommand.valid(TimerCommand.parse(text))) {
                                 seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
                             } else if (questions && queued != null && !text.trim().isEmpty()) {
-                                String heard = decodeCaptured(queued, command, wake, samples, timing);
+                                String heard = decodeCaptured(queued, command, wake, samples, timing, Math.max(0, quiet - REPLAY_LEAD_FRAMES));
                                 if (heard == null) continue;
                                 long decoded = SystemClock.elapsedRealtime();
                                 seconds = wake.acceptFinal(heard, decoded);
@@ -295,17 +340,7 @@ final class ProbeCapture {
                                 return;
                             } else seconds = WakeSession.NONE;
                             if (seconds == WakeSession.WAKE) {
-                                timing.report();
-                                timing.start(timing.bufferFrames, "COMMAND");
-                                deadline = Math.min(maximum, wake.deadline());
-                                awake = true;
-                                CommandAudio audio = new CommandAudio(WakeSession.COMMAND_MS);
-                                commandAudio = audio;
-                                new Thread(() -> pumpCommandAudio(audio), "home-voice-capture").start();
-                                Log.i("HomeVoiceProbe", "WAKE_MATCH");
-                                show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within 15 seconds."
-                                    : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have 15 seconds.", LunaFace.State.AWAKE);
-                                main.post(this::wakeCue);
+                                openCommandWindow(wake, timing, questions);
                             } else if (TimerCommand.valid(seconds)) {
                                 matched = seconds; code = "COMMAND_MATCH";
                                 message = "Supported timer command recognized. Microphone closing.";
@@ -319,6 +354,17 @@ final class ProbeCapture {
                                 Log.i("HomeVoiceProbe", "COMMAND_FINAL_" + diagnostic);
                                 show("Awake. Decoder: " + commandDiagnostic + ". No supported timer yet. MICROPHONE ON until the command deadline.", LunaFace.State.AWAKE);
                             }
+                        } else if (count > 0 && !complete && !commandStage && wake != null && TimerAlarmService.ringing()) {
+                            // The alarm itself can keep an utterance from ever ending; see WakeSession.acceptPartial.
+                            int heard = wake.acceptPartial(new JSONObject(current.getPartialResult()).optString("partial", ""),
+                                SystemClock.elapsedRealtime(), true);
+                            if (heard == TimerCommand.STOP) {
+                                Log.i("HomeVoiceProbe", "ALARM_STOP_OVER_RINGING");
+                                matched = heard; code = "COMMAND_MATCH";
+                                message = "Supported timer command recognized. Microphone closing.";
+                                return;
+                            }
+                            if (heard == WakeSession.WAKE) { current.reset(); openCommandWindow(wake, timing, questions); }
                         }
                         SystemClock.sleep(10);
                     }
@@ -329,19 +375,40 @@ final class ProbeCapture {
                 }
             }
         } catch (Exception | LinkageError failure) {
+            failed = true;
             code = phase + "_FAILED"; message = "Offline engine failed at " + phase + ". No timer started.";
         } finally {
             timing.report();
             closeRecorder(); Arrays.fill(samples, (short) 0);
+            // Keep only a complete engine that finished cleanly; anything else is rebuilt next time.
+            if (engine != null) synchronized (ENGINE_LOCK) {
+                if (failed || engine != kept) { if (engine == kept) kept = null; engine.close(); }
+            }
             String resultCode = watchdogCode != null ? watchdogCode : code;
             String resultMessage = watchdogMessage != null ? watchdogMessage : message; int seconds = matched;
             main.post(() -> {
                 main.removeCallbacks(watchdog);
                 BUSY.set(false);
+                settleEngine();
                 if (!canceled) Log.i("HomeVoiceProbe", resultCode);
                 listener.finished(resultCode, resultMessage, seconds, deadline, canceled);
             });
         }
+    }
+
+    private void openCommandWindow(WakeSession wake, CaptureTiming timing, boolean questions) {
+        timing.report();
+        timing.start(timing.bufferFrames, "COMMAND");
+        deadline = Math.min(maximum, wake.deadline());
+        awake = true;
+        CommandAudio audio = new CommandAudio(WakeSession.COMMAND_MS);
+        commandAudio = audio;
+        new Thread(() -> pumpCommandAudio(audio), "home-voice-capture").start();
+        Log.i("HomeVoiceProbe", "WAKE_MATCH");
+        long limit = WakeSession.COMMAND_MS / 1000;
+        show(questions ? "Awake. MICROPHONE ON. Ask a question or say a timer command within " + limit + " seconds."
+            : "Awake. MICROPHONE ON. Say: Set a timer for five seconds. You have " + limit + " seconds.", LunaFace.State.AWAKE);
+        main.post(this::wakeCue);
     }
 
     // Numeric capture diagnostics only: never audio, recognition text or private config.

@@ -54,6 +54,33 @@ public final class TimerStopTest {
         awake.acceptFinal("hey luna", 1000);
         check(awake.acceptFinal("stop", 2000) == TimerCommand.STOP, "stop after wake");
 
+        // Over a ringing alarm an utterance may never end, so words still being heard count,
+        // but only a steady request for silence or wake phrase at the very end of them.
+        WakeSession loud = new WakeSession(0, true);
+        check(loud.acceptPartial("[unk] stop", 1000, true) == WakeSession.NONE, "one hearing is not enough");
+        check(loud.acceptPartial("[unk] stop", 1100, true) == WakeSession.NONE, "two hearings are not enough");
+        check(loud.acceptPartial("[unk] stop", 1200, true) == TimerCommand.STOP, "a steady stop silences the alarm");
+        check(loud.acceptPartial("[unk] stop", 1300, true) == WakeSession.NONE, "one stop per session");
+        WakeSession flicker = new WakeSession(0, true);
+        flicker.acceptPartial("stop", 1000, true); flicker.acceptPartial("stop", 1100, true);
+        check(flicker.acceptPartial("stop [unk]", 1200, true) == WakeSession.NONE, "sound after the words starts over");
+        flicker.acceptPartial("[unk] turn it off", 1300, true); flicker.acceptPartial("[unk] turn it off", 1400, true);
+        check(flicker.acceptPartial("[unk] turn it off", 1500, true) == TimerCommand.STOP, "the last words heard decide");
+        WakeSession silent = new WakeSession(0, true);
+        for (int i = 0; i < 5; i++)
+            check(silent.acceptPartial("stop", 1000 + i, false) == WakeSession.NONE, "nothing ringing, nothing stops");
+        for (String other : new String[] {"", "[unk]", "set a timer for five minutes", "cancel timer two", "stop [unk]"}) {
+            WakeSession only = new WakeSession(0, true);
+            for (int i = 0; i < 5; i++)
+                check(only.acceptPartial(other, 1000 + i, true) == WakeSession.NONE, "ringing partial does not act on: " + other);
+        }
+        WakeSession called = new WakeSession(0, true);
+        called.acceptPartial("[unk] hey luna", 1000, true); called.acceptPartial("[unk] hey luna", 1100, true);
+        check(called.acceptPartial("[unk] hey luna", 1200, true) == WakeSession.WAKE && called.awaitingCommand()
+            && called.deadline() == 1200 + WakeSession.COMMAND_MS, "the wake phrase is heard over the alarm");
+        check(called.acceptPartial("stop", 1300, true) == WakeSession.NONE, "after waking, only final results count");
+        check(called.acceptFinal("stop", 1400, true) == TimerCommand.STOP, "and stop then works as a command");
+
         // Stop wording is never sent on as a question.
         for (String spoken : new String[] {"stop", "stop the alarm", "turn it off", "shut it off", "turn off the alarm",
             "okay stop", "luna stop", "pause the timer", "stop the music"})
