@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="luna2" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Luna — idle" data-state="idle" data-outfit="home" data-reduced-motion="false" display="block" xmlns:se="http://svg-edit.googlecode.com">
+
+
+
+  <style>/* Every animated group has one transform owner. Face/head never scale. */
+.luna2 { display:block; width:100%; height:auto; aspect-ratio:8/9; overflow:hidden; }
+.luna2 * { transform-box:view-box; }
+.luna2 .l2-outfit-enterprise,
+.luna2 .l2-eyes-shut,.luna2 .l2-eyes-blink,.luna2 .l2-mouth-small,.luna2 .l2-mouth-wide,
+.luna2 .l2-mouth-concern,.luna2 .l2-sleep-mask,.luna2 .l2-laptop,.luna2 .l2-effects > g,
+.luna2 .l2-listening-glow,.luna2 .l2-brows { opacity:0; }
+.luna2[data-outfit="enterprise"] .l2-outfit-home { display:none; }
+.luna2[data-outfit="enterprise"] .l2-outfit-enterprise { opacity:1; }
+.luna2[data-outfit="enterprise"] .l2-sleeve { fill:#9981c3; }
+.luna2[data-compact="true"] .l2-detail { display:none; }
+.luna2[data-state="listening"] .l2-listening-glow,
+.luna2[data-state="listening"] .l2-listening-lines { opacity:.85; }
+.luna2[data-state="thinking"] .l2-thinking-dots { opacity:1; }
+.luna2[data-state="thinking"] .l2-eye-gaze { transform:translate(3px,-4px); }
+.luna2[data-state="thinking"] .l2-head-pose { transform:rotate(-4deg); }
+.luna2[data-state="thinking"] .l2-arm-left { transform:translate(9px,-10px) rotate(-48deg); }
+.luna2[data-state="working"] .l2-laptop { opacity:1; }
+.luna2[data-state="working"] .l2-eye-gaze { transform:translate(0,4px); }
+.luna2[data-state="working"] .l2-arm { transform:rotate(-25deg); }
+.luna2[data-state="happy"] .l2-eyes-open,
+.luna2[data-state="sleeping"] .l2-eyes-open { opacity:0; }
+.luna2[data-state="happy"] .l2-eyes-shut,
+.luna2[data-state="happy"] .l2-sparkles { opacity:1; }
+.luna2[data-state="happy"] .l2-mouth-smile,
+.luna2[data-state="error"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="happy"] .l2-mouth-wide { opacity:1; }
+.luna2[data-state="error"] .l2-mouth-small,
+.luna2[data-state="error"] .l2-oops,.luna2[data-state="error"] .l2-brows { opacity:1; }
+.luna2[data-state="sleeping"] .l2-sleep-mask,
+.luna2[data-state="sleeping"] .l2-zzz { opacity:1; }
+.luna2[data-state="talking"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="talking"] .l2-mouth-small { opacity:1; }
+</style><g><se:title>Layer 1</se:title><ellipse class="l2-ground" cx="160" cy="351" rx="78" ry="5" fill="#a58cdd" opacity=".22" id="svg_1"/><circle class="l2-listening-glow" cx="160" cy="149" r="88" fill="none" stroke="#96eee7" stroke-width="3" opacity="0" id="svg_2"/><g class="l2-character" fill="none" stroke="#806299" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" id="svg_3">
+      <g transform="translate(0 0)" id="svg_4"><g class="l2-pigtail" style="transform-origin:83px 108px" id="svg_5">
+    <path d="m83,94c-21,-22 -57,-12 -64,14c-12,36 30,53 15,79c-6,10 -16,8 -22,1c1,32 39,48 61,20c16,-22 -5,-46 5,-67c10,-16 23,-31 5,-47z" fill="#ba96f4" id="svg_6"/>
+    <path d="m57,90c-34,10 -36,34 -15,55c22,22 21,54 -1,64c27,5 37,-16 25,-45c-16,-36 7,-50 15,-60z" fill="#9d79dc" stroke="none" id="svg_7"/>
+    <path d="m41,89c-30,11 -27,37 -13,52c-9,-22 5,-37 18,-40m-31,96q18,29 44,13" fill="none" stroke="#f2d4ff" stroke-width="5" id="svg_8"/>
+    <ellipse cx="37" cy="106" rx="9" ry="5" transform="rotate(-35 37 106)" fill="#f7e4ff" stroke="none" id="svg_9"/>
+    <path d="m72,89q11,-11 20,4l2,19l-15,7z" fill="#f2b9e7" id="svg_10"/>
+  </g></g><g transform="translate(320 0) scale(-1 1)" id="svg_11"><g class="l2-pigtail" style="transform-origin:83px 108px" id="svg_12">
+    <path d="m83,94c-21,-22 -57,-12 -64,14c-12,36 30,53 15,79c-6,10 -16,8 -22,1c1,32 39,48 61,20c16,-22 -5,-46 5,-67c10,-16 23,-31 5,-47z" fill="#ba96f4" id="svg_13"/>
+    <path d="m57,90c-34,10 -36,34 -15,55c22,22 21,54 -1,64c27,5 37,-16 25,-45c-16,-36 7,-50 15,-60z" fill="#9d79dc" stroke="none" id="svg_14"/>
+    <path d="m41,89c-30,11 -27,37 -13,52c-9,-22 5,-37 18,-40m-31,96q18,29 44,13" fill="none" stroke="#f2d4ff" stroke-width="5" id="svg_15"/>
+    <ellipse cx="37" cy="106" rx="9" ry="5" transform="rotate(-35 37 106)" fill="#f7e4ff" stroke="none" id="svg_16"/>
+    <path d="m72,89q11,-11 20,4l2,19l-15,7z" fill="#f2b9e7" id="svg_17"/>
+  </g></g>
+      <g class="l2-body" id="svg_18"><g class="l2-feet" id="svg_19">
+    <path d="m123,300v24h22v-24m30,0v24h22v-24" fill="#fff0df" id="svg_20"/>
+    <path d="m117,320q15,-7 32,1l2,22q-15,8 -39,2l2,-15zm54,1q17,-8 32,-1l3,10l2,15q-24,6 -39,-2z" fill="#c2a1f3" id="svg_21"/>
+    <path d="m113,336q17,-6 36,-1l2,8q-19,7 -39,2zm58,-1q18,-5 36,1l1,9q-19,5 -39,-2z" fill="#edb8e9" id="svg_22"/>
+    <path d="m112,342q17,6 39,-1v8q-21,6 -40,0zm57,-1q21,7 39,1l1,7q-19,6 -40,0z" fill="#fff8ff" id="svg_23"/>
+    <g fill="#94e6e0" stroke-width="1.8" id="svg_24"><path d="m132,326q-16,-11 -15,1t15,4q15,8 14,-4t-14,-1zm56,0q-15,-11 -14,1t14,4q15,8 14,-4t-14,-1z" id="svg_25"/><circle cx="132" cy="329" r="4" id="svg_26"/><circle cx="188" cy="329" r="4" id="svg_27"/></g>
+  </g><g class="l2-outfit-home" id="svg_28">
+    <path d="m123,238q37,-15 74,0l10,64q-47,16 -94,0z" fill="#c2a1f3" id="svg_29"/>
+    <path d="m116,284q42,14 88,0l7,26q-51,16 -102,0z" fill="#fff6fc" id="svg_30"/>
+    <path d="m124,298l-3,15m22,-11l-2,15m37,-15l2,15m16,-19l3,15" fill="none" stroke="#c4a0e8" stroke-width="4" id="svg_31"/>
+    <path d="m120,264q40,13 81,0v16q-41,13 -83,0z" fill="#f6d9fa" stroke="none" id="svg_32"/>
+    <path d="m121,233q10,-19 39,4q29,-23 39,-4l-19,17l-20,-8l-20,8z" fill="#f2b9e7" id="svg_33"/>
+    <path d="m125,231q16,-1 34,11q19,-12 36,-11" fill="none" stroke="#fff5fc" stroke-width="6" id="svg_34"/>
+    <path d="m141,244l-3,26m41,-26l3,26" fill="none" stroke="#89e5dd" stroke-width="5" id="svg_35"/>
+    <circle cx="138" cy="272" r="3" fill="#89e5dd" id="svg_36"/><circle cx="182" cy="272" r="3" fill="#89e5dd" id="svg_37"/>
+    <path transform="translate(159 271) scale(0.65)" d="m8,-17a21,21 0 1 0 14,32c-21,4 -29,-16 -14,-32z" fill="#ffe795" stroke="#806299" stroke-width="2.5" id="svg_38"/><path transform="translate(159 271) scale(0.65)" d="m-10,-3q-6,17 12,23" fill="none" stroke="#fff7ca" stroke-width="3" id="svg_39"/>
+    <g class="l2-detail" fill="#fff5fc" stroke="#d28ed8" stroke-width="2.5" id="svg_40"><path d="m122,289c-14,-14 -12,10 5,17c17,-14 9,-28 0,-18z" id="svg_41"/><path d="m191,289c-14,-14 -12,10 5,17c17,-14 9,-28 0,-18z" id="svg_42"/></g>
+  </g>
+  <g class="l2-outfit-enterprise" opacity="0" id="svg_43">
+    <path d="m124,282h72l9,29q-45,12 -90,0z" fill="#8a73b6" id="svg_44"/>
+    <path d="m126,235q34,-10 68,0l7,59q-21,10 -41,-1q-20,11 -41,1z" fill="#9981c3" id="svg_45"/>
+    <path d="m143,231l17,28l17,-28z" fill="#fff6fc" id="svg_46"/>
+    <path d="m137,233l11,18l-8,7l20,25l-9,-42m32,-8l-11,18l8,7l-20,25l9,-42" fill="#bfa0eb" id="svg_47"/>
+    <path d="m151,240l9,7l9,-7l-1,15l-8,-5l-8,5z" fill="#8de3da" id="svg_48"/>
+    <circle cx="160" cy="283" r="2.6" fill="#ffdfa3" stroke="none" id="svg_49"/>
+    <path d="m126,281h14m40,0h14" stroke="#d9c2f5" stroke-width="3" id="svg_50"/>
+    <g class="l2-detail" id="svg_51"><path d="m179,250v18" stroke="#8de3da" stroke-width="3" id="svg_52"/><rect x="172" y="263" width="17" height="22" rx="3" fill="#fff8ee" id="svg_53"/><circle cx="180.5" cy="270" r="3" fill="#c3a3ef" stroke="none" id="svg_54"/><path d="m176,278h9" stroke="#8de3da" id="svg_55"/></g>
+  </g><g transform="translate(0 0)" id="svg_56"><g class="l2-arm l2-arm-left" style="transform-origin:126px 240px" id="svg_57">
+    <path d="m122,239q-18,6 -28,30l11,18l18,-11l13,-26z" class="l2-sleeve" fill="#d5b6f4" id="svg_58"/>
+    <path d="m96,270l12,10l-6,10l-12,-11z" fill="#f6d4ee" id="svg_59"/>
+    <path d="m91,279q-11,6 0,15q8,5 12,-6z" fill="#fff0df" id="svg_60"/>
+    <path class="l2-detail" d="m103,255l18,13" stroke="#fff7fc" stroke-width="7" id="svg_61"/>
+  </g></g><g transform="translate(320 0) scale(-1 1)" id="svg_62"><g class="l2-arm l2-arm-right" style="transform-origin:126px 240px" id="svg_63">
+    <path d="m122,239q-18,6 -28,30l11,18l18,-11l13,-26z" class="l2-sleeve" fill="#d5b6f4" id="svg_64"/>
+    <path d="m96,270l12,10l-6,10l-12,-11z" fill="#f6d4ee" id="svg_65"/>
+    <path d="m91,279q-11,6 0,15q8,5 12,-6z" fill="#fff0df" id="svg_66"/>
+    <path class="l2-detail" d="m103,255l18,13" stroke="#fff7fc" stroke-width="7" id="svg_67"/>
+  </g></g></g>
+      <g class="l2-head-pose" style="transform-origin:160px 213px" id="svg_68">
+
+    <circle class="l2-face-base" cx="160" cy="151" r="77" fill="#fff0df" stroke="#9470bf" id="svg_70"/>
+    <g class="l2-cheeks" fill="#ffb3cf" stroke="none" id="svg_71"><ellipse cx="109" cy="184" rx="15" ry="8.5" id="svg_72"/><ellipse cx="211" cy="184" rx="15" ry="8.5" id="svg_73"/></g>
+    <g class="l2-eye-gaze" fill="#27184b" stroke="none" id="svg_74">
+      <g class="l2-eyes-open" id="svg_75"><ellipse cx="127" cy="159" rx="11" ry="17" id="svg_76"/><ellipse cx="193" cy="159" rx="11" ry="17" id="svg_77"/><ellipse cx="130" cy="153" rx="3.7" ry="4.5" fill="#fff" id="svg_78"/><ellipse cx="196" cy="153" rx="3.7" ry="4.5" fill="#fff" id="svg_79"/></g>
+    </g>
+    <g class="l2-eyes-shut" fill="none" stroke="#27184b" stroke-width="4.5" opacity="0" id="svg_80"><path d="m116,162q11,-13 22,0m44,0q11,-13 22,0" id="svg_81"/></g>
+    <g class="l2-eyes-blink" fill="none" stroke="#27184b" stroke-width="3.5" opacity="0" id="svg_82"><path d="m117,162q10,5 20,0m46,0q10,5 20,0" id="svg_83"/></g>
+    <g class="l2-brows" fill="none" stroke="#9470bf" stroke-width="3" opacity="0" id="svg_84"><path d="m117,134l15,-2m56,0l15,2" id="svg_85"/></g>
+    <g fill="none" stroke="#27184b" stroke-width="3.6" id="svg_86"><path class="l2-mouth-smile" d="m150,186q10,14 20,0" id="svg_87"/><path class="l2-mouth-concern" d="m152,193q8,-5 16,0" opacity="0" id="svg_88"/></g>
+    <g class="l2-mouth-small" opacity="0" id="svg_89"><ellipse cx="160" cy="190" rx="6" ry="7" fill="#44234f" stroke="#27184b" stroke-width="2" id="svg_90"/></g>
+    <g class="l2-mouth-wide" opacity="0" id="svg_91"><path d="m149,184h22q1,18 -11,18q-12,0 -11,-18z" fill="#44234f" stroke="#27184b" stroke-width="2" id="svg_92"/><path d="m153,197q7,-6 14,0q-7,7 -14,0z" fill="#f7a5c8" stroke="none" id="svg_93"/></g>
+    <g class="l2-front-hair" fill="#bb96f2" id="svg_94">
+      <path d="m84.15783,144.01092q-12.94866,-55.68891 31.44675,-75.51038q29.59695,-12.27044 44.39542,2.83164q21.2728,-16.04596 49.01994,1.88776q36.07128,18.8776 26.82223,70.79098q-15.72338,-13.21432 -25.89733,-33.97967q-28.67204,-4.7194 -49.94485,-28.31639q-18.49809,26.42863 -49.94485,37.75519q-4.62452,17.93372 -25.89733,24.54087z" id="svg_95"/>
+      <path d="m91.55706,120.41393q-13.87357,29.26027 -5.54943,56.63279l10.17395,-6.60716l2.77471,32.09191q-24.97242,-9.4388 -26.82223,-35.86743zm136.88587,0q13.87357,29.26027 5.54943,56.63279l-10.17395,-6.60716l-2.77471,32.09191q24.97242,-9.4388 26.82223,-35.86743z" id="svg_96"/>
+      <path d="m105.43063,83.60262q16.64828,-13.21432 32.37166,-9.4388m39.7709,-1.88776q23.12261,0.94388 36.99618,16.04596" fill="none" stroke="#e3c8ff" stroke-width="5.606063932672393" id="svg_97"/>
+    </g>
+    <g class="l2-accessories" id="svg_98">
+      <path d="m154,61c-19,-19 -46,-37 -54,-27c-10,12 -4,44 7,52c13,9 35,-10 47,-19zm12,0c19,-19 46,-37 54,-27c10,12 4,44 -7,52c-13,9 -35,-10 -47,-19z" fill="#8fe9e2" stroke="#f5ffff" stroke-width="4" id="svg_99"/>
+      <path d="m149,62q-27,-12 -31,-1t31,6m22,-5q27,-12 31,-1t-31,6" fill="#61c8ca" stroke="none" id="svg_100"/>
+      <rect x="149" y="53" width="22" height="22" rx="8" fill="#8be2dc" stroke="#62b6c1" stroke-width="2" id="svg_101"/>
+      <path transform="translate(230 109) scale(0.9)" d="m8,-14.77778a21,21 0 1 0 14,32c-21,4 -29,-16 -14,-32z" fill="#ffe795" stroke="#806299" stroke-width="2.5" id="svg_102"/><path transform="translate(230 109) scale(0.9)" d="m-10,-0.77778q-6,17 12,23" fill="none" stroke="#fff7ca" stroke-width="3" id="svg_103"/>
+      <g class="l2-detail" id="svg_104"><path transform="translate(88 119) scale(0.82)" d="m0,-9.56098l4,8l9,1l-6,7l2,9l-9,-4l-9,4l2,-9l-6,-7l9,-1z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round" id="svg_105"/><path transform="translate(98 99) scale(0.43)" d="m0,-7.34884l4,8l9,1l-6,7l2,9l-9,-4l-9,4l2,-9l-6,-7l9,-1z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round" id="svg_106"/></g>
+    </g>
+    <g class="l2-sleep-mask" opacity="0" id="svg_107">
+      <path d="m88,155l16,6m112,0l16,-6" fill="none" stroke="#9b79cb" stroke-width="7" id="svg_108"/>
+      <path d="m104,148q20,-10 43,0q13,6 26,0q23,-10 43,0l0,28q-18,19 -39,4q-17,-10 -34,0q-21,15 -39,-4z" fill="#b792ee" stroke="#f0d9ff" stroke-width="3" id="svg_109"/>
+      <path d="m117,165q10,11 21,0m44,0q11,11 21,0" fill="none" stroke="#fff0ff" stroke-width="3" id="svg_110"/>
+      <path transform="translate(160 153) scale(0.34)" d="m8,-11.11765a21,21 0 1 0 14,32c-21,4 -29,-16 -14,-32z" fill="#ffe795" stroke="#806299" stroke-width="2.5" id="svg_111"/><path transform="translate(160 153) scale(0.34)" d="m-10,2.88235q-6,17 12,23" fill="none" stroke="#fff7ca" stroke-width="3" id="svg_112"/>
+    </g>
+  </g>
+      <g class="l2-laptop" opacity="0" id="svg_113"><path d="m106,312h113l13,19h-131z" fill="#bba0e3" id="svg_114"/><path d="m139,281h90l-10,47h-89z" fill="#9d80cb" stroke="#e7d2ff" stroke-width="3" id="svg_115"/><path transform="translate(180 303) scale(0.46)" d="m8,-17a21,21 0 1 0 14,32c-21,4 -29,-16 -14,-32z" fill="#ffe795" stroke="#806299" stroke-width="2.5" id="svg_116"/><path transform="translate(180 303) scale(0.46)" d="m-10,-3q-6,17 12,23" fill="none" stroke="#fff7ca" stroke-width="3" id="svg_117"/><path d="m102,333h128" stroke="#806299" stroke-width="4" id="svg_118"/></g>
+    </g><g class="l2-effects" stroke="none" id="svg_119">
+    <g class="l2-thinking-dots" fill="#f8e9ff" opacity="0" id="svg_120"><circle cx="146" cy="14" r="3" id="svg_121"/><circle cx="160" cy="14" r="3" id="svg_122"/><circle cx="174" cy="14" r="3" id="svg_123"/></g>
+    <g class="l2-listening-lines" fill="none" stroke="#93ede5" stroke-width="4" opacity="0" id="svg_124"><path d="m23,65l8,12m9,-20l4,14m247,-6l-8,12m-9,-20l-4,14" id="svg_125"/></g>
+    <g class="l2-sparkles" opacity="0" id="svg_126"><path transform="translate(40 244) scale(0.65)" d="m0,-12l4,8l9,1l-6,7l2,9l-9,-4l-9,4l2,-9l-6,-7l9,-1z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round" id="svg_127"/><path transform="translate(278 238) scale(0.8)" d="m0,-12l4,8l9,1l-6,7l2,9l-9,-4l-9,4l2,-9l-6,-7l9,-1z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round" id="svg_128"/><path transform="translate(273 47) scale(0.45)" d="m0,-12l4,8l9,1l-6,7l2,9l-9,-4l-9,4l2,-9l-6,-7l9,-1z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round" id="svg_129"/></g>
+    <g class="l2-oops" fill="#ffe795" opacity="0" id="svg_130"><path d="m270,77l4,14l4,-14z" id="svg_131"/><circle cx="274" cy="98" r="2.5" id="svg_132"/></g>
+    <g class="l2-zzz" fill="#e8d0ff" font-family="system-ui,sans-serif" font-weight="700" opacity="0" id="svg_133"><text x="260" y="145" font-size="14" id="svg_134">z</text><text x="277" y="127" font-size="20" id="svg_135">z</text><text x="292" y="104" font-size="25" id="svg_136">Z</text></g>
+  </g></g></svg>

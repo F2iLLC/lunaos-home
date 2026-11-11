@@ -2,6 +2,14 @@ import { createOfflineDraftClient } from '../lib/offline-drafts.js';
 import { useOfflineDraftClient } from './draft-client.js';
 import { createLunaCaptions } from './luna-captions.js';
 import { createNotebookPopup } from './notebook-popup.js';
+import { mountLunaAvatar } from './luna/avatar.js';
+import { homeAvatarState, homeCommandReady } from './luna/presentation.js';
+
+const welcomeAvatarHost = document.querySelector('#welcome-luna');
+const avatar = welcomeAvatarHost
+  ? mountLunaAvatar(welcomeAvatarHost, { label: 'Luna, your animated chibi companion', size: 'min(34vw, 190px)' })
+  : null;
+window.addEventListener?.('pagehide', () => avatar?.dispose(), { once: true });
 
 const setText = (element, text) => { if (element.textContent !== text) element.textContent = text; };
 useOfflineDraftClient(createOfflineDraftClient());
@@ -13,38 +21,23 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   // timers sit under it, and the gear opens settings and troubleshooting.
   const notebookPopup = createNotebookPopup();
   const welcome = document.querySelector('#welcome');
+  welcome.dataset.nativeHome = 'true';
   const gear = document.createElement('a');
   gear.href = '#luna';
   gear.className = 'settings-gear';
   gear.setAttribute('aria-label', 'Settings and Luna troubleshooting');
   gear.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4Z" transform="translate(-1 0)" fill="currentColor"/></svg>';
   welcome.append(gear);
-  // Pressing Luna turns wake listening on or off. Asleep (mask, snoring) means
-  // the microphone is off; a faint glow means she is listening for her name;
-  // a bright glow means she is ready for a command.
+  // Pressing Luna controls wake listening. Her presentation follows the native snapshot.
   const face = document.createElement('button');
   face.type = 'button';
   face.id = 'home-luna-toggle';
   face.className = 'home-luna-face';
   face.setAttribute('aria-pressed', 'false');
-  face.setAttribute('aria-label', 'Luna is asleep. Press to turn on Hey Luna listening.');
-  face.innerHTML = `<svg class="luna-avatar" data-capture-phase="off" viewBox="0 0 400 410" aria-hidden="true">
-      <defs><radialGradient id="home-luna-glow"><stop offset="0" stop-color="#8cefd9" stop-opacity=".75"/><stop offset=".65" stop-color="#8cefd9" stop-opacity=".4"/><stop offset="1" stop-color="#8cefd9" stop-opacity="0"/></radialGradient></defs>
-      <circle class="luna-avatar-glow" cx="200" cy="172" r="150" fill="url(#home-luna-glow)"/>
-      <circle class="luna-avatar-halo" cx="200" cy="166" r="139" fill="#b7a9f2" opacity=".14"/>
-      <path d="M91 119C57 98 28 133 37 169c7 26-8 51 2 70 28-3 48-31 44-55-4-26 25-41 8-65Z" fill="#b7a9f2"/><path d="M309 119c34-21 63 14 54 50-7 26 8 51-2 70-28-3-48-31-44-55 4-26-25-41-8-65Z" fill="#b7a9f2"/>
-      <rect x="69" y="100" width="262" height="164" rx="78" fill="#fff1e0"/><path d="M73 169C55 82 119 55 195 72c78-23 152 24 134 99-14-14-19-37-19-60-43 10-80-9-94-25-14 35-70 46-105 29-17 13-24 36-38 54Z" fill="#b7a9f2"/>
-      <path d="M200 65C177 42 143 24 130 36c-11 12-2 51 13 58 15 6 42-15 57-29Zm0 0c23-23 57-41 70-29 11 12 2 51-13 58-15 6-42-15-57-29Z" fill="#8cefd9" stroke="#fff1e0" stroke-width="5"/><circle cx="200" cy="66" r="15" fill="#6dd6c3"/>
-      <g class="luna-avatar-eyes-closed" fill="none" stroke="#111426" stroke-width="9" stroke-linecap="round"><path d="M122 174q23-29 46 0m64 0q23-29 46 0"/></g>
-      <g class="luna-avatar-eyes-open"><ellipse cx="145" cy="168" rx="13" ry="19" fill="#28243d"/><ellipse cx="255" cy="168" rx="13" ry="19" fill="#28243d"/><circle cx="149" cy="161" r="4" fill="white"/><circle cx="259" cy="161" r="4" fill="white"/></g>
-      <g class="luna-avatar-mask"><path d="M104 160 70 152m226 8 34-8" fill="none" stroke="#6f63b8" stroke-width="7" stroke-linecap="round"/><path d="M104 158q40-26 80-4 16 8 32 0 40-22 80 4 8 26-18 38-34 14-58-8-20-8-40 0-24 22-58 8-26-12-18-38Z" fill="#6f63b8" stroke="#8cefd9" stroke-width="4" stroke-linejoin="round"/><path d="M128 176q17 14 34 0m76 0q17 14 34 0" fill="none" stroke="#d9d2ff" stroke-width="5" stroke-linecap="round"/></g>
-      <ellipse cx="112" cy="213" rx="18" ry="8" fill="#f2a8ae"/><ellipse cx="288" cy="213" rx="18" ry="8" fill="#f2a8ae"/><path class="luna-avatar-smile" d="M184 211q16 23 32 0" fill="none" stroke="#111426" stroke-width="6" stroke-linecap="round"/><ellipse class="luna-avatar-snore" cx="200" cy="221" rx="9" ry="8" fill="#111426"/><path d="M304 96a18 18 0 1 0 15 29 19 19 0 0 1-15-29Z" fill="#ffda86"/>
-      <g class="luna-avatar-zs" fill="#d9d2ff" font-family="system-ui, sans-serif" font-weight="800"><text x="318" y="150" font-size="26">z</text><text x="338" y="128" font-size="32">z</text><text x="356" y="100" font-size="40">Z</text></g>
-      <g class="luna-notebook-feedback" aria-hidden="true"><path d="M117 250l79 11 87-11v52l-87 8-79-8Z" fill="#fff1e0" stroke="#b7a9f2" stroke-width="3"/><path d="M196 261v49" stroke="#28243d" stroke-width="3"/><text class="luna-notebook-mark" x="235" y="294" text-anchor="middle" font-size="35" fill="#28243d"></text></g>
-    </svg>`;
-  document.querySelector('.luna-companion').replaceWith(face);
-  const avatar = face.querySelector('.luna-avatar');
-  const notebookMark = face.querySelector('.luna-notebook-mark');
+  face.setAttribute('aria-label', 'Luna’s voice status is loading. Press to enable Hey Luna listening.');
+  welcomeAvatarHost.className = 'home-luna-avatar-host';
+  welcomeAvatarHost.replaceWith(face);
+  face.append(welcomeAvatarHost);
   const home = document.createElement('div');
   home.id = 'home-luna';
   home.className = 'home-luna';
@@ -59,12 +52,21 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const homeState = home.querySelector('#home-luna-state');
   const heardText = home.querySelector('#home-luna-heard');
   let listening = false;
-  const showListening = on => {
-    if (listening === on) return;
-    listening = on;
-    face.setAttribute('aria-pressed', on ? 'true' : 'false');
-    face.setAttribute('aria-label', on ? 'Luna is listening for Hey Luna. Press to turn listening off.'
-      : 'Luna is asleep. Press to turn on Hey Luna listening.');
+  const showListening = (on, status = on ? 'enabled' : 'disabled', commandReady = false) => {
+    if (listening !== on) {
+      listening = on;
+      face.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    const labels = {
+      enabled: commandReady ? 'Luna heard Hey Luna and is waiting for your command. Press to turn listening off.' : 'Luna is listening for Hey Luna. Press to turn listening off.',
+      disabled: 'Luna is asleep and wake-word listening is disabled. Press to turn it on.',
+      permission: 'Luna cannot listen because microphone permission is unavailable. Press to retry.',
+      muted: 'Luna cannot listen because the microphone is muted. Press to retry.',
+      locked: 'Luna cannot listen while this device is locked. Press to retry.',
+      disconnected: 'Luna’s voice service disconnected. Press to retry listening.',
+      unavailable: 'Luna’s voice service is unavailable. Open settings for details.',
+    };
+    face.setAttribute('aria-label', labels[status] || labels.unavailable);
   };
   const homeTimers = home.querySelector('#home-timers');
   const luna = document.createElement('section');
@@ -165,33 +167,31 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     if (announce) stateText.textContent = 'Checking Home voice status…';
     try {
       const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
-        const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening for Hey Luna on your Mac.', awake: 'Luna heard the wake phrase and is listening for a timer command.', review: 'Luna is working out what she heard; microphone paused.', response: 'Luna is responding; microphone paused.', retry: 'Luna did not catch a command and is getting ready to listen again.' };
+        const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening for Hey Luna on your Mac.', awake: 'Luna heard the wake phrase and is waiting for your command.', review: 'Luna is working out what she heard; microphone paused.', response: snapshot.replyPlaying === true ? 'Luna is speaking; microphone paused.' : 'Luna is preparing her reply; microphone paused.', retry: 'Luna did not catch a command and is getting ready to listen again.' };
         const phase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
-        // Only 'off' means listening is disabled. While she thinks or resets between
-        // requests she stays awake: no sleep mask.
-        const face = { review: 'response', retry: 'waiting' }[phase] || phase;
-        const capturePhase = snapshot.status === 'ready' ? face : 'off';
-        if (avatar.dataset.capturePhase !== capturePhase) avatar.dataset.capturePhase = capturePhase;
-        const notebookMarks = { 'new-page': '✧', scribble: '✎', read: '…', checkmark: '✓', 'cross-out': '×', 'erase-rewrite': '✎', hover: '…', puzzled: '?' };
-        const animation = snapshot.status === 'ready' && phase === 'response' && !(snapshot.activeTimers || []).some(timer => timer.remainingSeconds === 0)
-          && Object.hasOwn(notebookMarks, snapshot.notebookAnimation) ? snapshot.notebookAnimation : '';
+        const commandReady = homeCommandReady(snapshot);
+        home.dataset.commandReady = String(commandReady);
+        avatar.update({ state: homeAvatarState(snapshot) });
         setText(heardText, snapshot.status === 'ready' && phase !== 'off' && snapshot.lastHeard ? `Heard: “${snapshot.lastHeard}”` : '');
         heardText.hidden = !heardText.textContent;
         notebookPopup.update(snapshot);
         captions.update(snapshot);
-        if (avatar.dataset.notebookAnimation !== animation) avatar.dataset.notebookAnimation = animation;
-        setText(notebookMark, notebookMarks[animation] || '');
-
-        pollIntervalMs = snapshot.status === 'ready' && phase !== 'off' ? listeningPollIntervalMs : statusPollIntervalMs;
+        pollIntervalMs = snapshot.status === 'ready' && snapshot.listeningStatus === 'enabled' ? listeningPollIntervalMs : statusPollIntervalMs;
         if (snapshot.status !== 'ready') {
-          stateText.textContent = snapshot.reason === 'mac_speech_unavailable' ? 'Mac speech recognition unavailable. Listening is off.' : 'Home voice service unavailable.';
-          homeState.textContent = 'Luna is not available right now. The gear has more.';
-          showListening(false);
+          const blocked = { permission: 'Microphone permission is unavailable.', muted: 'The microphone is muted.', locked: 'The device is locked.', disconnected: 'Luna’s voice service disconnected.' }[snapshot.listeningStatus];
+          stateText.textContent = blocked || (snapshot.reason === 'mac_speech_unavailable' ? 'Mac speech recognition unavailable. Listening is off.' : 'Home voice service unavailable.');
+          homeState.textContent = blocked ? `${blocked} Open settings to review.` : 'Luna is not available right now. The gear has more.';
+          showListening(false, snapshot.listeningStatus || 'unavailable');
         } else {
-          setText(stateText, snapshot.microphoneInUse ? (phases[snapshot.capturePhase] || 'Microphone is on.') : (phases[snapshot.capturePhase] || 'Microphone off.'));
-          const friendly = { off: 'Luna is asleep. The microphone is off. Press her to wake her.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: 'I’m listening…', review: 'Let me think…', response: 'One moment…', retry: 'I didn’t catch that. Say “Hey Luna” to try again.' };
-          setText(homeState, friendly[phase]);
-          showListening(phase !== 'off');
+          const statusText = { disabled: 'Wake-word listening is disabled. Microphone off.', enabled: phases[snapshot.capturePhase] || 'Microphone is on.', permission: 'Microphone permission is unavailable. Listening is off.', muted: 'Microphone is muted. Listening is paused.', locked: 'Device is locked. Listening is paused.', disconnected: 'Voice service disconnected. Listening is off.', unavailable: 'Voice service is unavailable.' };
+          setText(stateText, statusText[snapshot.listeningStatus] || phases[phase]);
+          const timerRinging = (snapshot.activeTimers || []).some(timer => Number(timer.remainingSeconds) === 0);
+          const friendly = { off: 'Luna is asleep. The microphone is off. Press her to wake her.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: commandReady ? 'Speak now. Luna is listening for your command.' : timerRinging ? 'Luna is handling an active timer.' : 'I’m listening…', review: 'Let me think…', response: snapshot.replyPlaying === true ? 'Luna is speaking…' : 'One moment…', retry: 'I didn’t catch that. Say “Hey Luna” to try again.' };
+          const availabilityText = { permission: 'Microphone permission is unavailable. Open settings to review access.', muted: 'The microphone is muted. Luna is paused.', locked: 'The device is locked. Luna is paused.', disconnected: 'Luna’s voice service disconnected. Open settings to check it.', unavailable: 'Luna’s voice service is unavailable.' };
+          setText(homeState, snapshot.listeningStatus === 'disabled' ? friendly.off
+            : snapshot.listeningStatus === 'enabled' ? friendly[phase]
+              : availabilityText[snapshot.listeningStatus] || 'Luna’s voice status needs attention.');
+          showListening(snapshot.listeningStatus === 'enabled', snapshot.listeningStatus, commandReady);
         }
       setText(stateDetails, snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.');
       onlineAnswers.setAttribute('aria-pressed', snapshot.onlineAnswersEnabled === true ? 'true' : 'false');
@@ -241,11 +241,12 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         timers.append(row);
       }
     } catch {
+      home.dataset.commandReady = 'false';
       stateText.textContent = 'Voice status unavailable.';
       stateDetails.textContent = 'Home could not confirm microphone or timer state.';
       homeState.textContent = 'Luna is not answering right now. The gear has more.';
-      avatar.dataset.capturePhase = 'off';
-      showListening(false);
+      avatar.update({ state: 'error' });
+      showListening(false, 'unavailable');
     } finally {
       snapshotRefreshInFlight = false;
       refreshState.disabled = false;

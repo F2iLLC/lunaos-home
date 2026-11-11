@@ -108,15 +108,20 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     });
     const elements = new Map();
     const children = [];
-    const document = {
+    let document;
+    const svg = () => ({ dataset: {}, style: {}, attrs: {}, setAttribute(name, value) { this.attrs[name] = value; }, getAttribute(name) { return this.attrs[name] ?? null; } });
+    const host = () => ({ ownerDocument: document, hidden: true, dataset: {}, addEventListener() {}, append() {}, replaceWith(node) { this.replacement = node; },
+      set innerHTML(value) { this.markup = value; }, querySelector() { this.svg ??= svg(); return this.svg; } });
+    document = {
       body: { append() {} },
       querySelector(selector) {
-        if (!elements.has(selector)) elements.set(selector, { hidden: true, addEventListener() {}, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
+        if (!elements.has(selector)) elements.set(selector, { ...host(), append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {} });
         return elements.get(selector);
       },
+      addEventListener() {}, removeEventListener() {},
       createElement() {
         const local = new Map();
-        const element = { dataset: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
+        const element = { ownerDocument: document, dataset: {}, style: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
             if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);

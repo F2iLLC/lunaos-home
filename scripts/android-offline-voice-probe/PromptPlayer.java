@@ -10,8 +10,10 @@ final class PromptPlayer {
     private final Context context;
     private final String[] clips;
     private final Runnable completion;
+    private final Runnable started;
     private int index;
-    PromptPlayer(Context c, String text, Runnable done) { context = c; clips = ReplyPlan.clips(text); completion = done; }
+    PromptPlayer(Context c, String text, Runnable done) { this(c, text, () -> {}, done); }
+    PromptPlayer(Context c, String text, Runnable started, Runnable done) { context = c; clips = ReplyPlan.clips(text); this.started = started; completion = done; }
     void start() { next(); }
     private void next() {
         if (closed) return;
@@ -23,7 +25,7 @@ final class PromptPlayer {
             player.setDataSource(file.getFileDescriptor(), file.getStartOffset(), file.getLength());
             player.setOnCompletionListener(p -> next());
             player.setOnErrorListener((p, what, extra) -> { close(); completion.run(); return true; });
-            player.prepare(); player.start();
+            player.prepare(); player.start(); started.run();
         } catch (Exception failure) { close(); completion.run(); }
     }
     void close() { closed = true; if (player != null) { player.release(); player = null; } }

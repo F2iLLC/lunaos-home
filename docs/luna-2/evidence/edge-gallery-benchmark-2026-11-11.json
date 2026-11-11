@@ -1,0 +1,22 @@
+{
+  "measuredAt": "2026-11-11T19:17:16.217Z",
+  "browser": "Microsoft Edge headless 157",
+  "environment": "Windows laptop, desktop browser; not the Echo Show WebView",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36 Edg/157.0.0.0",
+  "viewport": [1256, 708],
+  "state": "idle",
+  "outfit": "home",
+  "reducedMotion": false,
+  "seconds": 10,
+  "frames": 600,
+  "fps": 60,
+  "p95FrameMs": 16.8,
+  "framesOver25ms": 0,
+  "longTasks": 0,
+  "longestTaskMs": 0,
+  "svgNodes": 151,
+  "avatars": 21,
+  "activeAnimations": 5,
+  "galleryChecks": "PASS: 320 state/outfit transitions, 151 stable SVG nodes, fixed oval face, no SVG ID collisions",
+  "note": "Gallery benchmark result for this headless browser run only; it does not establish a frame-rate target or predict Echo Show performance."
+}

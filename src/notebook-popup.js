@@ -3,16 +3,52 @@ import { notebookRequest } from './notebook-client.js';
 // Voice supplies only the saved list ID. Contents always come from the vault.
 export function createNotebookPopup({ request = notebookRequest } = {}) {
   const page = document.createElement('dialog');
+  page.id = 'notebook-popup';
   page.className = 'notebook-popup';
   page.setAttribute('aria-labelledby', 'notebook-popup-title');
-  page.innerHTML = `<button type="button" class="notebook-popup-close" aria-label="Close notebook">×</button>
-    <p class="notebook-popup-label">LUNA’S NOTEBOOK</p><h2 id="notebook-popup-title"></h2>
-    <p class="notebook-popup-status" role="status"></p><ul class="notebook-popup-items"></ul><p class="notebook-popup-caption luna-caption" role="status" hidden></p>`;
+  page.innerHTML = `<button type="button" class="notebook-popup-handle" aria-label="Expand notebook" aria-expanded="false" aria-controls="notebook-popup"><span aria-hidden="true"></span></button>
+    <button type="button" class="notebook-popup-close" aria-label="Close notebook">×</button>
+    <div class="notebook-popup-scroll"><p class="notebook-popup-label">LUNA’S NOTEBOOK</p><h2 id="notebook-popup-title"></h2>
+      <p class="notebook-popup-status" role="status"></p><ul class="notebook-popup-items"></ul><p class="notebook-popup-caption luna-caption" role="status" hidden></p></div>
+    <div class="notebook-popup-actions"><button type="button" class="notebook-popup-edit">Open full notebook to edit</button></div>`;
   document.body.append(page);
   const title = page.querySelector('h2'), status = page.querySelector('[role="status"]'), items = page.querySelector('ul');
+  const handle = page.querySelector('.notebook-popup-handle');
   let event, generation = 0;
-  const close = () => { generation++; page.close(); };
-  page.querySelector('button').addEventListener('click', close);
+  let dragStart = null, dragged = false;
+  const setExpanded = expanded => {
+    page.dataset.expanded = String(expanded);
+    handle.setAttribute('aria-expanded', String(expanded));
+    handle.setAttribute('aria-label', expanded ? 'Collapse notebook drawer' : 'Expand notebook');
+    if (!expanded) page.scrollTop = 0;
+  };
+  const close = () => { generation++; setExpanded(false); page.close(); };
+  page.querySelector('.notebook-popup-close').addEventListener('click', close);
+  handle.addEventListener('click', () => {
+    if (dragged) { dragged = false; return; }
+    setExpanded(page.dataset.expanded !== 'true');
+  });
+  handle.addEventListener('pointerdown', e => {
+    if (e.isPrimary === false) return;
+    dragStart = e.clientY;
+    dragged = false;
+    handle.setPointerCapture?.(e.pointerId);
+  });
+  handle.addEventListener('pointermove', e => {
+    if (dragStart === null) return;
+    const distance = e.clientY - dragStart;
+    if (distance <= -44 && page.dataset.expanded !== 'true') {
+      setExpanded(true); dragged = true; dragStart = null;
+    } else if (distance >= 44 && page.dataset.expanded === 'true' && page.scrollTop <= 0) {
+      setExpanded(false); dragged = true; dragStart = null;
+    }
+  });
+  for (const name of ['pointerup', 'pointercancel', 'lostpointercapture'])
+    handle.addEventListener(name, () => { dragStart = null; });
+  page.querySelector('.notebook-popup-edit').addEventListener('click', () => {
+    close(); location.hash = '#notebook';
+  });
+  page.addEventListener('close', () => setExpanded(false));
   page.addEventListener('cancel', () => { generation++; });
   return { async update(snapshot) {
     if (snapshot.status !== 'ready' || snapshot.capturePhase === 'off' ||
@@ -25,6 +61,7 @@ export function createNotebookPopup({ request = notebookRequest } = {}) {
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(snapshot.notebookListId || '')) return;
     const current = generation;
     title.textContent = 'Your notebook'; status.textContent = 'Opening your list…'; items.replaceChildren();
+    setExpanded(false);
     page.showModal();
     try {
       const result = await request({ action: 'snapshot' });

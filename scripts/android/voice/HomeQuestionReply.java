@@ -244,7 +244,7 @@ final class QuestionReply implements AutoCloseable {
                 public void close() { }
             });
             player.setOnPreparedListener(p -> { if (!closed && (confirmation ? enabled(context) : BackgroundWakeService.running)
-                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
+                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); BackgroundWakeService.replyPlaying = true; } else finish(); });
             player.setOnCompletionListener(p -> { played = true; android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_COMPLETED"); finish(); });
             player.setOnErrorListener((p, what, extra) -> { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_ERROR"); finish(); return true; });
             player.prepareAsync();
@@ -254,6 +254,7 @@ final class QuestionReply implements AutoCloseable {
     @Override public synchronized void close() {
         if (closed) return;
         closed = true; main.removeCallbacksAndMessages(null);
+        BackgroundWakeService.replyPlaying = false;
         if (connection != null) connection.disconnect(); connection = null;
         if (player != null) player.release(); player = null;
         if (audio != null) Arrays.fill(audio, (byte) 0); audio = null;

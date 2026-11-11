@@ -2,12 +2,14 @@ package io.github.f2illc.lunaos.home.voiceprobe;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.SystemClock;
+import android.media.AudioManager;
 import app.tauri.plugin.JSObject;
 import org.json.JSONArray;
 
@@ -32,6 +34,12 @@ public final class HomeLunaBridge {
             String phase = BackgroundWakeService.running ? BackgroundWakeService.visual.name().toLowerCase()
                 : "off";
             boolean microphone = ProbeCapture.recording();
+            boolean listeningRequested = BackgroundWakeService.listeningRequested;
+            boolean permission = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            boolean locked = ((KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE)).isDeviceLocked();
+            boolean muted = ((AudioManager) context.getSystemService(Context.AUDIO_SERVICE)).isMicrophoneMute();
+            String listeningStatus = !permission ? "permission" : locked ? "locked" : muted ? "muted"
+                : !listeningRequested ? "disabled" : BackgroundWakeService.running ? "enabled" : "disconnected";
             JSONArray timers = new JSONArray();
             TimerLedger ledger = NativeTimers.read(context);
             long now = SystemClock.elapsedRealtime();
@@ -53,6 +61,9 @@ public final class HomeLunaBridge {
             out.put("replyCaption", QuestionPolicy.replyCaption);
             out.put("lastHeard", "off".equals(phase) ? "" : QuestionPolicy.lastHeard);
             out.put("microphoneInUse", microphone);
+            out.put("listeningEnabled", listeningRequested);
+            out.put("listeningStatus", listeningStatus);
+            out.put("replyPlaying", BackgroundWakeService.replyPlaying);
             out.put("onlineAnswersEnabled", QuestionReply.enabled(context));
             out.put("onlineAnswersAvailable", QuestionReply.configured(context));
             out.put("activeTimers", timers);
@@ -76,6 +87,7 @@ public final class HomeLunaBridge {
         }
         if (!modelAvailable(activity)) throw new IllegalStateException("Mac speech relay is not configured");
         if (ProbeCapture.blocked(activity)) throw new IllegalStateException("Unlock, unmute and allow microphone access first");
+        BackgroundWakeService.listeningRequested = true;
         activity.startForegroundService(new Intent(activity, BackgroundWakeService.class).setAction(BackgroundWakeService.START));
     }
 
