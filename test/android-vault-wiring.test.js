@@ -70,6 +70,7 @@ test('Android grants only local main-window Home commands, without remote or fil
   const snapshot = rust.match(/pub struct LunaSnapshot \{([\s\S]*?)\n\}/)[1];
   assert.match(snapshot, /pub notebook_list_id: Option<String>/);
   assert.match(snapshot, /pub notebook_event: Option<u64>/);
+  assert.match(snapshot, /pub last_heard: Option<String>/);
   const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
   assert.match(rust, /pub async fn enable_luna_wake/);
   assert.match(rust, /pub async fn request_luna_microphone/);

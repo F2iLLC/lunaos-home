@@ -46,6 +46,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   home.id = 'home-luna';
   home.className = 'home-luna';
   home.innerHTML = `<p id="home-luna-state" role="status" aria-live="polite">Checking on Luna…</p>
+    <p id="home-luna-heard" hidden></p>
     <section id="home-timers" class="luna-timer-section" aria-labelledby="luna-timers-heading" hidden>
       <h2 id="luna-timers-heading">Active timers</h2>
       <div id="luna-timers" aria-live="off"></div>
@@ -53,6 +54,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <p id="luna-timer-status" role="status" aria-live="polite"></p>`;
   face.after(home);
   const homeState = home.querySelector('#home-luna-state');
+  const heardText = home.querySelector('#home-luna-heard');
   let listening = false;
   const showListening = on => {
     listening = on;
@@ -164,6 +166,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         const notebookMarks = { 'new-page': '✧', scribble: '✎', read: '…', checkmark: '✓', 'cross-out': '×', 'erase-rewrite': '✎', hover: '…', puzzled: '?' };
         const animation = snapshot.status === 'ready' && phase === 'response' && !(snapshot.activeTimers || []).some(timer => timer.remainingSeconds === 0)
           && Object.hasOwn(notebookMarks, snapshot.notebookAnimation) ? snapshot.notebookAnimation : '';
+        heardText.textContent = snapshot.status === 'ready' && phase !== 'off' && snapshot.lastHeard ? `Heard: “${snapshot.lastHeard}”` : '';
+        heardText.hidden = !heardText.textContent;
         notebookPopup.update(snapshot);
         avatar.dataset.notebookAnimation = animation;
         notebookMark.textContent = notebookMarks[animation] || '';

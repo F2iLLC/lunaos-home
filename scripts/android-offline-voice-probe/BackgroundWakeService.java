@@ -150,6 +150,7 @@ public final class BackgroundWakeService extends Service {
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)
                             && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
                         QuestionPolicy.notebookFeedback(null);
+                        QuestionPolicy.lastHeard = text;
                         responding = true; visual = LunaFace.State.RESPONSE;
                         latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
                         notifyStatus();

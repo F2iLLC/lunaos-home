@@ -7,9 +7,10 @@ public final class QuestionPolicy {
     private static long notebookUntil;
     static String notebookListId = "";
     static long notebookEvent;
+    static String lastHeard = "";
     static void resetConversation() {
         sessionId = java.util.UUID.randomUUID().toString();
-        notebookListId = ""; notebookEvent++;
+        notebookListId = ""; notebookEvent++; lastHeard = "";
         notebookAnimation = ""; notebookUntil = 0;
     }
     static void notebookFeedback(String animation, String listId) {
@@ -17,7 +18,7 @@ public final class QuestionPolicy {
         if (!notebookAnimation.isEmpty() && listId != null && listId.matches("[A-Za-z0-9_-]{1,80}")) notebookListId = listId;
     }
     static void notebookFeedback(String animation) {
-        notebookListId = ""; notebookEvent++;
+        notebookListId = ""; notebookEvent++; lastHeard = "";
         notebookAnimation = ""; notebookUntil = 0;
         if (animation == null || !animation.matches("new-page|scribble|read|checkmark|cross-out|erase-rewrite|hover|puzzled")) return;
         notebookAnimation = animation; notebookUntil = System.currentTimeMillis() + 8000;
