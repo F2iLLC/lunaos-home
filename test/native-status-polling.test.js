@@ -206,3 +206,17 @@ test('pressing Luna on the home page turns listening on and off, and her face fo
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
   assert.deepEqual(harness.calls.filter(command => /enable|disable/.test(command)), ['enable_luna_wake', 'disable_luna_wake']);
 });
+
+test('Luna stays awake, without her sleep mask, while she thinks or resets between requests', async () => {
+  const harness = createHarness();
+  await harness.start();
+  const face = harness.document.querySelector('.luna-companion').replacement;
+  for (const [phase, shown] of [['review', 'response'], ['retry', 'waiting'], ['off', 'off']]) {
+    harness.state.capturePhase = phase;
+    harness.resolveSnapshot();
+    await harness.flush();
+    assert.equal(face.querySelector('.luna-avatar').dataset.capturePhase, shown);
+    assert.equal(face.attributes['aria-pressed'], phase === 'off' ? 'false' : 'true');
+    if (phase !== 'off') { const [timer] = harness.timers.values(); harness.timers.clear(); timer.callback(); await harness.flush(); }
+  }
+});

@@ -9,6 +9,7 @@ use serde_json::Value;
 pub enum Kind {
     Profile,
     Grocery,
+    Notebook,
 }
 
 fn is_id(value: &str) -> bool {
@@ -111,19 +112,118 @@ fn grocery_shape(value: &Value) -> bool {
     ids_ok && items_ok && revision_ok && bounded_text(list.get("label"), 120) && outcomes_ok
 }
 
-/// Accept either record kind for `create` and `edit`.
+/// Only the named keys, with every key in `required` present.
+fn object_within<'a>(
+    value: &'a Value,
+    required: &[&str],
+    optional: &[&str],
+) -> Option<&'a serde_json::Map<String, Value>> {
+    let object = value.as_object()?;
+    let known = object
+        .keys()
+        .all(|key| required.contains(&key.as_str()) || optional.contains(&key.as_str()));
+    (known && required.iter().all(|key| object.contains_key(*key))).then_some(object)
+}
+
+/// Attribution from the vault session: who last changed a list or item.
+fn actor_or_absent(value: Option<&Value>) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    match object_with_keys(value, &["kind", "id"]) {
+        Some(actor) => {
+            matches!(actor.get("kind"), Some(Value::String(kind)) if kind == "human" || kind == "assistant")
+                && matches!(actor.get("id"), Some(Value::String(id)) if is_id(id))
+        }
+        None => false,
+    }
+}
+
+fn notebook_item_shape(value: &Value) -> bool {
+    let Some(item) = object_within(
+        value,
+        &[
+            "id",
+            "text",
+            "completed",
+            "position",
+            "createdAt",
+            "updatedAt",
+        ],
+        &["quantity", "unit", "notes", "category", "updatedBy"],
+    ) else {
+        return false;
+    };
+    if !actor_or_absent(item.get("updatedBy")) {
+        return false;
+    }
+    matches!(item.get("id"), Some(Value::String(id)) if is_id(id))
+        && bounded_text(item.get("text"), 160)
+        && matches!(item.get("completed"), Some(Value::Bool(_)))
+        && matches!(item.get("position"), Some(Value::Number(n)) if n.as_u64().is_some_and(|p| p <= 200))
+}
+
+fn notebook_list_shape(value: &Value) -> bool {
+    let Some(list) = object_within(
+        value,
+        &["id", "name", "createdAt", "updatedAt", "items"],
+        &["description", "type", "updatedBy"],
+    ) else {
+        return false;
+    };
+    if !actor_or_absent(list.get("updatedBy")) {
+        return false;
+    }
+    matches!(list.get("id"), Some(Value::String(id)) if is_id(id))
+        && bounded_text(list.get("name"), 80)
+        && matches!(list.get("items"), Some(Value::Array(items))
+            if items.len() <= 200 && items.iter().all(notebook_item_shape))
+}
+
+/// One household's lists (`lib/notebook-contract.js`). List type is metadata;
+/// nothing here depends on what a list is for.
+fn notebook_shape(value: &Value) -> bool {
+    let Some(object) = object_with_keys(value, &["kind", "notebook"]) else {
+        return false;
+    };
+    if object.get("kind") != Some(&Value::String("household-notebook".into())) {
+        return false;
+    }
+    let Some(book) = object
+        .get("notebook")
+        .and_then(|book| object_with_keys(book, &["version", "householdId", "commitId", "lists"]))
+    else {
+        return false;
+    };
+    let Some(Value::Array(lists)) = book.get("lists") else {
+        return false;
+    };
+    let mut ids = std::collections::HashSet::new();
+    book.get("version") == Some(&Value::from(1))
+        && matches!(book.get("householdId"), Some(Value::String(id)) if is_id(id))
+        && matches!(book.get("commitId"), Some(Value::String(id)) if is_uuid(id))
+        && lists.len() <= 50
+        && lists.iter().all(notebook_list_shape)
+        && lists
+            .iter()
+            .all(|list| ids.insert(list.get("id").and_then(Value::as_str)))
+}
+
+/// Accept any stored record kind for `create` and `edit`.
 pub fn record_data(value: &Value) -> Outcome<Kind> {
     if profile_shape(value) {
         Ok(Kind::Profile)
     } else if grocery_shape(value) {
         Ok(Kind::Grocery)
+    } else if notebook_shape(value) {
+        Ok(Kind::Notebook)
     } else {
         Err(Failure::Invalid("record-data"))
     }
 }
 
-/// Accept only the bounded profile record for `editProfile`. Grocery data on
-/// this path is invalid input, not a conflict.
+/// Accept only the bounded profile record for `editProfile`. Grocery or
+/// notebook data on this path is invalid input, not a conflict.
 pub fn profile_data(value: &Value) -> Outcome<()> {
     if profile_shape(value) {
         Ok(())
@@ -135,6 +235,8 @@ pub fn profile_data(value: &Value) -> Outcome<()> {
 pub fn kind_of(value: &Value) -> Kind {
     if value.get("kind") == Some(&Value::String("grocery-list".into())) {
         Kind::Grocery
+    } else if value.get("kind") == Some(&Value::String("household-notebook".into())) {
+        Kind::Notebook
     } else {
         Kind::Profile
     }
@@ -149,6 +251,91 @@ mod tests {
         json!({ "kind": "grocery-list", "outcomes": [],
             "list": { "id": "weekly", "householdId": "home-example", "label": "Weekly", "items": [],
                 "revision": "3d735c0e-3176-4502-8717-8e62f59d3a91", "updatedBy": { "kind": "human", "id": "person-example" } } })
+    }
+
+    fn notebook() -> Value {
+        json!({ "kind": "household-notebook", "notebook": { "version": 1, "householdId": "home-example",
+            "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91", "lists": [
+                { "id": "list-1", "name": "Movies to watch", "type": "entertainment",
+                    "updatedBy": { "kind": "human", "id": "alex-example" },
+                    "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z",
+                    "items": [ { "id": "item-1", "text": "Tortillas", "quantity": 2, "unit": "packs", "notes": "corn", "category": "Forms",
+                        "updatedBy": { "kind": "assistant", "id": "luna" },
+                        "completed": false, "position": 0,
+                        "createdAt": "2026-11-10T20:00:00.000Z", "updatedAt": "2026-11-10T20:00:00.000Z" } ] } ] } })
+    }
+
+    #[test]
+    fn notebook_records_are_bounded_and_never_profile_data() {
+        assert_eq!(record_data(&notebook()), Ok(Kind::Notebook));
+        assert_eq!(kind_of(&notebook()), Kind::Notebook);
+        assert_eq!(
+            profile_data(&notebook()),
+            Err(Failure::Invalid("profile-data"))
+        );
+        let empty = json!({ "kind": "household-notebook", "notebook": { "version": 1,
+            "householdId": "home-example", "commitId": "3d735c0e-3176-4502-8717-8e62f59d3a91", "lists": [] } });
+        assert_eq!(record_data(&empty), Ok(Kind::Notebook));
+        let change = |path: &[&str], value: Value| {
+            let mut book = notebook();
+            let mut cursor = &mut book;
+            for key in &path[..path.len() - 1] {
+                cursor = match key.parse::<usize>() {
+                    Ok(index) => &mut cursor[index],
+                    Err(_) => &mut cursor[*key],
+                };
+            }
+            cursor[path[path.len() - 1]] = value;
+            book
+        };
+        let list = notebook()["notebook"]["lists"][0].clone();
+        let item = list["items"][0].clone();
+        for bad in [
+            change(&["extra"], json!(true)),
+            change(&["notebook", "version"], json!(2)),
+            change(&["notebook", "householdId"], json!("home example")),
+            change(&["notebook", "commitId"], json!("not-a-commit")),
+            change(&["notebook", "extra"], json!(true)),
+            change(&["notebook", "lists"], json!(vec![list.clone(); 2])),
+            change(&["notebook", "lists"], json!(vec![json!({}); 51])),
+            change(&["notebook", "lists", "0", "name"], json!("   ")),
+            change(&["notebook", "lists", "0", "name"], json!("n".repeat(81))),
+            change(&["notebook", "lists", "0", "extra"], json!(true)),
+            change(
+                &["notebook", "lists", "0", "updatedBy"],
+                json!("alex-example"),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "updatedBy", "kind"],
+                json!("device"),
+            ),
+            change(
+                &["notebook", "lists", "0", "items"],
+                json!(vec![item.clone(); 201]),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "text"],
+                json!("t".repeat(161)),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "completed"],
+                json!("no"),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "position"],
+                json!(-1),
+            ),
+            change(
+                &["notebook", "lists", "0", "items", "0", "extra"],
+                json!(true),
+            ),
+        ] {
+            assert_eq!(
+                record_data(&bad),
+                Err(Failure::Invalid("record-data")),
+                "{bad}"
+            );
+        }
     }
 
     #[test]

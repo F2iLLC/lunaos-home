@@ -14,9 +14,10 @@ const routes = new Map([
   ['/vault.js', ['vault.js', 'text/javascript']],
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
   ['/draft-storage.js', ['draft-storage.js', 'text/javascript']],
+  ['/notebook.js', ['notebook.js', 'text/javascript']],
 ]);
 
-export function createAppServer({ drafts = createDraftStore(), windowsPreview, draftVault } = {}) {
+export function createAppServer({ drafts = createDraftStore(), windowsPreview, draftVault, notebook } = {}) {
   return createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -72,6 +73,21 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
           const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           const result = await (assistantRequest ? windowsPreview.assistantRequest(input) : windowsPreview.request(input));
           send(200, result);
+          return;
+        }
+        if (request.url === '/api/notebook') {
+          // One service behind voice, UI and any future transport; no second store here.
+          if (!notebook) { send(503, { error: "Luna's notebook is not available in this preview." }); return; }
+          if (request.method !== 'POST') { send(405, { error: 'Use a notebook action.' }); return; }
+          if (request.headers['content-type'] !== 'application/json') { send(415, { error: 'Unsupported request.' }); return; }
+          const chunks = [];
+          let bytes = 0;
+          for await (const chunk of request) {
+            bytes += chunk.length;
+            if (bytes > 8192) { send(413, { error: 'That request is too large.' }); return; }
+            chunks.push(chunk);
+          }
+          send(200, await notebook.request(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
           return;
         }
         if (request.url === '/api/draft' && request.method === 'GET') {
@@ -138,7 +154,8 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createAppServer();
+  const { notebookFromEnvironment } = await import('./lib/vault-notebook.js');
+  const server = createAppServer({ notebook: await notebookFromEnvironment() });
   server.on('error', () => {
     console.error('Could not start Luna OS Home. Check whether port 4173 is already in use.');
     process.exitCode = 1;

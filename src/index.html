@@ -7,6 +7,7 @@
   <title>Luna OS Home</title>
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/notebook.js"></script>
 </head>
 <body>
   <div class="landscape" aria-hidden="true">
@@ -52,6 +53,7 @@
         <nav id="home-actions" class="home-actions" aria-label="Things to do" hidden>
           <a href="#vault">Explore my vault <small>Try a fictional family profile</small></a>
           <a href="#checklist">Open my checklist <small>A little space for today's tasks</small></a>
+          <a href="#notebook">Open Luna's notebook <small>Lists Luna keeps for the household</small></a>
         </nav>
         <p class="entry-note">One small step, at your pace.</p>
       </section>
@@ -138,12 +140,51 @@
           <div id="empty-state"><span aria-hidden="true">✧</span><p>Nothing to carry here yet.</p></div>
           <ul id="task-list"></ul>
           <aside class="notice" aria-label="About this checklist">
-            <p>Just for this visit. Your list clears when you reload or close this tab. Nothing is saved or sent.</p>
+            <p id="checklist-saved-note" hidden>Kept in your household vault on this computer, in Luna's notebook. You can also tell Luna to add to your checklist.</p>
+            <p id="checklist-visit-note">Just for this visit. Your list clears when you reload or close this tab. Nothing is saved or sent.</p>
             <p>Use generic task labels; keep personal details elsewhere. This early preview doesn't book appointments, read files, or send reminders.</p>
           </aside>
         </div>
       </section>
       <noscript><p class="no-script">This preview needs JavaScript. It does not save records.</p></noscript>
+      <section id="notebook" class="notebook" aria-labelledby="notebook-heading" hidden>
+        <a class="back-link" href="#welcome"><span aria-hidden="true">←</span> Back home</a>
+        <div class="checklist-intro">
+          <p class="eyebrow">LUNA'S NOTEBOOK</p>
+          <h1 id="notebook-heading" tabindex="-1">Every little list.</h1>
+          <p>Groceries, chores, movies, gifts. Tell Luna below or edit here; both change the same lists.</p>
+        </div>
+        <svg id="notebook-luna" class="notebook-luna" viewBox="0 0 240 200" role="img" aria-label="Luna with her notebook" data-animation="idle">
+          <circle cx="120" cy="100" r="88" fill="#b7a9f2" opacity=".14"/>
+          <rect x="60" y="40" width="120" height="110" rx="62" fill="#fff1e0"/>
+          <path d="M62 92c-8-48 20-60 58-50 38-11 66 12 58 50-8-8-10-21-10-32-21 5-38-4-46-13-7 17-33 23-52 15-8 8-10 20-14 30Z" fill="#b7a9f2"/>
+          <ellipse cx="97" cy="98" rx="7" ry="11" fill="#28243d"/><ellipse cx="143" cy="98" rx="7" ry="11" fill="#28243d"/>
+          <path class="nb-mouth-happy" d="M111 118q9 12 18 0" fill="none" stroke="#28243d" stroke-width="3.5" stroke-linecap="round"/>
+          <path class="nb-mouth-puzzled" d="M111 122q4-5 9 0t9 0" fill="none" stroke="#28243d" stroke-width="3.5" stroke-linecap="round"/>
+          <g class="nb-notebook"><rect x="78" y="128" width="84" height="56" rx="6" fill="#8cefd9" stroke="#fff1e0" stroke-width="3"/><path d="M120 130v52" stroke="#6dd6c3" stroke-width="3"/>
+            <path class="nb-lines" d="M86 144h26m-26 10h26m-26 10h20m18-20h26m-26 10h26m-26 10h20" stroke="#28243d" stroke-width="2" stroke-linecap="round" opacity=".45"/>
+            <path class="nb-check" d="M132 146l7 8 14-16" fill="none" stroke="#28243d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="nb-cross" d="M126 144h30" stroke="#d1546b" stroke-width="4" stroke-linecap="round"/></g>
+          <g class="nb-pencil"><path d="M170 112l-34 52" stroke="#ffda86" stroke-width="11" stroke-linecap="round"/><path d="M136 164l-4 8 9-3Z" fill="#28243d"/></g>
+        </svg>
+        <p id="notebook-status" role="status" aria-live="polite" class="notebook-status"></p>
+        <form id="notebook-say" class="form-row">
+          <label for="notebook-say-input">Tell Luna</label>
+          <input id="notebook-say-input" type="text" maxlength="300" autocomplete="off" placeholder="Put milk and eggs on the grocery list">
+          <button class="primary-button" type="submit">Send</button>
+        </form>
+        <p id="notebook-member-row" class="notebook-member" hidden>
+          <label for="notebook-member">Writing as</label>
+          <select id="notebook-member"></select>
+        </p>
+        <p id="notebook-error" role="alert"></p>
+        <div id="notebook-lists" class="notebook-lists"></div>
+        <form id="notebook-new" class="form-row">
+          <label for="notebook-new-name">New list</label>
+          <input id="notebook-new-name" type="text" maxlength="80" autocomplete="off">
+          <button class="quiet-button" type="submit">Create list</button>
+        </form>
+      </section>
     </main>
     <footer class="site-footer"><span>Made for a softer landing.</span><span class="footer-star" aria-hidden="true">✧</span><span>At your pace.</span><a id="native-notices" href="./notices.html" hidden>Open-source notices</a></footer>
   </div>

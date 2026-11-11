@@ -151,19 +151,22 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     if (announce) stateText.textContent = 'Checking Home voice status…';
     try {
       const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
-        const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening locally for Hey Luna.', awake: 'Luna heard the wake phrase and is listening for a timer command.', response: 'Luna is responding; microphone paused.', retry: 'Listening paused. Enable it again when ready.' };
+        const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening locally for Hey Luna.', awake: 'Luna heard the wake phrase and is listening for a timer command.', review: 'Luna is working out what she heard; microphone paused.', response: 'Luna is responding; microphone paused.', retry: 'Luna did not catch a command and is getting ready to listen again.' };
         const phase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
-        avatar.dataset.capturePhase = snapshot.status === 'ready' ? phase : 'off';
-        pollIntervalMs = snapshot.status === 'ready' && phase !== 'off' && phase !== 'retry' ? listeningPollIntervalMs : statusPollIntervalMs;
+        // Only 'off' means listening is disabled. While she thinks or resets between
+        // requests she stays awake: no sleep mask.
+        const face = { review: 'response', retry: 'waiting' }[phase] || phase;
+        avatar.dataset.capturePhase = snapshot.status === 'ready' ? face : 'off';
+        pollIntervalMs = snapshot.status === 'ready' && phase !== 'off' ? listeningPollIntervalMs : statusPollIntervalMs;
         if (snapshot.status !== 'ready') {
           stateText.textContent = snapshot.reason === 'local_model_unavailable' ? 'Local wake model unavailable. Listening is off.' : 'Home voice service unavailable.';
           homeState.textContent = 'Luna is not available right now. The gear has more.';
           showListening(false);
         } else {
           stateText.textContent = snapshot.microphoneInUse ? (phases[snapshot.capturePhase] || 'Microphone is on.') : (phases[snapshot.capturePhase] || 'Microphone off.');
-          const friendly = { off: 'Luna is asleep. The microphone is off. Press her to wake her.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: 'I’m listening…', response: 'One moment…', retry: 'Luna dozed off. The microphone is off. Press her to wake her.' };
+          const friendly = { off: 'Luna is asleep. The microphone is off. Press her to wake her.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: 'I’m listening…', review: 'Let me think…', response: 'One moment…', retry: 'I didn’t catch that. Say “Hey Luna” to try again.' };
           homeState.textContent = friendly[phase];
-          showListening(phase !== 'off' && phase !== 'retry');
+          showListening(phase !== 'off');
         }
       stateDetails.textContent = snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.';
       onlineAnswers.setAttribute('aria-pressed', snapshot.onlineAnswersEnabled === true ? 'true' : 'false');
