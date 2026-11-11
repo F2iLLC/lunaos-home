@@ -72,3 +72,8 @@ and authenticated PCM forwarding. Follow-up lifecycle tests cover no capture
 during playback, successful-playback gating, one-window timeout, failure and
 revocation. Production notebook lifecycle/setup gates remain separate from this
 speech deployment; the live notebook acceptance relay still uses synthetic data.
+
+The full Windows run at `3f4334c` completed with 487 passed, one failed and
+51 skipped. The only failure expected the older colon-style spoken title.
+That expectation was corrected at `b271b54`; all three affected HTTP integration
+tests then passed on Windows. No implementation failure remained from that run.
