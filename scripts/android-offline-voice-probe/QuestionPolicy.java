@@ -18,7 +18,7 @@ public final class QuestionPolicy {
         if (!notebookAnimation.isEmpty() && listId != null && listId.matches("[A-Za-z0-9_-]{1,80}")) notebookListId = listId;
     }
     static void notebookFeedback(String animation) {
-        notebookListId = ""; notebookEvent++; lastHeard = "";
+        notebookListId = ""; notebookEvent++;
         notebookAnimation = ""; notebookUntil = 0;
         if (animation == null || !animation.matches("new-page|scribble|read|checkmark|cross-out|erase-rewrite|hover|puzzled")) return;
         notebookAnimation = animation; notebookUntil = System.currentTimeMillis() + 8000;

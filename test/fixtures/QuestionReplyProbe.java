@@ -85,11 +85,15 @@ public final class QuestionReplyProbe {
         server.start(); endpoint = "https://localhost:" + server.getAddress().getPort() + "/question";
         try {
             List<Boolean> results = new ArrayList<>();
+            QuestionPolicy.lastHeard = "Synthetic command";
             reset(200, false); QuestionReply reply = request(results, 3000, 10000);
             await(() -> MediaPlayer.last != null); MediaPlayer player = MediaPlayer.last;
             check(results.isEmpty(), "network success alone is not playback completion");
             check(QuestionPolicy.notebookAnimation().equals("scribble"), "actual relay outcome reaches avatar state");
             check(QuestionPolicy.notebookListId.equals("list-synthetic"), "saved list ID reaches popup state");
+            check(QuestionPolicy.lastHeard.equals("Synthetic command"), "heard text remains visible after response");
+            QuestionPolicy.resetConversation();
+            check(QuestionPolicy.lastHeard.isEmpty(), "listener reset clears heard text");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");
             player.completed.call(player); player.error.call(player, 1, 1); reply.close();
