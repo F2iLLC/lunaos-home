@@ -123,3 +123,25 @@ Seven focused bridge-wiring, status-polling and popup checks pass; the ARMv7 APK
 rebuild also passes. This fixes a concrete missing handoff; on-screen acceptance
 must still be repeated on the updated device build.
 The corrected `8294540` APK installed successfully in place on the Echo Show.
+
+Further attended attempts misrecognized the requested list name and sent the
+reported exact inventory question to the general-answer model. Content-free
+routing diagnostics confirmed two local `show` failures and one unhandled turn;
+no transcript or audio was logged. Recognition remains unverified.
+
+The command decoder now replays the entire post-wake buffer. An empty result
+from its restricted timer grammar is not evidence of silence and no longer
+advances the replay start. This removes a possible source of clipped commands;
+it is not proof of the cause of the attended errors. Unknown names prompt with
+up to five saved list names and require clarification before any write. Common
+inventory phrasing stays local. General-answer instructions explicitly deny
+visual access and ask for clarification of unclear recognized text.
+
+The Android debug home page now displays the most recent recognized question
+as text beneath Luna. It is memory-only, replaced by the next question and
+cleared when listening is reset; it is not added to logs or the vault. Focused
+notebook/relay/routing/wake checks passed (31), bridge/UI checks passed (7), and
+the HTTPS reply fixture verified that the text survives playback and clears on
+listener reset (1).
+The ARMv7 APK at `58162a3` built and installed successfully in place on the
+Echo Show for the next attended recognition check.
