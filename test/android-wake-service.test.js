@@ -23,7 +23,7 @@ const fakes = {
  public void cancel(PendingIntent p) {cancels++;}
 }`,
   'io/github/f2illc/lunaos/home/voiceprobe/TimerReceiver.java': 'package io.github.f2illc.lunaos.home.voiceprobe; public class TimerReceiver {}',
-  'android/media/AudioAttributes.java': 'package android.media; public class AudioAttributes {public static final int USAGE_ALARM=1,CONTENT_TYPE_SONIFICATION=2; public static class Builder {public Builder setUsage(int v){return this;} public Builder setContentType(int v){return this;}public AudioAttributes build(){return new AudioAttributes();}}}',
+  'android/media/AudioAttributes.java': 'package android.media; public class AudioAttributes {public static final int USAGE_ALARM=1,CONTENT_TYPE_SONIFICATION=2,USAGE_MEDIA=3; public static class Builder {public Builder setUsage(int v){return this;} public Builder setContentType(int v){return this;}public AudioAttributes build(){return new AudioAttributes();}}}',
   'android/media/RingtoneManager.java': 'package android.media; public class RingtoneManager {public static final int TYPE_ALARM=1;public static android.net.Uri getDefaultUri(int type){return android.net.Uri.parse("alarm");}}',
   'android/media/MediaPlayer.java': `package android.media;public class MediaPlayer {
  public static int starts,releases;public static boolean fail;public static float volume=1;
@@ -171,7 +171,7 @@ public class PowerManager {
   'io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java': `package io.github.f2illc.lunaos.home.voiceprobe;
 class ProbeCapture {
  interface Listener {void visual(LunaFace.State s);void status(String s);void finished(String c,String t,int s,long d,boolean canceled);}
- static boolean blocked, busy; static int starts; static ProbeCapture last;
+ static boolean blocked, busy; static int starts, releases; static ProbeCapture last; static void releaseEngine() { releases++; }
  final Listener listener; boolean stopped;
  ProbeCapture(android.content.Context c,boolean audio,boolean wait,boolean persistent,Listener l) {
   if(!audio||!wait||!persistent) throw new AssertionError("Persistent capture required");

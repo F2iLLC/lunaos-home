@@ -5,7 +5,11 @@ import android.media.*;
 import android.os.*;
 import android.util.Log;
 
-/** Alarm playback is independent of the explicitly enabled microphone service. */
+/**
+ * Alarm playback is independent of the explicitly enabled microphone service.
+ * It plays at the media volume, the one the volume buttons change and the one
+ * Luna speaks at, so a person can always turn a timer down.
+ */
 public final class TimerAlarmService extends Service {
     private static TimerAlarmService active;
     private MediaPlayer player;
@@ -34,7 +38,7 @@ public final class TimerAlarmService extends Service {
             attempted = true;
             try {
                 player = new MediaPlayer();
-                player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
                 player.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK);
                 player.setDataSource(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
                 player.setLooping(true); player.prepare(); player.start();
