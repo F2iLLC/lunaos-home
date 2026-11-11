@@ -73,12 +73,13 @@ final class QuestionReply implements AutoCloseable {
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
+            final String caption = QuestionPolicy.decodeCaption(next.getHeaderField("X-Home-Reply-Text"));
             final String animation = next.getHeaderField("X-Home-Notebook-Animation");
             final String listId = next.getHeaderField("X-Home-Notebook-List");
             main.post(() -> {
                 if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
                     QuestionPolicy.notebookFeedback(animation, listId);
-                play(context, result);
+                play(context, result, caption);
             });
         } catch (Exception failure) {
             android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_UNAVAILABLE"); main.post(this::finish);
@@ -97,7 +98,7 @@ final class QuestionReply implements AutoCloseable {
             return out.toByteArray();
         } finally { Arrays.fill(buffer, (byte) 0); }
     }
-    private void play(Context context, byte[] wave) {
+    private void play(Context context, byte[] wave, String caption) {
         if (closed || !BackgroundWakeService.running || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
         audio = wave;
         try {
@@ -113,7 +114,7 @@ final class QuestionReply implements AutoCloseable {
                 public long getSize() { return wave.length; }
                 public void close() { }
             });
-            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) p.start(); else finish(); });
+            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) { QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
             player.setOnCompletionListener(p -> { played = true; finish(); });
             player.setOnErrorListener((p, what, extra) -> { finish(); return true; });
             player.prepareAsync();

@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createLunaCaptions } from '../src/luna-captions.js';
+test('captions toggle persists only preference and follows reply and notebook visibility', () => {
+  const element = () => ({ hidden: true, attributes: {}, setAttribute(k,v) { this.attributes[k]=v; }, addEventListener(k,v) { this[k]=v; } });
+  const popup = element(), inner = element(), button = element();
+  const created = [];
+  const document = { body: { append(node) { created.push(node); } }, createElement: element,
+    querySelector: selector => selector === '.notebook-popup' ? popup : inner };
+  const saved = new Map();
+  const storage = { getItem: key => saved.get(key), setItem: (key,value) => saved.set(key,value) };
+  const captions = createLunaCaptions(button, { document, storage });
+  captions.update({ status: 'ready', replyCaption: 'Your list contains Café.' });
+  assert.equal(created[0].textContent, 'Luna: Your list contains Café.');
+  assert.equal(created[0].hidden, false);
+  popup.open = true;
+  captions.update({ status: 'ready', replyCaption: '<b>Read as text</b>' });
+  assert.equal(created[0].hidden, true);
+  assert.equal(inner.hidden, false);
+  assert.equal(inner.textContent, 'Luna: <b>Read as text</b>');
+  button.click();
+  assert.equal(inner.hidden, true);
+  assert.equal(button.attributes['aria-pressed'], 'false');
+  assert.deepEqual([...saved], [['luna-captions-enabled','false']]);
+  const reloaded = createLunaCaptions(element(), { document, storage });
+  reloaded.update({ status: 'ready', replyCaption: 'Next reply' });
+  assert.equal(created[1].hidden, true);
+  button.click(); popup.open = false; popup.close();
+  captions.update({ status: 'ready', replyCaption: '' });
+  assert.equal(created[0].hidden, true);
+  assert.equal(inner.hidden, true);
+});

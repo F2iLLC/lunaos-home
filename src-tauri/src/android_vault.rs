@@ -11,6 +11,7 @@ pub struct LunaSnapshot {
     pub notebook_list_id: Option<String>,
     pub notebook_event: Option<u64>,
     pub last_heard: Option<String>,
+    pub reply_caption: Option<String>,
     pub microphone_in_use: Option<bool>,
     pub online_answers_enabled: Option<bool>,
     pub online_answers_available: Option<bool>,

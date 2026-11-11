@@ -74,6 +74,7 @@ public final class QuestionReplyProbe {
                 exchange.getResponseHeaders().set("Content-Type", "audio/wav");
                 exchange.getResponseHeaders().set("X-Home-Notebook-Animation", "scribble");
                 exchange.getResponseHeaders().set("X-Home-Notebook-List", "list-synthetic");
+                exchange.getResponseHeaders().set("X-Home-Reply-Text", java.util.Base64.getEncoder().encodeToString("Your list contains Café.".getBytes(StandardCharsets.UTF_8)));
                 exchange.sendResponseHeaders(status, wave.length);
                 exchange.getResponseBody().write(wave);
             } catch (IOException expectedDisconnect) {
@@ -95,6 +96,8 @@ public final class QuestionReplyProbe {
             QuestionPolicy.resetConversation();
             check(QuestionPolicy.lastHeard.isEmpty(), "listener reset clears heard text");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
+            check(QuestionPolicy.replyCaption.equals("Your list contains Café."), "caption matches speech and preserves Unicode");
+            check(QuestionPolicy.decodeCaption("not base64!").isEmpty(), "invalid caption rejected");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");
             player.completed.call(player); player.error.call(player, 1, 1); reply.close();
             check(results.size() == 1 && MediaPlayer.releases == 1, "late callbacks do not repeat completion/release");

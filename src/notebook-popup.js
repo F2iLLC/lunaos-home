@@ -7,7 +7,7 @@ export function createNotebookPopup({ request = notebookRequest } = {}) {
   page.setAttribute('aria-labelledby', 'notebook-popup-title');
   page.innerHTML = `<button type="button" class="notebook-popup-close" aria-label="Close notebook">×</button>
     <p class="notebook-popup-label">LUNA’S NOTEBOOK</p><h2 id="notebook-popup-title"></h2>
-    <p class="notebook-popup-status" role="status"></p><ul class="notebook-popup-items"></ul>`;
+    <p class="notebook-popup-status" role="status"></p><ul class="notebook-popup-items"></ul><p class="notebook-popup-caption luna-caption" role="status" hidden></p>`;
   document.body.append(page);
   const title = page.querySelector('h2'), status = page.querySelector('[role="status"]'), items = page.querySelector('ul');
   let event, generation = 0;

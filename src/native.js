@@ -1,5 +1,6 @@
 import { createOfflineDraftClient } from '../lib/offline-drafts.js';
 import { useOfflineDraftClient } from './draft-client.js';
+import { createLunaCaptions } from './luna-captions.js';
 import { createNotebookPopup } from './notebook-popup.js';
 
 useOfflineDraftClient(createOfflineDraftClient());
@@ -72,6 +73,9 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <h1 id="luna-heading" tabindex="-1">Luna settings.</h1>
     <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you turn it on. Use this page when something is not working.</p></div>
     <div class="list-panel luna-panel">
+    <h2>Accessibility</h2>
+    <button id="luna-captions-toggle" type="button" aria-pressed="true">Luna captions: On</button>
+    <p>Show Luna’s replies as readable text. Captions stay until her next reply or listening is turned off.</p>
     <h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
       <p id="luna-details">Online answers are off. Questions are not sent anywhere.</p>
@@ -85,6 +89,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <button id="disable-luna-wake" type="button">Disable listening</button>
     <p>Active timers are on the home page.</p></div>`;
   document.querySelector('main').append(luna);
+  const captions = createLunaCaptions(luna.querySelector('#luna-captions-toggle'), { document });
   const stateText = luna.querySelector('#luna-state');
   const stateDetails = luna.querySelector('#luna-details');
   const onlineAnswers = luna.querySelector('#luna-online-answers');
@@ -169,6 +174,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         heardText.textContent = snapshot.status === 'ready' && phase !== 'off' && snapshot.lastHeard ? `Heard: “${snapshot.lastHeard}”` : '';
         heardText.hidden = !heardText.textContent;
         notebookPopup.update(snapshot);
+        captions.update(snapshot);
         avatar.dataset.notebookAnimation = animation;
         notebookMark.textContent = notebookMarks[animation] || '';
 

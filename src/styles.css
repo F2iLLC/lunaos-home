@@ -308,3 +308,13 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 .notebook-popup-status { font: 18px/1.5 system-ui, sans-serif; color: #5c5264; }
 .notebook-popup-status:empty { display: none; }
 @media (max-width: 480px) { .notebook-popup { padding: 28px 24px 30px 34px; } }
+
+.luna-caption {
+  box-sizing: border-box; background: #171526; color: #fffaf0;
+  padding: 16px 22px; border: 2px solid #b7a9f2; border-radius: 14px;
+  font: 600 clamp(22px, 3vw, 30px)/1.5 system-ui, sans-serif;
+  text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 35vh; overflow-y: auto;
+}
+.luna-caption-floating { position: fixed; z-index: 1000; bottom: 20px; left: 5vw; width: 90vw; margin: 0; box-shadow: 0 4px 20px #0006; }
+.notebook-popup-caption { position: sticky; bottom: 0; margin: 20px 0 0; }

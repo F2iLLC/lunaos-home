@@ -11,7 +11,7 @@ final class SpokenReply {
         this.completion = completion;
         player = new PromptPlayer(context, text, () -> handler.post(this::finish));
         handler.postDelayed(this::finish, 15000);
-        handler.post(() -> { if (!done) player.start(); });
+        handler.post(() -> { if (!done) { QuestionPolicy.replyCaption = text; player.start(); } });
     }
     private void finish() { if (done) return; close(); completion.run(); }
     void close() {

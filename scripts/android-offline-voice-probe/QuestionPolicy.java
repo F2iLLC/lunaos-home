@@ -8,9 +8,17 @@ public final class QuestionPolicy {
     static String notebookListId = "";
     static long notebookEvent;
     static String lastHeard = "";
+    static String replyCaption = "";
+    static String decodeCaption(String encoded) {
+        if (encoded == null || encoded.length() > 2048) return "";
+        try {
+            String text = new String(java.util.Base64.getDecoder().decode(encoded), java.nio.charset.StandardCharsets.UTF_8);
+            return text.length() <= 360 ? text : "";
+        } catch (IllegalArgumentException invalid) { return ""; }
+    }
     static void resetConversation() {
         sessionId = java.util.UUID.randomUUID().toString();
-        notebookListId = ""; notebookEvent++; lastHeard = "";
+        notebookListId = ""; notebookEvent++; lastHeard = ""; replyCaption = "";
         notebookAnimation = ""; notebookUntil = 0;
     }
     static void notebookFeedback(String animation, String listId) {
