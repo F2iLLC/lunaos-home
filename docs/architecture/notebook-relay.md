@@ -89,3 +89,9 @@ This exposed the speech cooldown blocking an immediate page read; the cooldown
 now applies only to speech routes, with a regression check. Browser inspection
 was attempted but the browser-control host was unavailable; no visual acceptance
 is claimed.
+
+The ARMv7 debug APK built from `56d6db3` with `CARGO_PROFILE_DEV_DEBUG=0`
+installed successfully on the selected Echo Show 8 (Android 11). Its SHA-256 is
+`7535c26cc1beaf10de4f72035a69965f485bc8a986f7ab78084e07a5133b5438`.
+The prior APK was preserved for rollback. Installation is not microphone,
+speaker or visual acceptance; an attended check was requested separately.
