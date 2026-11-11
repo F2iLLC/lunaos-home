@@ -54,8 +54,8 @@ A store that still holds a `grocery-list` record from before this change does no
 
 - Items are split on commas and the word "and", so "Fast and Furious" becomes two items.
 - Speech recognizer casing is not corrected beyond capitalizing the first letter.
-- The Android voice listener and `LunaFace.java` are not wired to this assistant yet. On the device, "add ..." is still treated as a timer attempt and is not forwarded anywhere.
-- The Echo Show and the Windows page do not reach the Mac vault yet. The relay on the Mac still answers questions only.
+- The opt-in relay and Android debug voice/page wiring are described in [Notebook through the Mac relay](notebook-relay.md). Physical-device acceptance and deployment are still outstanding.
+- The Windows HTTP preview can use the configured Mac relay. Native Windows vault integration is still outstanding.
 - The Windows developer store does not wait for its file lock, so two requests that overlap (a read during a write) can fail there. They are reported as failed and nothing is lost. The Mac vault store waits for its lock.
-- "Writing as" is one choice per running Home process, not per browser tab or per speaker. Everything written while it is set, including what Luna is told, is attributed to that member. Per-session identity comes with the vault sessions on the Mac.
+- "Writing as" is isolated per browser/relay conversation. It remains attribution, not a verified speaker identity or permission.
 - Members are read from the saved example details (`fictionalDetails`). Household member records proper belong to VLT-04.

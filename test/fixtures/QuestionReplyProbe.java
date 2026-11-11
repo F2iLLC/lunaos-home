@@ -66,11 +66,16 @@ public final class QuestionReplyProbe {
                 check(exchange.getRequestMethod().equals("POST"), "POST method");
                 check(("Bearer " + TOKEN).equals(exchange.getRequestHeaders().getFirst("Authorization")), "scoped token");
                 check("application/json".equals(exchange.getRequestHeaders().getFirst("Content-Type")), "JSON content type");
+                check(QuestionPolicy.sessionId.equals(exchange.getRequestHeaders().getFirst("X-Home-Session")), "conversation isolation header");
                 check(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8).equals("{\"question\":\"What is two plus two?\"}"), "question body");
                 arrived.countDown();
                 if (hold) check(release.await(8, TimeUnit.SECONDS), "fixture released");
                 byte[] wave = new byte[44]; System.arraycopy(new byte[]{'R','I','F','F'}, 0, wave, 0, 4);
                 exchange.getResponseHeaders().set("Content-Type", "audio/wav");
+                exchange.getResponseHeaders().set("X-Home-Notebook-Animation", "scribble");
+                exchange.getResponseHeaders().set("X-Home-Notebook-List", "list-synthetic");
+                exchange.getResponseHeaders().set("X-Home-Await-Reply", "1");
+                exchange.getResponseHeaders().set("X-Home-Reply-Text", java.util.Base64.getEncoder().encodeToString("Your list contains Café.".getBytes(StandardCharsets.UTF_8)));
                 exchange.sendResponseHeaders(status, wave.length);
                 exchange.getResponseBody().write(wave);
             } catch (IOException expectedDisconnect) {
@@ -82,10 +87,20 @@ public final class QuestionReplyProbe {
         server.start(); endpoint = "https://localhost:" + server.getAddress().getPort() + "/question";
         try {
             List<Boolean> results = new ArrayList<>();
+            QuestionPolicy.lastHeard = "Synthetic command";
             reset(200, false); QuestionReply reply = request(results, 3000, 10000);
             await(() -> MediaPlayer.last != null); MediaPlayer player = MediaPlayer.last;
             check(results.isEmpty(), "network success alone is not playback completion");
+            check(QuestionPolicy.notebookAnimation().equals("scribble"), "actual relay outcome reaches avatar state");
+            check(QuestionPolicy.notebookListId.equals("list-synthetic"), "saved list ID reaches popup state");
+            check(QuestionPolicy.lastHeard.equals("Synthetic command"), "heard text remains visible after response");
+            QuestionPolicy.resetConversation();
+            check(QuestionPolicy.lastHeard.isEmpty(), "listener reset clears heard text");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
+            check(QuestionPolicy.takeFollowUp(), "question requests one follow-up");
+            check(!QuestionPolicy.takeFollowUp(), "follow-up request is consumed once");
+            check(QuestionPolicy.replyCaption.equals("Your list contains Café."), "caption matches speech and preserves Unicode");
+            check(QuestionPolicy.decodeCaption("not base64!").isEmpty(), "invalid caption rejected");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");
             player.completed.call(player); player.error.call(player, 1, 1); reply.close();
             check(results.size() == 1 && MediaPlayer.releases == 1, "late callbacks do not repeat completion/release");

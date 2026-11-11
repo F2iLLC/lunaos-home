@@ -73,7 +73,7 @@ test('bundled offline replies sequence exact clips, release playback, and recove
         }
       }`,
   };
-  const sources = ['SpokenReply', 'PromptPlayer', 'ReplyPlan', 'TimerPhrase', 'TimerCommand'].map(name => 'scripts/android-offline-voice-probe/' + name + '.java');
+  const sources = ['QuestionPolicy', 'SpokenReply', 'PromptPlayer', 'ReplyPlan', 'TimerPhrase', 'TimerCommand'].map(name => 'scripts/android-offline-voice-probe/' + name + '.java');
   for (const [name, text] of Object.entries(fakes)) {
     const path = join(output, name);
     await mkdir(dirname(path), { recursive: true });

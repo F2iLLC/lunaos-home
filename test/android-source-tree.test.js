@@ -185,3 +185,17 @@ test('directories at any planned generated file destination are rejected before 
     assert.deepEqual(await snapshot(f.root), before);
   }
 });
+
+test('Home packages only Mac recognition and removes its legacy model assets and dependencies', async context => {
+  const f = await fixture(context);
+  await mkdir(join(f.src, 'debug/assets/model/am'), { recursive: true });
+  await writeFile(join(f.src, 'debug/assets/model/am/final.mdl'), 'legacy synthetic model');
+  await writeFile(join(f.projectRoot, 'app/build.gradle'), 'dependencies {\n    // HOME_LUNA_DEBUG_VOICE_DEPENDENCIES\n    debugImplementation("com.alphacephei:vosk-android:0.3.75")\n    debugImplementation("net.java.dev.jna:jna:5.18.1@aar")\n}\n');
+  await prepareAndroid({ projectRoot: f.projectRoot });
+  await assert.rejects(lstat(join(f.src, 'debug/assets/model')), { code: 'ENOENT' });
+  const gradle = await readFile(join(f.projectRoot, 'app/build.gradle'), 'utf8');
+  assert.doesNotMatch(gradle, /vosk|jna/);
+  const capture = await readFile(join(f.src, 'debug/java/io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java'), 'utf8');
+  assert.match(capture, /QuestionReply.recognize/);
+  assert.doesNotMatch(capture, /org.vosk|new Model|copyAsset/);
+});

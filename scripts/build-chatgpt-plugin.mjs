@@ -10,6 +10,7 @@ const runtimeFiles = [
   'assistant.js', 'server.js', 'package.json', 'package-lock.json',
   'lib/drafts.js', 'lib/profile-review.js', 'lib/profile-draft.js',
   'lib/vehicle-sessions.js',
+  'lib/notebook-sessions.js', 'lib/remote-notebook.js', 'src/notebook-client.js',
   'lib/vehicle-greetings.js',
   'lib/vault-sessions.js', 'lib/vault-store-lifecycle.js', 'lib/vault-record-contract.js', 'lib/notebook-contract.js',
   'lib/notebook-service.js', 'lib/notebook-assistant.js', 'lib/notebook-avatar.js', 'lib/notebook-api.js', 'lib/vault-notebook.js', 'lib/vault-file-store.js', 'lib/mac-keychain-protector.js',

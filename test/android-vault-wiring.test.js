@@ -34,7 +34,7 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.equal(capability.remote, undefined);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(capability.platforms, ['android']);
-  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-enable-luna-wake',
+  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-notebook-request', 'allow-enable-luna-wake',
     'allow-request-luna-microphone', 'allow-disable-luna-wake', 'allow-set-luna-online-answers', 'allow-cancel-luna-timer']);
   const android = await json('../src-tauri/tauri.android.conf.json');
   assert.deepEqual(android.app.security.capabilities, ['android-fictional-launch']);
@@ -65,6 +65,13 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.match(vaultDebugManifest, /service android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe\.TimerAlarmService"/);
   assert.doesNotMatch(vaultDebugManifest, /<package android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe"/);
   const rust = await readFile(new URL('../src-tauri/src/android_vault.rs', import.meta.url), 'utf8');
+  // Tauri deserializes and reserializes this struct: absent fields are silently
+  // dropped even when Java sends them and the frontend tests provide them.
+  const snapshot = rust.match(/pub struct LunaSnapshot \{([\s\S]*?)\n\}/)[1];
+  assert.match(snapshot, /pub notebook_list_id: Option<String>/);
+  assert.match(snapshot, /pub notebook_event: Option<u64>/);
+  assert.match(snapshot, /pub last_heard: Option<String>/);
+  assert.match(snapshot, /pub reply_caption: Option<String>/);
   const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
   assert.match(rust, /pub async fn enable_luna_wake/);
   assert.match(rust, /pub async fn request_luna_microphone/);
@@ -92,7 +99,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
       plugins: [{
         name: 'isolate-draft-ui',
         setup(builder) {
-          builder.onResolve({ filter: /(?:offline-drafts|draft-client|app)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+          builder.onResolve({ filter: /(?:offline-drafts|draft-client|app|notebook)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
           builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
             contents: 'export const createOfflineDraftClient = () => ({}); export const useOfflineDraftClient = () => {};',
           }));
@@ -102,13 +109,14 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const elements = new Map();
     const children = [];
     const document = {
+      body: { append() {} },
       querySelector(selector) {
-        if (!elements.has(selector)) elements.set(selector, { hidden: true, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
+        if (!elements.has(selector)) elements.set(selector, { hidden: true, addEventListener() {}, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
         return elements.get(selector);
       },
       createElement() {
         const local = new Map();
-        const element = { dataset: {}, after() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
+        const element = { dataset: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
             if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);
@@ -120,7 +128,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const window = { __TAURI__: { core: { invoke: (...args) => {
       calls.push(args);
       return Promise.resolve(args[0] === 'get_luna_snapshot' ? {
-        status: 'unavailable', reason: 'local_model_unavailable', capturePhase: 'off',
+        status: 'unavailable', reason: 'mac_speech_unavailable', capturePhase: 'off',
         microphoneInUse: false, onlineAnswersEnabled: false, activeTimers: [],
       } : undefined);
     } } } };
@@ -132,7 +140,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     assert.equal(settingsGear.className, 'settings-gear');
     assert.equal(lunaScreen.id, 'luna');
     await new Promise(resolve => setImmediate(resolve));
-    assert.match(lunaScreen.querySelector('#luna-state').textContent, /Local wake model unavailable/);
+    assert.match(lunaScreen.querySelector('#luna-state').textContent, /Mac speech recognition unavailable/);
     const allowMic = lunaScreen.querySelector('#allow-luna-mic');
     await allowMic.click({ currentTarget: allowMic });
     assert.ok(calls.some(([command]) => command === 'request_luna_microphone'));

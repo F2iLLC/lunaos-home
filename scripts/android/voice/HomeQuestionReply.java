@@ -82,6 +82,8 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
+            next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
+            if (QuestionPolicy.isFollowUp) next.setRequestProperty("X-Home-Follow-Up", "1");
             stage = "request_body";
             byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")
                 : new JSONObject().put("question", question)).toString().getBytes(StandardCharsets.UTF_8);
@@ -97,9 +99,17 @@ final class QuestionReply implements AutoCloseable {
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
+            final boolean followUp = "1".equals(next.getHeaderField("X-Home-Await-Reply"));
+            final String caption = QuestionPolicy.decodeCaption(next.getHeaderField("X-Home-Reply-Text"));
+            final String animation = next.getHeaderField("X-Home-Notebook-Animation");
+            final String listId = next.getHeaderField("X-Home-Notebook-List");
             android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_AUDIO_RECEIVED");
             stage = "playback_handoff";
-            main.post(() -> play(context, result));
+            main.post(() -> {
+                if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
+                    QuestionPolicy.notebookFeedback(animation, listId);
+                play(context, result, caption, followUp);
+            });
         } catch (Exception failure) {
             // Stage labels only: never log exception text, request data, or credentials.
             Throwable cause = failure.getCause();
@@ -122,6 +132,68 @@ final class QuestionReply implements AutoCloseable {
             synchronized (this) { if (connection != null) connection.disconnect(); connection = null; }
         }
     }
+    // Called on a worker thread by the native notebook page. Same enrolled
+    // endpoint, certificate and token as speech; no arbitrary URL from the UI.
+    static JSONObject notebook(Context context, String body, String session) throws Exception {
+        if (!configured(context) || body.length() > 8192 || !session.matches("[a-f0-9-]{32,64}")) throw new IOException();
+        JSONObject config = readConfig(context);
+        KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType()); store.load(null);
+        store.setCertificateEntry("relay", CertificateFactory.getInstance("X.509").generateCertificate(
+            new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
+        TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
+        SSLContext tls = SSLContext.getInstance("TLSv1.2"); tls.init(null, trust.getTrustManagers(), null);
+        HttpsURLConnection connection = (HttpsURLConnection) new java.net.URL(endpoint(config).replace("/question", "/notebook")).openConnection();
+        try {
+            connection.setSSLSocketFactory(tls.getSocketFactory()); connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(5000); connection.setReadTimeout(15000);
+            connection.setRequestMethod("POST"); connection.setDoOutput(true);
+            connection.setRequestProperty("Authorization", "Bearer " + config.getString("token"));
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("X-Home-Session", session);
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream output = connection.getOutputStream()) { output.write(bytes); }
+            finally { Arrays.fill(bytes, (byte) 0); }
+            if (connection.getResponseCode() != 200 || !"application/json".equals(connection.getContentType())) throw new IOException();
+            try (InputStream input = connection.getInputStream()) {
+                ByteArrayOutputStream output = new ByteArrayOutputStream(); byte[] buffer = new byte[8192]; int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() + count > 512 * 1024) throw new IOException();
+                    output.write(buffer, 0, count);
+                }
+                return new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
+            }
+        } finally { connection.disconnect(); }
+    }
+
+    static String recognize(Context context, byte[] pcm) throws Exception {
+        if (!enabled(context) || ProbeCapture.blocked(context) || pcm.length < 3200 || pcm.length > 800000 || pcm.length % 2 != 0) throw new IOException();
+        JSONObject config = readConfig(context);
+        HttpsURLConnection connection = (HttpsURLConnection)new java.net.URL(endpoint(config).replace("/question", "/recognize")).openConnection();
+        try {
+            KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType()); store.load(null);
+            store.setCertificateEntry("relay", CertificateFactory.getInstance("X.509").generateCertificate(
+                new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
+            TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
+            SSLContext tls = SSLContext.getInstance("TLSv1.2"); tls.init(null, trust.getTrustManagers(), null);
+            connection.setSSLSocketFactory(tls.getSocketFactory()); connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(5000); connection.setReadTimeout(45000);
+            connection.setRequestMethod("POST"); connection.setDoOutput(true);
+            connection.setRequestProperty("Authorization", "Bearer " + config.getString("token"));
+            connection.setRequestProperty("Content-Type", "application/octet-stream");
+            connection.setFixedLengthStreamingMode(pcm.length);
+            try (OutputStream output = connection.getOutputStream()) { output.write(pcm); }
+            if (connection.getResponseCode() != 200 || !"application/json".equals(connection.getContentType())) throw new IOException();
+            try (InputStream input = connection.getInputStream()) {
+                ByteArrayOutputStream output = new ByteArrayOutputStream(); byte[] chunk = new byte[2048]; int count;
+                while ((count = input.read(chunk)) != -1) { if (output.size()+count > 8192) throw new IOException(); output.write(chunk,0,count); }
+                String text = new JSONObject(new String(output.toByteArray(),StandardCharsets.UTF_8)).getString("text");
+                if (text.length() > 1000) throw new IOException();
+                return text;
+            }
+        } finally { connection.disconnect(); }
+    }
+
     private static JSONObject readConfig(Context context) throws Exception {
         File file = new File(context.getFilesDir(), "question-relay.json");
         if (!file.isFile() || file.length() > 16384) throw new IOException();
@@ -154,7 +226,7 @@ final class QuestionReply implements AutoCloseable {
             return out.toByteArray();
         } finally { Arrays.fill(buffer, (byte) 0); }
     }
-    private void play(Context context, byte[] wave) {
+    private void play(Context context, byte[] wave, String caption, boolean followUp) {
         if (closed || (confirmation && !enabled(context)) || (!confirmation && !BackgroundWakeService.running)
             || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
         audio = wave;
@@ -172,7 +244,7 @@ final class QuestionReply implements AutoCloseable {
                 public void close() { }
             });
             player.setOnPreparedListener(p -> { if (!closed && (confirmation ? enabled(context) : BackgroundWakeService.running)
-                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); p.start(); } else finish(); });
+                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
             player.setOnCompletionListener(p -> { played = true; android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_COMPLETED"); finish(); });
             player.setOnErrorListener((p, what, extra) -> { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_ERROR"); finish(); return true; });
             player.prepareAsync();

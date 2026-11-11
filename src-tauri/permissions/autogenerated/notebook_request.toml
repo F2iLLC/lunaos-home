@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-notebook-request"
+description = "Allows the local main window to use the enrolled notebook relay."
+commands.allow = ["notebook_request"]
+
+[[permission]]
+identifier = "deny-notebook-request"
+description = "Denies notebook relay requests."
+commands.deny = ["notebook_request"]

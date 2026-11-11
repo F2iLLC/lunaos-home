@@ -41,9 +41,14 @@ public final class WakeServiceProbe {
   first.busy=false;first.listener.finished("QUESTION_FINAL","why is the sky blue",0,SystemClock.now+10000,false);
   check(QuestionReply.last!=null&&NativeTimers.read(s).free()==1);
   Handler.advance(1000);check(ProbeCapture.starts==starts&&s.power.last.isHeld());
+  QuestionPolicy.replyWantsFollowUp=true;
+  check(ProbeCapture.starts==starts); // Do not capture while Luna is speaking.
   QuestionReply.last.finish();Handler.advance(250);check(ProbeCapture.starts==starts+1);
+  check(ProbeCapture.last.followUp);
+  ProbeCapture.last.finish("COMMAND_WINDOW_EXPIRED",0,false);Handler.advance(750);
+  check(!ProbeCapture.last.followUp); // Silence returns to wake-word mode.
   first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
-  QuestionReply.last.fail();check(BackgroundWakeService.latest.startsWith("Online answer unavailable"));Handler.advance(2500);check(ProbeCapture.busy());
+  QuestionPolicy.replyWantsFollowUp=true;QuestionReply.last.fail();check(BackgroundWakeService.latest.startsWith("Reply unavailable"));Handler.advance(2500);check(ProbeCapture.busy());check(!ProbeCapture.last.followUp);
   first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
   QuestionReply question=QuestionReply.last;starts=ProbeCapture.starts;disable(s);check(question.closed);
   question.finish();Handler.advance(1000);check(!BackgroundWakeService.running&&ProbeCapture.starts==starts);

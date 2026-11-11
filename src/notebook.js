@@ -1,5 +1,6 @@
 // Luna's notebook page. All state lives behind /api/notebook; this file keeps no
 // second copy of any list and renders only what the service last returned.
+import { notebookRequest } from './notebook-client.js';
 const $ = (selector) => document.querySelector(selector);
 const root = $("#notebook");
 
@@ -40,22 +41,10 @@ if (root) {
     root.setAttribute("aria-busy", "true");
     errorLine.textContent = "";
     try {
-      const response = await fetch("/api/notebook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Home-Preview": "1" },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        errorLine.textContent =
-          data.error ?? "Luna could not reach her notebook.";
-        play({ animation: "puzzled" });
-        return null;
-      }
-      return data;
+      return await notebookRequest(body);
     } catch {
       errorLine.textContent =
-        "Luna could not reach her notebook. Nothing was changed.";
+        "Luna could not confirm the result. Reopen the list before trying again.";
       play({ animation: "puzzled" });
       return null;
     } finally {
@@ -95,14 +84,16 @@ if (root) {
           "aria-label",
           `${item.text}, ${item.completed ? "done" : "not done"}`,
         );
-        box.addEventListener("change", () =>
+        box.addEventListener("change", () => {
+          const completed = box.checked;
+          box.checked = item.completed;
           run({
             op: "complete_item",
             list: list.id,
             item: item.id,
-            completed: box.checked,
-          }),
-        );
+            completed,
+          });
+        });
         const label = [
           item.quantity
             ? `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
@@ -250,4 +241,11 @@ if (root) {
     if (location.hash === "#notebook") refresh();
   });
   if (location.hash === "#notebook") refresh();
+  // Voice and other devices write the same vault. Refresh only while viewing
+  // it, without replacing an input or a control the user is working with.
+  setInterval(() => {
+    if (!document.hidden && location.hash === '#notebook' && !busy
+      && !(root.contains(document.activeElement)
+        && document.activeElement.matches('input:not([type="checkbox"]), textarea, select'))) refresh();
+  }, 3000);
 }

@@ -27,6 +27,7 @@ test('question relay requires device authorization before provider calls', async
 test('one text-only turn yields bounded speech in the selected voice, with no history',async t=>{
   const {ask,calls}=await relay(t);const response=await ask('tell a fictional story');
   assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
+  assert.equal(Buffer.from(response.headers.get('x-home-reply-text'), 'base64').toString('utf8'), calls[1].text);
   assert.equal((await response.arrayBuffer()).byteLength,524);
   assert.deepEqual(calls[0].messages,[{role:'user',text:'tell a fictional story'}]);
   assert.equal(calls[0].instructions,questionInstructions);assert.equal(calls[1].voiceId,voiceId);
@@ -48,4 +49,20 @@ test('disconnect aborts provider work and concurrent requests cannot duplicate i
     headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({question:'fictional question'})}).catch(()=>{});
   await ready;assert.equal((await ask('second question')).status,429);controller.abort();await pending;
   await new Promise(resolve=>setTimeout(resolve,30));assert.equal(signal.aborted,true);
+});
+
+test('a spoken question invites a session-scoped follow-up with bounded question context', async t => {
+  const prompts = [];
+  const { ask } = await relay(t, { cooldownMs: 0, answer: async args => { prompts.push(args.messages[0].text); return prompts.length === 1 ? 'Which color do you prefer?' : 'Blue it is.'; } });
+  const session = 'd'.repeat(32);
+  const first = await ask('help me choose a color', { 'X-Home-Session': session });
+  assert.equal(first.headers.get('x-home-await-reply'), '1');
+  const other = await ask('green', { 'X-Home-Session': 'e'.repeat(32), 'X-Home-Follow-Up': '1' });
+  assert.equal(prompts[1], 'green');
+  assert.equal(other.headers.get('x-home-await-reply'), null);
+  await ask('blue', { 'X-Home-Session': session, 'X-Home-Follow-Up': '1' });
+  assert.match(prompts[2], /Luna asked: Which color do you prefer\?/);
+  assert.match(prompts[2], /User replies: blue$/);
+  await ask('another topic', { 'X-Home-Session': session });
+  assert.equal(prompts[3], 'another topic');
 });

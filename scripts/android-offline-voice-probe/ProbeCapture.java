@@ -52,9 +52,8 @@ final class ProbeCapture {
     // anything else is decoded once, free-form, from the complete audio after
     // the microphone has been stopped.
     private static final long REPLAY_MAX_MS = 45000;
-    // Silence before the command is not worth decoding twice: replay starts this
-    // far before the point where the fixed-phrase recognizer last heard nothing.
-    private static final int REPLAY_LEAD_FRAMES = 8000;
+    // An empty timer-grammar result can contain out-of-vocabulary speech.
+    // Replay the entire post-wake command; never treat that result as silence.
     // Loading the model takes several seconds on a small device, and nothing is
     // heard meanwhile. While wake listening stays enabled the model and its two
     // recognizers are kept between exchanges and reset, never rebuilt, so there
@@ -85,6 +84,7 @@ final class ProbeCapture {
             retire = false;
         }
     }
+    private final boolean followUp;
     private volatile CommandAudio commandAudio;
     private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
@@ -107,8 +107,12 @@ final class ProbeCapture {
         this(context, capture, wait, false, listener);
     }
     ProbeCapture(Context context, boolean capture, boolean wait, boolean persistent, Listener listener) {
+        this(context, capture, wait, persistent, false, listener);
+    }
+    ProbeCapture(Context context, boolean capture, boolean wait, boolean persistent, boolean followUp, Listener listener) {
         this.context = context.getApplicationContext();
         this.capture = capture; this.wait = wait; this.persistent = persistent && capture && wait; this.listener = listener;
+        this.followUp = followUp && this.persistent;
         maximum = this.persistent ? Long.MAX_VALUE : SystemClock.elapsedRealtime() + (wait ? WakeSession.WAIT_MS : 30000);
         deadline = maximum;
     }
@@ -236,7 +240,7 @@ final class ProbeCapture {
         CaptureTiming timing = new CaptureTiming();
         boolean questions = persistent && QuestionReply.enabled(context);
         String code = "ENGINE_UNAVAILABLE", message = "Offline engine could not start. No timer started.", phase = "NATIVE_LOAD";
-        int matched = 0, quiet = 0;
+        int matched = 0;
         Engine engine = null;
         boolean failed = false;
         try {
@@ -290,6 +294,10 @@ final class ProbeCapture {
                     show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna" + (persistent ? " until disabled." : " (up to 5 minutes).") + " Pause after the wake phrase."
                         : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.",
                         wait ? LunaFace.State.WAITING : LunaFace.State.AWAKE);
+                    if (followUp && questions && wake != null) {
+                        wake.beginFollowUp(SystemClock.elapsedRealtime());
+                        openCommandWindow(wake, timing, questions);
+                    }
                     code = "NO_COMPLETE_COMMAND"; message = "Test ended without a complete command. No timer started.";
                     while (!closed && SystemClock.elapsedRealtime() < deadline) {
                         if (blocked(context)) { code = "ACCESS_STOP"; message = "Lock, mute or permission changed. No timer started."; return; }
@@ -313,14 +321,13 @@ final class ProbeCapture {
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
                             int seconds;
-                            if (commandStage && queued != null && text.trim().isEmpty()) quiet = queued.consumed();
                             if (!commandStage) {
                                 seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime(), TimerAlarmService.ringing()) : TimerPhrase.seconds(text);
                                 if (seconds == TimerCommand.STOP) Log.i("HomeVoiceProbe", "ALARM_STOP_WITHOUT_WAKE");
                             } else if (TimerCommand.valid(TimerCommand.parse(text))) {
                                 seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
                             } else if (questions && queued != null && !text.trim().isEmpty()) {
-                                String heard = decodeCaptured(queued, command, wake, samples, timing, Math.max(0, quiet - REPLAY_LEAD_FRAMES));
+                                String heard = decodeCaptured(queued, command, wake, samples, timing, 0);
                                 if (heard == null) continue;
                                 long decoded = SystemClock.elapsedRealtime();
                                 seconds = wake.acceptFinal(heard, decoded);

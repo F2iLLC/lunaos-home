@@ -65,7 +65,7 @@ test("voice and UI edits meet in one store through the real HTTP path, and survi
     assert.equal(
       (await post({ action: "say", text: "what's on my movies list" })).body
         .reply,
-      "Movies to watch: Interstellar.",
+      "Your Movies to watch list contains Interstellar.",
     );
 
     // Voice completes an item; the next UI snapshot shows it.

@@ -15,9 +15,18 @@ import io.github.f2illc.lunaos.home.voiceprobe.HomeLunaBridge
 internal class LunaTimerArgs { var id: Int = 0 }
 @InvokeArg
 internal class LunaOnlineArgs { var enabled: Boolean = false }
+@InvokeArg
+internal class NotebookArgs { var body: String = ""; var session: String = "" }
 
 @TauriPlugin
 class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
+    @Command fun notebookRequest(invoke: Invoke) {
+        val args = invoke.parseArgs(NotebookArgs::class.java)
+        Thread {
+            try { invoke.resolve(HomeLunaBridge.notebook(activity, args.body, args.session)) }
+            catch (_: Exception) { invoke.reject("Could not confirm the result. Reopen the list before trying again.") }
+        }.start()
+    }
     @Command fun lunaSnapshot(invoke: Invoke) {
         try { invoke.resolve(HomeLunaBridge.snapshot(activity)) }
         catch (_: Exception) { invoke.reject("Home voice status unavailable.") }

@@ -172,10 +172,10 @@ public class PowerManager {
 class ProbeCapture {
  interface Listener {void visual(LunaFace.State s);void status(String s);void finished(String c,String t,int s,long d,boolean canceled);}
  static boolean blocked, busy; static int starts, releases; static ProbeCapture last; static void releaseEngine() { releases++; }
- final Listener listener; boolean stopped;
- ProbeCapture(android.content.Context c,boolean audio,boolean wait,boolean persistent,Listener l) {
+ final Listener listener; boolean stopped; final boolean followUp;
+ ProbeCapture(android.content.Context c,boolean audio,boolean wait,boolean persistent,boolean followUp,Listener l) {
   if(!audio||!wait||!persistent) throw new AssertionError("Persistent capture required");
-  listener=l;last=this;
+  listener=l;last=this;this.followUp=followUp;
  }
  static boolean blocked(android.content.Context c) {return blocked;}
  static boolean busy() {return busy;}

@@ -60,6 +60,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             android_vault::open_fictional_vault,
             android_vault::get_luna_snapshot,
+            android_vault::notebook_request,
             android_vault::enable_luna_wake,
             android_vault::request_luna_microphone,
             android_vault::disable_luna_wake,

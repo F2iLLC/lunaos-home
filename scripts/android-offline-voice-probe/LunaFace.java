@@ -18,6 +18,8 @@ final class LunaFace extends View {
     private final Path hair = new Path();
     private final Path bowLoop = new Path();
     private final Path bowFold = new Path();
+    private final Path notebook = new Path();
+    private final Path pencil = new Path();
     private final Typeface sleepyTypeface = Typeface.create("sans-serif", Typeface.BOLD);
     private final Typeface headingTypeface = Typeface.create("sans-serif-medium", Typeface.BOLD);
     private final Typeface detailTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
@@ -49,6 +51,10 @@ final class LunaFace extends View {
         bowLoop.cubicTo(158, 100, 185, 79, 200, 65);
         bowLoop.close();
         bowFold.moveTo(190, 66); bowFold.quadTo(164, 57, 147, 49);
+        notebook.moveTo(117, 250); notebook.lineTo(196, 261); notebook.lineTo(283, 250);
+        notebook.lineTo(283, 302); notebook.lineTo(196, 310); notebook.lineTo(117, 302); notebook.close();
+        pencil.moveTo(260, 243); pencil.lineTo(269, 249); pencil.lineTo(237, 293);
+        pencil.lineTo(226, 300); pencil.lineTo(229, 287); pencil.close();
         setBackgroundColor(NIGHT);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
         setState(State.OFF);
@@ -104,7 +110,7 @@ final class LunaFace extends View {
             ink.setStrokeWidth(8); ink.setStrokeCap(Paint.Cap.ROUND);
             c.drawArc(x - 23, 159, x + 23, 185, 8, 164, false, ink);
             ink.setStyle(Paint.Style.FILL);
-        } else if (state == State.RETRY) {
+        } else if (state == State.RETRY || (state == State.RESPONSE && "puzzled".equals(QuestionPolicy.notebookAnimation()))) {
             line(c, x - 20, 173, x, 181); line(c, x, 181, x + 20, 173);
         } else if ((state == State.REVIEW || state == State.RESPONSE)) {
             ink.setColor(NIGHT); ink.setStyle(Paint.Style.STROKE); ink.setStrokeWidth(8);
@@ -196,13 +202,37 @@ final class LunaFace extends View {
             ink.setAlpha(255);
         }
         canvas.restore();
+        if (state == State.RESPONSE && !TimerAlarmService.ringing()) drawNotebook(canvas, time);
         ink.setTypeface(headingTypeface);
         ink.setTextAlign(Paint.Align.CENTER); ink.setTextSize(29); ink.setColor(awake ? MINT : CREAM);
         canvas.drawText(heading(), 200, 326, ink);
         ink.setTypeface(detailTypeface);
         ink.setTextSize(13); ink.setColor(LAVENDER); canvas.drawText(detail(), 200, 355, ink);
         canvas.restore();
-        if (active && getWindowVisibility() == VISIBLE && (awake || sleepy || state == State.PREPARING))
+        if (active && getWindowVisibility() == VISIBLE && (awake || sleepy || state == State.PREPARING || state == State.RESPONSE))
             postInvalidateDelayed(sleepy ? 100 : 65);
+    }
+
+    private void drawNotebook(Canvas canvas, double time) {
+        String animation = QuestionPolicy.notebookAnimation();
+        if (animation.isEmpty()) return;
+        canvas.save();
+        if ("new-page".equals(animation) || "read".equals(animation))
+            canvas.scale(1, .92f + .08f * (float) Math.sin(time * 4), 200, 300);
+        ink.setStyle(Paint.Style.FILL); ink.setColor(CREAM); canvas.drawPath(notebook, ink);
+        line(canvas, 196, 264, 196, 305);
+        if ("checkmark".equals(animation)) {
+            line(canvas, 213, 282, 227, 294); line(canvas, 227, 294, 260, 265);
+        } else if ("cross-out".equals(animation)) {
+            line(canvas, 213, 276, 263, 294); line(canvas, 213, 294, 263, 276);
+        } else if ("puzzled".equals(animation)) {
+            ink.setColor(NIGHT); ink.setTextSize(32); canvas.drawText("?", 234, 295, ink);
+        } else {
+            float motion = (float) Math.sin(time * ("hover".equals(animation) ? 2 : 14));
+            canvas.translate(motion * 7, "hover".equals(animation) ? -16 : motion * 2);
+            if ("erase-rewrite".equals(animation)) canvas.rotate(180, 247, 271);
+            ink.setColor(Color.rgb(255, 218, 134)); canvas.drawPath(pencil, ink);
+        }
+        canvas.restore();
     }
 }

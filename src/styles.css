@@ -258,6 +258,12 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 
 /* Luna's notebook */
 .notebook-luna { display: block; width: min(60vw, 240px); height: auto; margin: 0 auto 10px; overflow: visible; }
+.luna-notebook-feedback { display: none; transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="response"][data-notebook-animation]:not([data-notebook-animation=""]) .luna-notebook-feedback { display: block; }
+.luna-avatar[data-notebook-animation="scribble"] .luna-notebook-mark,
+.luna-avatar[data-notebook-animation="erase-rewrite"] .luna-notebook-mark { animation: nb-scribble .35s ease-in-out infinite alternate; }
+.luna-avatar[data-notebook-animation="new-page"] .luna-notebook-feedback { animation: nb-open .9s ease-out; }
+@media (prefers-reduced-motion: reduce) { .luna-notebook-feedback, .luna-notebook-mark { animation: none !important; } }
 .notebook-luna .nb-pencil, .notebook-luna .nb-check, .notebook-luna .nb-cross, .notebook-luna .nb-mouth-puzzled { opacity: 0; }
 .notebook-luna .nb-pencil, .notebook-luna .nb-notebook { transform-box: fill-box; transform-origin: center; }
 .notebook-luna[data-animation="new-page"] .nb-notebook { animation: nb-open .9s ease-out 2; }
@@ -278,3 +284,41 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 @keyframes nb-scribble { from { transform: translate(-6px, 2px) rotate(-6deg); } to { transform: translate(6px, -2px) rotate(6deg); } }
 @keyframes nb-draw { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .notebook-luna * { animation: none !important; } }
+
+/* A readable dotted notebook page for voice results. */
+.notebook-popup {
+  box-sizing: border-box; width: min(680px, 90vw); max-height: 85vh;
+  margin: auto; padding: 34px 44px 40px 58px; border: 1px solid #d8cbb6;
+  border-radius: 6px 20px 20px 6px; color: #363249;
+  background-color: #fffaf0;
+  background-image: radial-gradient(#bfb4a3 0.8px, transparent 0.8px);
+  background-size: 20px 20px;
+  box-shadow: inset 16px 0 #eee4d1, 0 18px 64px #11142655;
+  font-family: 'Segoe Print', 'Bradley Hand', cursive;
+}
+.notebook-popup::backdrop { background: #11142680; }
+.notebook-popup h2 { margin: 8px 40px 22px 0; color: #363249; font-size: clamp(26px, 4vw, 38px); overflow-wrap: anywhere; }
+.notebook-popup-label { font: 700 12px system-ui, sans-serif; letter-spacing: .16em; color: #726381; }
+.notebook-popup-close { position: absolute; right: 16px; top: 12px; width: 48px; height: 48px; padding: 0; border: 0; background: transparent; color: #363249; font: 32px system-ui, sans-serif; cursor: pointer; }
+.notebook-popup-items { padding: 0; margin: 0; list-style: none; }
+.notebook-popup-items li { display: grid; grid-template-columns: 30px 1fr; gap: 6px 12px; padding: 12px 0; font-size: clamp(22px, 3vw, 30px); line-height: 1.4; overflow-wrap: anywhere; }
+.notebook-popup-items small { grid-column: 2; font: 16px/1.5 system-ui, sans-serif; }
+.notebook-popup-items .is-complete > span:nth-child(2) { text-decoration: line-through; color: #746a78; }
+.notebook-popup-check { color: #65548b; }
+.notebook-popup-status { font: 18px/1.5 system-ui, sans-serif; color: #5c5264; }
+.notebook-popup-status:empty { display: none; }
+@media (max-width: 480px) { .notebook-popup { padding: 28px 24px 30px 34px; } }
+
+.luna-caption {
+  box-sizing: border-box; background: #171526; color: #fffaf0;
+  padding: 16px 22px; border: 2px solid #b7a9f2; border-radius: 14px;
+  font: 600 clamp(22px, 3vw, 30px)/1.5 system-ui, sans-serif;
+  text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 35vh; overflow-y: auto;
+}
+.luna-caption-floating { position: fixed; z-index: 1000; bottom: 20px; left: 5vw; width: 90vw; margin: 0; box-shadow: 0 4px 20px #0006; }
+.notebook-popup-caption { position: sticky; bottom: 0; margin: 20px 0 0; }
+
+/* The Home avatar uses a predeclared radial gradient instead of a per-frame
+   Gaussian blur, including on the Echo Show's software-rendered WebView. */
+.home-luna-face .luna-avatar-glow { filter: none; }
