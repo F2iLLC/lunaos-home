@@ -318,3 +318,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 }
 .luna-caption-floating { position: fixed; z-index: 1000; bottom: 20px; left: 5vw; width: 90vw; margin: 0; box-shadow: 0 4px 20px #0006; }
 .notebook-popup-caption { position: sticky; bottom: 0; margin: 20px 0 0; }
+
+/* The Home avatar uses a predeclared radial gradient instead of a per-frame
+   Gaussian blur, including on the Echo Show's software-rendered WebView. */
+.home-luna-face .luna-avatar-glow { filter: none; }

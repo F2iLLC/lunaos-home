@@ -10,14 +10,18 @@ export function createLunaCaptions(button, { storage, document = globalThis.docu
   caption.setAttribute('aria-live', 'polite');
   caption.hidden = true;
   document.body.append(caption);
+  let previousRender = '';
   function render() {
+    const popupOpen = document.querySelector('.notebook-popup')?.open === true;
+    const signature = JSON.stringify([enabled, text, popupOpen]);
+    if (signature === previousRender) return;
+    previousRender = signature;
     button.textContent = `Luna captions: ${enabled ? 'On' : 'Off'}`;
     button.setAttribute('aria-pressed', String(enabled));
-    const popup = document.querySelector('.notebook-popup');
     const inner = document.querySelector('.notebook-popup-caption');
     const line = enabled && text ? `Luna: ${text}` : '';
     caption.textContent = line;
-    caption.hidden = !line || popup?.open === true;
+    caption.hidden = !line || popupOpen;
     if (inner) { inner.textContent = line; inner.hidden = !line; }
   }
   button.addEventListener('click', () => {
