@@ -65,6 +65,11 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.match(vaultDebugManifest, /service android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe\.TimerAlarmService"/);
   assert.doesNotMatch(vaultDebugManifest, /<package android:name="io\.github\.f2illc\.lunaos\.home\.voiceprobe"/);
   const rust = await readFile(new URL('../src-tauri/src/android_vault.rs', import.meta.url), 'utf8');
+  // Tauri deserializes and reserializes this struct: absent fields are silently
+  // dropped even when Java sends them and the frontend tests provide them.
+  const snapshot = rust.match(/pub struct LunaSnapshot \{([\s\S]*?)\n\}/)[1];
+  assert.match(snapshot, /pub notebook_list_id: Option<String>/);
+  assert.match(snapshot, /pub notebook_event: Option<u64>/);
   const plugin = await readFile(new URL('../scripts/android/vault/HomeVaultPlugin.kt', import.meta.url), 'utf8');
   assert.match(rust, /pub async fn enable_luna_wake/);
   assert.match(rust, /pub async fn request_luna_microphone/);
@@ -102,13 +107,14 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const elements = new Map();
     const children = [];
     const document = {
+      body: { append() {} },
       querySelector(selector) {
         if (!elements.has(selector)) elements.set(selector, { hidden: true, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
         return elements.get(selector);
       },
       createElement() {
         const local = new Map();
-        const element = { dataset: {}, after() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
+        const element = { dataset: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
             if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);

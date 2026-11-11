@@ -8,6 +8,8 @@ pub struct LunaSnapshot {
     pub reason: String,
     pub capture_phase: String,
     pub notebook_animation: Option<String>,
+    pub notebook_list_id: Option<String>,
+    pub notebook_event: Option<u64>,
     pub microphone_in_use: Option<bool>,
     pub online_answers_enabled: Option<bool>,
     pub online_answers_available: Option<bool>,
