@@ -53,6 +53,7 @@ public final class HomeLunaBridge {
             out.put("status", model ? "ready" : "unavailable");
             out.put("reason", reason);
             out.put("capturePhase", phase);
+            out.put("notebookAnimation", "response".equals(phase) ? QuestionPolicy.notebookAnimation() : "");
             out.put("microphoneInUse", microphone);
             out.put("onlineAnswersEnabled", QuestionReply.enabled(context));
             out.put("onlineAnswersAvailable", QuestionReply.configured(context));
@@ -81,6 +82,13 @@ public final class HomeLunaBridge {
     }
 
     public static void disable(Context context) { BackgroundWakeService.revoke(context); }
+
+    public static JSObject notebook(Context context, String body, String session) throws Exception {
+        if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android required");
+        JSObject result = new JSObject();
+        result.put("json", QuestionReply.notebook(context, body, session).toString());
+        return result;
+    }
 
     public static void setOnlineAnswers(Context context, boolean enabled) {
         if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android API 26+ required");

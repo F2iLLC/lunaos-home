@@ -223,6 +223,12 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 
 /* Luna's notebook */
 .notebook-luna { display: block; width: min(60vw, 240px); height: auto; margin: 0 auto 10px; overflow: visible; }
+.luna-notebook-feedback { display: none; transform-box: fill-box; transform-origin: center; }
+.luna-avatar[data-capture-phase="response"][data-notebook-animation]:not([data-notebook-animation=""]) .luna-notebook-feedback { display: block; }
+.luna-avatar[data-notebook-animation="scribble"] .luna-notebook-mark,
+.luna-avatar[data-notebook-animation="erase-rewrite"] .luna-notebook-mark { animation: nb-scribble .35s ease-in-out infinite alternate; }
+.luna-avatar[data-notebook-animation="new-page"] .luna-notebook-feedback { animation: nb-open .9s ease-out; }
+@media (prefers-reduced-motion: reduce) { .luna-notebook-feedback, .luna-notebook-mark { animation: none !important; } }
 .notebook-luna .nb-pencil, .notebook-luna .nb-check, .notebook-luna .nb-cross, .notebook-luna .nb-mouth-puzzled { opacity: 0; }
 .notebook-luna .nb-pencil, .notebook-luna .nb-notebook { transform-box: fill-box; transform-origin: center; }
 .notebook-luna[data-animation="new-page"] .nb-notebook { animation: nb-open .9s ease-out 2; }

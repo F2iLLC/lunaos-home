@@ -43,7 +43,7 @@ public final class WakeServiceProbe {
   Handler.advance(1000);check(ProbeCapture.starts==starts&&s.power.last.isHeld());
   QuestionReply.last.finish();Handler.advance(250);check(ProbeCapture.starts==starts+1);
   first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
-  QuestionReply.last.fail();check(BackgroundWakeService.latest.startsWith("Online answer unavailable"));Handler.advance(2500);check(ProbeCapture.busy());
+  QuestionReply.last.fail();check(BackgroundWakeService.latest.startsWith("Reply unavailable"));Handler.advance(2500);check(ProbeCapture.busy());
   first=ProbeCapture.last;first.busy=false;first.listener.finished("QUESTION_FINAL","tell me a story",0,SystemClock.now+10000,false);
   QuestionReply question=QuestionReply.last;starts=ProbeCapture.starts;disable(s);check(question.closed);
   question.finish();Handler.advance(1000);check(!BackgroundWakeService.running&&ProbeCapture.starts==starts);

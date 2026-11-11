@@ -75,4 +75,7 @@ test('real question reply handles HTTPS results, deadlines and cancellation', as
   }
   run('javac', ['-d', output, ...sources, 'scripts/android-offline-voice-probe/QuestionReply.java', 'scripts/android-offline-voice-probe/QuestionPolicy.java', 'test/fixtures/QuestionReplyProbe.java']);
   assert.match(run('java', ['-cp', output, 'io.github.f2illc.lunaos.home.voiceprobe.QuestionReplyProbe', output]), /Question reply contract checks passed/);
+  // Home uses a provisioned endpoint and also serves the native notebook page.
+  // Compile that shipped variant too, against the same Android API fixtures.
+  run('javac', ['-d', output, ...sources, 'scripts/android/voice/HomeQuestionReply.java', 'scripts/android-offline-voice-probe/QuestionPolicy.java']);
 });

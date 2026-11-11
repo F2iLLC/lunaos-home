@@ -26,6 +26,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       <g class="luna-avatar-eyes-closed" fill="none" stroke="#111426" stroke-width="9" stroke-linecap="round"><path d="M122 174q23-29 46 0m64 0q23-29 46 0"/></g>
       <g class="luna-avatar-eyes-open"><ellipse cx="145" cy="168" rx="13" ry="19" fill="#28243d"/><ellipse cx="255" cy="168" rx="13" ry="19" fill="#28243d"/><circle cx="149" cy="161" r="4" fill="white"/><circle cx="259" cy="161" r="4" fill="white"/></g>
       <ellipse cx="112" cy="213" rx="18" ry="8" fill="#f2a8ae"/><ellipse cx="288" cy="213" rx="18" ry="8" fill="#f2a8ae"/><path d="M184 211q16 23 32 0" fill="none" stroke="#111426" stroke-width="6" stroke-linecap="round"/><path d="M304 96a18 18 0 1 0 15 29 19 19 0 0 1-15-29Z" fill="#ffda86"/>
+      <g class="luna-notebook-feedback" aria-hidden="true"><path d="M117 250l79 11 87-11v52l-87 8-79-8Z" fill="#fff1e0" stroke="#b7a9f2" stroke-width="3"/><path d="M196 261v49" stroke="#28243d" stroke-width="3"/><text class="luna-notebook-mark" x="235" y="294" text-anchor="middle" font-size="35" fill="#28243d"></text></g>
     </svg>
     <h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
@@ -109,6 +110,11 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
         const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening locally for Hey Luna.', awake: 'Luna heard the wake phrase and is listening for a timer command.', response: 'Luna is responding; microphone paused.', retry: 'Listening paused. Enable it again when ready.' };
         luna.querySelector('.luna-avatar').dataset.capturePhase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
+        const notebookMarks = { 'new-page': '✧', scribble: '✎', read: '…', checkmark: '✓', 'cross-out': '×', 'erase-rewrite': '✎', hover: '…', puzzled: '?' };
+        const animation = snapshot.capturePhase === 'response' && !(snapshot.activeTimers || []).some(timer => timer.remainingSeconds === 0)
+          && Object.hasOwn(notebookMarks, snapshot.notebookAnimation) ? snapshot.notebookAnimation : '';
+        luna.querySelector('.luna-avatar').dataset.notebookAnimation = animation;
+        luna.querySelector('.luna-notebook-mark').textContent = notebookMarks[animation] || '';
         if (snapshot.status !== 'ready') {
           stateText.textContent = snapshot.reason === 'local_model_unavailable' ? 'Local wake model unavailable. Listening is off.' : 'Home voice service unavailable.';
         } else {
@@ -268,3 +274,4 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   document.querySelector('#home-actions').append(vehicle);
 }
 await import('./app.js');
+await import('./notebook.js');

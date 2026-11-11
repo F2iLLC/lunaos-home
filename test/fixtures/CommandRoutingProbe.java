@@ -39,6 +39,21 @@ public final class CommandRoutingProbe {
             check(QuestionPolicy.accepts(text), "ordinary question accepted");
         }
         WakeSession wake = new WakeSession(0, true);
+        for (String text : new String[] {"add milk to the grocery list", "add bananas too", "create a list of movies to watch",
+            "start a packing list", "mark laundry as done", "yes", "no"}) {
+            check(QuestionPolicy.accepts(text), "notebook reaches relay: " + text);
+            WakeSession notebookWake = new WakeSession(0, true);
+            check(!notebookWake.acceptQuestion(text, 1), "notebook still requires wake");
+            notebookWake.acceptFinal("hey luna", 2);
+            check(notebookWake.acceptFinal(text, 3) == 0, "notebook does not start timer");
+            check(notebookWake.acceptQuestion(text, 3), "notebook accepted after wake");
+        }
+        QuestionPolicy.notebookFeedback("checkmark");
+        check(QuestionPolicy.notebookAnimation().equals("checkmark"), "verified feedback accepted");
+        QuestionPolicy.resetConversation();
+        check(QuestionPolicy.notebookAnimation().isEmpty(), "revocation clears feedback");
+        QuestionPolicy.notebookFeedback("invented-success");
+        check(QuestionPolicy.notebookAnimation().isEmpty(), "unknown feedback rejected");
         check(!wake.acceptQuestion("why is the sky blue", 1), "no question before wake");
         wake.acceptFinal("hey luna", 2);
         wake.acceptFinal("hey luna", 3);

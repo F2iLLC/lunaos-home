@@ -66,11 +66,13 @@ public final class QuestionReplyProbe {
                 check(exchange.getRequestMethod().equals("POST"), "POST method");
                 check(("Bearer " + TOKEN).equals(exchange.getRequestHeaders().getFirst("Authorization")), "scoped token");
                 check("application/json".equals(exchange.getRequestHeaders().getFirst("Content-Type")), "JSON content type");
+                check(QuestionPolicy.sessionId.equals(exchange.getRequestHeaders().getFirst("X-Home-Session")), "conversation isolation header");
                 check(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8).equals("{\"question\":\"What is two plus two?\"}"), "question body");
                 arrived.countDown();
                 if (hold) check(release.await(8, TimeUnit.SECONDS), "fixture released");
                 byte[] wave = new byte[44]; System.arraycopy(new byte[]{'R','I','F','F'}, 0, wave, 0, 4);
                 exchange.getResponseHeaders().set("Content-Type", "audio/wav");
+                exchange.getResponseHeaders().set("X-Home-Notebook-Animation", "scribble");
                 exchange.sendResponseHeaders(status, wave.length);
                 exchange.getResponseBody().write(wave);
             } catch (IOException expectedDisconnect) {
@@ -85,6 +87,7 @@ public final class QuestionReplyProbe {
             reset(200, false); QuestionReply reply = request(results, 3000, 10000);
             await(() -> MediaPlayer.last != null); MediaPlayer player = MediaPlayer.last;
             check(results.isEmpty(), "network success alone is not playback completion");
+            check(QuestionPolicy.notebookAnimation().equals("scribble"), "actual relay outcome reaches avatar state");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");
             player.completed.call(player); player.error.call(player, 1, 1); reply.close();

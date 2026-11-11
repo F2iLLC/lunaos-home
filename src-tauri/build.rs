@@ -3,6 +3,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "open_fictional_vault",
             "get_luna_snapshot",
+            "notebook_request",
             "enable_luna_wake",
             "request_luna_microphone",
             "disable_luna_wake",

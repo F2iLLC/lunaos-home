@@ -22,7 +22,7 @@ Commit is write-to-pending, sync, read back, atomic rename, done by the one proc
 ## Not done
 
 - No household vault has been created on the Mac. Nothing is deployed and the relay is unchanged.
-- No route from the Echo Show or the Windows page to this vault.
+- The opt-in relay route and debug Android/desktop clients are implemented in [Notebook through the Mac relay](notebook-relay.md), but not deployed or physically accepted.
 - The Keychain item can be read by any process running as the same macOS user. This protects against disk or backup theft and other accounts, not against software already running as that user.
 - The VLT-03 lifecycle gates still apply before real household data: explained setup, changing or resetting the unlock, schema migration, and user-held recovery (VLT-07). There is no backup of this store yet; losing the Keychain item loses the vault.
 - The 64-record and 262144-byte ceilings were sized for prototypes and will need revisiting for a whole household.

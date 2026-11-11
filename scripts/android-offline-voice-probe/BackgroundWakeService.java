@@ -42,6 +42,7 @@ public final class BackgroundWakeService extends Service {
         }
     };
     static void revoke(android.content.Context context) {
+        QuestionPolicy.resetConversation();
         // Revoke synchronously, before Android delivers onDestroy or a queued callback.
         running = false;
         visual = LunaFace.State.OFF;
@@ -128,6 +129,7 @@ public final class BackgroundWakeService extends Service {
                     if (ProbeCapture.blocked(BackgroundWakeService.this)) {
                         end("Listening disabled: lock, mute or permission change. Microphone off.");
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && TimerCommand.valid(seconds)) {
+                        QuestionPolicy.notebookFeedback(null);
                         responding = true;
                         visual = LunaFace.State.RESPONSE;
                         String result;
@@ -146,6 +148,7 @@ public final class BackgroundWakeService extends Service {
                         } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)
                             && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
+                        QuestionPolicy.notebookFeedback(null);
                         responding = true; visual = LunaFace.State.RESPONSE;
                         latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
                         notifyStatus();
@@ -156,7 +159,7 @@ public final class BackgroundWakeService extends Service {
                                 if (destroyed || !running || generation != responseId) return;
                                 questionReply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false);
                                 latest = played ? "Answer playback finished. Returning to wake-word listening."
-                                    : "Online answer unavailable. Check the computer relay and USB. Returning to wake-word listening.";
+                                    : "Reply unavailable. A list change may have saved; check the notebook before retrying. Returning to wake-word listening.";
                                 visual = played ? LunaFace.State.RESPONSE : LunaFace.State.RETRY; notifyStatus();
                                 scheduleCapture(played ? 250 : 2500);
                             });
@@ -182,6 +185,7 @@ public final class BackgroundWakeService extends Service {
             return START_NOT_STICKY;
         }
         if (running || capture != null) return START_NOT_STICKY;
+        QuestionPolicy.resetConversation();
         NotificationManager notifications = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         NotificationChannel channel = new NotificationChannel(CHANNEL, "Wake-word listening", NotificationManager.IMPORTANCE_LOW);
         channel.setSound(null, null); channel.enableVibration(false);

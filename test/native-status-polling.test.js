@@ -8,7 +8,7 @@ const bundled = await build({
   plugins: [{
     name: 'isolate-unrelated-home-services',
     setup(builder) {
-      builder.onResolve({ filter: /(?:offline-drafts|draft-client|vault|draft-storage)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+      builder.onResolve({ filter: /(?:offline-drafts|draft-client|vault|draft-storage|notebook)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
         contents: 'export const createOfflineDraftClient = () => ({}); export const useOfflineDraftClient = () => {}; export const refreshDraft = () => {}; export const preserveSaveRoutes = () => {};',
       }));

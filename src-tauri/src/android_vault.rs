@@ -7,6 +7,7 @@ pub struct LunaSnapshot {
     pub status: String,
     pub reason: String,
     pub capture_phase: String,
+    pub notebook_animation: Option<String>,
     pub microphone_in_use: Option<bool>,
     pub online_answers_enabled: Option<bool>,
     pub online_answers_available: Option<bool>,
@@ -27,6 +28,22 @@ struct LunaTimerRequest {
 }
 
 pub(crate) struct Vault<R: Runtime>(PluginHandle<R>);
+
+#[derive(Serialize)]
+struct NotebookRequest { body: String, session: String }
+#[derive(Deserialize)]
+struct NotebookResponse { json: String }
+
+#[tauri::command]
+pub async fn notebook_request<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>, body: String, session: String) -> Result<String, String> {
+    if window.label() != "main" || body.len() > 8192 || !(32..=64).contains(&session.len())
+        || !session.bytes().all(|c| c.is_ascii_hexdigit() || c == b'-') {
+        return Err("Invalid notebook request".into());
+    }
+    state.0.run_mobile_plugin_async::<NotebookResponse>("notebookRequest", NotebookRequest { body, session }).await
+        .map(|response| response.json)
+        .map_err(|_| "Could not confirm the notebook result. Reopen the list before retrying.".into())
+}
 
 #[tauri::command]
 pub async fn open_fictional_vault<R: Runtime>(

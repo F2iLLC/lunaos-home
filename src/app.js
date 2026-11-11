@@ -1,4 +1,5 @@
 import { categories, createTask, toggleTask, removeTask } from './tasks.js';
+import { notebookRequest } from './notebook-client.js';
 import { refreshDraft } from './vault.js';
 import { preserveSaveRoutes } from './draft-storage.js';
 
@@ -123,13 +124,7 @@ render();
 // Without a vault it stays a list for this visit only, as before.
 const CHECKLIST = { name: 'My checklist', type: 'checklist' };
 async function notebook(body) {
-  const response = await fetch('/api/notebook', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Home-Preview': '1' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error('unavailable');
-  return response.json();
+  return notebookRequest(body);
 }
 function adopt(data) {
   if (!data.notebook) return;

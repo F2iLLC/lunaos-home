@@ -64,6 +64,7 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
+            next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
             byte[] body = new JSONObject().put("question", question).toString().getBytes(StandardCharsets.UTF_8);
             next.setFixedLengthStreamingMode(body.length);
             try (OutputStream out = next.getOutputStream()) { if (closed) throw new IOException(); out.write(body); }
@@ -72,7 +73,12 @@ final class QuestionReply implements AutoCloseable {
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
-            main.post(() -> play(context, result));
+            final String animation = next.getHeaderField("X-Home-Notebook-Animation");
+            main.post(() -> {
+                if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
+                    QuestionPolicy.notebookFeedback(animation);
+                play(context, result);
+            });
         } catch (Exception failure) {
             android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_UNAVAILABLE"); main.post(this::finish);
         } finally {

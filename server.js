@@ -15,6 +15,7 @@ const routes = new Map([
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
   ['/draft-storage.js', ['draft-storage.js', 'text/javascript']],
   ['/notebook.js', ['notebook.js', 'text/javascript']],
+  ['/notebook-client.js', ['notebook-client.js', 'text/javascript']],
 ]);
 
 export function createAppServer({ drafts = createDraftStore(), windowsPreview, draftVault, notebook } = {}) {
@@ -87,7 +88,11 @@ export function createAppServer({ drafts = createDraftStore(), windowsPreview, d
             if (bytes > 8192) { send(413, { error: 'That request is too large.' }); return; }
             chunks.push(chunk);
           }
-          send(200, await notebook.request(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+          const session = request.headers['x-home-session'];
+          if (session !== undefined && (typeof session !== 'string' || !/^[a-f0-9-]{32,64}$/.test(session))) {
+            send(400, { error: 'Please reopen the notebook.' }); return;
+          }
+          send(200, await notebook.request(JSON.parse(Buffer.concat(chunks).toString('utf8')), session));
           return;
         }
         if (request.url === '/api/draft' && request.method === 'GET') {

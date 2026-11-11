@@ -34,7 +34,7 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.equal(capability.remote, undefined);
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(capability.platforms, ['android']);
-  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-enable-luna-wake',
+  assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-notebook-request', 'allow-enable-luna-wake',
     'allow-request-luna-microphone', 'allow-disable-luna-wake', 'allow-set-luna-online-answers', 'allow-cancel-luna-timer']);
   const android = await json('../src-tauri/tauri.android.conf.json');
   assert.deepEqual(android.app.security.capabilities, ['android-fictional-launch']);
@@ -92,7 +92,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
       plugins: [{
         name: 'isolate-draft-ui',
         setup(builder) {
-          builder.onResolve({ filter: /(?:offline-drafts|draft-client|app)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+          builder.onResolve({ filter: /(?:offline-drafts|draft-client|app|notebook)\.js$/ }, args => ({ path: args.path, namespace: 'fixture' }));
           builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
             contents: 'export const createOfflineDraftClient = () => ({}); export const useOfflineDraftClient = () => {};',
           }));

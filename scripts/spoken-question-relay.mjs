@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { createQwenModel } from '../lib/qwen-model.js';
 import { createVehicleSpeech } from '../lib/vehicle-speech.js';
 import { createQuestionHandler } from '../lib/spoken-questions.js';
+import { createNotebookSessions } from '../lib/notebook-sessions.js';
+import { createVaultNotebook, openVaultFromEnvironment } from '../lib/vault-notebook.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 function external(path) {
@@ -26,11 +28,15 @@ try {
     && bytes[0] === 100 && bytes[1] >= 64 && bytes[1] <= 127;
   if (config.provider !== 'ollama-qwen' || typeof address !== 'string' || isIP(address) !== 4
     || (address !== '127.0.0.1' && !tailnetAddress)) throw Error();
-  const handler = createQuestionHandler({ token: config.token, voiceId: config.voiceId,
+  const vault = config.notebookEnabled === true ? await openVaultFromEnvironment() : undefined;
+  if (config.notebookEnabled === true && !vault) throw Error();
+  const notebooks = vault ? createNotebookSessions({ create: () => createVaultNotebook({ store: vault }) }) : undefined;
+  const handler = createQuestionHandler({ token: config.token, voiceId: config.voiceId, notebooks,
+    notebookSpeech: config.notebookSpeech === true,
     answer: createQwenModel({ endpoint: config.ollamaEndpoint ?? 'http://127.0.0.1:11434/api/chat', model: config.model ?? 'qwen3:32b' }),
     speak: createVehicleSpeech({ apiKey: env.LUNA_HOME_ELEVENLABS_API_KEY }) });
   const server = createServer({ cert: await readFile(external(config.cert)), key: await readFile(external(config.key)), minVersion: 'TLSv1.2' }, handler);
   server.requestTimeout = 60_000; server.headersTimeout = 10_000; server.timeout = 60_000;
   server.listen(18743, config.bindAddress, () => console.error('Spoken question relay ready on configured interface, port 18743.'));
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close());
+  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close(() => vault?.close?.()));
 } catch { console.error('Spoken question relay setup failed. Check private configuration.'); process.exitCode = 1; }

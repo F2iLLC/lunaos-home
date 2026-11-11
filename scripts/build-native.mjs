@@ -20,6 +20,7 @@ if (Object.keys(built.metafile.inputs).some(path => path.includes('@modelcontext
 }
 let html = await readFile(resolve(root, 'src/index.html'), 'utf8');
 html = html.replace('href="/styles.css"', 'href="./styles.css"').replace('src="/app.js"', 'src="./app.js"');
+html = html.replace('  <script type="module" src="/notebook.js"></script>\n', '');
 await writeFile(resolve(output, 'index.html'), html);
 await copyFile(resolve(root, 'src/styles.css'), resolve(output, 'styles.css'));
 await copyFile(resolve(root, 'src/windows-unlock.html'), resolve(output, 'windows-unlock.html'));

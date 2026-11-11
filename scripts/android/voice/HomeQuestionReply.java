@@ -82,6 +82,7 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestMethod("POST"); next.setDoOutput(true);
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
+            next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
             stage = "request_body";
             byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")
                 : new JSONObject().put("question", question)).toString().getBytes(StandardCharsets.UTF_8);
@@ -97,9 +98,14 @@ final class QuestionReply implements AutoCloseable {
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
+            final String animation = next.getHeaderField("X-Home-Notebook-Animation");
             android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_AUDIO_RECEIVED");
             stage = "playback_handoff";
-            main.post(() -> play(context, result));
+            main.post(() -> {
+                if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
+                    QuestionPolicy.notebookFeedback(animation);
+                play(context, result);
+            });
         } catch (Exception failure) {
             // Stage labels only: never log exception text, request data, or credentials.
             Throwable cause = failure.getCause();
@@ -122,6 +128,40 @@ final class QuestionReply implements AutoCloseable {
             synchronized (this) { if (connection != null) connection.disconnect(); connection = null; }
         }
     }
+    // Called on a worker thread by the native notebook page. Same enrolled
+    // endpoint, certificate and token as speech; no arbitrary URL from the UI.
+    static JSONObject notebook(Context context, String body, String session) throws Exception {
+        if (!configured(context) || body.length() > 8192 || !session.matches("[a-f0-9-]{32,64}")) throw new IOException();
+        JSONObject config = readConfig(context);
+        KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType()); store.load(null);
+        store.setCertificateEntry("relay", CertificateFactory.getInstance("X.509").generateCertificate(
+            new ByteArrayInputStream(config.getString("certificate").getBytes(StandardCharsets.US_ASCII))));
+        TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); trust.init(store);
+        SSLContext tls = SSLContext.getInstance("TLSv1.2"); tls.init(null, trust.getTrustManagers(), null);
+        HttpsURLConnection connection = (HttpsURLConnection) new java.net.URL(endpoint(config).replace("/question", "/notebook")).openConnection();
+        try {
+            connection.setSSLSocketFactory(tls.getSocketFactory()); connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(5000); connection.setReadTimeout(15000);
+            connection.setRequestMethod("POST"); connection.setDoOutput(true);
+            connection.setRequestProperty("Authorization", "Bearer " + config.getString("token"));
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("X-Home-Session", session);
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(bytes.length);
+            try (OutputStream output = connection.getOutputStream()) { output.write(bytes); }
+            finally { Arrays.fill(bytes, (byte) 0); }
+            if (connection.getResponseCode() != 200 || !"application/json".equals(connection.getContentType())) throw new IOException();
+            try (InputStream input = connection.getInputStream()) {
+                ByteArrayOutputStream output = new ByteArrayOutputStream(); byte[] buffer = new byte[8192]; int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() + count > 512 * 1024) throw new IOException();
+                    output.write(buffer, 0, count);
+                }
+                return new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
+            }
+        } finally { connection.disconnect(); }
+    }
+
     private static JSONObject readConfig(Context context) throws Exception {
         File file = new File(context.getFilesDir(), "question-relay.json");
         if (!file.isFile() || file.length() > 16384) throw new IOException();
