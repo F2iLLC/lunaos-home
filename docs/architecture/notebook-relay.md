@@ -40,6 +40,14 @@ the existing explicit online-answer setting and wake-word gate. Rebuild the app
 to include the new native command. The release/offline build gains no network
 permission or native command capability.
 
+## Current speech deployment
+
+Home now uses [Mac speech recognition](mac-speech-recognition.md). The Echo Show
+contains no local speech model; enabled listening sends bounded speech segments
+to the Mac for both wake and command recognition. Questions invite one bounded
+follow-up after playback. Captions clear six seconds after playback. Earlier
+verification entries below describe the builds that were tested at that time.
+
 ## Outcomes and conversation boundaries
 
 Each browser page and voice listener uses a random conversation identifier.
@@ -47,8 +55,8 @@ The relay maintains at most 64 conversations, expiring inactive ones after two
 minutes. Dialog context, destructive confirmations and member attribution are
 separate per conversation. Legacy clients without an identifier get a fresh
 dialog each request. Unrelated speech clears the active list. Turning off or
-restarting Android wake listening rotates its identifier. Every command still
-requires a new wake; follow-ups must also be preceded by “Hey Luna”. “Cancel”
+restarting Android wake listening rotates its identifier. Ordinary commands require a wake; when Luna asks a question, one reply can be
+given during the next 25 seconds without another wake. “Cancel”
 and “stop” retain their local timer meaning; answer “no” to a notebook prompt.
 
 Successful speech responses carry an allowlisted animation name derived from
