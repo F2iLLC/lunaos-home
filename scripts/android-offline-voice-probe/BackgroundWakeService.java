@@ -88,6 +88,7 @@ public final class BackgroundWakeService extends Service {
         capture = null;
         handler.removeCallbacksAndMessages(null);
         releaseWakeLock(); stopForeground(true); stopSelf();
+        ProbeCapture.releaseEngine();
         Log.i("HomeVoiceProbe", "BACKGROUND_STOPPED");
     }
     private void scheduleCapture(long delay) {
@@ -205,6 +206,7 @@ public final class BackgroundWakeService extends Service {
         if (capture != null) capture.stop();
         capture = null; running = false;
         handler.removeCallbacksAndMessages(null); releaseWakeLock(); stopForeground(true);
+        ProbeCapture.releaseEngine();
         super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }

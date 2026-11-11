@@ -123,10 +123,31 @@ the silence, not by a spoken reply.
 
 While a timer is ringing, and only then, that plain request is honored without
 the wake phrase, so `stop` or `Luna, stop` is enough. Nothing else is accepted
-without the wake phrase, and numbered timers still need it. This is not yet
-established on the device: whether `stop` is heard over the alarm at full
-volume, and whether the alarm's own sound is ever mistaken for it, each need
-attended use. Pausing and resuming a timer are not supported.
+without the wake phrase, and numbered timers still need it.
+
+On the device the first build silenced an alarm once, then stopped responding
+to `stop` a few seconds into the ringing. The likely cause is that the alarm
+fills the room, so the recognizer never hears the pause that ends an utterance
+and never issues a final result. While a timer rings, the words still being
+heard are therefore checked as well: a request for silence or the wake phrase
+counts when it is the last thing heard and reads the same on three checks in a
+row (log code `ALARM_STOP_OVER_RINGING`). The cause is inferred, not measured,
+and neither this fix nor whether the alarm's own sound can now be mistaken for
+`stop` is established without attended use. An alarm left alone rang past a
+minute on the first build.
+
+The alarm plays at the media volume, the one the device's volume buttons change
+and the one Luna speaks at. It used the separate alarm volume before, which the
+buttons do not reach. A timer is therefore silent if the media volume is zero.
+
+**Waiting less.** The command window after the wake phrase is 25 seconds. While
+wake listening stays enabled the speech model and its recognizers are kept and
+reset between exchanges instead of being reloaded, which took about five
+seconds during which nothing was heard; they are freed when listening is
+disabled. A question is decoded from just before the speech rather than from
+the wake phrase, so a pause before asking no longer adds to the wait. Decoding
+a question on this device still takes about as long as the question took to
+say, before the relay is asked. Pausing and resuming a timer are not supported.
 
 A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
 Once a timer attempt is recognized in a wake window, later fragments cannot
