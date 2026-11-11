@@ -4,7 +4,7 @@ This increment implements the Windows adapter selected in the
 [durability matrix](../architecture/grocery-durability-matrix.md) behind the
 shared `VersionedVaultRecordStore` v2 contract and runs it through the
 [adapter conformance suite](../architecture/versioned-record-store-conformance.md)
-and the grocery fault matrix. It advances [VLT-03](https://github.com/F2iLLC/lunaos-home/issues/6)
+and the interrupted-write fault matrix (first written for the retired grocery record, now run on the notebook record). It advances [VLT-03](https://github.com/F2iLLC/lunaos-home/issues/6)
 and [GROC-02](https://github.com/F2iLLC/lunaos-home/issues/141). It is a
 developer-harness result with fictional records. The selected Software KSP
 protector and an unlock-session lifecycle are implemented behind the seam, but

@@ -35,6 +35,13 @@ export async function assertNotebookFaultMatrix({
   withFault,
   afterEach,
 }) {
+  // The whole snapshot is rewritten on each commit, so a neighbour must survive too.
+  const neighbour = {
+    memberId: "alex-example",
+    label: "Workplace",
+    value: "Willow Studio",
+  };
+  const saved = await store.create("alex-work", neighbour);
   const made = await luna(store).run({ op: "create_list", name: "Packing" });
   assert.equal(made.status, "applied");
   let expected = made.notebook;
@@ -45,7 +52,13 @@ export async function assertNotebookFaultMatrix({
       list: "packing",
       items: [{ text }],
     });
-    const read = await luna(await reopen()).read();
+    const reopened = await reopen();
+    assert.deepEqual(
+      await reopened.read("alex-work"),
+      { revision: saved.revision, data: neighbour },
+      `${fault}: another record in the store is untouched`,
+    );
+    const read = await luna(reopened).read();
     assert.equal(read.status, "read", `${fault}: the notebook stays readable`);
     const texts = read.notebook.lists[0].items.map((item) => item.text);
     if (outcome === "new") {

@@ -48,7 +48,7 @@ Both Windows encrypted stores also accept the `household-notebook` record kind (
 
 Owner ruling, 2026-11-10: "i don't want a separate grocery list function just the notebook with lists." The grocery list is a list in the notebook like any other. The earlier `grocery-list` record kind, its command contract (`lib/grocery-contract.js`, `lib/grocery-list.js`, `lib/grocery-persistence.js`) and its tests were removed. Nothing user-facing used them. Their durability tests now run against the notebook record: the eight-stage interrupted-write matrix on both Windows stores (`test/support/notebook-fault-matrix.js`) and conformance clauses C-08 to C-16.
 
-A store that still holds a `grocery-list` record from before this change refuses it as an unknown record kind. Only developer and test stores ever held one.
+A store that still holds a `grocery-list` record from before this change does not open at all: the Mac store, the PowerShell worker and the Rust store each validate every record on load and fail the whole read, leaving the bytes on disk untouched. The other records in that store are unreachable until it is opened with older code, and there is no way to delete the old record from the new code. Only developer and test stores ever held one, so no migration was written.
 
 ## Known limits
 

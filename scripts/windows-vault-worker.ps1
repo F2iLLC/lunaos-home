@@ -75,8 +75,8 @@ function Assert-Notebook($Value) {
     }
 }
 function Test-ListRecord($Value) {
-    return $Value -is [Collections.IDictionary] -and $Value.Contains('kind') -and
-        $Value.kind -ceq 'household-notebook'
+    # Anything tagged with a kind is a list record, never a member detail.
+    return $Value -is [Collections.IDictionary] -and $Value.Contains('kind')
 }
 function Assert-RecordData($Value) {
     if ($Value -isnot [Collections.IDictionary]) { throw 'data' }
