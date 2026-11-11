@@ -95,3 +95,22 @@ installed successfully on the selected Echo Show 8 (Android 11). Its SHA-256 is
 `7535c26cc1beaf10de4f72035a69965f485bc8a986f7ab78084e07a5133b5438`.
 The prior APK was preserved for rollback. Installation is not microphone,
 speaker or visual acceptance; an attended check was requested separately.
+
+Attended feedback confirmed the explicit movie-list addition; an authenticated
+readback verified both synthetic titles in the vault. The first spoken follow-up
+instead produced a general answer. The exact reported phrase parses correctly
+and isolated-context regression tests pass, so recognition/routing remains under
+investigation; this is not a full voice acceptance pass. Readback now explicitly
+says “Your … list contains …” to separate the title from the items in speech.
+
+Successful voice results now carry the saved list identifier to the Android
+snapshot. A dismissible dotted-grid notebook page loads that list from the same
+vault and renders its title, quantities, notes and completion marks as text.
+A new voice result refreshes the page; dismissal persists until a new result,
+and sleep or a ringing timer closes it. Late reads cannot reopen a closed page.
+The focused relay, popup, status polling, Java HTTPS and command-routing checks
+passed (11 tests); the updated Android ARMv7 APK built successfully at `8ea8abd`.
+Physical popup appearance and the first-follow-up recognition issue still need
+attended verification.
+The `8ea8abd` APK subsequently installed successfully on the selected Echo Show
+with an in-place update; the test relay remains temporary for attended checks.
