@@ -61,6 +61,41 @@ public final class NativeTimerProbe {
   check(!ringing.foreground&&!TimerAlarmService.ringing()&&android.media.MediaPlayer.releases==before+1);
   check(NativeTimers.execute(ringing,TimerCommand.STOP).equals("Timer three canceled.")); // One counting timer left: stop means it.
   ringing.onDestroy();
+  // Pause and resume: by voice wording, by number, and never an alarm.
+  check(TimerCommand.parse("pause")==TimerCommand.pause(0)&&TimerCommand.parse("pause the timer")==TimerCommand.pause(0)&&TimerCommand.parse("hold it")==TimerCommand.pause(0));
+  check(TimerCommand.parse("resume")==TimerCommand.resume(0)&&TimerCommand.parse("continue the timer")==TimerCommand.resume(0)&&TimerCommand.parse("resume my timer")==TimerCommand.resume(0));
+  for(int id=1;id<=8;id++) {
+   check(TimerCommand.parse("pause timer "+TimerPhrase.number(id))==TimerCommand.pause(id)&&TimerCommand.target(TimerCommand.pause(id))==id&&TimerCommand.valid(TimerCommand.pause(id)));
+   check(TimerCommand.parse("resume timer "+id)==TimerCommand.resume(id)&&TimerCommand.target(TimerCommand.resume(id))==id&&TimerCommand.valid(TimerCommand.resume(id)));
+  }
+  for(String text:new String[]{"pause the alarm","hold","continue","pause timer nine","pause the music","resume the alarm"}) check(TimerCommand.parse(text)==0);
+  check(!TimerCommand.valid(-29)&&!TimerCommand.valid(-39)&&!TimerCommand.valid(-49));
+  Context p=new Context();SystemClock.now=1000;
+  check(NativeTimers.execute(p,TimerCommand.pause(0)).equals("That timer is not active."));
+  NativeTimers.execute(p,60);int alarmsBefore=p.alarms.cancels;
+  check(NativeTimers.execute(p,TimerCommand.resume(0)).equals("That timer is not active.")); // Nothing is paused yet.
+  SystemClock.now=11000;check(NativeTimers.execute(p,TimerCommand.pause(0)).equals("Timer one paused."));
+  TimerLedger held=NativeTimers.read(p);check(held.held(1)&&held.paused[1]==50000&&held.deadlines[1]==TimerLedger.HELD&&p.alarms.cancels==alarmsBefore+1);
+  check(NativeTimers.execute(p,TimerCommand.pause(0)).equals("That timer is not active.")); // Already paused.
+  Intent stale=p.alarms.last.intent;SystemClock.now=500000;NativeTimers.deliver(p,stale);check(p.alarmStarts==0); // A paused timer never fires.
+  check(NativeTimers.execute(p,TimerCommand.add(1,60)).contains("extended")&&NativeTimers.read(p).paused[1]==110000);
+  check(NativeTimers.execute(p,TimerCommand.resume(1)).equals("Timer one resumed."));
+  TimerLedger again=NativeTimers.read(p);check(!again.held(1)&&again.deadlines[1]==610000);
+  NativeTimers.execute(p,30);NativeTimers.execute(p,TimerCommand.pause(2));
+  check(NativeTimers.execute(p,TimerCommand.pause(0)).equals("Timer one paused.")); // The only one still counting.
+  check(NativeTimers.execute(p,TimerCommand.resume(0)).contains("More than one"));
+  check(NativeTimers.execute(p,TimerCommand.cancel(2)).equals("Timer two canceled.")&&!NativeTimers.read(p).held(2)&&NativeTimers.read(p).free()==2);
+  check(TimerLedger.decode(NativeTimers.read(p).encode(1),1).paused[1]==NativeTimers.read(p).paused[1]);
+  check(TimerLedger.decode("1:3:5000,1,700:0,0:0,0:0,0:0,0:0,0:0,0:0,0",1).free()==1); // Paused time without a held deadline is rejected whole.
+  NativeTimers.execute(p,TimerCommand.cancel(1));
+  // A timer nobody answers stops itself after ringing for a minute.
+  android.media.MediaPlayer.fail=false;TimerAlarmService alone=new TimerAlarmService();SystemClock.now=1000;
+  NativeTimers.execute(alone,5);NativeTimers.execute(alone,600);SystemClock.now=6000;
+  alone.onStartCommand(new Intent(alone,TimerAlarmService.class),0,5);check(alone.foreground&&TimerAlarmService.ringing());
+  android.os.Handler.advance(TimerAlarmService.RING_MS-1000);check(TimerAlarmService.ringing()&&NativeTimers.read(alone).deadlines[1]>0);
+  android.os.Handler.advance(1500);check(!TimerAlarmService.ringing()&&!alone.foreground);
+  TimerLedger after=NativeTimers.read(alone);check(after.deadlines[1]==0&&after.deadlines[2]==601000); // Only the one that rang.
+  NativeTimers.execute(alone,TimerCommand.cancel(2));alone.onDestroy();
   System.out.println("Native timer checks passed ("+checks+" cases).");
  }
 }

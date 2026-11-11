@@ -64,6 +64,7 @@ test('bundled offline replies sequence exact clips, release playback, and recove
           }
           check(java.util.Arrays.equals(ReplyPlan.clips("Timer one started for 5400 seconds."),new String[]{"setting-timer","hour-1","minute-30"}));
           check(java.util.Arrays.equals(ReplyPlan.clips("Timer two started for 150 seconds."),new String[]{"setting-timer","minute-2","second-30","timer-2"}));
+          check(java.util.Arrays.equals(ReplyPlan.clips("Timer two paused."),new String[]{"timer-2","paused"})&&java.util.Arrays.equals(ReplyPlan.clips("Timer one resumed."),new String[]{"timer-1","resumed"})&&manifest.contains("paused")&&manifest.contains("resumed"));
           for(String bad:new String[]{"Timer one started for 0 seconds.","Timer one started for 86401 seconds.","Timer one started for -5 seconds.","Timer one started for 5 seconds. Extra","Timer nine started for 5 seconds."})
             check(ReplyPlan.clips(bad)[0].equals("unsupported"));
           check(ReplyPlan.clips("Timer eight canceled.")[0].equals("cancel-8"));

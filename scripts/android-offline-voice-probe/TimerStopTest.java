@@ -28,7 +28,7 @@ public final class TimerStopTest {
         // Nothing is guessed.
         for (String refused : new String[] {
             "stop the music", "stop talking", "don't stop", "stop timer nine", "cancel timer zero", "stop the timer now",
-            "please stop", "turn off", "turn off the lights", "stop stop", "cancel everything", "pause the timer", "",
+            "please stop", "turn off", "turn off the lights", "stop stop", "cancel everything", "pause the alarm", "",
         }) check(TimerCommand.parse(refused) == 0, "refused: " + refused);
 
         // Without the wake phrase, stop works only while a timer is ringing,

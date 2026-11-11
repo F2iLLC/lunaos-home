@@ -117,9 +117,9 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     const remainder = String(seconds % 60).padStart(2, '0');
     return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${remainder}` : `${minutes}:${remainder}`;
   };
-  const showCountdown = (countdown, remaining) => {
-    countdown.textContent = remaining > 0 ? formatTimerDuration(remaining) : 'Time is up';
-    countdown.setAttribute('aria-label', remaining > 0 ? `${remaining} seconds remaining` : 'Time is up');
+  const showCountdown = (countdown, remaining, paused = false) => {
+    countdown.textContent = paused ? `Paused · ${formatTimerDuration(remaining)}` : remaining > 0 ? formatTimerDuration(remaining) : 'Time is up';
+    countdown.setAttribute('aria-label', paused ? `Paused with ${remaining} seconds remaining` : remaining > 0 ? `${remaining} seconds remaining` : 'Time is up');
   };
   const stopTimerCountdown = () => {
     if (timerCountdownPoll !== undefined) {
@@ -214,8 +214,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         countdown.className = 'luna-timer-countdown';
         countdown.setAttribute('role', 'timer');
         countdown.setAttribute('aria-live', 'off');
-        countdown.dataset.deadline = String(performance.now() + Math.max(0, Number(timer.remainingSeconds) || 0) * 1000);
-        showCountdown(countdown, Math.max(0, Math.ceil(Number(timer.remainingSeconds) || 0)));
+        if (timer.paused !== true) countdown.dataset.deadline = String(performance.now() + Math.max(0, Number(timer.remainingSeconds) || 0) * 1000);
+        showCountdown(countdown, Math.max(0, Math.ceil(Number(timer.remainingSeconds) || 0)), timer.paused === true);
         const cancel = document.createElement('button');
         cancel.type = 'button';
         cancel.className = 'luna-timer-cancel';

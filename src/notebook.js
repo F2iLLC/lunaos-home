@@ -28,19 +28,19 @@ if (root) {
     return node;
   };
 
-  // Success is shown only after the notebook service confirms an applied/read result.
+  // State changes follow confirmed outcomes from the notebook service.
   function play(outcome) {
     clearTimeout(timer);
     avatar.update({ state: notebookAvatarState(outcome) });
     timer = setTimeout(() => {
-      avatar.update({ state: "idle" });
+      avatar.update({ state: 'idle' });
     }, 2200);
   }
 
   async function call(body) {
     if (busy) return null;
     busy = true;
-    avatar.update({ state: "working" });
+    avatar.update({ state: 'working' });
     root.setAttribute("aria-busy", "true");
     errorLine.textContent = "";
     try {
@@ -205,7 +205,7 @@ if (root) {
   function show(data, announce) {
     if (data.members) showMembers(data.members, data.member);
     if (data.notebook) render(data.notebook);
-    play(data.avatar);
+    if (data.avatar) play(data.avatar);
     if (announce !== undefined) status.textContent = announce;
   }
 
@@ -243,13 +243,13 @@ if (root) {
   window.addEventListener("hashchange", () => {
     if (location.hash === "#notebook") refresh();
   });
-  const refreshTimer = setInterval(() => {
+  if (location.hash === "#notebook") refresh();
+  // Voice and other devices write the same vault. Refresh only while viewing
+  // it, without replacing an input or a control the user is working with.
+  setInterval(() => {
     if (!document.hidden && location.hash === '#notebook' && !busy
       && !(root.contains(document.activeElement)
         && document.activeElement.matches('input:not([type="checkbox"]), textarea, select'))) refresh();
   }, 3000);
-  window.addEventListener('pagehide', () => { clearTimeout(timer); clearInterval(refreshTimer); avatar.dispose(); }, { once: true });
-  if (location.hash === "#notebook") refresh();
-  // Voice and other devices write the same vault. Refresh only while viewing
-  // it, without replacing an input or a control the user is working with.
+  window.addEventListener('pagehide', () => { clearTimeout(timer); avatar.dispose(); }, { once: true });
 }

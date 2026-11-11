@@ -8,22 +8,41 @@ import android.util.Log;
 /**
  * Alarm playback is independent of the explicitly enabled microphone service.
  * It plays at the media volume, the one the volume buttons change and the one
- * Luna speaks at, so a person can always turn a timer down.
+ * Luna speaks at, so a person can always turn a timer down. A timer nobody
+ * answers stops itself after it has rung for a minute.
  */
 public final class TimerAlarmService extends Service {
     private static TimerAlarmService active;
     private MediaPlayer player;
     private boolean attempted;
+    static final long RING_MS = 60000;
+    private final long[] since = new long[TimerLedger.LIMIT + 1];
     private int foregroundId;
     private final Handler handler = new Handler();
-    private final Runnable watch = new Runnable() { public void run() { update(); if (active == TimerAlarmService.this) handler.postDelayed(this, 250); } };
+    private final Runnable watch = new Runnable() { public void run() { expire(); update(); if (active == TimerAlarmService.this) handler.postDelayed(this, 250); } };
     static boolean ringing() { return active != null; }
     static void refresh(Context c) { if (active != null) active.update(); }
     static void duck(boolean value) { if (active != null && active.player != null) try { active.player.setVolume(value ? 0.12f : 1f, value ? 0.12f : 1f); } catch (RuntimeException ignored) {} }
+    // Counted from when this service began ringing a timer, not from its deadline,
+    // so a timer that comes due while the device could not ring is still heard.
+    private void expire() {
+        long now = SystemClock.elapsedRealtime();
+        for (int id = 1; id <= TimerLedger.LIMIT; id++) if (since[id] > 0 && now - since[id] >= RING_MS) {
+            since[id] = 0;
+            try { NativeTimers.execute(this, TimerCommand.cancel(id)); Log.i("HomeVoiceProbe", "ALARM_AUTO_STOPPED"); }
+            catch (RuntimeException failure) { Log.i("HomeVoiceProbe", "ALARM_AUTO_STOP_FAILED"); }
+        }
+    }
     private void update() {
         TimerLedger ledger = NativeTimers.read(this);
         int first = 0;
-        for (int id = 1; id <= TimerLedger.LIMIT; id++) if (ledger.deadlines[id] > 0 && ledger.deadlines[id] <= SystemClock.elapsedRealtime()) { first = id; NativeTimers.show(this, ledger, id); }
+        long now = SystemClock.elapsedRealtime();
+        for (int id = 1; id <= TimerLedger.LIMIT; id++) {
+            if (ledger.deadlines[id] > 0 && ledger.deadlines[id] <= now) {
+                first = id; NativeTimers.show(this, ledger, id);
+                if (since[id] == 0) since[id] = now;
+            } else since[id] = 0;
+        }
         if (first == 0) {
             if (player != null) { player.release(); player = null; }
             attempted = false; active = null; stopForeground(true); stopSelf(); return;
