@@ -145,3 +145,22 @@ the HTTPS reply fixture verified that the text survives playback and clears on
 listener reset (1).
 The ARMv7 APK at `58162a3` built and installed successfully in place on the
 Echo Show for the next attended recognition check.
+
+## Reply captions
+
+The Android debug app includes an Accessibility → Luna captions toggle in gear
+settings. It starts on and stores only the on/off preference locally. Captions
+are rendered as text in a high-contrast panel and inside the notebook dialog.
+The authenticated relay sends the exact speech text alongside successful audio;
+Android publishes it when playback starts. Local timer replies display their
+structured result text. These are whole-reply captions, not word-timed subtitles.
+They remain for reading until another reply or a listener reset. Reply text is
+memory-only; it is not added to preferences, logs or the vault.
+
+Fourteen focused tests passed, covering speech/caption text equality, Unicode,
+malformed caption handling, Java playback, native bridge fields, caption toggle
+persistence, popup visibility and existing status behavior. The native frontend
+build also passed. On-device caption appearance remains an attended check.
+The caption-enabled ARMv7 APK at `cb4177f` built and installed successfully in
+place on the selected Echo Show. The temporary relay was restarted with caption
+support for the attended check.
