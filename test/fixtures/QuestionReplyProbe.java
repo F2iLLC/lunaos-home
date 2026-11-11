@@ -73,6 +73,7 @@ public final class QuestionReplyProbe {
                 byte[] wave = new byte[44]; System.arraycopy(new byte[]{'R','I','F','F'}, 0, wave, 0, 4);
                 exchange.getResponseHeaders().set("Content-Type", "audio/wav");
                 exchange.getResponseHeaders().set("X-Home-Notebook-Animation", "scribble");
+                exchange.getResponseHeaders().set("X-Home-Notebook-List", "list-synthetic");
                 exchange.sendResponseHeaders(status, wave.length);
                 exchange.getResponseBody().write(wave);
             } catch (IOException expectedDisconnect) {
@@ -88,6 +89,7 @@ public final class QuestionReplyProbe {
             await(() -> MediaPlayer.last != null); MediaPlayer player = MediaPlayer.last;
             check(results.isEmpty(), "network success alone is not playback completion");
             check(QuestionPolicy.notebookAnimation().equals("scribble"), "actual relay outcome reaches avatar state");
+            check(QuestionPolicy.notebookListId.equals("list-synthetic"), "saved list ID reaches popup state");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");
             player.completed.call(player); player.error.call(player, 1, 1); reply.close();

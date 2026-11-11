@@ -284,3 +284,27 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 @keyframes nb-scribble { from { transform: translate(-6px, 2px) rotate(-6deg); } to { transform: translate(6px, -2px) rotate(6deg); } }
 @keyframes nb-draw { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .notebook-luna * { animation: none !important; } }
+
+/* A readable dotted notebook page for voice results. */
+.notebook-popup {
+  box-sizing: border-box; width: min(680px, 90vw); max-height: 85vh;
+  margin: auto; padding: 34px 44px 40px 58px; border: 1px solid #d8cbb6;
+  border-radius: 6px 20px 20px 6px; color: #363249;
+  background-color: #fffaf0;
+  background-image: radial-gradient(#bfb4a3 0.8px, transparent 0.8px);
+  background-size: 20px 20px;
+  box-shadow: inset 16px 0 #eee4d1, 0 18px 64px #11142655;
+  font-family: 'Segoe Print', 'Bradley Hand', cursive;
+}
+.notebook-popup::backdrop { background: #11142680; }
+.notebook-popup h2 { margin: 8px 40px 22px 0; color: #363249; font-size: clamp(26px, 4vw, 38px); overflow-wrap: anywhere; }
+.notebook-popup-label { font: 700 12px system-ui, sans-serif; letter-spacing: .16em; color: #726381; }
+.notebook-popup-close { position: absolute; right: 16px; top: 12px; width: 48px; height: 48px; padding: 0; border: 0; background: transparent; color: #363249; font: 32px system-ui, sans-serif; cursor: pointer; }
+.notebook-popup-items { padding: 0; margin: 0; list-style: none; }
+.notebook-popup-items li { display: grid; grid-template-columns: 30px 1fr; gap: 6px 12px; padding: 12px 0; font-size: clamp(22px, 3vw, 30px); line-height: 1.4; overflow-wrap: anywhere; }
+.notebook-popup-items small { grid-column: 2; font: 16px/1.5 system-ui, sans-serif; }
+.notebook-popup-items .is-complete > span:nth-child(2) { text-decoration: line-through; color: #746a78; }
+.notebook-popup-check { color: #65548b; }
+.notebook-popup-status { font: 18px/1.5 system-ui, sans-serif; color: #5c5264; }
+.notebook-popup-status:empty { display: none; }
+@media (max-width: 480px) { .notebook-popup { padding: 28px 24px 30px 34px; } }

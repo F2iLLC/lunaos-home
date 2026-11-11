@@ -74,9 +74,10 @@ final class QuestionReply implements AutoCloseable {
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
             final String animation = next.getHeaderField("X-Home-Notebook-Animation");
+            final String listId = next.getHeaderField("X-Home-Notebook-List");
             main.post(() -> {
                 if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
-                    QuestionPolicy.notebookFeedback(animation);
+                    QuestionPolicy.notebookFeedback(animation, listId);
                 play(context, result);
             });
         } catch (Exception failure) {

@@ -37,6 +37,8 @@ function createHarness() {
     replaceWith(node) { this.replacement = node; },
     after() {},
     focus() {},
+    close() { this.open = false; },
+    showModal() { this.open = true; },
     append(...children) {
       this.children.push(...children);
       for (const child of children) if (child.id) rootNodes.set(`#${child.id}`, child);
@@ -51,6 +53,7 @@ function createHarness() {
   });
   const rootNodes = new Map();
   const document = {
+    body: makeElement(),
     hidden: false,
     querySelector(selector) {
       if (!rootNodes.has(selector)) rootNodes.set(selector, makeElement());

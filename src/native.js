@@ -1,5 +1,6 @@
 import { createOfflineDraftClient } from '../lib/offline-drafts.js';
 import { useOfflineDraftClient } from './draft-client.js';
+import { createNotebookPopup } from './notebook-popup.js';
 
 useOfflineDraftClient(createOfflineDraftClient());
 document.querySelector('.preview-note p').textContent = 'Use made-up details only. This app preview keeps its draft on this device until you close or reload it. It is not a secure vault.';
@@ -8,6 +9,7 @@ document.querySelector('#native-notices').hidden = false;
 if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ && window.__TAURI__?.core) {
   // Luna lives on the home page: her face shows what she is doing, running
   // timers sit under it, and the gear opens settings and troubleshooting.
+  const notebookPopup = createNotebookPopup();
   const welcome = document.querySelector('#welcome');
   const gear = document.createElement('a');
   gear.href = '#luna';
@@ -162,6 +164,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         const notebookMarks = { 'new-page': '✧', scribble: '✎', read: '…', checkmark: '✓', 'cross-out': '×', 'erase-rewrite': '✎', hover: '…', puzzled: '?' };
         const animation = snapshot.status === 'ready' && phase === 'response' && !(snapshot.activeTimers || []).some(timer => timer.remainingSeconds === 0)
           && Object.hasOwn(notebookMarks, snapshot.notebookAnimation) ? snapshot.notebookAnimation : '';
+        notebookPopup.update(snapshot);
         avatar.dataset.notebookAnimation = animation;
         notebookMark.textContent = notebookMarks[animation] || '';
 

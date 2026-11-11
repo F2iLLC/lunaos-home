@@ -5,11 +5,19 @@ public final class QuestionPolicy {
     static String sessionId = java.util.UUID.randomUUID().toString();
     private static String notebookAnimation = "";
     private static long notebookUntil;
+    static String notebookListId = "";
+    static long notebookEvent;
     static void resetConversation() {
         sessionId = java.util.UUID.randomUUID().toString();
+        notebookListId = ""; notebookEvent++;
         notebookAnimation = ""; notebookUntil = 0;
     }
+    static void notebookFeedback(String animation, String listId) {
+        notebookFeedback(animation);
+        if (!notebookAnimation.isEmpty() && listId != null && listId.matches("[A-Za-z0-9_-]{1,80}")) notebookListId = listId;
+    }
     static void notebookFeedback(String animation) {
+        notebookListId = ""; notebookEvent++;
         notebookAnimation = ""; notebookUntil = 0;
         if (animation == null || !animation.matches("new-page|scribble|read|checkmark|cross-out|erase-rewrite|hover|puzzled")) return;
         notebookAnimation = animation; notebookUntil = System.currentTimeMillis() + 8000;

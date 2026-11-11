@@ -44,6 +44,8 @@ test('authenticated speech, UI and restarted encrypted vault share the same note
   }
   let book = (await f.snapshot()).notebook;
   assert.deepEqual(book.lists.map(x => x.items.length), [2, 2, 2]);
+  assert.equal((await f.say('what is on my Movies list')).headers.get('x-home-notebook-list'), book.lists[0].id);
+  await f.say('what is on my Gift ideas list');
   assert.equal((await f.say('mark Arrival as done')).headers.get('x-home-notebook-animation'), 'checkmark');
   assert.equal((await f.say('remove Dune')).headers.get('x-home-notebook-animation'), 'cross-out');
   await f.say('rename Gift ideas to Presents');

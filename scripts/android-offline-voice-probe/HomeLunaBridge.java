@@ -54,6 +54,8 @@ public final class HomeLunaBridge {
             out.put("reason", reason);
             out.put("capturePhase", phase);
             out.put("notebookAnimation", "response".equals(phase) ? QuestionPolicy.notebookAnimation() : "");
+            out.put("notebookListId", "off".equals(phase) ? "" : QuestionPolicy.notebookListId);
+            out.put("notebookEvent", QuestionPolicy.notebookEvent);
             out.put("microphoneInUse", microphone);
             out.put("onlineAnswersEnabled", QuestionReply.enabled(context));
             out.put("onlineAnswersAvailable", QuestionReply.configured(context));
