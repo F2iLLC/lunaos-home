@@ -258,6 +258,8 @@
   {"id":"ambiguous","text":"More than one timer is active. Say the timer number, for example, cancel timer one, or add one minute to timer two."},
   {"id":"full","text":"Eight timers are already active. Cancel one first."},
   {"id":"inactive","text":"That timer is not active."},
+  {"id":"paused","text":"Paused."},
+  {"id":"resumed","text":"Resumed."},
   {"id":"limit","text":"A timer cannot exceed twenty four hours. Nothing changed."},
   {"id":"failed","text":"Timer change failed or is uncertain. Check the timer list before retrying."},
   {"id":"unsupported","text":"Unsupported timer command. Nothing changed."},

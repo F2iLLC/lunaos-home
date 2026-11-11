@@ -147,7 +147,21 @@ seconds during which nothing was heard; they are freed when listening is
 disabled. A question is decoded from just before the speech rather than from
 the wake phrase, so a pause before asking no longer adds to the wait. Decoding
 a question on this device still takes about as long as the question took to
-say, before the relay is asked. Pausing and resuming a timer are not supported.
+say, before the relay is asked.
+
+**Pausing.** After the wake phrase, `pause`, `pause the timer`, `hold it` or
+`pause timer two` holds a counting timer at the time it has left, and `resume`,
+`continue the timer` or `resume timer two` starts it again from there. Without
+a number they mean the one timer that is counting (or the one that is paused)
+and are refused as ambiguous when there are several. A paused timer cannot
+ring, keeps its number, shows as paused on the home page with its time held,
+and can still be canceled or given more time. A ringing alarm is stopped, not
+paused. Luna confirms with the timer's number and "Paused" or "Resumed". There
+is no pause button on the home page yet; pausing is by voice.
+
+**Unanswered alarms.** A timer that has rung for one minute without being
+stopped stops itself and is cleared (log code `ALARM_AUTO_STOPPED`). The
+minute is counted from when it began to ring.
 
 A repeated wake phrase, unknown speech or timer fragment is not a Qwen question.
 Once a timer attempt is recognized in a wake window, later fragments cannot

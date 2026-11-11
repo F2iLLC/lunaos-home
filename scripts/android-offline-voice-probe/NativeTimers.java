@@ -48,6 +48,26 @@ final class NativeTimers {
             }
             command = TimerCommand.cancel(0); // Nothing is ringing: the one active timer.
         }
+        if (TimerCommand.pauses(command) || TimerCommand.resumes(command)) {
+            boolean resume = TimerCommand.resumes(command);
+            long now = SystemClock.elapsedRealtime();
+            int held = ledger.select(TimerCommand.target(command), resume, now);
+            if (held < 0) return "More than one timer is active. Say the timer number, for example, cancel timer one, or add one minute to timer two.";
+            if (held == 0) return "That timer is not active.";
+            TimerLedger before = read(c);
+            if (resume) ledger.resume(held, now); else ledger.pause(held, now);
+            save(c, ledger); // A paused timer's queued alarm no longer matches its revision.
+            try {
+                if (resume) schedule(c, ledger, held);
+                else ((AlarmManager)c.getSystemService(Context.ALARM_SERVICE)).cancel(event(c, held, before.revisions[held]));
+            } catch (RuntimeException failure) {
+                before.revision = ledger.revision; save(c, before);
+                if (!before.held(held)) schedule(c, before, held);
+                throw failure;
+            }
+            show(c, ledger, held);
+            return "Timer " + TimerPhrase.number(held) + (resume ? " resumed." : " paused.");
+        }
         boolean start = command > 0, cancel = command <= -10 && command >= -18;
         int id = start ? ledger.free() : ledger.select(TimerCommand.target(command));
         if (id < 0) return "More than one timer is active. Say the timer number, for example, cancel timer one, or add one minute to timer two.";
@@ -61,6 +81,14 @@ final class NativeTimers {
             return "Timer " + TimerPhrase.number(id) + " canceled.";
         }
         int seconds = start ? command : TimerCommand.duration(command);
+        if (!start && ledger.held(id)) {
+            // Time added to a paused timer waits with it.
+            long left = ledger.paused[id] + seconds * 1000L;
+            if (left > 24 * 60 * 60 * 1000L) return "A timer cannot exceed twenty four hours. Nothing changed.";
+            ledger.set(id, TimerLedger.HELD); ledger.paused[id] = left; save(c, ledger);
+            show(c, ledger, id);
+            return "Timer " + TimerPhrase.number(id) + " extended by " + seconds + " seconds.";
+        }
         long deadline = (start ? SystemClock.elapsedRealtime() : Math.max(SystemClock.elapsedRealtime(), ledger.deadlines[id])) + seconds * 1000L;
         if (deadline - SystemClock.elapsedRealtime() > 24 * 60 * 60 * 1000L) return "A timer cannot exceed twenty four hours. Nothing changed.";
         TimerLedger previous = read(c);
@@ -82,14 +110,14 @@ final class NativeTimers {
     static synchronized void deliver(Context c, Intent intent) {
         TimerLedger ledger = read(c);
         if (Intent.ACTION_TIME_CHANGED.equals(intent.getAction())) {
-            for (int id = 1; id <= TimerLedger.LIMIT; id++) if (ledger.deadlines[id] > 0) schedule(c, ledger, id);
+            for (int id = 1; id <= TimerLedger.LIMIT; id++) if (ledger.deadlines[id] > 0 && !ledger.held(id)) schedule(c, ledger, id);
             return;
         }
         int id = intent.getIntExtra("id", 0);
         if (CANCEL.equals(intent.getAction())) {
             if (id > 0 && id <= TimerLedger.LIMIT && ledger.revisions[id] == intent.getLongExtra("revision", -1)) execute(c, TimerCommand.cancel(id));
         } else if (FIRE.equals(intent.getAction()) && id > 0 && id <= TimerLedger.LIMIT
-                && ledger.deadlines[id] > 0 && ledger.revisions[id] == intent.getLongExtra("revision", -1)) {
+                && ledger.deadlines[id] > 0 && !ledger.held(id) && ledger.revisions[id] == intent.getLongExtra("revision", -1)) {
             if (ledger.due(id, ledger.revisions[id], SystemClock.elapsedRealtime()))
                 c.startForegroundService(new Intent(c, TimerAlarmService.class));
             else schedule(c, ledger, id); // Wall-clock changes must not cause an early expiry.
@@ -109,7 +137,7 @@ final class NativeTimers {
         channel(c);
         boolean due = ledger.deadlines[id] <= SystemClock.elapsedRealtime();
         return new Notification.Builder(c, "luna-timers").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Luna timer " + id + (due ? " · time is up" : " · counting down"))
+            .setContentTitle("Luna timer " + id + (due ? " · time is up" : ledger.held(id) ? " · paused" : " · counting down"))
             .setContentText("Cancel this Luna timer").setOngoing(true).setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setContentIntent(PendingIntent.getActivity(c, 100 + id, new Intent(c, VoiceProbe.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))

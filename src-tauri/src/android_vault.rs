@@ -24,6 +24,8 @@ pub struct LunaTimerSnapshot {
     pub id: String,
     pub label: String,
     pub remaining_seconds: u64,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 #[derive(Serialize)]
