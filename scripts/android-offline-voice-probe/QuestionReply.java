@@ -65,6 +65,7 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
             next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
+            if (QuestionPolicy.isFollowUp) next.setRequestProperty("X-Home-Follow-Up", "1");
             byte[] body = new JSONObject().put("question", question).toString().getBytes(StandardCharsets.UTF_8);
             next.setFixedLengthStreamingMode(body.length);
             try (OutputStream out = next.getOutputStream()) { if (closed) throw new IOException(); out.write(body); }
@@ -73,13 +74,14 @@ final class QuestionReply implements AutoCloseable {
             try (InputStream in = next.getInputStream()) { wave = readBounded(in, 2 * 1024 * 1024); }
             if (wave.length < 44 || wave[0] != 'R' || wave[1] != 'I' || wave[2] != 'F' || wave[3] != 'F') throw new IOException();
             final byte[] result = wave; wave = null;
+            final boolean followUp = "1".equals(next.getHeaderField("X-Home-Await-Reply"));
             final String caption = QuestionPolicy.decodeCaption(next.getHeaderField("X-Home-Reply-Text"));
             final String animation = next.getHeaderField("X-Home-Notebook-Animation");
             final String listId = next.getHeaderField("X-Home-Notebook-List");
             main.post(() -> {
                 if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context))
                     QuestionPolicy.notebookFeedback(animation, listId);
-                play(context, result, caption);
+                play(context, result, caption, followUp);
             });
         } catch (Exception failure) {
             android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_UNAVAILABLE"); main.post(this::finish);
@@ -98,7 +100,7 @@ final class QuestionReply implements AutoCloseable {
             return out.toByteArray();
         } finally { Arrays.fill(buffer, (byte) 0); }
     }
-    private void play(Context context, byte[] wave, String caption) {
+    private void play(Context context, byte[] wave, String caption, boolean followUp) {
         if (closed || !BackgroundWakeService.running || ProbeCapture.blocked(context)) { Arrays.fill(wave, (byte) 0); finish(); return; }
         audio = wave;
         try {
@@ -114,7 +116,7 @@ final class QuestionReply implements AutoCloseable {
                 public long getSize() { return wave.length; }
                 public void close() { }
             });
-            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) { QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
+            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) { QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
             player.setOnCompletionListener(p -> { played = true; finish(); });
             player.setOnErrorListener((p, what, extra) -> { finish(); return true; });
             player.prepareAsync();

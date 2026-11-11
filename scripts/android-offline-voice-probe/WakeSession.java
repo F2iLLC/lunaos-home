@@ -18,6 +18,11 @@ public final class WakeSession {
         end = persistent ? Long.MAX_VALUE : now + WAIT_MS;
         deadline = end;
     }
+    // Only the service may start this after successful playback of a question.
+    void beginFollowUp(long now) {
+        if (awake || finished || expired(now)) return;
+        awake = true; deadline = Math.min(end, now + COMMAND_MS);
+    }
     public boolean awaitingCommand() { return awake; }
     public long deadline() { return deadline; }
     public boolean expired(long now) { return finished || now >= deadline; }

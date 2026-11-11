@@ -75,13 +75,13 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div class="list-panel luna-panel">
     <h2>Accessibility</h2>
     <button id="luna-captions-toggle" type="button" aria-pressed="true">Luna captions: On</button>
-    <p>Show Luna’s replies as readable text. Captions stay until her next reply or listening is turned off.</p>
+    <p>Show Luna’s replies as readable text. Captions clear six seconds after she finishes speaking.</p>
     <h2>Home voice status</h2>
     <p id="luna-state" role="status" aria-live="polite">Checking Home voice status…</p>
       <p id="luna-details">Online answers are off. Questions are not sent anywhere.</p>
     <button id="luna-online-answers" class="luna-online-toggle" type="button" aria-pressed="false" disabled>Turn on Qwen answers</button>
-    <p id="luna-online-label">Send finalized questions to Qwen on my Mac Studio for spoken answers</p>
-    <p id="luna-online-help">Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.</p>
+    <p id="luna-online-label">Use my Mac for speech recognition and Qwen answers</p>
+    <p id="luna-online-help">Configure the private Mac relay before enabling online answers. When listening is enabled, speech segments go to your Mac for wake-word and command recognition. Changing this setting stops listening.</p>
     <button id="refresh-luna-state" type="button">Refresh status</button>
     <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
     <button id="allow-luna-mic" type="button">Allow microphone</button>
@@ -180,7 +180,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
 
         pollIntervalMs = snapshot.status === 'ready' && phase !== 'off' ? listeningPollIntervalMs : statusPollIntervalMs;
         if (snapshot.status !== 'ready') {
-          stateText.textContent = snapshot.reason === 'local_model_unavailable' ? 'Local wake model unavailable. Listening is off.' : 'Home voice service unavailable.';
+          stateText.textContent = snapshot.reason === 'mac_speech_unavailable' ? 'Mac speech recognition unavailable. Listening is off.' : 'Home voice service unavailable.';
           homeState.textContent = 'Luna is not available right now. The gear has more.';
           showListening(false);
         } else {
@@ -195,7 +195,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       onlineAnswers.disabled = snapshot.onlineAnswersAvailable !== true;
       onlineHelp.textContent = snapshot.onlineAnswersAvailable
         ? 'Questions are sent to your configured Mac Studio relay. Changing this setting stops listening; enable wake listening again when ready.'
-        : 'Configure the private Mac relay before enabling online answers. Changing this setting stops wake listening.';
+        : 'Configure the private Mac relay before enabling online answers. When listening is enabled, speech segments go to your Mac for wake-word and command recognition. Changing this setting stops listening.';
       timers.replaceChildren();
       const activeTimers = snapshot.activeTimers || [];
       // The home page stays clear until there is a timer to show.
@@ -286,7 +286,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   luna.querySelector('#enable-luna-wake').addEventListener('click', async event => {
     const button = event.currentTarget; button.disabled = true;
     try { await window.__TAURI__.core.invoke('enable_luna_wake'); }
-    catch { stateText.textContent = 'Could not start listening. Check microphone permission, lock, mute, and model availability.'; }
+    catch { stateText.textContent = 'Could not start listening. Check microphone permission, lock, mute, and the Mac connection.'; }
     finally { button.disabled = false; await refreshSnapshot(); }
   });
   luna.querySelector('#disable-luna-wake').addEventListener('click', async event => {

@@ -84,6 +84,7 @@ final class ProbeCapture {
             retire = false;
         }
     }
+    private final boolean followUp;
     private volatile CommandAudio commandAudio;
     private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
@@ -106,8 +107,12 @@ final class ProbeCapture {
         this(context, capture, wait, false, listener);
     }
     ProbeCapture(Context context, boolean capture, boolean wait, boolean persistent, Listener listener) {
+        this(context, capture, wait, persistent, false, listener);
+    }
+    ProbeCapture(Context context, boolean capture, boolean wait, boolean persistent, boolean followUp, Listener listener) {
         this.context = context.getApplicationContext();
         this.capture = capture; this.wait = wait; this.persistent = persistent && capture && wait; this.listener = listener;
+        this.followUp = followUp && this.persistent;
         maximum = this.persistent ? Long.MAX_VALUE : SystemClock.elapsedRealtime() + (wait ? WakeSession.WAIT_MS : 30000);
         deadline = maximum;
     }
@@ -289,6 +294,10 @@ final class ProbeCapture {
                     show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna" + (persistent ? " until disabled." : " (up to 5 minutes).") + " Pause after the wake phrase."
                         : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.",
                         wait ? LunaFace.State.WAITING : LunaFace.State.AWAKE);
+                    if (followUp && questions && wake != null) {
+                        wake.beginFollowUp(SystemClock.elapsedRealtime());
+                        openCommandWindow(wake, timing, questions);
+                    }
                     code = "NO_COMPLETE_COMMAND"; message = "Test ended without a complete command. No timer started.";
                     while (!closed && SystemClock.elapsedRealtime() < deadline) {
                         if (blocked(context)) { code = "ACCESS_STOP"; message = "Lock, mute or permission changed. No timer started."; return; }

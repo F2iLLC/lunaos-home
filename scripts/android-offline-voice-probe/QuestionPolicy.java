@@ -9,6 +9,8 @@ public final class QuestionPolicy {
     static long notebookEvent;
     static String lastHeard = "";
     static String replyCaption = "";
+    static boolean replyWantsFollowUp, isFollowUp;
+    static boolean takeFollowUp() { boolean next = replyWantsFollowUp; replyWantsFollowUp = false; return next; }
     static String decodeCaption(String encoded) {
         if (encoded == null || encoded.length() > 2048) return "";
         try {
@@ -18,7 +20,7 @@ public final class QuestionPolicy {
     }
     static void resetConversation() {
         sessionId = java.util.UUID.randomUUID().toString();
-        notebookListId = ""; notebookEvent++; lastHeard = ""; replyCaption = "";
+        notebookListId = ""; notebookEvent++; lastHeard = ""; replyCaption = ""; replyWantsFollowUp = false; isFollowUp = false;
         notebookAnimation = ""; notebookUntil = 0;
     }
     static void notebookFeedback(String animation, String listId) {

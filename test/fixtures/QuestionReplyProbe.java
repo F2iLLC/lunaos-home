@@ -74,6 +74,7 @@ public final class QuestionReplyProbe {
                 exchange.getResponseHeaders().set("Content-Type", "audio/wav");
                 exchange.getResponseHeaders().set("X-Home-Notebook-Animation", "scribble");
                 exchange.getResponseHeaders().set("X-Home-Notebook-List", "list-synthetic");
+                exchange.getResponseHeaders().set("X-Home-Await-Reply", "1");
                 exchange.getResponseHeaders().set("X-Home-Reply-Text", java.util.Base64.getEncoder().encodeToString("Your list contains Café.".getBytes(StandardCharsets.UTF_8)));
                 exchange.sendResponseHeaders(status, wave.length);
                 exchange.getResponseBody().write(wave);
@@ -96,6 +97,8 @@ public final class QuestionReplyProbe {
             QuestionPolicy.resetConversation();
             check(QuestionPolicy.lastHeard.isEmpty(), "listener reset clears heard text");
             player.prepared.call(player); check(MediaPlayer.starts == 1, "prepared starts audio");
+            check(QuestionPolicy.takeFollowUp(), "question requests one follow-up");
+            check(!QuestionPolicy.takeFollowUp(), "follow-up request is consumed once");
             check(QuestionPolicy.replyCaption.equals("Your list contains Café."), "caption matches speech and preserves Unicode");
             check(QuestionPolicy.decodeCaption("not base64!").isEmpty(), "invalid caption rejected");
             player.completed.call(player); check(results.equals(List.of(true)), "successful playback completes true once");

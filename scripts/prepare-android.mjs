@@ -240,54 +240,9 @@ export async function prepareAndroid({
   if (!gradlePath) throw new Error(initializationGuidance);
   let gradle = await readFile(gradlePath, 'utf8');
   const dependencyMarker = '// HOME_LUNA_DEBUG_VOICE_DEPENDENCIES';
-  const voiceDependencies = `${dependencyMarker}\n    debugImplementation("com.alphacephei:vosk-android:0.3.75")\n    debugImplementation("net.java.dev.jna:jna:5.18.1@aar")`;
-  if (gradle.includes(dependencyMarker)) {
-    if (!gradle.includes(voiceDependencies)) throw new Error('Unexpected Luna voice dependency block. Regenerate and review the Android project.');
-  } else {
-    const dependenciesBlock = /\bdependencies\s*\{/;
-    if (!dependenciesBlock.test(gradle)) throw new Error('Android Gradle dependencies block unavailable.');
-    gradle = gradle.replace(dependenciesBlock, match => `${match}\n${voiceDependencies}`);
-  }
-  const configuredModel = process.env.LUNA_HOME_VOICE_MODEL_DIRECTORY;
-  const staleModelAssets = files.some(file => file.startsWith('debug/assets/model/'));
-  const modelFiles = [];
-  if (configuredModel) {
-    const modelRoot = resolve(configuredModel);
-    for (let ancestor = modelRoot; ; ancestor = dirname(ancestor)) {
-      const info = await lstat(ancestor);
-      if (info.isSymbolicLink() || !info.isDirectory()) throw new Error('Luna model path must use ordinary directories, not links.');
-      if (dirname(ancestor) === ancestor) break;
-    }
-    const modelPath = async (relative = '') => {
-      const directory = join(modelRoot, relative);
-      for (const entry of await readdir(directory)) {
-        const child = relative ? `${relative}/${entry}` : entry;
-        const full = join(modelRoot, child);
-        const info = await lstat(full);
-        if (info.isSymbolicLink()) throw new Error('Luna model contains a linked entry.');
-        if (info.isDirectory()) await modelPath(child);
-        else if (!info.isFile() || info.nlink !== 1) throw new Error('Luna model contains an invalid file.');
-        else modelFiles.push([full, child]);
-      }
-    };
-    await modelPath();
-    if (!modelFiles.some(([, file]) => file === 'am/final.mdl') || !modelFiles.some(([, file]) => file === 'conf/model.conf'))
-      throw new Error('LUNA_HOME_VOICE_MODEL_DIRECTORY must contain the Vosk model root with am/final.mdl and conf/model.conf.');
-    if (staleModelAssets) {
-      const existing = files.filter(file => file.startsWith('debug/assets/model/')).map(file => file.slice('debug/assets/model/'.length)).sort();
-      const expected = modelFiles.map(([, file]) => file).sort();
-      if (existing.length !== expected.length || existing.some((file, index) => file !== expected[index]))
-        throw new Error('Existing generated Luna model assets differ from the configured model. Regenerate Android before changing model input.');
-      for (const [source, relative] of modelFiles) {
-        const current = await readFile(join(voiceAssetRoot, relative));
-        const input = await readFile(source);
-        if (createHash('sha256').update(current).digest('hex') !== createHash('sha256').update(input).digest('hex'))
-          throw new Error('Existing generated Luna model assets differ from the configured model. Regenerate Android before changing model input.');
-      }
-    }
-  } else if (staleModelAssets) {
-    throw new Error('Luna model assets remain in the generated project but LUNA_HOME_VOICE_MODEL_DIRECTORY is unset.');
-  }
+  const oldDependencies = `${dependencyMarker}\n    debugImplementation("com.alphacephei:vosk-android:0.3.75")\n    debugImplementation("net.java.dev.jna:jna:5.18.1@aar")`;
+  gradle = gradle.replace(oldDependencies, dependencyMarker);
+  if (/vosk-android|net\.java\.dev\.jna/.test(gradle)) throw new Error('Remove legacy local recognition dependencies before building.');
   const generatedSources = ['Ipc.kt', 'Logger.kt', 'PermissionHelper.kt', 'Rust.kt', 'RustWebChromeClient.kt',
     'RustWebView.kt', 'RustWebViewClient.kt', 'TauriActivity.kt', 'WryActivity.kt'];
   // Inspect every source-set directory, including ABI, combined flavor/build
@@ -322,6 +277,7 @@ export async function prepareAndroid({
     const destination = join(voiceJavaRoot, source);
     await copyFile(source === 'QuestionReply.java'
       ? new URL('./android/voice/HomeQuestionReply.java', import.meta.url)
+      : source === 'ProbeCapture.java' ? new URL('./android/voice/HomeProbeCapture.java', import.meta.url)
       : new URL(source, voiceRoot), destination);
     if (source === 'NativeTimers.java' || source === 'BackgroundWakeService.java') {
       const original = await readFile(destination, 'utf8');
@@ -333,14 +289,8 @@ export async function prepareAndroid({
       await writeFile(destination, homeVersion);
     }
   }
-  if (modelFiles.length && !staleModelAssets) {
-    await mkdir(voiceAssetRoot, { recursive: true });
-    for (const [source, relative] of modelFiles) {
-      const destination = join(voiceAssetRoot, relative);
-      await mkdir(dirname(destination), { recursive: true });
-      await copyFile(source, destination);
-    }
-  }
+  // Remove only the legacy generated model asset tree; Home uses the Mac.
+  await rm(voiceAssetRoot, { recursive: true, force: true });
   // Luna's spoken timer confirmations: a prepared, validated clip pack kept
   // outside Git. Without it timers still work and Luna stays silent.
   const replyAssetRoot = join(debugRoot, 'assets/replies');
@@ -384,5 +334,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
   const softwareRendering = args[0] === '--software-rendering';
   await prepareAndroid({ softwareRendering });
-  console.log(`Prepared Android Home; debug includes local Luna wake/timer ownership and requires LUNA_HOME_VOICE_MODEL_DIRECTORY for listening. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
+  console.log(`Prepared Android Home; debug uses Mac speech recognition and contains no local speech model. Cleartext and backup disabled; MainActivity hardware acceleration ${softwareRendering ? 'disabled' : 'enabled'}.`);
 }

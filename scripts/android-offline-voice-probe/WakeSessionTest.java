@@ -58,6 +58,18 @@ public final class WakeSessionTest {
         check(renewed.acceptFinal("hey luna", hours + 25003) == WakeSession.WAKE);
         check(renewed.acceptFinal("set a timer for five seconds", hours + 25004) == 5);
         check(renewed.acceptFinal("set a timer for five seconds", hours + 15005) == 0);
+        WakeSession followUp = new WakeSession(1000, true);
+        followUp.beginFollowUp(1001);
+        check(followUp.awaitingCommand());
+        check(followUp.deadline() == 26001);
+        followUp.beginFollowUp(1500);
+        check(followUp.deadline() == 26001);
+        check(followUp.acceptQuestion("test movie", 2000));
+        check(!followUp.acceptQuestion("another answer", 2001));
+        WakeSession unanswered = new WakeSession(1000, true);
+        unanswered.beginFollowUp(1001);
+        check(unanswered.expired(26001));
+        check(!unanswered.acceptQuestion("late reply", 26001));
         System.out.println("Wake session checks passed (" + checks + " cases).");
     }
 }

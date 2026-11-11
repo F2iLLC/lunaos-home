@@ -50,3 +50,19 @@ test('disconnect aborts provider work and concurrent requests cannot duplicate i
   await ready;assert.equal((await ask('second question')).status,429);controller.abort();await pending;
   await new Promise(resolve=>setTimeout(resolve,30));assert.equal(signal.aborted,true);
 });
+
+test('a spoken question invites a session-scoped follow-up with bounded question context', async t => {
+  const prompts = [];
+  const { ask } = await relay(t, { cooldownMs: 0, answer: async args => { prompts.push(args.messages[0].text); return prompts.length === 1 ? 'Which color do you prefer?' : 'Blue it is.'; } });
+  const session = 'd'.repeat(32);
+  const first = await ask('help me choose a color', { 'X-Home-Session': session });
+  assert.equal(first.headers.get('x-home-await-reply'), '1');
+  const other = await ask('green', { 'X-Home-Session': 'e'.repeat(32), 'X-Home-Follow-Up': '1' });
+  assert.equal(prompts[1], 'green');
+  assert.equal(other.headers.get('x-home-await-reply'), null);
+  await ask('blue', { 'X-Home-Session': session, 'X-Home-Follow-Up': '1' });
+  assert.match(prompts[2], /Luna asked: Which color do you prefer\?/);
+  assert.match(prompts[2], /User replies: blue$/);
+  await ask('another topic', { 'X-Home-Session': session });
+  assert.equal(prompts[3], 'another topic');
+});

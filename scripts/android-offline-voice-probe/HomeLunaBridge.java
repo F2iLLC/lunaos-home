@@ -16,13 +16,7 @@ public final class HomeLunaBridge {
     private HomeLunaBridge() {}
 
     private static boolean modelAvailable(Context context) throws Exception {
-        String[] acoustic = context.getAssets().list("model/am");
-        String[] config = context.getAssets().list("model/conf");
-        if (acoustic == null || config == null) return false;
-        boolean decoder = false, settings = false;
-        for (String name : acoustic) if ("final.mdl".equals(name)) decoder = true;
-        for (String name : config) if ("model.conf".equals(name)) settings = true;
-        return decoder && settings;
+        return QuestionReply.configured(context);
     }
 
     private static boolean debugApiAvailable(Context context) {
@@ -34,7 +28,7 @@ public final class HomeLunaBridge {
         JSObject out = new JSObject();
         try {
             boolean model = modelAvailable(context);
-            String reason = model ? "" : "local_model_unavailable";
+            String reason = model ? "" : "mac_speech_unavailable";
             String phase = BackgroundWakeService.running ? BackgroundWakeService.visual.name().toLowerCase()
                 : "off";
             boolean microphone = ProbeCapture.recording();
@@ -80,7 +74,7 @@ public final class HomeLunaBridge {
             requestMicrophone(activity);
             throw new IllegalStateException("Allow microphone access, then tap Enable again");
         }
-        if (!modelAvailable(activity)) throw new IllegalStateException("Local wake model unavailable");
+        if (!modelAvailable(activity)) throw new IllegalStateException("Mac speech relay is not configured");
         if (ProbeCapture.blocked(activity)) throw new IllegalStateException("Unlock, unmute and allow microphone access first");
         activity.startForegroundService(new Intent(activity, BackgroundWakeService.class).setAction(BackgroundWakeService.START));
     }

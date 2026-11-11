@@ -128,7 +128,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const window = { __TAURI__: { core: { invoke: (...args) => {
       calls.push(args);
       return Promise.resolve(args[0] === 'get_luna_snapshot' ? {
-        status: 'unavailable', reason: 'local_model_unavailable', capturePhase: 'off',
+        status: 'unavailable', reason: 'mac_speech_unavailable', capturePhase: 'off',
         microphoneInUse: false, onlineAnswersEnabled: false, activeTimers: [],
       } : undefined);
     } } } };
@@ -140,7 +140,7 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     assert.equal(settingsGear.className, 'settings-gear');
     assert.equal(lunaScreen.id, 'luna');
     await new Promise(resolve => setImmediate(resolve));
-    assert.match(lunaScreen.querySelector('#luna-state').textContent, /Local wake model unavailable/);
+    assert.match(lunaScreen.querySelector('#luna-state').textContent, /Mac speech recognition unavailable/);
     const allowMic = lunaScreen.querySelector('#allow-luna-mic');
     await allowMic.click({ currentTarget: allowMic });
     assert.ok(calls.some(([command]) => command === 'request_luna_microphone'));

@@ -24,7 +24,7 @@ public final class BackgroundWakeService extends Service {
     private ProbeCapture capture;
     private PowerManager.WakeLock wakeLock;
     private long renewAt, generation;
-    private boolean destroyed, restarting, responding;
+    private boolean destroyed, restarting, responding, followUpPending;
     private SpokenReply reply;
     private QuestionReply questionReply;
     private final Runnable watch = new Runnable() {
@@ -81,7 +81,8 @@ public final class BackgroundWakeService extends Service {
         wakeLock = null;
     }
     private void end(String text) {
-        running = false; generation++; restarting = false; responding = false;
+        running = false; generation++; restarting = false; responding = false; followUpPending = false;
+        QuestionPolicy.replyWantsFollowUp = false;
         if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
         if (questionReply != null) questionReply.close(); questionReply = null;
         latest = text; visual = LunaFace.State.OFF;
@@ -111,10 +112,12 @@ public final class BackgroundWakeService extends Service {
         final long id = ++generation;
         try {
             renewWakeLock();
-            latest = "Loading local model. Microphone off; wake-word listening remains enabled.";
+            latest = "Connecting to Mac speech recognition. Microphone off.";
             visual = LunaFace.State.PREPARING;
             notifyStatus();
-            capture = new ProbeCapture(this, true, true, true, new ProbeCapture.Listener() {
+            final boolean followUp = followUpPending;
+            followUpPending = false;
+            capture = new ProbeCapture(this, true, true, true, followUp, new ProbeCapture.Listener() {
                 private boolean current() { return !destroyed && running && generation == id && capture != null; }
                 @Override public void visual(LunaFace.State state) {
                     if (current()) { visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE); }
@@ -151,6 +154,7 @@ public final class BackgroundWakeService extends Service {
                             && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
                         QuestionPolicy.notebookFeedback(null);
                         QuestionPolicy.lastHeard = text;
+                        QuestionPolicy.isFollowUp = followUp;
                         responding = true; visual = LunaFace.State.RESPONSE;
                         latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
                         notifyStatus();
@@ -159,6 +163,8 @@ public final class BackgroundWakeService extends Service {
                             renewWakeLock();
                             questionReply = new QuestionReply(BackgroundWakeService.this, text, played -> {
                                 if (destroyed || !running || generation != responseId) return;
+                                boolean requestedFollowUp = QuestionPolicy.takeFollowUp();
+                                followUpPending = played && requestedFollowUp;
                                 questionReply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false);
                                 latest = played ? "Answer playback finished. Returning to wake-word listening."
                                     : "Reply unavailable. A list change may have saved; check the notebook before retrying. Returning to wake-word listening.";
