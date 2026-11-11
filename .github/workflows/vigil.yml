@@ -63,7 +63,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@f593583386a8ed36bdbcea37cd1aa1166cc1227c
+    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@06b99289d029b6f0a6c52a2501652a3c5d35b24b
     with:
       model: gemini/gemini-3.1-flash-lite
       runner-json: '["ubuntu-latest"]'
