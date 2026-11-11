@@ -114,3 +114,12 @@ Physical popup appearance and the first-follow-up recognition issue still need
 attended verification.
 The `8ea8abd` APK subsequently installed successfully on the selected Echo Show
 with an in-place update; the test relay remains temporary for attended checks.
+
+The next attended readback confirmed the clearer spoken wording and avatar
+notebook animation, but no readable popup appeared. The native Rust
+`LunaSnapshot` omitted `notebookListId` and `notebookEvent`, silently dropping
+Java's fields during deserialization. Commit `8294540` preserves both fields.
+Seven focused bridge-wiring, status-polling and popup checks pass; the ARMv7 APK
+rebuild also passes. This fixes a concrete missing handoff; on-screen acceptance
+must still be repeated on the updated device build.
+The corrected `8294540` APK installed successfully in place on the Echo Show.
