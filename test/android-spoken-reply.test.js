@@ -28,6 +28,7 @@ test('bundled offline replies sequence exact clips, release playback, and recove
       public void setOnCompletionListener(OnCompletionListener l){listener=l;}public void setOnErrorListener(OnErrorListener l){error=l;}
       public void prepare(){if(fail)throw new IllegalStateException();}public void start(){}public void release(){released=true;}
     }`,
+    'io/github/f2illc/lunaos/home/voiceprobe/BackgroundWakeService.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class BackgroundWakeService {static boolean replyPlaying;}',
     'io/github/f2illc/lunaos/home/voiceprobe/ReplyProbe.java': `package io.github.f2illc.lunaos.home.voiceprobe;
       import android.media.MediaPlayer;import android.os.Handler;import android.content.res.AssetManager;
       public class ReplyProbe {
