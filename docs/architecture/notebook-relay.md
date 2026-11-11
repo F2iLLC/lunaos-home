@@ -69,17 +69,23 @@ notebook, including rejected tokens and hostname mismatches. Java fixtures
 execute wake routing, HTTPS reply handling and the animation handoff, and compile
 the Home reply variant. Native frontend bundling includes the notebook page.
 
-These are synthetic checks, not an Echo Show microphone, speaker, screen or APK
-acceptance run. No household vault or production relay is created or changed by
-the tests. Physical-device acceptance, native Android Rust/Kotlin build validation,
+These are synthetic checks, not an Echo Show microphone, speaker or screen
+acceptance run. No household records are used. Physical-device acceptance and
 native Windows integration still remain. Grocery unification landed separately
 in #345 and is included through the merge from main. Issue #320 remains open
 while deployment and acceptance are outstanding.
 
-On the development Mac, 39 focused tests passed, including the JVM transport and
-wake fixtures. Full suite: 425 passed, 13 failed, 87 skipped. An unchanged
-`4785b81` checkout with the same JDK and environment produced the identical 13
-failure names (419 passed, 87 skipped): PowerShell is absent and the system
-OpenSSL does not support the TLS fixtures' arguments. The native frontend build
-passed. Browser inspection was attempted but the browser-control host was
-unavailable; no visual acceptance is claimed.
+At `56d6db3`, the complete Windows suite passed: 482 passed, 0 failed, 51 skipped.
+The ARMv7 Android debug APK also built successfully, including Java, Kotlin and
+Rust, with the existing speech model/reply pack and software rendering. The
+corresponding Mac run had 384 passed, 13 failed and 85 skipped. Those 13 failure
+names also failed on the earlier unchanged-main baseline: PowerShell is absent
+and the system OpenSSL does not support the TLS fixtures' arguments.
+
+A temporary signed-in Mac relay with a separate Keychain-backed synthetic vault
+accepted a list creation, returned a real ElevenLabs WAV and `scribble` feedback
+after adding an item, and retained that item after the relay process restarted.
+This exposed the speech cooldown blocking an immediate page read; the cooldown
+now applies only to speech routes, with a regression check. Browser inspection
+was attempted but the browser-control host was unavailable; no visual acceptance
+is claimed.

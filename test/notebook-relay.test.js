@@ -110,4 +110,7 @@ test('notebook speech disclosure is off by default', async t => {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'read my list' }) });
   assert.equal(response.status, 200);
   assert.equal(speech.some(text => text.includes('Synthetic private item')), false);
+  const snapshot = await fetch(`http://127.0.0.1:${server.address().port}/notebook`, { method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'snapshot' }) });
+  assert.equal(snapshot.status, 200, 'speech cooldown must not block the page from synchronizing');
 });
