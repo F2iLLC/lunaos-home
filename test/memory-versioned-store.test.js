@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMemoryVersionedStore } from './support/memory-versioned-store.js';
-import { syntheticGroceryRecord } from './support/versioned-store-conformance.js';
+import { syntheticNotebookRecord } from './support/versioned-store-conformance.js';
 
 const revision = '3d735c0e-3176-4502-8717-8e62f59d3a91';
 const profile = { memberId: 'alex-example', label: 'Workplace', value: 'Willow Studio' };
@@ -29,14 +29,15 @@ for (const [name, encoded] of [
   ['invalid revision', JSON.stringify({ revision: 'not-a-revision', data: profile })],
   ['missing data', JSON.stringify({ revision })],
   ['invalid profile', JSON.stringify({ revision, data: { ...profile, memberId: '../outside' } })],
-  ['invalid grocery payload', JSON.stringify({ revision, data: { kind: 'grocery-list', list: {}, outcomes: [] } })],
+  ['invalid list payload', JSON.stringify({ revision, data: { kind: 'household-notebook', notebook: {} } })],
+  ['unknown record kind', JSON.stringify({ revision, data: { kind: 'grocery-list', list: {}, outcomes: [] } })],
   ['unknown row field', JSON.stringify({ revision, data: profile, extra: true })],
   ['unknown payload field', JSON.stringify({ revision, data: { ...profile, extra: true } })],
 ]) {
   test(`memory reference rejects ${name} on reads and conditional mutations without changing stored bytes`, async () => {
     const backing = new Map([['record', encoded]]);
     const store = createMemoryVersionedStore(backing);
-    await store.create('unrelated', syntheticGroceryRecord());
+    await store.create('unrelated', syntheticNotebookRecord());
     const before = new Map(backing);
     for (const attempt of [
       () => store.read('record'),
@@ -50,10 +51,10 @@ for (const [name, encoded] of [
   });
 }
 
-test('memory reference reads valid profile and grocery rows from shared backing without rewriting them', async () => {
+test('memory reference reads valid profile and list rows from shared backing without rewriting them', async () => {
   const rows = [
     ['alex-work', { revision, data: profile }],
-    ['weekly', { revision, data: syntheticGroceryRecord() }],
+    ['notebook-home-example', { revision, data: syntheticNotebookRecord() }],
   ];
   const backing = new Map(rows.map(([id, row]) => [id, JSON.stringify(row)]));
   const before = new Map(backing);

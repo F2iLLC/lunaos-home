@@ -9,10 +9,9 @@ import {
   DEFAULT_WORKER, openWindowsSnapshotStore, openWindowsSnapshotStoreForFaultTest, windowsSnapshotWorkerAvailable,
 } from '../lib/windows-snapshot-store.js';
 import { windowsProbeTestFaults } from '../lib/windows-probe-store.js';
-import { createGroceryPersistence } from '../lib/grocery-persistence.js';
-import { createVaultSessionService } from '../lib/vault-sessions.js';
 import { VaultConflictError } from '../lib/vault-record-contract.js';
 import { defineVersionedStoreConformance } from './support/versioned-store-conformance.js';
+import { assertNotebookFaultMatrix, notebookFaultMatrix as windowsFaultMatrix } from './support/notebook-fault-matrix.js';
 
 const crateRoot = new URL(
   '../src-tauri/crates/windows-snapshot-store/',
@@ -29,25 +28,6 @@ const fixture = () => ({
   kind: 'fixture',
   key: crypto.getRandomValues(new Uint8Array(32)),
 });
-const list = {
-  id: 'weekly',
-  householdId: 'home-example',
-  label: 'Weekly',
-  items: [],
-  revision: '3d735c0e-3176-4502-8717-8e62f59d3a91',
-  updatedBy: { kind: 'human', id: 'person-example' },
-};
-const windowsFaultMatrix = [
-  ['before-write', 'old'],
-  ['during-write', 'old'],
-  ['after-write', 'old'],
-  ['before-replacement', 'old'],
-  ['after-replacement', 'new'],
-  ['disk-full', 'old'],
-  ['process-interruption', 'old'],
-  ['tampered-temporary', 'old'],
-];
-
 async function openFixtureStore() {
   const protector = fixture();
   const store = await openWindowsSnapshotStore({ create: true, protector });
@@ -314,163 +294,30 @@ test(
 );
 
 test(
-  'the shared session service and grocery persistence run over the native adapter',
-  windows,
-  async (t) => {
-    const { store, protector } = await openFixtureStore();
-    const service = createVaultSessionService({ store, contractVersion: 2 });
-    t.after(async () => {
-      await service.shutdown();
-      await store.removeSyntheticStore();
-    });
-
-    const persistence = createGroceryPersistence({ store });
-    await persistence.createList(list);
-    const command = {
-      version: 1,
-      action: 'add',
-      requestId: crypto.randomUUID(),
-      householdId: list.householdId,
-      listId: list.id,
-      expectedRevision: list.revision,
-      item: { id: 'apples', label: 'Apples', completed: false },
-    };
-    const receipt = await persistence.execute(command, {
-      actor: list.updatedBy,
-    });
-    const bytes = await readFile(path.join(store.directory, 'snapshot.bin'));
-    assert.equal(bytes.includes(Buffer.from('Apples')), false);
-    assert.equal(bytes.includes(Buffer.from(receipt.revision)), false);
-
-    const reopenedStore = await openWindowsSnapshotStore({
-      storeId: store.storeId,
-      protector,
-    });
-    const reopened = createGroceryPersistence({ store: reopenedStore });
-    assert.deepEqual(
-      await reopened.execute(command, { actor: list.updatedBy }),
-      receipt,
-      'a retried request returns the stored receipt',
-    );
-
-    service.admitDevice('windows-example');
-    const connection = service.openConnection({ deviceId: 'windows-example' });
-    const grant = service.approveSetup(connection, {
-      recordIds: [list.id],
-      lifetimeMs: 60000,
-    });
-    await assert.rejects(
-      connection.execute(grant, {
-        version: 2,
-        action: 'read',
-        recordId: list.id,
-      }),
-      { code: 'READ_FAILED' },
-    );
-    const stored = await reopenedStore.read(list.id);
-    await assert.rejects(
-      connection.execute(grant, {
-        version: 2,
-        action: 'edit',
-        recordId: list.id,
-        expectedRevision: stored.revision,
-        data: {
-          memberId: 'member-example',
-          label: 'Profile',
-          value: 'Profile value',
-        },
-      }),
-      { code: 'UNSUPPORTED' },
-    );
-  },
-);
-
-test(
-  'WindowsSnapshotFileStore fault matrix reopens only complete old or new grocery/list receipt pairs',
+  'WindowsSnapshotFileStore fault matrix reopens only the complete old or the complete new notebook',
   windows,
   async (t) => {
     const { store, protector } = await openFixtureStore();
     t.after(() => store.removeSyntheticStore());
-    const initialList = {
-      ...list,
-      items: [{ id: 'apples', label: 'Apples', completed: false }],
-    };
-    await createGroceryPersistence({ store }).createList(initialList);
-    let expectedRevision = initialList.revision;
-    let expectedLabel = 'Apples';
+    const options = { storeId: store.storeId, protector };
     let leftover = 0;
-    for (const [testFault, outcome] of windowsFaultMatrix) {
-      const label = `Fixture ${testFault}`;
-      const faultStore = await openWindowsSnapshotStoreForFaultTest(
-        { storeId: store.storeId, protector },
-        testFault,
-      );
-      const persistence = createGroceryPersistence({ store: faultStore });
-      const command = {
-        version: 1,
-        action: 'edit',
-        requestId: crypto.randomUUID(),
-        householdId: list.householdId,
-        listId: list.id,
-        expectedRevision,
-        itemId: 'apples',
-        patch: { label },
-      };
-      let result;
-      let failure;
-      try {
-        result = await persistence.execute(command, { actor: list.updatedBy });
-      } catch (error) {
-        failure = error;
-      }
-
-      const reopened = await openWindowsSnapshotStore({
-        storeId: store.storeId,
-        protector,
-      });
-      const row = await reopened.read(list.id);
-      const grocery = row.data;
-      const outcomeRecord = grocery.outcomes.find(
-        (entry) => entry.requestId === command.requestId,
-      );
-      assert.equal(
-        outcomeRecord !== undefined,
-        outcome === 'new',
-        `${testFault}: durable receipt presence`,
-      );
-      assert.equal(
-        grocery.list.items[0].label,
-        outcome === 'new' ? label : expectedLabel,
-        `${testFault}: list state`,
-      );
-      if (outcome === 'new') {
-        assert.equal(result?.status, 'applied');
-        assert.equal(result.revision, grocery.list.revision);
-        assert.deepEqual(outcomeRecord.receipt, result);
-        expectedRevision = grocery.list.revision;
-        expectedLabel = label;
-      } else {
-        assert.ok(failure, `${testFault}: failed write must not claim success`);
-        assert.equal(
-          outcomeRecord,
-          undefined,
-          `${testFault}: no success receipt may accompany the old list`,
+    await assertNotebookFaultMatrix({
+      store,
+      reopen: () => openWindowsSnapshotStore(options),
+      withFault: (fault) => openWindowsSnapshotStoreForFaultTest(options, fault),
+      async afterEach(fault) {
+        const remaining = (await readdir(store.directory)).filter((name) =>
+          name.endsWith('.pending'),
         );
-        expectedRevision = grocery.list.revision;
-      }
-      const remaining = (await readdir(store.directory)).filter((name) =>
-        name.endsWith('.pending'),
-      );
-      if (testFault === 'process-interruption') {
         // Abrupt termination leaves exactly one ciphertext-only pending file.
         // Later operations never promote or remove another process's file.
-        leftover += 1;
-      }
-      assert.equal(
-        remaining.length,
-        leftover,
-        `${testFault}: a handled failure removes its own pending file`,
-      );
-    }
+        if (fault === 'process-interruption') leftover += 1;
+        assert.equal(
+          remaining.length,
+          leftover,
+          `${fault}: a handled failure removes its own pending file`,
+        );
+      },
+    });
   },
 );

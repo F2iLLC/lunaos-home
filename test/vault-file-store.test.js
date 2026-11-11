@@ -11,7 +11,6 @@ import {
   VaultStoreError,
 } from "../lib/vault-file-store.js";
 import { macKeychainProtector } from "../lib/mac-keychain-protector.js";
-import { createGroceryPersistence } from "../lib/grocery-persistence.js";
 import { createVaultNotebook } from "../lib/vault-notebook.js";
 import { createVaultSessionService } from "../lib/vault-sessions.js";
 import { VaultConflictError } from "../lib/vault-record-contract.js";
@@ -24,15 +23,6 @@ const alex = {
   label: "Workplace",
   value: "Willow Studio",
 };
-const groceryList = {
-  id: "weekly",
-  householdId: "home-example",
-  label: "Weekly",
-  items: [],
-  revision: "3d735c0e-3176-4502-8717-8e62f59d3a91",
-  updatedBy: { kind: "human", id: "alex-example" },
-};
-
 async function fresh(protector) {
   const directory = path.join(
     await mkdtemp(path.join(tmpdir(), "home-vault-")),
@@ -59,11 +49,10 @@ defineVersionedStoreConformance(test, {
   atRest: ({ directory }) => readFile(path.join(directory, "vault.bin")),
 });
 
-test("member details, the grocery list and Luna's notebook live in one vault store and survive a restart", async (t) => {
+test("member details and Luna's notebook, grocery list included, live in one vault store and survive a restart", async (t) => {
   const { store, reopen, directory, dispose } = await fresh();
   t.after(dispose);
   const saved = await store.create("alex-work", alex);
-  await createGroceryPersistence({ store }).createList(groceryList);
   const first = createVaultNotebook({ store });
   // People come from the vault: only someone with a saved detail can be chosen.
   assert.equal(
@@ -81,6 +70,8 @@ test("member details, the grocery list and Luna's notebook live in one vault sto
   for (const text of [
     "create a list of movies to watch",
     "add Interstellar and Arrival",
+    "create a grocery list",
+    "put 2 gallons of milk and eggs on the grocery list",
   ])
     assert.equal(
       (await first.request({ action: "say", text })).status,
@@ -91,7 +82,7 @@ test("member details, the grocery list and Luna's notebook live in one vault sto
   for (const secret of [
     "Interstellar",
     "Willow Studio",
-    "Weekly",
+    "Eggs",
     "alex-example",
   ])
     assert.equal(bytes.includes(Buffer.from(secret)), false, secret);
@@ -115,7 +106,22 @@ test("member details, the grocery list and Luna's notebook live in one vault sto
     "who is writing is not remembered across a restart",
   );
   assert.deepEqual(await again.read("alex-work"), { ...saved, data: alex });
-  assert.equal((await again.read("weekly")).data.kind, "grocery-list");
+  // The grocery list is a notebook list like any other, not a record of its own.
+  const groceries = snapshot.notebook.lists[1];
+  assert.deepEqual(
+    [
+      groceries.name,
+      groceries.items.map((item) => [item.text, item.quantity, item.unit]),
+    ],
+    [
+      "Grocery list",
+      [
+        ["Milk", 2, "gallons"],
+        ["Eggs", undefined, undefined],
+      ],
+    ],
+  );
+  assert.equal(await again.read("weekly"), null);
 
   // A profile session can neither read nor overwrite the list records.
   const sessions = createVaultSessionService({
@@ -125,7 +131,7 @@ test("member details, the grocery list and Luna's notebook live in one vault sto
   t.after(() => sessions.shutdown());
   sessions.admitDevice("mac-host");
   const connection = sessions.openConnection({ deviceId: "mac-host" });
-  for (const recordId of ["weekly", "notebook-home-example"]) {
+  for (const recordId of ["notebook-home-example"]) {
     const grant = sessions.approveSetup(connection, {
       recordIds: [recordId],
       lifetimeMs: 60000,
