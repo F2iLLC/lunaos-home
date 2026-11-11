@@ -7,8 +7,9 @@ shared `VersionedVaultRecordStore` v2 contract and runs it through the
 and the interrupted-write fault matrix (first written for the retired grocery record, now run on the notebook record). It advances [VLT-03](https://github.com/F2iLLC/lunaos-home/issues/6)
 and [GROC-02](https://github.com/F2iLLC/lunaos-home/issues/141). It is a
 developer-harness result with fictional records. The selected Software KSP
-protector and an unlock-session lifecycle are implemented behind the seam, but
-their attended Windows-dialog evidence is not recorded yet. Nothing here
+protector and an unlock-session lifecycle are implemented behind the seam, and
+one attended run of their Windows-dialog journey has passed end to end (on an
+earlier source head; see below). Nothing here
 qualifies production key release, enables a Home storage route, or authorizes
 sensitive use.
 
@@ -39,9 +40,10 @@ The crate separates two concerns:
     default build refuses it and fault injection with `INVALID`.
   - the **Software KSP protector** (`src/ksp.rs`, every build): the selected
     method, described [below](#software-ksp-protector-and-unlock-sessions).
-    It is implemented and unit-tested against the provider, but its
-    Windows-dialog behavior has **not** been exercised in an attended run on
-    this source.
+    It is implemented and unit-tested against the provider. Its
+    Windows-dialog behavior passed one attended run, on source head `04405ca`;
+    the protector and session code have not changed since, the record
+    validation has.
 
   There is no DPAPI, application-prompt or cross-protector fallback in any
   build: a snapshot names its protector in the authenticated header and is
@@ -219,8 +221,8 @@ existing store the runner records the operator's answer to "did Windows show a
 password dialog" next to the measured unlock time; an unlock faster than a
 person can type is recorded as a failure whatever the answer.
 
-Three attended runs on 2026-11-10 (Windows 11 Home 10.0.26300), none a
-complete pass:
+Four attended runs on 2026-11-10 (Windows 11 Home 10.0.26300). The first
+three were not complete passes; the fourth was:
 
 - **Run 1 (source head `4c3acab`): the session window could not be closed.**
   The runner then stopped at that first failed step, so the Windows-lock step
@@ -256,7 +258,23 @@ complete pass:
   a dismissed dialog produces. The same key released twice afterwards in that
   run. The cause was not confirmed. The runner finished and cleaned up.
 
-No attended run has passed end to end. The synthetic-click probe mentioned
+- **Run 4 (source head `04405ca`, schema 2 runner): PASS, every step, with
+  cleanup.** Creating the store showed one dialog (operator count 1). Each of
+  the three later unlocks in a new process showed the password dialog,
+  confirmed by the operator, and took 22.7, 5.2 and 8.3 seconds. A wrong
+  password and a cancelled dialog were refused. The operator closed the
+  session window with the X in its own title bar, recorded by the runner
+  this time, and the session locked. Windows+L ended the session. Nine
+  requests in one session, the seven fault stages, nothing readable at rest
+  and abrupt worker exit all passed. The operator later said an earlier run
+  included mistyped passwords, which is consistent with run 3's one failure
+  but does not confirm it.
+
+Run 4 is one pass on one machine by one operator. Since `04405ca` the crate's
+record format and validation changed (the grocery record was retired for the
+notebook record); `owner.rs`, `ksp.rs` and the runner did not. The run has
+not been repeated on the current head, and it does not cover a restart of the
+computer. The synthetic-click probe mentioned
 above was a temporary program and is not in the repository; the committed
 crate test checks only that the title bar answers hit tests, which the
 insufficient first fix also satisfied.
@@ -305,9 +323,9 @@ dialog; they are not key-release evidence.
 ## Limits and next steps
 
 This is not production adapter qualification. Open items, each a separate
-gate in the durability matrix: the attended Software KSP journey on this
-source (create, unlock, wrong password, cancel, close-to-lock, Windows lock,
-restart-locked); rerunning the complete conformance suite on the Software KSP
+gate in the durability matrix: the restart-locked check, and a repeat of the
+attended Software KSP journey on the current source (it passed once on
+`04405ca`); rerunning the complete conformance suite on the Software KSP
 build; independent review of the session model above; Home enrollment, unlock,
 method change, credential reset,
 migration and clean-device recovery; the user-selected storage location and
