@@ -62,7 +62,7 @@ test("one engine creates three differently named lists with no cross-contaminati
   assert.deepEqual(await view("to-do"), ["Cleaning the kitchen"]);
   assert.equal(
     (await say(assistant, "What's on my grocery list?")).reply,
-    "Grocery list: Milk, Eggs and Tortillas.",
+    "Your Grocery list contains Milk, Eggs and Tortillas.",
   );
 });
 
@@ -82,7 +82,7 @@ test("conversational follow-ups use the active list, remove, and what is left", 
   );
   assert.equal(
     (await say(assistant, "What's left?")).reply,
-    "Movies to watch: Interstellar.",
+    "Your Movies to watch list contains Interstellar.",
   );
   assert.match((await say(assistant, "add Dune too")).reply, /Added Dune/);
 });
@@ -103,7 +103,7 @@ test("complete keeps the item; active and completed are retrievable separately",
   );
   assert.equal(
     (await say(assistant, "what have I finished")).reply,
-    "To-do list: Laundry.",
+    "Your To-do list contains Laundry.",
   );
   assert.equal((await service.readList("to-do", "all")).view.items.length, 2);
 });
@@ -246,7 +246,7 @@ test("lists persist across a restart of the adapter", async () => {
   );
   assert.equal(
     (await say(second.assistant, "what's on my grocery list")).reply,
-    "Grocery list: Milk and Eggs.",
+    "Your Grocery list contains Milk and Eggs.",
   );
 });
 
