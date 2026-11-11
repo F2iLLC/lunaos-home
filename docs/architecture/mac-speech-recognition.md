@@ -45,3 +45,30 @@ playback finishes. The gear toggle still remembers only its on/off preference.
 Validation must distinguish packaging checks and synthetic recognition from an
 attended microphone test. A successful build or transcription of synthesized
 audio is not proof of real-room recognition accuracy or wake latency.
+
+## Validation deployment
+
+The ARMv7 Home APK at `3f4334c` built and installed successfully on the Echo Show.
+ZIP inspection found zero `assets/model/`, `libvosk` or `libjnidispatch` entries.
+The prior app-private `files/model` and `files/model-ready` were removed; the only
+remaining file in that directory was the enrolled relay configuration. The
+obsolete standalone voice-probe APK was backed up on the laptop and uninstalled
+from the Show. Main-app data was preserved.
+
+The signed-in Mac runs MLX Whisper 0.4.3 from a private virtual environment. The
+model weights SHA-256 matched the published
+`951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6`.
+The deployed service script is copied to the private runtime directory because
+launchd's Python process cannot read the protected Documents checkout. The
+loopback service loads the model once and is reachable through the existing
+pinned HTTPS relay. A synthesized test recording of “Hey Luna. What is on my
+Test movie list?” returned HTTP 200 and “Hey Luna, what is on my test movie
+list?” in 262 ms on the warmed model. This is synthetic route validation, not
+attended microphone or wake-latency acceptance.
+
+Thirty-three focused tests passed across Android packaging, bridge wiring,
+reply transport, wake/follow-up lifecycle, notebook routing, caption expiration
+and authenticated PCM forwarding. Follow-up lifecycle tests cover no capture
+during playback, successful-playback gating, one-window timeout, failure and
+revocation. Production notebook lifecycle/setup gates remain separate from this
+speech deployment; the live notebook acceptance relay still uses synthetic data.
