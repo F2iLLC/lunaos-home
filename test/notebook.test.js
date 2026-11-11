@@ -371,7 +371,7 @@ test("avatar animation follows the actual operation", async () => {
   assert.equal(await play("add Emma to my books list"), "scribble");
   assert.equal(await play("remove Emma"), "cross-out");
   assert.equal(await play("rename my books list to reading"), "erase-rewrite");
-  assert.equal(await play("add Emma to my cooking list"), "puzzled");
+  assert.equal(await play("add Emma to my cooking list"), "hover");
   assert.equal(avatarForOutcome({ status: "failed" }).success, false);
   assert.equal(avatarForOutcome({ status: "denied" }).animation, "puzzled");
 });

@@ -116,3 +116,19 @@ test('notebook speech disclosure is off by default', async t => {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'snapshot' }) });
   assert.equal(snapshot.status, 200, 'speech cooldown must not block the page from synchronizing');
 });
+
+test('list inventory variants and unrecognized names clarify locally without guessing a write', async t => {
+  const f = await fixture(t);
+  await f.say('create a list called Test movie');
+  await f.say('add Arrival and Interstellar');
+  for (const phrase of ['what lists do I have', 'what list do I have', 'what are my lists']) {
+    assert.equal((await f.say(phrase)).headers.get('x-home-notebook-animation'), 'read');
+    assert.match(f.speech.at(-1), /Test movie/);
+  }
+  assert.equal((await f.say('add Dune to my das movie list')).headers.get('x-home-notebook-animation'), 'hover');
+  assert.match(f.speech.at(-1), /Test movie.*Which list/);
+  assert.equal((await f.snapshot()).notebook.lists[0].items.length, 2);
+  await f.say('Test movie');
+  assert.equal((await f.snapshot()).notebook.lists[0].items.length, 3);
+  assert.equal(f.answers.length, 0);
+});
