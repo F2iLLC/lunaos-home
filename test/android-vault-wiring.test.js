@@ -103,12 +103,12 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const children = [];
     const document = {
       querySelector(selector) {
-        if (!elements.has(selector)) elements.set(selector, { append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {} });
+        if (!elements.has(selector)) elements.set(selector, { hidden: true, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
         return elements.get(selector);
       },
       createElement() {
         const local = new Map();
-        const element = { setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
+        const element = { dataset: {}, after() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
             if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);
@@ -127,8 +127,9 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     await new AsyncFunction('document', 'window', bundled.outputFiles[0].text)(document, window);
     if (!enabled) { assert.equal(children.length, 0); continue; }
-    const [lunaLink, lunaScreen, button, status, prepare, open, directStatus] = children;
-    assert.equal(lunaLink.href, '#luna');
+    const [settingsGear, lunaScreen, button, status, prepare, open, directStatus] = children;
+    assert.equal(settingsGear.href, '#luna');
+    assert.equal(settingsGear.className, 'settings-gear');
     assert.equal(lunaScreen.id, 'luna');
     await new Promise(resolve => setImmediate(resolve));
     assert.match(lunaScreen.querySelector('#luna-state').textContent, /Local wake model unavailable/);

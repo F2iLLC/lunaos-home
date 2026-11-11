@@ -102,6 +102,41 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .luna-timer-cancel { grid-column: 1 / -1; width: 100%; min-height: 60px; padding: 14px 18px; border: 2px solid #ff9187; border-radius: 14px; background: #ffd2cc; color: #421e28; font-size: 17px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
 .luna-timer-cancel:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
 .luna-timer-cancel:disabled { cursor: wait; opacity: .72; }
+.home-luna-face { display: block; margin: 0 auto -34px; padding: 0; border: 0; border-radius: 28px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.home-luna-face:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 4px; }
+.home-luna-face:disabled { cursor: wait; }
+.home-luna-face .luna-avatar { width: min(58vw, 228px); margin-bottom: 0; overflow: visible; }
+.luna-avatar-glow { opacity: 0; filter: blur(22px); transform-box: fill-box; transform-origin: center; transition: opacity 500ms ease; }
+.luna-avatar[data-capture-phase="waiting"] .luna-avatar-glow { opacity: .2; animation: luna-avatar-glow-faint 3.6s ease-in-out infinite alternate; }
+.luna-avatar[data-capture-phase="awake"] .luna-avatar-glow { opacity: .7; animation: luna-avatar-glow-bright 1.4s ease-in-out infinite alternate; }
+.luna-avatar[data-capture-phase="response"] .luna-avatar-glow { opacity: .38; }
+@keyframes luna-avatar-glow-faint { from { opacity: .13; transform: scale(.97); } to { opacity: .26; transform: scale(1.02); } }
+@keyframes luna-avatar-glow-bright { from { opacity: .55; transform: scale(1); } to { opacity: .85; transform: scale(1.08); } }
+.luna-avatar-mask, .luna-avatar-snore, .luna-avatar-zs { display: none; }
+.luna-avatar[data-capture-phase="off"] .luna-avatar-mask, .luna-avatar[data-capture-phase="retry"] .luna-avatar-mask,
+.luna-avatar[data-capture-phase="off"] .luna-avatar-snore, .luna-avatar[data-capture-phase="retry"] .luna-avatar-snore,
+.luna-avatar[data-capture-phase="off"] .luna-avatar-zs, .luna-avatar[data-capture-phase="retry"] .luna-avatar-zs { display: inline; }
+.luna-avatar[data-capture-phase="off"] .luna-avatar-eyes-closed, .luna-avatar[data-capture-phase="retry"] .luna-avatar-eyes-closed,
+.luna-avatar[data-capture-phase="off"] .luna-avatar-smile, .luna-avatar[data-capture-phase="retry"] .luna-avatar-smile { display: none; }
+.luna-avatar[data-capture-phase="off"], .luna-avatar[data-capture-phase="retry"] { animation: luna-avatar-sleep-bob 4.2s ease-in-out infinite; }
+.luna-avatar-snore { transform-box: fill-box; transform-origin: center; animation: luna-avatar-snore 4.2s ease-in-out infinite; }
+.luna-avatar-zs text { opacity: 0; transform-box: fill-box; animation: luna-avatar-z 8.4s ease-out infinite; }
+.luna-avatar-zs text:nth-child(2) { animation-delay: .9s; }
+.luna-avatar-zs text:nth-child(3) { animation-delay: 1.8s; }
+@keyframes luna-avatar-sleep-bob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-6px) rotate(1deg); } }
+@keyframes luna-avatar-snore { 0%, 100% { transform: scale(.45, .3); } 45%, 60% { transform: scale(1, 1); } }
+@keyframes luna-avatar-z { 0%, 8% { opacity: 0; transform: translate(-10px, 14px) scale(.7); } 18% { opacity: .9; } 42% { opacity: 0; transform: translate(22px, -46px) scale(1.15); } 100% { opacity: 0; transform: translate(22px, -46px) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  .luna-avatar-glow, .luna-avatar-snore, .luna-avatar-zs text { animation: none !important; }
+  .luna-avatar-zs text { opacity: .7; }
+}
+.home-luna { max-width: 520px; margin: 0 auto 18px; }
+#home-luna-state { min-height: 1.5em; margin: 0 0 14px; color: #d7fff3; font-size: 15px; }
+.home-luna .luna-timer-section { margin-top: 18px; }
+.settings-gear { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 5; display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid #f5e8e440; border-radius: 50%; background: #292e4bd9; color: #fcf0f1; }
+.settings-gear svg { width: 28px; height: 28px; }
+.settings-gear:hover { background: #292e4b; }
+.settings-gear:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
 #luna-timer-status { min-height: 1.5em; margin: 8px 0 0; color: #d7fff3; font-size: 14px; }
 .luna-online-toggle { display: inline-flex; align-items: center; justify-content: center; width: min(100%, 520px); min-height: 64px; margin: 14px auto 0; padding: 16px 24px; border: 2px solid #8cefd9; border-radius: 18px; background: #d7fff3; color: #24273d; font-size: 17px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .luna-online-toggle[aria-pressed="true"] { background: #8cefd9; }
