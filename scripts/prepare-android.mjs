@@ -200,7 +200,7 @@ export async function prepareAndroid({
   const voiceAssetRoot = join(debugRoot, 'assets/model');
   const vehicleRoot = new URL('./android/vehicle/', import.meta.url);
   const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java', 'VehicleVoiceCache.java', 'VehicleConversationActivity.java', 'VehicleReplyPlayer.java', 'VehicleLatency.java', 'VehiclePassengers.java', 'VehiclePassengerState.java', 'VehiclePassengerSetup.java'];
-  const voiceSources = ['BackgroundWakeService.java', 'CommandAudio.java', 'HomeLunaBridge.java', 'LunaFace.java', 'MusicCommand.java', 'MusicControl.java', 'MusicPlayer.java', 'NativeTimers.java', 'PendingTimerRequest.java', 'ProbeCapture.java', 'PromptPlayer.java', 'QuestionPolicy.java', 'QuestionReply.java', 'ReplyPlan.java', 'SpokenReply.java', 'TimerAlarmService.java', 'TimerCommand.java', 'TimerHandoffGate.java', 'TimerLedger.java', 'TimerPhrase.java', 'TimerReceiver.java', 'WakeSession.java'];
+  const voiceSources = ['BackgroundWakeService.java', 'CommandAudio.java', 'HomeLunaBridge.java', 'LunaFace.java', 'LunaVoice.java', 'MusicCommand.java', 'MusicControl.java', 'MusicPlayer.java', 'VoicePreview.java', 'NativeTimers.java', 'PendingTimerRequest.java', 'ProbeCapture.java', 'PromptPlayer.java', 'QuestionPolicy.java', 'QuestionReply.java', 'ReplyPlan.java', 'SpokenReply.java', 'TimerAlarmService.java', 'TimerCommand.java', 'TimerHandoffGate.java', 'TimerLedger.java', 'TimerPhrase.java', 'TimerReceiver.java', 'WakeSession.java'];
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);
@@ -294,14 +294,20 @@ export async function prepareAndroid({
   // Luna's spoken timer confirmations: a prepared, validated clip pack kept
   // outside Git. Without it timers still work and Luna stays silent.
   const replyAssetRoot = join(debugRoot, 'assets/replies');
-  await rm(replyAssetRoot, { recursive: true, force: true });
-  const configuredReplies = process.env.LUNA_HOME_VOICE_REPLY_DIRECTORY;
-  if (configuredReplies) {
+  const packs = [
+    { variable: 'LUNA_HOME_VOICE_REPLY_DIRECTORY', destination: replyAssetRoot },
+    { variable: 'LUNA_HOME_LORI_REPLY_DIRECTORY', destination: join(debugRoot, 'assets/replies-lori'), voiceId: 'TbMNBJ27fH2U0VgpSNko' },
+  ];
+  for (const { variable, destination, voiceId } of packs) {
+    await rm(destination, { recursive: true, force: true });
+    const configuredReplies = process.env[variable];
+    if (!configuredReplies) continue;
     const replyRoot = resolve(configuredReplies);
     const manifest = JSON.parse(await readFile(new URL('./android-offline-voice-probe/reply-prompts.json', import.meta.url), 'utf8'));
     const pack = JSON.parse(await readFile(join(replyRoot, 'pack.json'), 'utf8'));
     if (pack.provider !== 'ElevenLabs' || !Array.isArray(pack.clips) || pack.clips.length !== manifest.length)
-      throw new Error('LUNA_HOME_VOICE_REPLY_DIRECTORY must hold a complete prepared reply pack.');
+      throw new Error(`${variable} must hold a complete prepared reply pack.`);
+    if (voiceId && pack.voiceId !== voiceId) throw new Error(`${variable} has the wrong voice ID.`);
     const clips = [];
     for (const clip of manifest) {
       const entries = pack.clips.filter(entry => entry.id === clip.id);
@@ -318,8 +324,10 @@ export async function prepareAndroid({
         throw new Error(`Invalid or oversized reply WAV: ${clip.id}`);
       clips.push([clip.id, bytes]);
     }
-    await mkdir(replyAssetRoot, { recursive: true });
-    for (const [id, bytes] of clips) await writeFile(join(replyAssetRoot, `${id}.wav`), bytes);
+    await mkdir(destination, { recursive: true });
+    for (const [id, bytes] of clips) await writeFile(join(destination, `${id}.wav`), bytes);
+    // Publish the availability marker only after all clips pass validation.
+    await writeFile(join(destination, 'pack.json'), JSON.stringify({ provider: 'ElevenLabs', ...(voiceId ? { voiceId } : {}), clips: pack.clips }));
   }
   await writeFile(join(debugRoot, 'AndroidManifest.xml'), vaultDebugManifest);
   await writeFile(path, preparedManifest);

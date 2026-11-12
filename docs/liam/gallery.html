@@ -1,0 +1,455 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Luna + Liam · Character studio</title><style>:root{font-family:ui-rounded,system-ui,sans-serif;color:#f4f3ff;background:#181b2c;color-scheme:dark}*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1180px;margin:auto;padding:24px 36px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff18;font-size:13px;letter-spacing:.04em}.brand{font-weight:750}.badge{color:#adcef6}h1{font-size:clamp(40px,6vw,68px);line-height:1.06;margin:16px 0}h1 span{color:#72c9ff}.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#9cd8ff;margin:24px 0 0}.intro{max-width:640px;color:#b9c0d9;line-height:1.7;margin-bottom:28px}.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:20px;margin:18px 0;font-size:13px}label{display:inline-flex;align-items:center;gap:8px}select,button{font:inherit;color:inherit;border:1px solid #5d6585;background:#252b43;border-radius:9px;padding:9px 12px;cursor:pointer}button:hover{border-color:#85cdff}button[aria-pressed=true]{background:#b0e0ff;color:#172a43;border-color:#b0e0ff}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #bca8ff;outline-offset:4px}#states{display:flex;gap:8px;flex-wrap:wrap}#note{color:#bbc8df;min-height:2.8em;line-height:1.5;font-size:14px}.comparison{--character-width:300px;display:flex;gap:20px;justify-content:center;align-items:stretch}.portrait{flex:1;min-width:0;text-align:center;border:1px solid #586185;border-radius:24px;background:radial-gradient(ellipse at 50% 43%,#48416555,transparent 70%),#23283e;padding:20px 12px 18px}.portrait.liam{background:radial-gradient(ellipse at 50% 43%,#2d779e44,transparent 70%),#202b40}.portrait[hidden]{display:none}.portrait h2{font-size:23px;margin:10px 0 0}.portrait p{font-size:12px;color:#adb9d3;margin:5px 0}.art{width:var(--character-width);max-width:100%;margin:auto;position:relative}.guides .art{background:linear-gradient(to bottom,transparent 20%,#aadfff44 20%,#aadfff44 20.3%,transparent 20.3%,transparent 62.8%,#aadfff44 62.8%,#aadfff44 63.1%,transparent 63.1%,transparent 97.2%,#aadfff44 97.2%,#aadfff44 97.5%,transparent 97.5%)}.caption{font-size:12px;color:#aab7d1;text-align:center;line-height:1.6}.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:22px 0 40px}.section-head{margin-top:50px;display:flex;align-items:baseline;justify-content:space-between;gap:20px}.section-head p{font-size:13px;color:#acb9d2}.state-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.state-card{border:1px solid #4d5573;border-radius:16px;padding:14px;background:#24293e}.state-card h3{font-size:13px;margin:0 0 12px;font-weight:550;color:#c7d4ec}.mini-pair{display:flex}.mini-pair>div{width:50%}.state-card p{text-align:center;color:#cbb5f0;font-size:11px}.state-card p span{color:#8bcefb}#checks{white-space:pre-wrap;color:#a9dacd;font-size:13px;line-height:1.7}footer{color:#a4afc8;font-size:12px;line-height:1.8;border-top:1px solid #ffffff18;margin-top:30px}input{accent-color:#88ceff}@media(max-width:700px){header,main,footer{padding:20px}.badge{display:none}.comparison{gap:10px}.portrait{padding:12px 5px;border-radius:16px}.state-grid{grid-template-columns:repeat(2,1fr)}.section-head{display:block}.toolbar{gap:14px}.portrait p{font-size:10px}}
+</style><style id="avatar-css">/* Every animated group has one transform owner. Face/head never scale. */
+.luna2 { display:block; width:100%; height:auto; aspect-ratio:8/9; overflow:hidden; }
+.luna2 * { transform-box:view-box; }
+.luna2 .l2-outfit-enterprise,
+.luna2 .l2-eyes-shut,.luna2 .l2-eyes-blink,.luna2 .l2-mouth-small,.luna2 .l2-mouth-wide,
+.luna2 .l2-mouth-concern,.luna2 .l2-mouth-snore,.luna2 .l2-sleep-mask,.luna2 .l2-laptop,.luna2 .l2-effects > g,
+.luna2 .l2-hand-think,.luna2 .l2-listening-glow,.luna2 .l2-brows { opacity:0; }
+.luna2[data-outfit="enterprise"] .l2-outfit-home { display:none; }
+.luna2[data-outfit="enterprise"] .l2-outfit-enterprise { opacity:1; }
+.luna2[data-outfit="enterprise"] .l2-sleeve { fill:#9981c3; }
+.luna2[data-compact="true"] .l2-detail { display:none; }
+.luna2[data-state="listening"] .l2-listening-lines { opacity:.85; }
+.luna2[data-state="thinking"] .l2-thinking-dots { opacity:1; }
+.luna2[data-state="thinking"] .l2-eye-gaze { transform:translate(3px,-4px); }
+.luna2[data-state="thinking"] .l2-head-pose { transform:rotate(-4deg); }
+.luna2[data-state="thinking"] .l2-arm-left { opacity:0; }
+.luna2[data-state="thinking"] .l2-hand-think { opacity:1; }
+.luna2[data-state="working"] .l2-laptop { opacity:1; }
+.luna2[data-state="working"] .l2-eye-gaze { transform:translate(0,4px); }
+.luna2[data-state="working"] .l2-arm { transform:rotate(-25deg); }
+.luna2[data-state="happy"] .l2-eyes-open,
+.luna2[data-state="sleeping"] .l2-eyes-open { opacity:0; }
+.luna2[data-state="happy"] .l2-eyes-shut,
+.luna2[data-state="happy"] .l2-sparkles { opacity:1; }
+.luna2[data-state="happy"] .l2-mouth-smile,
+.luna2[data-state="error"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="happy"] .l2-mouth-wide { opacity:1; }
+.luna2[data-state="error"] .l2-mouth-small,
+.luna2[data-state="error"] .l2-oops,.luna2[data-state="error"] .l2-brows { opacity:1; }
+.luna2[data-state="sleeping"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="sleeping"] .l2-sleep-mask,
+.luna2[data-state="sleeping"] .l2-zzz { opacity:1; }
+.luna2[data-state="sleeping"] .l2-mouth-snore { opacity:1; }
+.luna2[data-state="sleeping"] .l2-snore-open,
+.luna2[data-state="sleeping"] .l2-snore-tongue { opacity:0; animation:l2-snore-open 3.6s steps(1,end) infinite; }
+.luna2[data-state="sleeping"] .l2-snore-closed { opacity:1; animation:l2-snore-closed 3.6s steps(1,end) infinite; }
+.luna2[data-state="talking"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="talking"] .l2-mouth-small { opacity:1; }
+
+/* Static proportions were raster-checked before motion was introduced. */
+.luna2 .l2-character { animation:l2-breathe 5.6s ease-in-out infinite; }
+.luna2 .l2-pigtail { animation:l2-hair 6.7s ease-in-out infinite; }
+.luna2 .l2-head-pose,.luna2 .l2-eye-gaze,.luna2 .l2-arm { transition:transform 360ms ease; }
+.luna2:not([data-state="sleeping"]):not([data-state="happy"]) .l2-eyes-open { animation:l2-blink-open 17s steps(1,end) infinite; }
+.luna2:not([data-state="sleeping"]):not([data-state="happy"]) .l2-eyes-blink { animation:l2-blink-shut 17s steps(1,end) infinite; }
+.luna2[data-state="listening"] .l2-pigtail { animation:l2-perk 3.8s ease-in-out infinite; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle { animation:l2-dot 1.8s ease-in-out infinite; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle:nth-child(2) { animation-delay:.25s; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle:nth-child(3) { animation-delay:.5s; }
+.luna2[data-state="working"] .l2-arm { animation:l2-type .85s ease-in-out infinite; }
+.luna2[data-state="working"] .l2-arm-right { animation-delay:.42s; }
+.luna2[data-state="working"] .l2-eye-gaze { animation:l2-glance 7s ease-in-out infinite; }
+.luna2[data-state="talking"][data-audio="unavailable"] .l2-mouth-small { animation:l2-mouth-a .64s steps(1,end) infinite; }
+.luna2[data-state="talking"][data-audio="unavailable"] .l2-mouth-wide { animation:l2-mouth-b .64s steps(1,end) infinite; }
+.luna2[data-state="talking"][data-audio="closed"] .l2-mouth-small { opacity:0; }
+.luna2[data-state="talking"][data-audio="closed"] .l2-mouth-smile { opacity:1; }
+.luna2[data-state="talking"][data-audio="wide"] .l2-mouth-small { opacity:0; }
+.luna2[data-state="talking"][data-audio="wide"] .l2-mouth-wide { opacity:1; }
+.luna2[data-state="happy"] .l2-character { animation:l2-celebrate .85s ease-out 1; }
+.luna2[data-state="happy"] .l2-sparkles { animation:l2-sparkle 1.4s ease-out 1; }
+.luna2[data-state="error"] .l2-mouth-small { animation:l2-surprise 1.1s steps(1,end) forwards; }
+.luna2[data-state="error"] .l2-mouth-concern { animation:l2-concern 1.1s steps(1,end) forwards; }
+.luna2[data-state="sleeping"] .l2-character { animation-duration:6.8s; }
+.luna2[data-state="sleeping"] .l2-head-pose { animation:l2-sleep-bob 4.8s ease-in-out infinite; }
+.luna2[data-state="sleeping"] .l2-zzz { animation:l2-drift 5s ease-in-out infinite; }
+@keyframes l2-breathe { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
+@keyframes l2-hair { 0%,100% { transform:rotate(0); } 50% { transform:rotate(1deg); } }
+@keyframes l2-perk { 0%,100% { transform:rotate(3deg); } 50% { transform:rotate(4deg); } }
+/* Unequal blink intervals (3.4, 5.3, 2.5, 5.8 seconds), no eye/face scaling. */
+@keyframes l2-blink-open { 0%,21%,52%,67%,100% { opacity:1; } 20%,51%,66% { opacity:0; } }
+@keyframes l2-blink-shut { 0%,21%,52%,67%,100% { opacity:0; } 20%,51%,66% { opacity:1; } }
+@keyframes l2-dot { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+@keyframes l2-type { 0%,100% { transform:rotate(-25deg) translateY(0); } 50% { transform:rotate(-25deg) translateY(5px); } }
+@keyframes l2-sleep-bob { 0%,100% { transform:translateY(0) rotate(0); } 50% { transform:translateY(1.5px) rotate(.6deg); } }
+@keyframes l2-snore-open { 0%,28%,64%,100% { opacity:0; } 34%,58% { opacity:1; } }
+@keyframes l2-snore-closed { 0%,28%,64%,100% { opacity:1; } 34%,58% { opacity:0; } }
+@keyframes l2-glance { 0%,65%,100% { transform:translateY(4px); } 75%,90% { transform:translateY(0); } }
+@keyframes l2-mouth-a { 0%,55%,100% { opacity:1; } 25%,75% { opacity:0; } }
+@keyframes l2-mouth-b { 0%,55%,100% { opacity:0; } 25%,75% { opacity:1; } }
+@keyframes l2-celebrate { 0%,65%,100% { transform:translateY(0); } 30% { transform:translateY(-7px); } 80% { transform:translateY(-2px); } }
+@keyframes l2-sparkle { 0% { opacity:0; } 30%,70%,100% { opacity:1; } }
+@keyframes l2-surprise { 0% { opacity:1; } 100% { opacity:0; } }
+@keyframes l2-concern { 0% { opacity:0; } 100% { opacity:1; } }
+@keyframes l2-drift { 0%,100% { opacity:.35; transform:translateY(0); } 50% { opacity:.9; transform:translateY(-7px); } }
+.luna2[data-paused="true"] * { animation-play-state:paused !important; }
+.luna2[data-reduced-motion="true"] * { animation:none !important; transition:none !important; }
+@media (prefers-reduced-motion:reduce) { .luna2 * { animation:none !important; transition:none !important; } }
+</style></head><body>
+<header><div class="brand">☾ &nbsp; LunaOS / Character studio</div><div class="badge">Development preview · Not connected to Home</div></header><main>
+<p class="eyebrow">A familiar face. A new little inventor.</p><h1>Meet <span>Liam.</span><br>Luna’s blue-haired counterpart.</h1><p class="intro">Bright ideas, fluffy blue hair, and a hoodie made for tinkering. Built on Luna 2.0’s exact face and body proportions, with the same expressions and gentle movements.</p>
+<div id="states" aria-label="Character animation state"></div><p id="note" aria-live="polite"></p>
+<div class="toolbar"><label>View <select id="view"><option value="both">Side by side</option><option value="luna">Luna</option><option value="liam">Liam</option></select></label><label><input type="checkbox" id="motion" checked> Animate</label><label><input type="checkbox" id="guides"> Proportion guides</label><label>Size <select id="size"><option value="300">300 px</option><option value="128">128 px</option><option value="48">48 px</option></select></label><label>Speaking mouth <select id="mouth"><option value="auto">Automatic</option><option value="0">Closed</option><option value="0.2">Small</option><option value="0.8">Wide</option></select></label></div>
+<section class="comparison" id="comparison" aria-label="Luna and Liam animation comparison"><article class="portrait" id="luna-card"><div class="art" id="luna"></div><h2>Luna</h2><p>The approved Luna 2.0 reference</p></article><article class="portrait liam" id="liam-card"><div class="art" id="liam"></div><h2>Liam</h2><p>Curious mind. Big blue energy.</p></article></section>
+<p class="caption">Shared 320 × 360 canvas · Identical face, hands and pose pivots · System reduced-motion preference takes priority</p><div class="actions"><button id="replay">Replay together</button><label>Export <select id="export-character"><option value="liam">Liam</option><option value="luna">Luna</option></select></label><button id="export">Save current SVG</button></div>
+<div class="section-head"><h2>Every expression, together.</h2><p>Static comparisons / choose a state above to see it move.</p></div><section class="state-grid" id="sheet" aria-label="All eight expression pairs"></section>
+<div class="section-head"><h2>Same little foundations.</h2><p>Live DOM checks for both characters</p></div><button id="verify">Check rendering invariants</button><pre id="checks">Checks have not run in this browser.</pre>
+</main><footer>Design preview only. No microphone, voice playback, assistant requests, accounts or saved preferences.<br>Luna’s production SVG, styles and controller are unchanged. Liam uses that controller and stylesheet with development-only appearance assets.</footer><script>var CharacterPreview = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all2) => {
+    for (var name in all2)
+      __defProp(target, name, { get: all2[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // scripts/character-preview/gallery.js
+  var gallery_exports = {};
+  __export(gallery_exports, {
+    verifyGallery: () => verifyGallery
+  });
+
+  // src/luna/avatar.js
+  var LUNA_STATES = Object.freeze(["idle", "listening", "thinking", "talking", "working", "happy", "error", "sleeping"]);
+  var LUNA_OUTFITS = Object.freeze(["home", "enterprise"]);
+  var escape = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  var moon = (x, y, scale = 1) => `<path transform="translate(${x} ${y}) scale(${scale})" d="M8-17A21 21 0 1 0 22 15C1 19-7-1 8-17Z" fill="#ffe795" stroke="#806299" stroke-width="2.5"/><path transform="translate(${x} ${y}) scale(${scale})" d="M-10-3Q-16 14 2 20" fill="none" stroke="#fff7ca" stroke-width="3"/>`;
+  var star = (x, y, scale = 1) => `<path transform="translate(${x} ${y}) scale(${scale})" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/>`;
+  function pigtail(side) {
+    return `<g transform="${side === "right" ? "translate(320 0) scale(-1 1)" : "translate(0 0)"}"><g transform="translate(83 108)"><g class="l2-pigtail" style="transform-origin:0 0"><g transform="translate(-83 -108)">
+    <path d="M83 94C62 72 26 82 19 108 7 144 49 161 34 187 28 197 18 195 12 188 13 220 51 236 73 208 89 186 68 162 78 141 88 125 101 110 83 94Z" fill="#ba96f4"/>
+    <path d="M57 90C23 100 21 124 42 145 64 167 63 199 41 209 68 214 78 193 66 164 50 128 73 114 81 104Z" fill="#9d79dc" stroke="none"/>
+    <path d="M41 89C11 100 14 126 28 141 19 119 33 104 46 101M15 197Q33 226 59 210" fill="none" stroke="#f2d4ff" stroke-width="5"/>
+    <ellipse cx="37" cy="106" rx="9" ry="5" transform="rotate(-35 37 106)" fill="#f7e4ff" stroke="none"/>
+    <path d="M72 89Q83 78 92 93L94 112 79 119Z" fill="#f2b9e7"/>
+  </g></g></g></g>`;
+  }
+  function boots() {
+    return `<g class="l2-feet">
+    <path d="M123 300V324H145V300M175 300V324H197V300" fill="#fff0df"/>
+    <path d="M117 320Q132 313 149 321L151 343Q136 351 112 345L114 330Z M171 321Q188 313 203 320L206 330 208 345Q184 351 169 343Z" fill="#c2a1f3"/>
+    <path d="M113 336Q130 330 149 335L151 343Q132 350 112 345ZM171 335Q189 330 207 336L208 345Q189 350 169 343Z" fill="#edb8e9"/>
+    <path d="M112 342Q129 348 151 341V349Q130 355 111 349ZM169 341Q190 348 208 342L209 349Q190 355 169 349Z" fill="#fff8ff"/>
+    <g fill="#94e6e0" stroke-width="1.8"><path d="M132 326Q116 315 117 327T132 331Q147 339 146 327T132 326ZM188 326Q173 315 174 327T188 331Q203 339 202 327T188 326Z"/><circle cx="132" cy="329" r="4"/><circle cx="188" cy="329" r="4"/></g>
+  </g>`;
+  }
+  function outfit() {
+    return `<g class="l2-outfit-home">
+    <path d="M123 238Q160 223 197 238L207 302Q160 318 113 302Z" fill="#c2a1f3"/>
+    <path d="M116 284Q158 298 204 284L211 310Q160 326 109 310Z" fill="#fff6fc"/>
+    <path d="M124 298 121 313M143 302 141 317M178 302 180 317M196 298 199 313" fill="none" stroke="#c4a0e8" stroke-width="4"/>
+    <path d="M120 264Q160 277 201 264V280Q160 293 118 280Z" fill="#f6d9fa" stroke="none"/>
+    <path d="M121 233Q131 214 160 237 189 214 199 233L180 250 160 242 140 250Z" fill="#f2b9e7"/>
+    <path d="M125 231Q141 230 159 242 178 230 195 231" fill="none" stroke="#fff5fc" stroke-width="6"/>
+    <path d="M141 244 138 270M179 244 182 270" fill="none" stroke="#89e5dd" stroke-width="5"/>
+    <circle cx="138" cy="272" r="3" fill="#89e5dd"/><circle cx="182" cy="272" r="3" fill="#89e5dd"/>
+    ${moon(159, 271, 0.65)}
+    <g class="l2-detail" fill="#fff5fc" stroke="#d28ed8" stroke-width="2.5"><path d="M122 289C108 275 110 299 127 306 144 292 136 278 127 288Z"/><path d="M191 289C177 275 179 299 196 306 213 292 205 278 196 288Z"/></g>
+  </g>
+  <g class="l2-outfit-enterprise">
+    <path d="M124 282H196L205 311Q160 323 115 311Z" fill="#8a73b6"/>
+    <path d="M126 235Q160 225 194 235L201 294Q180 304 160 293 140 304 119 294Z" fill="#9981c3"/>
+    <path d="M143 231 160 259 177 231Z" fill="#fff6fc"/>
+    <path d="M137 233 148 251 140 258 160 283 151 241M183 233 172 251 180 258 160 283 169 241" fill="#bfa0eb"/>
+    <path d="M151 240 160 247 169 240 168 255 160 250 152 255Z" fill="#8de3da"/>
+    <circle cx="160" cy="283" r="2.6" fill="#ffdfa3" stroke="none"/>
+    <path d="M126 281H140M180 281H194" stroke="#d9c2f5" stroke-width="3"/>
+    <g class="l2-detail"><path d="M179 250V268" stroke="#8de3da" stroke-width="3"/><rect x="172" y="263" width="17" height="22" rx="3" fill="#fff8ee"/><circle cx="180.5" cy="270" r="3" fill="#c3a3ef" stroke="none"/><path d="M176 278H185" stroke="#8de3da"/></g>
+  </g>`;
+  }
+  function arm(right) {
+    return `<g transform="${right ? "translate(320 0) scale(-1 1)" : "translate(0 0)"}"><g transform="translate(126 240)"><g class="l2-arm ${right ? "l2-arm-right" : "l2-arm-left"}" style="transform-origin:0 0"><g transform="translate(-126 -240)">
+    <path d="M122 239Q104 245 94 269L105 287 123 276 136 250Z" class="l2-sleeve" fill="#d5b6f4"/>
+    <path d="M96 270 108 280 102 290 90 279Z" fill="#f6d4ee"/>
+    <path d="M91 279Q80 285 91 294 99 299 103 288Z" fill="#fff0df"/>
+    <path class="l2-detail" d="M103 255 121 268" stroke="#fff7fc" stroke-width="7"/>
+  </g></g></g></g>`;
+  }
+  function face() {
+    return `<g transform="translate(160 213)"><g class="l2-head-pose" style="transform-origin:0 0"><g transform="translate(-160 -213)">
+    <ellipse class="l2-face-base" cx="160" cy="149" rx="87" ry="77" fill="#fff0df" stroke="#9470bf"/>
+    <g class="l2-cheeks" fill="#ffb3cf" stroke="none"><ellipse cx="109" cy="182" rx="15" ry="8.5"/><ellipse cx="211" cy="182" rx="15" ry="8.5"/></g>
+    <g class="l2-eye-gaze" fill="#27184b" stroke="none">
+      <g class="l2-eyes-open"><ellipse cx="127" cy="157" rx="11" ry="17"/><ellipse cx="193" cy="157" rx="11" ry="17"/><ellipse cx="130" cy="151" rx="3.7" ry="4.5" fill="#fff"/><ellipse cx="196" cy="151" rx="3.7" ry="4.5" fill="#fff"/></g>
+    </g>
+    <g class="l2-eyes-shut" fill="none" stroke="#27184b" stroke-width="4.5"><path d="M116 160Q127 147 138 160M182 160Q193 147 204 160"/></g>
+    <g class="l2-eyes-blink" fill="none" stroke="#27184b" stroke-width="3.5"><path d="M117 160Q127 165 137 160M183 160Q193 165 203 160"/></g>
+    <g class="l2-brows" fill="none" stroke="#9470bf" stroke-width="3"><path d="M117 132 132 130M188 130 203 132"/></g>
+    <g fill="none" stroke="#27184b" stroke-width="3.6"><path class="l2-mouth-smile" d="M150 184Q160 198 170 184"/><path class="l2-mouth-concern" d="M152 191Q160 186 168 191"/></g>
+    <g class="l2-mouth-small"><ellipse cx="160" cy="188" rx="6" ry="7" fill="#44234f" stroke="#27184b" stroke-width="2"/></g>
+    <g class="l2-mouth-wide"><path d="M149 182H171Q172 200 160 200 148 200 149 182Z" fill="#44234f" stroke="#27184b" stroke-width="2"/><path d="M153 195Q160 189 167 195Q160 202 153 195Z" fill="#f7a5c8" stroke="none"/></g>
+    <g class="l2-front-hair" fill="#bb96f2">
+      <path d="M78 153Q64 94 112 73 144 60 160 76 183 59 213 78 252 98 242 153 225 139 214 117 183 112 160 87 140 115 106 127 101 146 78 153Z"/>
+      <path d="M86 128Q71 159 80 188L91 181 94 215Q67 205 65 177Z M234 128Q249 159 240 188L229 181 226 215Q253 205 255 177Z"/>
+      <path d="M101 89Q119 75 136 79M179 77Q204 78 219 94" fill="none" stroke="#e3c8ff" stroke-width="6"/>
+    </g>
+    <g class="l2-accessories">
+      <path d="M154 59C135 40 108 22 100 32 90 44 96 76 107 84 120 93 142 74 154 65Z M166 59C185 40 212 22 220 32 230 44 224 76 213 84 200 93 178 74 166 65Z" fill="#8fe9e2" stroke="#f5ffff" stroke-width="4"/>
+      <path d="M149 60Q122 48 118 59T149 65M171 60Q198 48 202 59T171 65" fill="#61c8ca" stroke="none"/>
+      <rect x="149" y="51" width="22" height="22" rx="8" fill="#8be2dc" stroke="#62b6c1" stroke-width="2"/>
+      ${moon(230, 109, 0.9)}
+      <g class="l2-detail">${star(88, 119, 0.82)}${star(98, 99, 0.43)}</g>
+    </g>
+    <g class="l2-sleep-mask">
+      <path d="M88 153 104 159M216 159 232 153" fill="none" stroke="#9b79cb" stroke-width="7"/>
+      <path d="M104 146Q124 136 147 146 160 152 173 146 196 136 216 146L216 174Q198 193 177 178 160 168 143 178 122 193 104 174Z" fill="#b792ee" stroke="#f0d9ff" stroke-width="3"/>
+      <path d="M117 163Q127 174 138 163M182 163Q193 174 203 163" fill="none" stroke="#fff0ff" stroke-width="3"/>
+      ${moon(160, 153, 0.34)}
+    </g>
+    <g class="l2-mouth-snore" fill="#44234f" stroke="#27184b" stroke-width="2">
+      <path class="l2-snore-closed" d="M155 193Q160 198 165 193" fill="none" stroke-width="3.4" stroke-linecap="round"/>
+      <ellipse class="l2-snore-open" cx="160" cy="194" rx="6" ry="8"/>
+      <path class="l2-snore-tongue" d="M156 198Q160 194 164 198Q160 203 156 198Z" fill="#f7a5c8" stroke="none"/>
+    </g>
+  </g></g></g>`;
+  }
+  function effects() {
+    return `<g class="l2-effects" stroke="none">
+    <g class="l2-thinking-dots" fill="#f8e9ff"><circle cx="146" cy="14" r="3"/><circle cx="160" cy="14" r="3"/><circle cx="174" cy="14" r="3"/></g>
+    <g class="l2-listening-lines" fill="none" stroke="#93ede5" stroke-width="4"><path d="M23 65 31 77M40 57 44 71M291 65 283 77M274 57 270 71"/></g>
+    <g class="l2-sparkles">${star(40, 244, 0.65)}${star(278, 238, 0.8)}${star(273, 47, 0.45)}</g>
+    <g class="l2-oops" fill="#ffe795"><path d="M270 77 274 91 278 77Z"/><circle cx="274" cy="98" r="2.5"/></g>
+    <g class="l2-zzz" fill="#e8d0ff" font-family="system-ui,sans-serif" font-weight="700"><text x="260" y="145" font-size="14">z</text><text x="277" y="127" font-size="20">z</text><text x="292" y="104" font-size="25">Z</text></g>
+  </g>`;
+  }
+  function lunaAvatarMarkup({ state: state2 = "idle", outfit: wardrobe = "home", label = "Luna", reducedMotion = false } = {}) {
+    if (!LUNA_STATES.includes(state2) || !LUNA_OUTFITS.includes(wardrobe)) throw new TypeError("Unknown Luna presentation");
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="luna2" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escape(label)} \u2014 ${state2}" data-state="${state2}" data-outfit="${wardrobe}" data-reduced-motion="${Boolean(reducedMotion)}">
+    <ellipse class="l2-ground" cx="160" cy="351" rx="78" ry="5" fill="#a58cdd" opacity=".22"/>
+    <g class="l2-character" fill="none" stroke="#806299" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      ${pigtail("left")}${pigtail("right")}
+      <g class="l2-body">${boots()}${outfit()}${arm(false)}${arm(true)}</g>
+      ${face()}
+      <g class="l2-hand-think"><path d="M116 247Q112 236 127 225L143 230Q141 247 126 255Z" class="l2-sleeve" fill="#d5b6f4"/><path d="M127 226 131 219 145 225 142 232Z" fill="#f6d4ee"/><path d="M132 221Q126 210 133 208L138 214Q134 201 141 203L146 215Q153 209 154 216L145 228Z" fill="#fff0df"/></g>
+      <g class="l2-laptop"><path d="M106 312H219L232 331H101Z" fill="#bba0e3"/><path d="M139 281H229L219 328H130Z" fill="#9d80cb" stroke="#e7d2ff" stroke-width="3"/>${moon(180, 303, 0.46)}<path d="M102 333H230" stroke="#806299" stroke-width="4"/></g>
+    </g>${effects()}
+  </svg>`;
+  }
+  function mountLunaAvatar(host, initial = {}) {
+    host.innerHTML = lunaAvatarMarkup(initial);
+    const svg = host.querySelector("svg");
+    const doc = host.ownerDocument;
+    const win = doc.defaultView;
+    let props = { state: "idle", outfit: "home", label: "Luna", ...initial };
+    let disposed = false, visible = true, measuredWidth;
+    const media = win?.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const write = (key, value) => {
+      if (svg.dataset[key] !== String(value)) svg.dataset[key] = String(value);
+    };
+    const sync = () => {
+      if (disposed) return;
+      write("paused", doc.hidden || !visible);
+      write("reducedMotion", Boolean(props.reducedMotion || media?.matches));
+    };
+    const resize = (entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (!disposed && width !== void 0) {
+        measuredWidth = width;
+        write("compact", width < 96);
+      }
+    };
+    const Resize = win?.ResizeObserver;
+    const resizeObserver = Resize ? new Resize(resize) : null;
+    resizeObserver?.observe(svg);
+    const Intersection = win?.IntersectionObserver;
+    const intersection = Intersection ? new Intersection((entries) => {
+      visible = entries[0]?.isIntersecting !== false;
+      sync();
+    }) : null;
+    intersection?.observe(svg);
+    doc.addEventListener("visibilitychange", sync);
+    media?.addEventListener?.("change", sync);
+    function update(next = {}) {
+      if (disposed) return;
+      const candidate = { ...props, ...next };
+      if (!LUNA_STATES.includes(candidate.state) || !LUNA_OUTFITS.includes(candidate.outfit)) throw new TypeError("Unknown Luna presentation");
+      props = candidate;
+      write("state", props.state);
+      write("outfit", props.outfit);
+      const label = `${props.label} \u2014 ${props.state}`;
+      if (svg.getAttribute("aria-label") !== label) svg.setAttribute("aria-label", label);
+      if (props.size !== void 0) {
+        const size = typeof props.size === "number" ? `${Math.max(1, props.size)}px` : props.size;
+        svg.style.width = size;
+        svg.style.height = size;
+      }
+      const level = Number.isFinite(props.audioLevel) ? Math.min(1, Math.max(0, props.audioLevel)) : null;
+      write("audio", level === null ? "unavailable" : level < 0.08 ? "closed" : level < 0.45 ? "small" : "wide");
+      write("compact", typeof props.size === "number" ? props.size < 96 : measuredWidth !== void 0 && measuredWidth < 96);
+      sync();
+    }
+    update();
+    return {
+      element: svg,
+      update,
+      dispose() {
+        if (disposed) return;
+        disposed = true;
+        doc.removeEventListener("visibilitychange", sync);
+        media?.removeEventListener?.("change", sync);
+        resizeObserver?.disconnect();
+        intersection?.disconnect();
+        write("paused", true);
+      }
+    };
+  }
+
+  // scripts/character-preview/avatar.js
+  var CHARACTERS = Object.freeze({
+    luna: Object.freeze({ id: "luna", name: "Luna", base: "luna", animations: "shared" }),
+    liam: Object.freeze({ id: "liam", name: "Liam", base: "luna", hair: "fluffy-blue", outfit: "blue-hoodie", animations: "shared" })
+  });
+  var hair = `<path d="M77 151Q66 132 71 111L62 115Q64 94 84 83L74 79Q88 61 113 62L109 51Q127 48 143 57Q139 39 154 29Q151 47 169 50Q187 40 202 51L197 60Q222 58 235 78L228 80Q250 94 249 116L241 111Q250 137 241 155L228 145 222 123Q207 127 196 112L199 125Q175 119 159 95Q149 118 128 126L133 112Q113 130 98 128L92 148 85 143 84 165Z" fill="#48b6ff"/>
+  <path d="M74 113Q77 94 92 85L84 83Q106 65 125 70L120 62Q145 66 158 80Q138 75 124 90 104 111 91 110L85 143 79 139Z M204 74Q237 84 240 111L233 109Q244 136 239 145L229 139 222 118Q210 118 201 108L204 117 196 112Q182 101 174 88Q196 103 212 104Z" fill="#2387dc" stroke="none"/>
+  <path d="M99 82Q116 70 134 78M170 66Q184 58 198 67" fill="none" stroke="#b1e9ff" stroke-width="6"/>
+  <path d="M147 59Q147 48 153 43" fill="none" stroke="#b1e9ff" stroke-width="3"/>`;
+  var hoodie = `<path d="M123 238Q160 223 197 238L207 302Q160 318 113 302Z" fill="#51b4f4"/>
+  <path d="M116 295Q160 307 204 295L207 309Q160 322 113 309Z" fill="#edfaff"/>
+  <path d="M127 303 126 312M142 306 141 315M178 306 179 315M193 303 194 312" stroke="#9acfe8" stroke-width="2"/>
+  <path d="M121 233Q131 214 160 237 189 214 199 233L180 250 160 242 140 250Z" fill="#2387dc"/>
+  <path d="M125 231Q141 230 159 242 178 230 195 231" fill="none" stroke="#f5fcff" stroke-width="6"/>
+  <path d="M141 244 138 267M179 244 182 267" fill="none" stroke="#f5fcff" stroke-width="4"/>
+  <path d="M133 280 126 292Q160 303 194 292L187 280" fill="#3198e2"/>
+  <path d="M151 258H165L158 269H170L152 284 156 272H148Z" fill="#fff4b5" stroke-width="1.8"/>`;
+  var sneakers = `<path d="M123 300V324H145V300M175 300V324H197V300" fill="#fff0df"/>
+  <path d="M123 314H145V325H123ZM175 314H197V325H175Z" fill="#f5fcff"/>
+  <path d="M117 320Q132 313 149 321L151 343Q136 351 112 345L114 330Z M171 321Q188 313 203 320L206 330 208 345Q184 351 169 343Z" fill="#48b6ff"/>
+  <path d="M113 336Q130 330 149 335L151 343Q132 350 112 345ZM171 335Q189 330 207 336L208 345Q189 350 169 343Z" fill="#d9f3ff"/>
+  <path d="M112 342Q129 348 151 341V349Q130 355 111 349ZM169 341Q190 348 208 342L209 349Q190 355 169 349Z" fill="#fff8ff"/>
+  <path d="M124 324 140 326M123 329 140 331M180 326 196 324M180 331 197 329" fill="none" stroke="#fff" stroke-width="3"/>`;
+  function applyLiam(svg) {
+    for (const tail of svg.querySelectorAll(".l2-pigtail")) tail.parentElement.parentElement.remove();
+    svg.querySelector(".l2-front-hair").innerHTML = hair;
+    svg.querySelector(".l2-accessories").replaceChildren();
+    svg.querySelector(".l2-outfit-home").innerHTML = hoodie;
+    svg.querySelector(".l2-feet").innerHTML = sneakers;
+    for (const sleeve of svg.querySelectorAll(".l2-sleeve")) sleeve.setAttribute("fill", "#69c3ff");
+    for (const cuff of svg.querySelectorAll('.l2-arm path[fill="#f6d4ee"], .l2-hand-think path[fill="#f6d4ee"]')) cuff.setAttribute("fill", "#f5fcff");
+    for (const shape of svg.querySelectorAll(".l2-sleep-mask path")) {
+      const colors = { "#9b79cb": "#2387dc", "#b792ee": "#58b6f1", "#f0d9ff": "#d9f3ff" };
+      for (const attr of ["fill", "stroke"]) if (colors[shape.getAttribute(attr)]) shape.setAttribute(attr, colors[shape.getAttribute(attr)]);
+    }
+  }
+  function mountCharacter(host, { character = "luna", ...props } = {}) {
+    if (!Object.hasOwn(CHARACTERS, character)) throw new TypeError("Unknown character");
+    const config = CHARACTERS[character];
+    const validate = (next) => {
+      if ("character" in next) throw new TypeError("Character is fixed per mount");
+      if (character === "liam" && next.outfit && next.outfit !== "home") throw new TypeError("Liam has a home hoodie only");
+    };
+    validate(props);
+    const controller = mountLunaAvatar(host, { ...props, label: config.name });
+    if (character === "liam") applyLiam(controller.element);
+    controller.element.dataset.character = character;
+    return {
+      element: controller.element,
+      update(next = {}) {
+        validate(next);
+        controller.update(next);
+      },
+      dispose: controller.dispose
+    };
+  }
+
+  // scripts/character-preview/gallery.js
+  var $ = (selector) => document.querySelector(selector);
+  var pair = ["luna", "liam"].map((character) => mountCharacter($(`#${character}`), { character }));
+  var all = [...pair];
+  var state = "idle";
+  var notes = {
+    idle: "A quiet breath and irregular blinks. Same face, same tiny proportions.",
+    listening: "Wake-word activation preview. The shared listening marks appear; no microphone is used.",
+    thinking: "The same head tilt, upward glance and little thinking hand.",
+    talking: "Shared mouth poses and timing. Use the mouth control to inspect each pose.",
+    working: "Matching typing gestures on their tiny laptops.",
+    happy: "Crescent eyes, a cheerful bounce and golden stars.",
+    error: "Surprise settles into concern. Replay to see the transition.",
+    sleeping: "Matching sleep masks, gentle breathing, aligned snoring mouths and floating Zs."
+  };
+  function syncClocks(controllers) {
+    for (const controller of controllers) for (const animation of controller.element.getAnimations({ subtree: true })) animation.currentTime = 0;
+  }
+  function choose(next) {
+    state = next;
+    for (const c of pair) c.update({ state });
+    syncClocks(pair);
+    for (const b of document.querySelectorAll("[data-state-button]")) b.setAttribute("aria-pressed", String(b.dataset.stateButton === state));
+    $("#note").textContent = notes[state];
+  }
+  for (const s of LUNA_STATES) {
+    const b = document.createElement("button");
+    b.textContent = s === "talking" ? "Speaking" : s[0].toUpperCase() + s.slice(1);
+    b.dataset.stateButton = s;
+    b.onclick = () => choose(s);
+    $("#states").append(b);
+    const card = document.createElement("article");
+    card.className = "state-card";
+    card.innerHTML = `<h3>${b.textContent}</h3><div class="mini-pair"><div></div><div></div></div><p>Luna <span>+ Liam</span></p>`;
+    [...card.querySelectorAll(".mini-pair > div")].forEach((host, i) => all.push(mountCharacter(host, { character: i ? "liam" : "luna", state: s, reducedMotion: true })));
+    $("#sheet").append(card);
+  }
+  $("#motion").onchange = (e) => {
+    for (const c of pair) c.update({ reducedMotion: !e.target.checked });
+    syncClocks(pair);
+  };
+  $("#view").onchange = (e) => {
+    for (const id of Object.keys(CHARACTERS)) $(`#${id}-card`).hidden = e.target.value !== "both" && e.target.value !== id;
+  };
+  $("#guides").onchange = (e) => $("#comparison").classList.toggle("guides", e.target.checked);
+  $("#mouth").onchange = (e) => {
+    for (const c of pair) c.update({ audioLevel: e.target.value === "auto" ? void 0 : Number(e.target.value) });
+  };
+  $("#size").onchange = (e) => {
+    $("#comparison").style.setProperty("--character-width", `${e.target.value}px`);
+  };
+  $("#replay").onclick = () => syncClocks(pair);
+  $("#export").onclick = () => {
+    const svg = pair[$("#export-character").value === "liam" ? 1 : 0].element.cloneNode(true);
+    svg.dataset.reducedMotion = "true";
+    delete svg.dataset.paused;
+    const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = $("#avatar-css").textContent;
+    svg.append(style);
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${svg.dataset.character}-${state}.svg`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  };
+  function verifyGallery() {
+    const failures = [];
+    const selectors = [".l2-face-base", ".l2-cheeks", ".l2-eye-gaze", ".l2-eyes-shut", ".l2-eyes-blink", ".l2-brows", ".l2-mouth-smile", ".l2-mouth-small", ".l2-mouth-wide", ".l2-mouth-concern", ".l2-mouth-snore"];
+    const snapshots = pair.map((c) => [...c.element.querySelectorAll("*")]);
+    for (let cycle = 0; cycle < 40; cycle++) for (const s of LUNA_STATES) {
+      pair.forEach((c, i) => {
+        c.update({ state: s });
+        const nodes = [...c.element.querySelectorAll("*")];
+        if (nodes.length !== snapshots[i].length || nodes.some((n, j) => n !== snapshots[i][j])) failures.push("Node identity changed");
+        const matrix = c.element.querySelector(".l2-face-base").getCTM();
+        if (matrix && Math.abs(Math.hypot(matrix.a, matrix.b) - Math.hypot(matrix.c, matrix.d)) > 1e-3) failures.push("Face stretched");
+      });
+      for (const selector of selectors) if (pair[0].element.querySelector(selector).outerHTML !== pair[1].element.querySelector(selector).outerHTML) failures.push(`Face mismatch: ${selector}`);
+    }
+    choose(state);
+    const result = { passed: failures.length === 0, transitions: 640, identicalFaceGroups: selectors.length, failures: [...new Set(failures)] };
+    $("#checks").textContent = result.passed ? "PASS \xB7 640 transitions \xB7 stable SVG nodes \xB7 11 identical face groups \xB7 no unequal face scaling" : JSON.stringify(result);
+    return result;
+  }
+  $("#verify").onclick = verifyGallery;
+  window.addEventListener("pagehide", () => all.forEach((c) => c.dispose()));
+  choose("idle");
+  return __toCommonJS(gallery_exports);
+})();
+</script></body></html>

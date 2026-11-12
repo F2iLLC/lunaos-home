@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="luna2" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Luna — listening" data-state="listening" data-outfit="home" data-reduced-motion="true" data-audio="unavailable" data-compact="false" data-character="luna">
+    <ellipse class="l2-ground" cx="160" cy="351" rx="78" ry="5" fill="#a58cdd" opacity=".22"/>
+    <g class="l2-character" fill="none" stroke="#806299" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(0 0)"><g transform="translate(83 108)"><g class="l2-pigtail" style="transform-origin:0 0"><g transform="translate(-83 -108)">
+    <path d="M83 94C62 72 26 82 19 108 7 144 49 161 34 187 28 197 18 195 12 188 13 220 51 236 73 208 89 186 68 162 78 141 88 125 101 110 83 94Z" fill="#ba96f4"/>
+    <path d="M57 90C23 100 21 124 42 145 64 167 63 199 41 209 68 214 78 193 66 164 50 128 73 114 81 104Z" fill="#9d79dc" stroke="none"/>
+    <path d="M41 89C11 100 14 126 28 141 19 119 33 104 46 101M15 197Q33 226 59 210" fill="none" stroke="#f2d4ff" stroke-width="5"/>
+    <ellipse cx="37" cy="106" rx="9" ry="5" transform="rotate(-35 37 106)" fill="#f7e4ff" stroke="none"/>
+    <path d="M72 89Q83 78 92 93L94 112 79 119Z" fill="#f2b9e7"/>
+  </g></g></g></g><g transform="translate(320 0) scale(-1 1)"><g transform="translate(83 108)"><g class="l2-pigtail" style="transform-origin:0 0"><g transform="translate(-83 -108)">
+    <path d="M83 94C62 72 26 82 19 108 7 144 49 161 34 187 28 197 18 195 12 188 13 220 51 236 73 208 89 186 68 162 78 141 88 125 101 110 83 94Z" fill="#ba96f4"/>
+    <path d="M57 90C23 100 21 124 42 145 64 167 63 199 41 209 68 214 78 193 66 164 50 128 73 114 81 104Z" fill="#9d79dc" stroke="none"/>
+    <path d="M41 89C11 100 14 126 28 141 19 119 33 104 46 101M15 197Q33 226 59 210" fill="none" stroke="#f2d4ff" stroke-width="5"/>
+    <ellipse cx="37" cy="106" rx="9" ry="5" transform="rotate(-35 37 106)" fill="#f7e4ff" stroke="none"/>
+    <path d="M72 89Q83 78 92 93L94 112 79 119Z" fill="#f2b9e7"/>
+  </g></g></g></g>
+      <g class="l2-body"><g class="l2-feet">
+    <path d="M123 300V324H145V300M175 300V324H197V300" fill="#fff0df"/>
+    <path d="M117 320Q132 313 149 321L151 343Q136 351 112 345L114 330Z M171 321Q188 313 203 320L206 330 208 345Q184 351 169 343Z" fill="#c2a1f3"/>
+    <path d="M113 336Q130 330 149 335L151 343Q132 350 112 345ZM171 335Q189 330 207 336L208 345Q189 350 169 343Z" fill="#edb8e9"/>
+    <path d="M112 342Q129 348 151 341V349Q130 355 111 349ZM169 341Q190 348 208 342L209 349Q190 355 169 349Z" fill="#fff8ff"/>
+    <g fill="#94e6e0" stroke-width="1.8"><path d="M132 326Q116 315 117 327T132 331Q147 339 146 327T132 326ZM188 326Q173 315 174 327T188 331Q203 339 202 327T188 326Z"/><circle cx="132" cy="329" r="4"/><circle cx="188" cy="329" r="4"/></g>
+  </g><g class="l2-outfit-home">
+    <path d="M123 238Q160 223 197 238L207 302Q160 318 113 302Z" fill="#c2a1f3"/>
+    <path d="M116 284Q158 298 204 284L211 310Q160 326 109 310Z" fill="#fff6fc"/>
+    <path d="M124 298 121 313M143 302 141 317M178 302 180 317M196 298 199 313" fill="none" stroke="#c4a0e8" stroke-width="4"/>
+    <path d="M120 264Q160 277 201 264V280Q160 293 118 280Z" fill="#f6d9fa" stroke="none"/>
+    <path d="M121 233Q131 214 160 237 189 214 199 233L180 250 160 242 140 250Z" fill="#f2b9e7"/>
+    <path d="M125 231Q141 230 159 242 178 230 195 231" fill="none" stroke="#fff5fc" stroke-width="6"/>
+    <path d="M141 244 138 270M179 244 182 270" fill="none" stroke="#89e5dd" stroke-width="5"/>
+    <circle cx="138" cy="272" r="3" fill="#89e5dd"/><circle cx="182" cy="272" r="3" fill="#89e5dd"/>
+    <path transform="translate(159 271) scale(0.65)" d="M8-17A21 21 0 1 0 22 15C1 19-7-1 8-17Z" fill="#ffe795" stroke="#806299" stroke-width="2.5"/><path transform="translate(159 271) scale(0.65)" d="M-10-3Q-16 14 2 20" fill="none" stroke="#fff7ca" stroke-width="3"/>
+    <g class="l2-detail" fill="#fff5fc" stroke="#d28ed8" stroke-width="2.5"><path d="M122 289C108 275 110 299 127 306 144 292 136 278 127 288Z"/><path d="M191 289C177 275 179 299 196 306 213 292 205 278 196 288Z"/></g>
+  </g>
+  <g class="l2-outfit-enterprise">
+    <path d="M124 282H196L205 311Q160 323 115 311Z" fill="#8a73b6"/>
+    <path d="M126 235Q160 225 194 235L201 294Q180 304 160 293 140 304 119 294Z" fill="#9981c3"/>
+    <path d="M143 231 160 259 177 231Z" fill="#fff6fc"/>
+    <path d="M137 233 148 251 140 258 160 283 151 241M183 233 172 251 180 258 160 283 169 241" fill="#bfa0eb"/>
+    <path d="M151 240 160 247 169 240 168 255 160 250 152 255Z" fill="#8de3da"/>
+    <circle cx="160" cy="283" r="2.6" fill="#ffdfa3" stroke="none"/>
+    <path d="M126 281H140M180 281H194" stroke="#d9c2f5" stroke-width="3"/>
+    <g class="l2-detail"><path d="M179 250V268" stroke="#8de3da" stroke-width="3"/><rect x="172" y="263" width="17" height="22" rx="3" fill="#fff8ee"/><circle cx="180.5" cy="270" r="3" fill="#c3a3ef" stroke="none"/><path d="M176 278H185" stroke="#8de3da"/></g>
+  </g><g transform="translate(0 0)"><g transform="translate(126 240)"><g class="l2-arm l2-arm-left" style="transform-origin:0 0"><g transform="translate(-126 -240)">
+    <path d="M122 239Q104 245 94 269L105 287 123 276 136 250Z" class="l2-sleeve" fill="#d5b6f4"/>
+    <path d="M96 270 108 280 102 290 90 279Z" fill="#f6d4ee"/>
+    <path d="M91 279Q80 285 91 294 99 299 103 288Z" fill="#fff0df"/>
+    <path class="l2-detail" d="M103 255 121 268" stroke="#fff7fc" stroke-width="7"/>
+  </g></g></g></g><g transform="translate(320 0) scale(-1 1)"><g transform="translate(126 240)"><g class="l2-arm l2-arm-right" style="transform-origin:0 0"><g transform="translate(-126 -240)">
+    <path d="M122 239Q104 245 94 269L105 287 123 276 136 250Z" class="l2-sleeve" fill="#d5b6f4"/>
+    <path d="M96 270 108 280 102 290 90 279Z" fill="#f6d4ee"/>
+    <path d="M91 279Q80 285 91 294 99 299 103 288Z" fill="#fff0df"/>
+    <path class="l2-detail" d="M103 255 121 268" stroke="#fff7fc" stroke-width="7"/>
+  </g></g></g></g></g>
+      <g transform="translate(160 213)"><g class="l2-head-pose" style="transform-origin:0 0"><g transform="translate(-160 -213)">
+    <ellipse class="l2-face-base" cx="160" cy="149" rx="87" ry="77" fill="#fff0df" stroke="#9470bf"/>
+    <g class="l2-cheeks" fill="#ffb3cf" stroke="none"><ellipse cx="109" cy="182" rx="15" ry="8.5"/><ellipse cx="211" cy="182" rx="15" ry="8.5"/></g>
+    <g class="l2-eye-gaze" fill="#27184b" stroke="none">
+      <g class="l2-eyes-open"><ellipse cx="127" cy="157" rx="11" ry="17"/><ellipse cx="193" cy="157" rx="11" ry="17"/><ellipse cx="130" cy="151" rx="3.7" ry="4.5" fill="#fff"/><ellipse cx="196" cy="151" rx="3.7" ry="4.5" fill="#fff"/></g>
+    </g>
+    <g class="l2-eyes-shut" fill="none" stroke="#27184b" stroke-width="4.5"><path d="M116 160Q127 147 138 160M182 160Q193 147 204 160"/></g>
+    <g class="l2-eyes-blink" fill="none" stroke="#27184b" stroke-width="3.5"><path d="M117 160Q127 165 137 160M183 160Q193 165 203 160"/></g>
+    <g class="l2-brows" fill="none" stroke="#9470bf" stroke-width="3"><path d="M117 132 132 130M188 130 203 132"/></g>
+    <g fill="none" stroke="#27184b" stroke-width="3.6"><path class="l2-mouth-smile" d="M150 184Q160 198 170 184"/><path class="l2-mouth-concern" d="M152 191Q160 186 168 191"/></g>
+    <g class="l2-mouth-small"><ellipse cx="160" cy="188" rx="6" ry="7" fill="#44234f" stroke="#27184b" stroke-width="2"/></g>
+    <g class="l2-mouth-wide"><path d="M149 182H171Q172 200 160 200 148 200 149 182Z" fill="#44234f" stroke="#27184b" stroke-width="2"/><path d="M153 195Q160 189 167 195Q160 202 153 195Z" fill="#f7a5c8" stroke="none"/></g>
+    <g class="l2-front-hair" fill="#bb96f2">
+      <path d="M78 153Q64 94 112 73 144 60 160 76 183 59 213 78 252 98 242 153 225 139 214 117 183 112 160 87 140 115 106 127 101 146 78 153Z"/>
+      <path d="M86 128Q71 159 80 188L91 181 94 215Q67 205 65 177Z M234 128Q249 159 240 188L229 181 226 215Q253 205 255 177Z"/>
+      <path d="M101 89Q119 75 136 79M179 77Q204 78 219 94" fill="none" stroke="#e3c8ff" stroke-width="6"/>
+    </g>
+    <g class="l2-accessories">
+      <path d="M154 59C135 40 108 22 100 32 90 44 96 76 107 84 120 93 142 74 154 65Z M166 59C185 40 212 22 220 32 230 44 224 76 213 84 200 93 178 74 166 65Z" fill="#8fe9e2" stroke="#f5ffff" stroke-width="4"/>
+      <path d="M149 60Q122 48 118 59T149 65M171 60Q198 48 202 59T171 65" fill="#61c8ca" stroke="none"/>
+      <rect x="149" y="51" width="22" height="22" rx="8" fill="#8be2dc" stroke="#62b6c1" stroke-width="2"/>
+      <path transform="translate(230 109) scale(0.9)" d="M8-17A21 21 0 1 0 22 15C1 19-7-1 8-17Z" fill="#ffe795" stroke="#806299" stroke-width="2.5"/><path transform="translate(230 109) scale(0.9)" d="M-10-3Q-16 14 2 20" fill="none" stroke="#fff7ca" stroke-width="3"/>
+      <g class="l2-detail"><path transform="translate(88 119) scale(0.82)" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/><path transform="translate(98 99) scale(0.43)" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/></g>
+    </g>
+    <g class="l2-sleep-mask">
+      <path d="M88 153 104 159M216 159 232 153" fill="none" stroke="#9b79cb" stroke-width="7"/>
+      <path d="M104 146Q124 136 147 146 160 152 173 146 196 136 216 146L216 174Q198 193 177 178 160 168 143 178 122 193 104 174Z" fill="#b792ee" stroke="#f0d9ff" stroke-width="3"/>
+      <path d="M117 163Q127 174 138 163M182 163Q193 174 203 163" fill="none" stroke="#fff0ff" stroke-width="3"/>
+      <path transform="translate(160 153) scale(0.34)" d="M8-17A21 21 0 1 0 22 15C1 19-7-1 8-17Z" fill="#ffe795" stroke="#806299" stroke-width="2.5"/><path transform="translate(160 153) scale(0.34)" d="M-10-3Q-16 14 2 20" fill="none" stroke="#fff7ca" stroke-width="3"/>
+    </g>
+    <g class="l2-mouth-snore" fill="#44234f" stroke="#27184b" stroke-width="2">
+      <path class="l2-snore-closed" d="M155 193Q160 198 165 193" fill="none" stroke-width="3.4" stroke-linecap="round"/>
+      <ellipse class="l2-snore-open" cx="160" cy="194" rx="6" ry="8"/>
+      <path class="l2-snore-tongue" d="M156 198Q160 194 164 198Q160 203 156 198Z" fill="#f7a5c8" stroke="none"/>
+    </g>
+  </g></g></g>
+      <g class="l2-hand-think"><path d="M116 247Q112 236 127 225L143 230Q141 247 126 255Z" class="l2-sleeve" fill="#d5b6f4"/><path d="M127 226 131 219 145 225 142 232Z" fill="#f6d4ee"/><path d="M132 221Q126 210 133 208L138 214Q134 201 141 203L146 215Q153 209 154 216L145 228Z" fill="#fff0df"/></g>
+      <g class="l2-laptop"><path d="M106 312H219L232 331H101Z" fill="#bba0e3"/><path d="M139 281H229L219 328H130Z" fill="#9d80cb" stroke="#e7d2ff" stroke-width="3"/><path transform="translate(180 303) scale(0.46)" d="M8-17A21 21 0 1 0 22 15C1 19-7-1 8-17Z" fill="#ffe795" stroke="#806299" stroke-width="2.5"/><path transform="translate(180 303) scale(0.46)" d="M-10-3Q-16 14 2 20" fill="none" stroke="#fff7ca" stroke-width="3"/><path d="M102 333H230" stroke="#806299" stroke-width="4"/></g>
+    </g><g class="l2-effects" stroke="none">
+    <g class="l2-thinking-dots" fill="#f8e9ff"><circle cx="146" cy="14" r="3"/><circle cx="160" cy="14" r="3"/><circle cx="174" cy="14" r="3"/></g>
+    <g class="l2-listening-lines" fill="none" stroke="#93ede5" stroke-width="4"><path d="M23 65 31 77M40 57 44 71M291 65 283 77M274 57 270 71"/></g>
+    <g class="l2-sparkles"><path transform="translate(40 244) scale(0.65)" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/><path transform="translate(278 238) scale(0.8)" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/><path transform="translate(273 47) scale(0.45)" d="M0-12 4-4 13-3 7 4 9 13 0 9-9 13-7 4-13-3-4-4Z" fill="#ffe795" stroke="#806299" stroke-width="2.5" stroke-linejoin="round"/></g>
+    <g class="l2-oops" fill="#ffe795"><path d="M270 77 274 91 278 77Z"/><circle cx="274" cy="98" r="2.5"/></g>
+    <g class="l2-zzz" fill="#e8d0ff" font-family="system-ui,sans-serif" font-weight="700"><text x="260" y="145" font-size="14">z</text><text x="277" y="127" font-size="20">z</text><text x="292" y="104" font-size="25">Z</text></g>
+  </g>
+  <style>/* Every animated group has one transform owner. Face/head never scale. */
+.luna2 { display:block; width:100%; height:auto; aspect-ratio:8/9; overflow:hidden; }
+.luna2 * { transform-box:view-box; }
+.luna2 .l2-outfit-enterprise,
+.luna2 .l2-eyes-shut,.luna2 .l2-eyes-blink,.luna2 .l2-mouth-small,.luna2 .l2-mouth-wide,
+.luna2 .l2-mouth-concern,.luna2 .l2-mouth-snore,.luna2 .l2-sleep-mask,.luna2 .l2-laptop,.luna2 .l2-effects &gt; g,
+.luna2 .l2-hand-think,.luna2 .l2-listening-glow,.luna2 .l2-brows { opacity:0; }
+.luna2[data-outfit="enterprise"] .l2-outfit-home { display:none; }
+.luna2[data-outfit="enterprise"] .l2-outfit-enterprise { opacity:1; }
+.luna2[data-outfit="enterprise"] .l2-sleeve { fill:#9981c3; }
+.luna2[data-compact="true"] .l2-detail { display:none; }
+.luna2[data-state="listening"] .l2-listening-lines { opacity:.85; }
+.luna2[data-state="thinking"] .l2-thinking-dots { opacity:1; }
+.luna2[data-state="thinking"] .l2-eye-gaze { transform:translate(3px,-4px); }
+.luna2[data-state="thinking"] .l2-head-pose { transform:rotate(-4deg); }
+.luna2[data-state="thinking"] .l2-arm-left { opacity:0; }
+.luna2[data-state="thinking"] .l2-hand-think { opacity:1; }
+.luna2[data-state="working"] .l2-laptop { opacity:1; }
+.luna2[data-state="working"] .l2-eye-gaze { transform:translate(0,4px); }
+.luna2[data-state="working"] .l2-arm { transform:rotate(-25deg); }
+.luna2[data-state="happy"] .l2-eyes-open,
+.luna2[data-state="sleeping"] .l2-eyes-open { opacity:0; }
+.luna2[data-state="happy"] .l2-eyes-shut,
+.luna2[data-state="happy"] .l2-sparkles { opacity:1; }
+.luna2[data-state="happy"] .l2-mouth-smile,
+.luna2[data-state="error"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="happy"] .l2-mouth-wide { opacity:1; }
+.luna2[data-state="error"] .l2-mouth-small,
+.luna2[data-state="error"] .l2-oops,.luna2[data-state="error"] .l2-brows { opacity:1; }
+.luna2[data-state="sleeping"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="sleeping"] .l2-sleep-mask,
+.luna2[data-state="sleeping"] .l2-zzz { opacity:1; }
+.luna2[data-state="sleeping"] .l2-mouth-snore { opacity:1; }
+.luna2[data-state="sleeping"] .l2-snore-open,
+.luna2[data-state="sleeping"] .l2-snore-tongue { opacity:0; animation:l2-snore-open 3.6s steps(1,end) infinite; }
+.luna2[data-state="sleeping"] .l2-snore-closed { opacity:1; animation:l2-snore-closed 3.6s steps(1,end) infinite; }
+.luna2[data-state="talking"] .l2-mouth-smile { opacity:0; }
+.luna2[data-state="talking"] .l2-mouth-small { opacity:1; }
+
+/* Static proportions were raster-checked before motion was introduced. */
+.luna2 .l2-character { animation:l2-breathe 5.6s ease-in-out infinite; }
+.luna2 .l2-pigtail { animation:l2-hair 6.7s ease-in-out infinite; }
+.luna2 .l2-head-pose,.luna2 .l2-eye-gaze,.luna2 .l2-arm { transition:transform 360ms ease; }
+.luna2:not([data-state="sleeping"]):not([data-state="happy"]) .l2-eyes-open { animation:l2-blink-open 17s steps(1,end) infinite; }
+.luna2:not([data-state="sleeping"]):not([data-state="happy"]) .l2-eyes-blink { animation:l2-blink-shut 17s steps(1,end) infinite; }
+.luna2[data-state="listening"] .l2-pigtail { animation:l2-perk 3.8s ease-in-out infinite; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle { animation:l2-dot 1.8s ease-in-out infinite; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle:nth-child(2) { animation-delay:.25s; }
+.luna2[data-state="thinking"] .l2-thinking-dots circle:nth-child(3) { animation-delay:.5s; }
+.luna2[data-state="working"] .l2-arm { animation:l2-type .85s ease-in-out infinite; }
+.luna2[data-state="working"] .l2-arm-right { animation-delay:.42s; }
+.luna2[data-state="working"] .l2-eye-gaze { animation:l2-glance 7s ease-in-out infinite; }
+.luna2[data-state="talking"][data-audio="unavailable"] .l2-mouth-small { animation:l2-mouth-a .64s steps(1,end) infinite; }
+.luna2[data-state="talking"][data-audio="unavailable"] .l2-mouth-wide { animation:l2-mouth-b .64s steps(1,end) infinite; }
+.luna2[data-state="talking"][data-audio="closed"] .l2-mouth-small { opacity:0; }
+.luna2[data-state="talking"][data-audio="closed"] .l2-mouth-smile { opacity:1; }
+.luna2[data-state="talking"][data-audio="wide"] .l2-mouth-small { opacity:0; }
+.luna2[data-state="talking"][data-audio="wide"] .l2-mouth-wide { opacity:1; }
+.luna2[data-state="happy"] .l2-character { animation:l2-celebrate .85s ease-out 1; }
+.luna2[data-state="happy"] .l2-sparkles { animation:l2-sparkle 1.4s ease-out 1; }
+.luna2[data-state="error"] .l2-mouth-small { animation:l2-surprise 1.1s steps(1,end) forwards; }
+.luna2[data-state="error"] .l2-mouth-concern { animation:l2-concern 1.1s steps(1,end) forwards; }
+.luna2[data-state="sleeping"] .l2-character { animation-duration:6.8s; }
+.luna2[data-state="sleeping"] .l2-head-pose { animation:l2-sleep-bob 4.8s ease-in-out infinite; }
+.luna2[data-state="sleeping"] .l2-zzz { animation:l2-drift 5s ease-in-out infinite; }
+@keyframes l2-breathe { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-2px); } }
+@keyframes l2-hair { 0%,100% { transform:rotate(0); } 50% { transform:rotate(1deg); } }
+@keyframes l2-perk { 0%,100% { transform:rotate(3deg); } 50% { transform:rotate(4deg); } }
+/* Unequal blink intervals (3.4, 5.3, 2.5, 5.8 seconds), no eye/face scaling. */
+@keyframes l2-blink-open { 0%,21%,52%,67%,100% { opacity:1; } 20%,51%,66% { opacity:0; } }
+@keyframes l2-blink-shut { 0%,21%,52%,67%,100% { opacity:0; } 20%,51%,66% { opacity:1; } }
+@keyframes l2-dot { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+@keyframes l2-type { 0%,100% { transform:rotate(-25deg) translateY(0); } 50% { transform:rotate(-25deg) translateY(5px); } }
+@keyframes l2-sleep-bob { 0%,100% { transform:translateY(0) rotate(0); } 50% { transform:translateY(1.5px) rotate(.6deg); } }
+@keyframes l2-snore-open { 0%,28%,64%,100% { opacity:0; } 34%,58% { opacity:1; } }
+@keyframes l2-snore-closed { 0%,28%,64%,100% { opacity:1; } 34%,58% { opacity:0; } }
+@keyframes l2-glance { 0%,65%,100% { transform:translateY(4px); } 75%,90% { transform:translateY(0); } }
+@keyframes l2-mouth-a { 0%,55%,100% { opacity:1; } 25%,75% { opacity:0; } }
+@keyframes l2-mouth-b { 0%,55%,100% { opacity:0; } 25%,75% { opacity:1; } }
+@keyframes l2-celebrate { 0%,65%,100% { transform:translateY(0); } 30% { transform:translateY(-7px); } 80% { transform:translateY(-2px); } }
+@keyframes l2-sparkle { 0% { opacity:0; } 30%,70%,100% { opacity:1; } }
+@keyframes l2-surprise { 0% { opacity:1; } 100% { opacity:0; } }
+@keyframes l2-concern { 0% { opacity:0; } 100% { opacity:1; } }
+@keyframes l2-drift { 0%,100% { opacity:.35; transform:translateY(0); } 50% { opacity:.9; transform:translateY(-7px); } }
+.luna2[data-paused="true"] * { animation-play-state:paused !important; }
+.luna2[data-reduced-motion="true"] * { animation:none !important; transition:none !important; }
+@media (prefers-reduced-motion:reduce) { .luna2 * { animation:none !important; transition:none !important; } }
+</style></svg>

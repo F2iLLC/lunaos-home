@@ -1,6 +1,8 @@
 // Luna's notebook page. All state lives behind /api/notebook; this file keeps no
 // second copy of any list and renders only what the service last returned.
 import { notebookRequest } from './notebook-client.js';
+import { mountLunaAvatar } from './luna/avatar.js';
+import { notebookAvatarState } from './luna/presentation.js';
 const $ = (selector) => document.querySelector(selector);
 const root = $("#notebook");
 
@@ -10,6 +12,7 @@ if (root) {
   const status = $("#notebook-status");
   const errorLine = $("#notebook-error");
   const luna = $("#notebook-luna");
+  const avatar = mountLunaAvatar(luna, { label: 'Luna with her notebook', size: 'min(60vw, 240px)' });
 
   const el = (tag, text, className) => {
     const node = document.createElement(tag);
@@ -25,19 +28,19 @@ if (root) {
     return node;
   };
 
-  // The animation attribute is set only from a server-reported outcome.
-  function play(avatar) {
+  // State changes follow confirmed outcomes from the notebook service.
+  function play(outcome) {
     clearTimeout(timer);
-    luna.dataset.animation = avatar?.animation ?? "idle";
-    luna.dataset.success = avatar?.success ? "yes" : "no";
+    avatar.update({ state: notebookAvatarState(outcome) });
     timer = setTimeout(() => {
-      luna.dataset.animation = "idle";
+      avatar.update({ state: 'idle' });
     }, 2200);
   }
 
   async function call(body) {
     if (busy) return null;
     busy = true;
+    avatar.update({ state: 'working' });
     root.setAttribute("aria-busy", "true");
     errorLine.textContent = "";
     try {
@@ -45,7 +48,7 @@ if (root) {
     } catch {
       errorLine.textContent =
         "Luna could not confirm the result. Reopen the list before trying again.";
-      play({ animation: "puzzled" });
+      play({ success: false });
       return null;
     } finally {
       busy = false;
@@ -248,4 +251,5 @@ if (root) {
       && !(root.contains(document.activeElement)
         && document.activeElement.matches('input:not([type="checkbox"]), textarea, select'))) refresh();
   }, 3000);
+  window.addEventListener('pagehide', () => { clearTimeout(timer); avatar.dispose(); }, { once: true });
 }

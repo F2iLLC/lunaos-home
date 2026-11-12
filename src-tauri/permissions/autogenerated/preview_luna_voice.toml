@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-luna-voice"
+description = "Enables the preview_luna_voice command without any pre-configured scope."
+commands.allow = ["preview_luna_voice"]
+
+[[permission]]
+identifier = "deny-preview-luna-voice"
+description = "Denies the preview_luna_voice command without any pre-configured scope."
+commands.deny = ["preview_luna_voice"]
