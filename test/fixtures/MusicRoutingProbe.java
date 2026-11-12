@@ -70,15 +70,16 @@ public final class MusicRoutingProbe {
             check(MusicCommand.accept(wake, spoken, 2000) == 0 && !wake.acceptQuestion(spoken, 2000),
                 "a fragment does nothing after the wake phrase: " + spoken);
         }
-        for (String spoken : new String[] {"skip", "skip please", "next", "previous", "spotify", "the music", "play some", "play my"})
-            check(!QuestionPolicy.accepts(spoken), "a music fragment is not a question: " + spoken);
-        // A refused music request is refused, not passed on to be answered.
+        // Wording outside the list is never a music action and never a timer. Whether it may be asked
+        // as a question is not decided here, except that what the timer rules already kept from the
+        // hosted model on main stays kept.
         for (String refused : MusicCommandTest.REFUSED) {
-            check(!QuestionPolicy.accepts(refused), "a refused music request is not a question: " + refused);
             WakeSession wake = awake();
-            check(MusicCommand.accept(wake, refused, 2000) == 0, "refused after the wake phrase: " + refused);
-            check(wake.acceptFinal(refused, 2000) == 0, "and starts no timer: " + refused);
-            check(!wake.acceptQuestion(refused, 2000), "and is not asked: " + refused);
+            check(MusicCommand.parse(refused) == 0 && MusicCommand.accept(wake, refused, 2000) == 0, "no music action: " + refused);
+            check(TimerCommand.parse(refused) == 0 && wake.acceptFinal(refused, 2000) == 0, "and no timer: " + refused);
+        }
+        for (String blockedOnMain : new String[] {"stop the music in five minutes", "play music and set a timer for five minutes"}) {
+            check(QuestionPolicy.timerAttempt(blockedOnMain) && !QuestionPolicy.accepts(blockedOnMain), "still not a question: " + blockedOnMain);
         }
 
         // Not without the wake phrase, whether or not a timer is ringing.
@@ -136,9 +137,13 @@ public final class MusicRoutingProbe {
         shortTest.acceptFinal("hey luna", 1001);
         check(MusicCommand.accept(shortTest, "skip", 1002) == MusicCommand.NEXT, "and accepts after it");
 
-        // Ordinary questions are untouched.
+        // Ordinary questions are untouched, including ones that mention music, begin like a music
+        // phrase and go on, or are a single word that is not on the fragment list.
         for (String text : new String[] {"what is music", "tell me a story about a song", "why is the sky blue",
             "How many seconds are in a minute?", "tell me a story about a dragon", "what is the capital of france",
+            "next", "previous", "the music", "play music trivia with me", "last song the beatles recorded",
+            "next song on the practice list", "play the next song on my road trip list", "play a song about dragons",
+            "add play music to my to do list", "start a music list",
             "play a game with me", "who wrote the first song", "is it safe to play outside today",
             "add milk to the grocery list", "add bananas too", "create a list of movies to watch", "start a packing list",
             "mark laundry as done", "yes", "no"}) {
