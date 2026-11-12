@@ -19,10 +19,14 @@ if (Object.keys(built.metafile.inputs).some(path => path.includes('@modelcontext
   throw new Error('The offline package must not include the desktop MCP/HTTP service.');
 }
 let html = await readFile(resolve(root, 'src/index.html'), 'utf8');
-html = html.replace('href="/styles.css"', 'href="./styles.css"').replace('src="/app.js"', 'src="./app.js"');
+html = html.replace('href="/styles.css"', 'href="./styles.css"')
+  .replace('href="/luna/avatar.css"', 'href="./luna/avatar.css"')
+  .replace('src="/app.js"', 'src="./app.js"');
 html = html.replace('  <script type="module" src="/notebook.js"></script>\n', '');
 await writeFile(resolve(output, 'index.html'), html);
 await copyFile(resolve(root, 'src/styles.css'), resolve(output, 'styles.css'));
+await mkdir(resolve(output, 'luna'), { recursive: true });
+await copyFile(resolve(root, 'src/luna/avatar.css'), resolve(output, 'luna/avatar.css'));
 await copyFile(resolve(root, 'src/windows-unlock.html'), resolve(output, 'windows-unlock.html'));
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const license = await readFile(resolve(root, 'LICENSE'), 'utf8');

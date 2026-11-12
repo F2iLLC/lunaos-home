@@ -8,6 +8,8 @@ fn main() {
             "request_luna_microphone",
             "disable_luna_wake",
             "set_luna_online_answers",
+            "set_luna_voice",
+            "preview_luna_voice",
             "cancel_luna_timer",
         ]),
     ))

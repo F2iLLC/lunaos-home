@@ -16,6 +16,8 @@ internal class LunaTimerArgs { var id: Int = 0 }
 @InvokeArg
 internal class LunaOnlineArgs { var enabled: Boolean = false }
 @InvokeArg
+internal class LunaVoiceArgs { var voice: String = "" }
+@InvokeArg
 internal class NotebookArgs { var body: String = ""; var session: String = "" }
 
 @TauriPlugin
@@ -53,6 +55,25 @@ class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
             HomeLunaBridge.setOnlineAnswers(activity, args.enabled)
             invoke.resolve()
         } catch (_: Exception) { invoke.reject("Could not change Luna online-answer setting. Check the relay configuration.") }
+    }
+
+    @Command fun setLunaVoice(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(LunaVoiceArgs::class.java)
+            HomeLunaBridge.setVoice(activity, args.voice)
+            invoke.resolve()
+        } catch (_: Exception) { invoke.reject("Could not save Luna voice. Check that the voice pack is installed.") }
+    }
+
+    @Command fun previewLunaVoice(invoke: Invoke) {
+        val args = invoke.parseArgs(LunaVoiceArgs::class.java)
+        activity.runOnUiThread {
+            try {
+                HomeLunaBridge.previewVoice(activity, args.voice) { played ->
+                    if (played) invoke.resolve() else invoke.reject("Voice preview could not play.")
+                }
+            } catch (_: Exception) { invoke.reject("Voice preview unavailable.") }
+        }
     }
 
     @Command fun cancelLunaTimer(invoke: Invoke) {

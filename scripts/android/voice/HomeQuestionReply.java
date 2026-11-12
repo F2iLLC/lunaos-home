@@ -83,6 +83,7 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
             next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
+            next.setRequestProperty("X-Home-Voice", LunaVoice.selected(context));
             if (QuestionPolicy.isFollowUp) next.setRequestProperty("X-Home-Follow-Up", "1");
             stage = "request_body";
             byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")
@@ -244,7 +245,7 @@ final class QuestionReply implements AutoCloseable {
                 public void close() { }
             });
             player.setOnPreparedListener(p -> { if (!closed && (confirmation ? enabled(context) : BackgroundWakeService.running)
-                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
+                && !ProbeCapture.blocked(context)) { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_STARTED"); QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); BackgroundWakeService.replyPlaying = true; } else finish(); });
             player.setOnCompletionListener(p -> { played = true; android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_COMPLETED"); finish(); });
             player.setOnErrorListener((p, what, extra) -> { android.util.Log.i("HomeVoiceProbe", "QUESTION_REPLY_PLAYBACK_ERROR"); finish(); return true; });
             player.prepareAsync();
@@ -254,6 +255,7 @@ final class QuestionReply implements AutoCloseable {
     @Override public synchronized void close() {
         if (closed) return;
         closed = true; main.removeCallbacksAndMessages(null);
+        BackgroundWakeService.replyPlaying = false;
         if (connection != null) connection.disconnect(); connection = null;
         if (player != null) player.release(); player = null;
         if (audio != null) Arrays.fill(audio, (byte) 0); audio = null;

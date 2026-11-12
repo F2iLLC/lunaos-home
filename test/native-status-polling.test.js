@@ -24,7 +24,7 @@ function createHarness() {
   const calls = [];
   const pendingSnapshots = [];
   let timerId = 0;
-  const state = { capturePhase: 'off' };
+  const state = { status: 'ready', capturePhase: 'off', listeningStatus: 'disabled', listeningEnabled: false, replyPlaying: false };
 
   const makeElement = () => ({
     hidden: false,
@@ -32,16 +32,24 @@ function createHarness() {
     children: [],
     textContent: '',
     dataset: {},
+    style: {},
     attributes: {},
     setAttribute(name, value) { this.attributes[name] = value; },
-    replaceWith(node) { this.replacement = node; },
-    after() {},
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    replaceWith(node) {
+      if (node === this.parentNode) throw new Error('Cannot replace an element with its ancestor');
+      this.replacement = node;
+    },
+    after(node) { if (node.id) rootNodes.set(`#${node.id}`, node); },
     focus() {},
     close() { this.open = false; },
     showModal() { this.open = true; },
     append(...children) {
       this.children.push(...children);
-      for (const child of children) if (child.id) rootNodes.set(`#${child.id}`, child);
+      for (const child of children) {
+        child.parentNode = this;
+        if (child.id) rootNodes.set(`#${child.id}`, child);
+      }
     },
     replaceChildren(...children) { this.children = children; },
     addEventListener(type, listener) { this[`on${type}`] = listener; },
@@ -52,14 +60,15 @@ function createHarness() {
     },
   });
   const rootNodes = new Map();
-  const document = {
+  let document;
+  document = {
     body: makeElement(),
     hidden: false,
     querySelector(selector) {
-      if (!rootNodes.has(selector)) rootNodes.set(selector, makeElement());
+      if (!rootNodes.has(selector)) { const node = makeElement(); node.ownerDocument = document; rootNodes.set(selector, node); }
       return rootNodes.get(selector);
     },
-    createElement: makeElement,
+    createElement() { const node = makeElement(); node.ownerDocument = document; return node; },
     addEventListener(type, listener) { documentListeners.set(type, listener); },
   };
   const window = {
@@ -73,7 +82,7 @@ function createHarness() {
       calls.push(command);
       if (command !== 'get_luna_snapshot') return Promise.resolve();
       return new Promise(resolve => pendingSnapshots.push(() => resolve({
-        status: 'ready', capturePhase: state.capturePhase, microphoneInUse: false,
+        ...state, microphoneInUse: false,
         onlineAnswersEnabled: false, activeTimers: [],
       })));
     } } },
@@ -179,27 +188,30 @@ test('Luna status polling follows visible route and document state at five-secon
   assert.equal(refreshButton.disabled, false, 'manual refresh re-enables its button after completion');
 });
 
-test('pressing Luna on the home page turns listening on and off, and her face follows closely while she listens', async () => {
+test('pressing Luna keeps the avatar idle while wake-word listening is enabled', async () => {
   const harness = createHarness();
   await harness.start();
-  const face = harness.document.querySelector('.luna-companion').replacement;
+  const avatarHost = harness.document.querySelector('#welcome-luna');
+  const face = avatarHost.replacement;
   assert.equal(face.id, 'home-luna-toggle');
+  assert.equal(face.children[0], avatarHost, 'the shared avatar host stays inside the listening button');
+  assert.equal(harness.document.querySelector('#welcome').dataset.nativeHome, 'true', 'native Home can use its compact landscape layout');
   harness.resolveSnapshot();
   await harness.flush();
   assert.equal(face.attributes['aria-pressed'], 'false');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
 
-  harness.state.capturePhase = 'waiting';
+  Object.assign(harness.state, { capturePhase: 'waiting', listeningStatus: 'enabled', listeningEnabled: true });
   const waking = face.onclick();
   assert.equal(face.disabled, true);
   await harness.untilSnapshotRequested();
   harness.resolveSnapshot();
   await waking;
   assert.equal(face.attributes['aria-pressed'], 'true');
-  assert.equal(face.querySelector('.luna-avatar').dataset.capturePhase, 'waiting');
+  assert.equal(face.children[0].querySelector('svg').dataset.state, 'idle');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [1000]);
 
-  harness.state.capturePhase = 'off';
+  Object.assign(harness.state, { capturePhase: 'off', listeningStatus: 'disabled', listeningEnabled: false });
   const sleeping = face.onclick();
   await harness.untilSnapshotRequested();
   harness.resolveSnapshot();
@@ -213,13 +225,63 @@ test('pressing Luna on the home page turns listening on and off, and her face fo
 test('Luna stays awake, without her sleep mask, while she thinks or resets between requests', async () => {
   const harness = createHarness();
   await harness.start();
-  const face = harness.document.querySelector('.luna-companion').replacement;
-  for (const [phase, shown] of [['review', 'response'], ['retry', 'waiting'], ['off', 'off']]) {
-    harness.state.capturePhase = phase;
+  const face = harness.document.querySelector('#welcome-luna').replacement;
+  for (const [phase, listeningStatus, shown] of [['review', 'enabled', 'thinking'], ['retry', 'enabled', 'thinking'], ['off', 'disabled', 'sleeping']]) {
+    Object.assign(harness.state, { capturePhase: phase, listeningStatus, listeningEnabled: listeningStatus === 'enabled', replyPlaying: false });
     harness.resolveSnapshot();
     await harness.flush();
-    assert.equal(face.querySelector('.luna-avatar').dataset.capturePhase, shown);
+    assert.equal(face.children[0].querySelector('svg').dataset.state, shown);
     assert.equal(face.attributes['aria-pressed'], phase === 'off' ? 'false' : 'true');
     if (phase !== 'off') { const [timer] = harness.timers.values(); harness.timers.clear(); timer.callback(); await harness.flush(); }
   }
+});
+
+test('command-ready indicator appears only for the native awake command window', async () => {
+  const harness = createHarness();
+  const luna = await harness.start();
+  const face = harness.document.querySelector('#welcome-luna').replacement;
+  const home = harness.document.querySelector('#home-luna');
+  const refresh = luna.querySelector('#refresh-luna-state');
+  harness.resolveSnapshot();
+  await harness.flush();
+
+  Object.assign(harness.state, { capturePhase: 'awake', listeningStatus: 'enabled', listeningEnabled: true });
+  let update = refresh.onclick();
+  await harness.untilSnapshotRequested(); harness.resolveSnapshot(); await update;
+  assert.equal(home.dataset.commandReady, 'true');
+  assert.equal(home.querySelector('#home-luna-state').textContent, 'Speak now. Luna is listening for your command.');
+  assert.match(face.attributes['aria-label'], /waiting for your command/);
+
+  Object.assign(harness.state, { capturePhase: 'waiting' });
+  update = refresh.onclick();
+  await harness.untilSnapshotRequested(); harness.resolveSnapshot(); await update;
+  assert.equal(home.dataset.commandReady, 'false');
+  assert.equal(home.querySelector('#home-luna-state').textContent, 'Say “Hey Luna” when you need me.');
+});
+
+test('Home listening control announces disabled, permission, mute, lock and disconnection separately', async () => {
+  const harness = createHarness();
+  const luna = await harness.start();
+  const face = harness.document.querySelector('#welcome-luna').replacement;
+  harness.resolveSnapshot();
+  await harness.flush();
+  assert.match(face.attributes['aria-label'], /listening is disabled/);
+  const refresh = luna.querySelector('#refresh-luna-state');
+  for (const [listeningStatus, phrase] of [['permission','permission is unavailable'],['muted','microphone is muted'],['locked','device is locked'],['disconnected','service disconnected']]) {
+    harness.state.listeningStatus = listeningStatus;
+    harness.state.listeningEnabled = true;
+    const pending = refresh.onclick();
+    await harness.untilSnapshotRequested();
+    harness.resolveSnapshot();
+    await pending;
+    assert.ok(face.attributes['aria-label'].toLowerCase().includes(phrase), listeningStatus);
+  }
+  harness.state.status = 'unavailable';
+  harness.state.listeningStatus = 'permission';
+  const pending = refresh.onclick();
+  await harness.untilSnapshotRequested();
+  harness.resolveSnapshot();
+  await pending;
+  assert.match(luna.querySelector('#luna-state').textContent, /Microphone permission is unavailable/);
+  assert.match(face.attributes['aria-label'], /permission is unavailable/);
 });

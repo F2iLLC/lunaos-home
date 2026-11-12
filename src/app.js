@@ -2,8 +2,15 @@ import { categories, createTask, toggleTask, removeTask } from './tasks.js';
 import { notebookRequest } from './notebook-client.js';
 import { refreshDraft } from './vault.js';
 import { preserveSaveRoutes } from './draft-storage.js';
+import { mountLunaAvatar } from './luna/avatar.js';
 
 preserveSaveRoutes();
+
+const welcomeLuna = document.querySelector('#welcome-luna');
+if (welcomeLuna && !welcomeLuna.querySelector('svg')) {
+  const avatar = mountLunaAvatar(welcomeLuna, { label: 'Luna, your animated chibi companion', size: 'min(58vw, 228px)' });
+  window.addEventListener('pagehide', () => avatar.dispose(), { once: true });
+}
 
 let tasks = [];
 let saved = null; // the notebook's checklist list id ('' until it exists), once the vault answers

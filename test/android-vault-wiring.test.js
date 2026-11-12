@@ -35,7 +35,7 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.deepEqual(capability.windows, ['main']);
   assert.deepEqual(capability.platforms, ['android']);
   assert.deepEqual(capability.permissions, ['allow-open-fictional-vault', 'allow-get-luna-snapshot', 'allow-notebook-request', 'allow-enable-luna-wake',
-    'allow-request-luna-microphone', 'allow-disable-luna-wake', 'allow-set-luna-online-answers', 'allow-cancel-luna-timer']);
+    'allow-request-luna-microphone', 'allow-disable-luna-wake', 'allow-set-luna-online-answers', 'allow-set-luna-voice', 'allow-preview-luna-voice', 'allow-cancel-luna-timer']);
   const android = await json('../src-tauri/tauri.android.conf.json');
   assert.deepEqual(android.app.security.capabilities, ['android-fictional-launch']);
   assert.equal(android.app.withGlobalTauri, true);
@@ -91,6 +91,20 @@ test('Android grants only local main-window Home commands, without remote or fil
   assert.doesNotMatch(plugin, /openLunaProbe|VoiceProbe/);
 });
 
+test('finalized native voice transcripts reach Home after local timer commands and online questions', async () => {
+  const service = await readFile(new URL('../scripts/android-offline-voice-probe/BackgroundWakeService.java', import.meta.url), 'utf8');
+  const finishedAt = service.indexOf('@Override public void finished(String code, String text, int seconds, long deadline, boolean canceled)');
+  assert.notEqual(finishedAt, -1);
+  const finishedEnd = service.indexOf('            });', finishedAt);
+  const finished = service.slice(finishedAt, finishedEnd);
+  assert.ok(finished.includes('if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && hasFinalTranscript)'));
+  assert.ok(finished.includes('QuestionPolicy.lastHeard = text.trim();'));
+  assert.ok(finished.indexOf('QuestionPolicy.lastHeard = text.trim();') < finished.indexOf('TimerCommand.valid(seconds)'),
+    'the finalized transcript is retained before either command path handles it');
+  const bridge = await readFile(new URL('../scripts/android-offline-voice-probe/HomeLunaBridge.java', import.meta.url), 'utf8');
+  assert.ok(bridge.includes('out.put("lastHeard", "off".equals(phase) ? "" : QuestionPolicy.lastHeard);'));
+});
+
 test('bundled Home Luna controls are Android-debug-only and call only Home state commands', async () => {
   for (const enabled of [false, true]) {
     const bundled = await build({
@@ -108,15 +122,20 @@ test('bundled Home Luna controls are Android-debug-only and call only Home state
     });
     const elements = new Map();
     const children = [];
-    const document = {
+    let document;
+    const svg = () => ({ dataset: {}, style: {}, attrs: {}, setAttribute(name, value) { this.attrs[name] = value; }, getAttribute(name) { return this.attrs[name] ?? null; } });
+    const host = () => ({ ownerDocument: document, hidden: true, dataset: {}, addEventListener() {}, append() {}, replaceWith(node) { this.replacement = node; },
+      set innerHTML(value) { this.markup = value; }, querySelector() { this.svg ??= svg(); return this.svg; } });
+    document = {
       body: { append() {} },
       querySelector(selector) {
-        if (!elements.has(selector)) elements.set(selector, { hidden: true, addEventListener() {}, append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {}, replaceWith() {} });
+        if (!elements.has(selector)) elements.set(selector, { ...host(), append: (...nodes) => children.push(...nodes), setAttribute() {}, replaceChildren() {} });
         return elements.get(selector);
       },
+      addEventListener() {}, removeEventListener() {},
       createElement() {
         const local = new Map();
-        const element = { dataset: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
+        const element = { ownerDocument: document, dataset: {}, style: {}, after() {}, close() {}, showModal() {}, setAttribute() {}, addEventListener(event, handler) { this[event] = handler; }, append() {}, replaceChildren() {},
           querySelector(selector) {
             if (!local.has(selector)) local.set(selector, { dataset: {}, addEventListener(event, handler) { this[event] = handler; }, setAttribute() {}, append() {}, replaceChildren() {} });
             return local.get(selector);

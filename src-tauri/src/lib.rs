@@ -65,6 +65,8 @@ pub fn run() {
             android_vault::request_luna_microphone,
             android_vault::disable_luna_wake,
             android_vault::set_luna_online_answers,
+            android_vault::set_luna_voice,
+            android_vault::preview_luna_voice,
             android_vault::cancel_luna_timer
         ]);
 
