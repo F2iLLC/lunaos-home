@@ -188,7 +188,7 @@ test('Luna status polling follows visible route and document state at five-secon
   assert.equal(refreshButton.disabled, false, 'manual refresh re-enables its button after completion');
 });
 
-test('pressing Luna on the home page turns listening on and off, and her face follows closely while she listens', async () => {
+test('pressing Luna keeps the avatar idle while wake-word listening is enabled', async () => {
   const harness = createHarness();
   await harness.start();
   const avatarHost = harness.document.querySelector('#welcome-luna');
@@ -208,7 +208,7 @@ test('pressing Luna on the home page turns listening on and off, and her face fo
   harness.resolveSnapshot();
   await waking;
   assert.equal(face.attributes['aria-pressed'], 'true');
-  assert.equal(face.children[0].querySelector('svg').dataset.state, 'listening');
+  assert.equal(face.children[0].querySelector('svg').dataset.state, 'idle');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [1000]);
 
   Object.assign(harness.state, { capturePhase: 'off', listeningStatus: 'disabled', listeningEnabled: false });
