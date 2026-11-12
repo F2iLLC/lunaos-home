@@ -27,6 +27,7 @@ public final class BackgroundWakeService extends Service {
     private boolean destroyed, restarting, responding, followUpPending;
     private SpokenReply reply;
     private QuestionReply questionReply;
+    private String musicNotice = "";
     private final Runnable watch = new Runnable() {
         @Override public void run() {
             if (destroyed || !running) return;
@@ -121,6 +122,11 @@ public final class BackgroundWakeService extends Service {
                 private boolean current() { return !destroyed && running && generation == id && capture != null; }
                 @Override public void visual(LunaFace.State state) {
                     if (current()) { visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE); }
+                    // Luna has heard something new: take down a not-sent notice, so the same words can show again.
+                    if (current() && state != LunaFace.State.WAITING && !musicNotice.isEmpty()) {
+                        if (musicNotice.equals(QuestionPolicy.replyCaption)) QuestionPolicy.replyCaption = "";
+                        musicNotice = "";
+                    }
                 }
                 @Override public void status(String text) {
                     if (!current()) return;
@@ -175,12 +181,16 @@ public final class BackgroundWakeService extends Service {
                     } else if ("MUSIC_COMMAND".equals(code) || "MUSIC_NOT_SENT".equals(code)) {
                         // The capture worker has already asked Spotify, or sent nothing; text says which.
                         // Nothing is spoken and no activity is launched.
+                        boolean sent = "MUSIC_COMMAND".equals(code);
                         TimerAlarmService.duck(false);
-                        visual = "MUSIC_COMMAND".equals(code) ? LunaFace.State.RESPONSE : LunaFace.State.RETRY;
+                        visual = sent ? LunaFace.State.RESPONSE : LunaFace.State.RETRY;
                         latest = text + " Wake-word listening remains enabled.";
+                        // Not sent: leave the reason where a person can read it. Home shows the caption for a
+                        // few seconds; the notification keeps the status until listening re-arms.
+                        if (!sent) { musicNotice = text; QuestionPolicy.replyCaption = text; }
                         notifyStatus();
                         Log.i("HomeVoiceProbe", "MUSIC_COMMAND_HANDLED");
-                        scheduleCapture(250);
+                        scheduleCapture(sent ? 250 : 2500);
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
                         visual = LunaFace.State.RETRY;

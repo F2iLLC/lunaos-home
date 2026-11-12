@@ -159,6 +159,7 @@ final class ProbeCapture {
     // End microphone capture but keep the worker alive to decode what it heard.
     private synchronized void stopCapture() {
         RECORDING.set(false);
+        MusicPlayer.release(context); // The microphone is stopping: nothing more to hear over other media.
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
         catch (RuntimeException ignored) { }
@@ -429,7 +430,7 @@ final class ProbeCapture {
     }
 
     private void openCommandWindow(WakeSession wake, CaptureTiming timing, boolean questions) {
-        MusicPlayer.hold(context);
+        if (persistent) MusicPlayer.hold(context); // Wake listening only; the foreground test is as it was.
         timing.report();
         timing.start(timing.bufferFrames, "COMMAND");
         deadline = Math.min(maximum, wake.deadline());

@@ -18,16 +18,26 @@ repeated `Hey Luna` and a trailing `please` are ignored, as they are for timers.
 | Next | next song, next track, skip, skip this song, skip song, play the next song |
 | Previous | previous song, previous track, last song, go back a song, play the previous song |
 
-The list is exact. Extra or combined wording is refused and nothing is guessed:
+The list is exact. Nothing is guessed or repaired into a music command:
 `play music tomorrow`, `don't play music`, `stop the music in five minutes`,
-`next song twice` and `play song` do nothing.
+`next song twice` and `play song` press no button and start no timer. A polite
+opening is not understood in this rung either: `please play music` is not a
+music command, though `play music please` is.
+
+Wording that is not on the list is treated like any other speech. If online
+answers are on, it may be sent on as a question and answered. Only the exact
+phrases above and the fragments `play`, `play the`, `music`, `skip the` and
+`pause the` are always kept from the hosted model.
 
 `pause`, `stop`, `resume`, `continue`, `hold it`, `stop it`, `turn it off` and
 `cancel` on their own still belong to timers and mean what they meant before.
 To pause the music, say `pause the music`.
 
 A music phrase does nothing before `Hey Luna`. While a timer is ringing, only
-the words that stop the alarm work without the wake phrase.
+the words that stop the alarm work without the wake phrase. There is one case
+where the wake phrase is not needed: when Luna has just asked something and is
+waiting for the reply, she is already awake, and a music phrase said then is
+acted on, as a timer command would be.
 
 ## One-time setup
 
@@ -44,24 +54,39 @@ servers. She cannot sign in for you or choose music.
    In both builds the recognized words are then checked on the device, the same
    way timer commands are.
 2. `MusicCommand` turns a complete phrase into one of four actions. The words
-   are not kept. A music action is never a timer command. `QuestionPolicy`
-   never passes on as a question a music phrase, the start of one (`play`,
-   `play the`, `skip the`, `music`) or one with words added (`play music
-   tomorrow`), so none of them reach the hosted model. Other requests that only
-   mention music, such as `play a song about dragons` or `what is music`, are
-   still questions.
+   are not kept. A music action is never a timer command, and `QuestionPolicy`
+   never passes a phrase from the table on as a question.
 3. `MusicControl` decides what to send: Android's media play, pause, next or
    previous key, addressed to the package `com.spotify.music` and to nothing
    else.
 4. `MusicPlayer` sends that key as a media button broadcast limited to the
    Spotify package. No other app can receive it and no screen is opened.
+5. The wake service records the result and goes back to listening. It speaks
+   nothing and launches nothing.
 
-Luna does not speak a confirmation. The status line and the listening
-notification say what happened:
+## What a person sees
+
+Luna does not speak a confirmation.
+
+**When Spotify was asked.** The status reads `Asked Spotify to play.` (or
+`to pause.`, `for the next song.`, `for the previous song.`). Spotify does not
+report back, so this is not a claim that anything is playing. Listening starts
+again a quarter of a second later, so the status is replaced almost at once. On
+the Home screen nothing is shown for a sent command; the music is the
+confirmation.
+
+**When nothing was sent.** The reason is left up long enough to read:
+
+- On the Home screen it appears as a caption, `Luna: Spotify is not installed
+  on this device. Nothing was sent.`, for about six seconds or until Luna next
+  hears something. It uses the caption Home already shows for Luna's replies,
+  so it is not shown if Luna captions are turned off. Home has no separate
+  face for this; it shows the waiting face.
+- In the listening notification, and on the offline test app's status line, the
+  same words stay for two and a half seconds before listening starts again.
 
 | Status | Meaning |
 | --- | --- |
-| `Asked Spotify to play.` (or pause, next song, previous song) | The key was sent. Spotify does not report back, so this is not a claim that anything is playing. |
 | `Spotify is not installed on this device. Nothing was sent.` | Spotify is missing or disabled. Nothing was sent to any app. |
 | `Could not reach Spotify. Nothing was sent.` | Android refused the broadcast. |
 | `Listening stopped first. Nothing was sent to Spotify.` | Listening was disabled, or the device was locked or muted, before the key could be sent. |
@@ -72,14 +97,23 @@ Log codes are fixed words only: `MUSIC_COMMAND`, `MUSIC_NOT_SENT`,
 
 ### Hearing the next command
 
-When Luna wakes for a command she asks Android for short-term audio focus, which
-asks other media to go quiet. She gives it back when listening for that command
-ends, however it ends: a command, a question, a timeout, or listening being
-disabled. For a music command the focus is given back first and the key is sent
-after, so the key is the last thing Spotify is told.
+While Luna is awake and the microphone is listening for a command, she holds
+short-term audio focus, which asks other media to go quiet. She gives it back
+when the microphone stops, however that happens: a command, a timeout,
+listening being disabled, or a failure.
 
-Focus is held only while Luna listens. It is not held while she speaks a timer
-confirmation or an answer.
+- **Offline test app.** Focus is taken when the command window opens during
+  wake listening, and given back when the microphone stops. If the speech has
+  to be decoded a second time, that happens after the microphone has stopped,
+  so focus is not held through it. The foreground test screen takes no focus.
+- **Home.** Focus is taken only when Luna is already awake as she starts to
+  listen: after `Hey Luna` said on its own, or when she is waiting for a reply.
+  It is given back when that recording ends, before the Mac is asked what was
+  said. If the wake phrase and the command are said in one breath, Luna does
+  not know she is awake until the Mac answers, so nothing is quieted first.
+
+Focus is not held while Luna speaks a timer confirmation or an answer. For a
+music command the key is sent after focus has been given back.
 
 ## Where it works
 
@@ -93,11 +127,6 @@ to Spotify on the device. `scripts/prepare-android.mjs` packages the three
 music classes into the debug build only and adds one `<queries>` entry so Home
 can see whether the Spotify app is installed. It adds no permission.
 
-In Home, audio focus is taken only when Luna is already awake as she starts to
-listen: after `Hey Luna` said on its own, or when she is waiting for a reply.
-If the wake phrase and the command are said in one breath, Luna does not know
-she is awake until the Mac answers, so nothing is quieted first.
-
 **Offline voice test app** (`scripts/build-android-offline-voice-probe.ps1`).
 This build has the fixed-phrase recognizer on the device and needs no Mac. The
 one recognizer that hears the wake phrase and timer commands also knows the
@@ -110,14 +139,19 @@ Spotify entry.
 
 ## What is verified
 
-Automated, on the JVM only.
+Automated, on the JVM only. Each test runs real classes against stand-ins for
+Android and for the recognizer. The stand-ins record what would be sent. They
+do not show that Android delivers it or that Spotify acts on it.
 
 `node --test test/android-music-routing.test.js`:
 
 - every phrase in the table parses to its action, and every phrase offered to
   the recognizer parses back to an action;
-- the refusals above, and that timer words parse exactly as before;
-- no music phrase is a timer command or a question;
+- wording outside the list is no music action and no timer, and timer words
+  parse exactly as before;
+- no phrase from the table, and none of the five fragments, is a question;
+  questions that mention music, or begin like a music phrase and go on, still
+  are;
 - nothing is accepted before the wake phrase, including while a timer rings,
   and one wake allows one effect;
 - every action is addressed to `com.spotify.music`, and with Spotify missing
@@ -127,14 +161,28 @@ Automated, on the JVM only.
 
 - the prepared Home debug sources contain the music classes and the one
   Spotify `<queries>` entry, and no other prepared source does;
-- Home's real capture class, given scripted words in place of the Mac and
-  stand-ins for Android, turns a music phrase after the wake phrase into a
-  media key addressed to Spotify; sends nothing when Spotify is missing; does
-  nothing without the wake phrase; and leaves timers, questions and refusals
-  as they were.
+- Home's real capture class, given scripted words in place of the Mac, turns a
+  music phrase after the wake phrase into a media key addressed to Spotify;
+  sends nothing when Spotify is missing; does nothing without the wake phrase;
+  and leaves timers and questions as they were;
+- audio focus is taken exactly once when Luna listens already awake and given
+  back exactly once on every way out, and never taken otherwise.
 
-The stand-ins record what would be sent. They do not show that Android delivers
-it or that Spotify acts on it.
+`node --test test/android-offline-music.test.js`:
+
+- the offline test app's real capture class, given a scripted speech library,
+  does the same for wake listening, including when the music phrase is found
+  by the second decode;
+- focus is given back when the microphone stops, before any second decode;
+- the foreground test screen keeps the timer-only phrase list, acts on no
+  music phrase and takes no focus.
+
+`node --test test/android-music-service.test.js`:
+
+- the real wake service, as Home packages it, keeps listening after a music
+  result, releases its wake lock, creates no timer and speaks nothing;
+- a not-sent result sets the caption and the status and re-arms after two and
+  a half seconds; a result code it does not know still ends listening.
 
 The Android-facing classes were compiled against the Android platform library.
 That shows they build, not that they work.
@@ -151,6 +199,15 @@ Nothing has been installed, heard or confirmed by a person. In particular:
 - whether Luna hears `Hey Luna` over music from her own speaker;
 - whether Spotify goes quiet when Luna takes audio focus, and whether it stays
   paused after `pause the music` once focus is given back;
+- in what order Spotify receives the return of audio focus and the key, and
+  whether that order matters;
+- whether the caption and the two and a half seconds are in practice enough
+  for a person at the device to notice that nothing was sent;
+- whether taking focus in Home cuts off a vehicle greeting or reply playing in
+  the same app. `VehicleAudioService` and `VehicleReplyPlayer` stop when they
+  lose audio focus, and nothing here has been tried with them;
+- whether acting on a music phrase without the wake phrase, while Luna waits
+  for a reply, is ever a surprise in use;
 - whether music returning while Luna speaks a reply is a problem in use.
 
 Each needs an attended trial with Spotify installed and signed in. Record
@@ -161,5 +218,6 @@ automated, installed, audible and owner-confirmed evidence separately.
 - Spotify only, on the same device. No other player, speaker or account.
 - No playing by name: no song, artist, album or playlist requests.
 - Bare `stop` and `pause` never mean the music.
+- Polite openings such as `please play music` are not understood.
 - No now-playing display, no volume control, no spoken confirmation.
 - No Spotify Web API or Connect, and no stored sign-in.
