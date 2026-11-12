@@ -134,7 +134,11 @@ public final class BackgroundWakeService extends Service {
                 @Override public void finished(String code, String text, int seconds, long deadline, boolean canceled) {
                     if (!current()) return;
                     capture = null; releaseWakeLock();
-                    if (ProbeCapture.blocked(BackgroundWakeService.this)) {
+                    boolean blocked = ProbeCapture.blocked(BackgroundWakeService.this);
+                    boolean hasFinalTranscript = text != null && text.length() <= 1000 && !text.trim().isEmpty();
+                    if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && hasFinalTranscript)
+                        QuestionPolicy.lastHeard = text.trim();
+                    if (blocked) {
                         end("Listening disabled: lock, mute or permission change. Microphone off.");
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && TimerCommand.valid(seconds)) {
                         QuestionPolicy.notebookFeedback(null);
@@ -157,7 +161,6 @@ public final class BackgroundWakeService extends Service {
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)
                             && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
                         QuestionPolicy.notebookFeedback(null);
-                        QuestionPolicy.lastHeard = text;
                         QuestionPolicy.isFollowUp = followUp;
                         responding = true; visual = LunaFace.State.RESPONSE;
                         latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
