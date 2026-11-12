@@ -83,6 +83,7 @@ final class QuestionReply implements AutoCloseable {
             next.setRequestProperty("Authorization", "Bearer " + token);
             next.setRequestProperty("Content-Type", "application/json");
             next.setRequestProperty("X-Home-Session", QuestionPolicy.sessionId);
+            next.setRequestProperty("X-Home-Voice", LunaVoice.selected(context));
             if (QuestionPolicy.isFollowUp) next.setRequestProperty("X-Home-Follow-Up", "1");
             stage = "request_body";
             byte[] body = (confirmation ? new JSONObject().put("event", "qwen_answers_enabled")

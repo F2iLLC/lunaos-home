@@ -69,6 +69,15 @@ public final class HomeLunaBridge {
             out.put("onlineAnswersEnabled", QuestionReply.enabled(context));
             out.put("onlineAnswersAvailable", QuestionReply.configured(context));
             out.put("activeTimers", timers);
+            JSONArray voices = new JSONArray();
+            for (String id : new String[] { "lori", "original" }) {
+                if (!LunaVoice.available(context, id)) continue;
+                JSObject voice = new JSObject();
+                voice.put("id", id); voice.put("label", "lori".equals(id) ? "Lori" : "Original");
+                voices.put(voice);
+            }
+            out.put("voices", voices);
+            out.put("selectedVoice", LunaVoice.selected(context));
         } catch (Exception failure) {
             throw new IllegalStateException("Luna snapshot unavailable");
         }
@@ -94,6 +103,16 @@ public final class HomeLunaBridge {
     }
 
     public static void disable(Context context) { BackgroundWakeService.revoke(context); }
+
+    public static void setVoice(Context context, String id) {
+        if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android API 26+ required");
+        LunaVoice.select(context, id);
+    }
+
+    public static void previewVoice(Context context, String id, java.util.function.Consumer<Boolean> done) {
+        if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android API 26+ required");
+        VoicePreview.play(context, id, done);
+    }
 
     public static JSObject notebook(Context context, String body, String session) throws Exception {
         if (!debugApiAvailable(context)) throw new IllegalStateException("Debug Android required");

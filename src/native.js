@@ -4,6 +4,7 @@ import { createLunaCaptions } from './luna-captions.js';
 import { createNotebookPopup } from './notebook-popup.js';
 import { mountLunaAvatar } from './luna/avatar.js';
 import { homeAvatarState, homeCommandReady } from './luna/presentation.js';
+import { createLunaVoiceSettings } from './luna-voice-settings.js';
 
 const welcomeAvatarHost = document.querySelector('#welcome-luna');
 const avatar = welcomeAvatarHost
@@ -78,6 +79,10 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <h1 id="luna-heading" tabindex="-1">Luna settings.</h1>
     <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you turn it on. Use this page when something is not working.</p></div>
     <div class="list-panel luna-panel">
+    <h2>Voice</h2>
+    <div id="luna-voice" class="luna-voice-choices" role="group" aria-label="Luna’s voice" aria-describedby="luna-voice-help luna-voice-status"></div>
+    <p id="luna-voice-help">Tap a voice to select it and hear a sample: “Set for 5 minutes.” This is only a preview; no timer starts. Your choice stays saved for timer replies and online answers.</p>
+    <p id="luna-voice-status" role="status" aria-live="polite"></p>
     <h2>Accessibility</h2>
     <button id="luna-captions-toggle" type="button" aria-pressed="true">Luna captions: On</button>
     <p>Show Luna’s replies as readable text. Captions clear six seconds after she finishes speaking.</p>
@@ -95,6 +100,9 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <p>Active timers are on the home page.</p></div>`;
   document.querySelector('main').append(luna);
   const captions = createLunaCaptions(luna.querySelector('#luna-captions-toggle'), { document });
+  const voiceSettings = createLunaVoiceSettings(luna.querySelector('#luna-voice'), luna.querySelector('#luna-voice-status'), {
+    document, invoke: (command, args) => window.__TAURI__.core.invoke(command, args),
+  });
   const stateText = luna.querySelector('#luna-state');
   const stateDetails = luna.querySelector('#luna-details');
   const onlineAnswers = luna.querySelector('#luna-online-answers');
@@ -183,6 +191,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     if (announce) stateText.textContent = 'Checking Home voice status…';
     try {
       const snapshot = await window.__TAURI__.core.invoke('get_luna_snapshot');
+      voiceSettings.update(snapshot);
         const phases = { off: 'Microphone off.', preparing: 'Preparing wake listening; microphone is off.', waiting: 'Listening for Hey Luna on your Mac.', awake: 'Luna heard the wake phrase and is waiting for your command.', review: 'Luna is working out what she heard; microphone paused.', response: snapshot.replyPlaying === true ? 'Luna is speaking; microphone paused.' : 'Luna is preparing her reply; microphone paused.', retry: 'Luna did not catch a command and is getting ready to listen again.' };
         const phase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
         const commandReady = homeCommandReady(snapshot);
@@ -257,6 +266,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         timers.append(row);
       }
     } catch {
+      voiceSettings.unavailable();
       home.dataset.commandReady = 'false';
       stateText.textContent = 'Voice status unavailable.';
       stateDetails.textContent = 'Home could not confirm microphone or timer state.';

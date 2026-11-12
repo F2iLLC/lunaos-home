@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 // Only Android APIs and the narrow JSON API are doubles. QuestionReply,
 // QuestionPolicy, HTTPS, certificate trust and HTTP I/O execute unchanged.
 const fakes = {
+  'io/github/f2illc/lunaos/home/voiceprobe/LunaVoice.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class LunaVoice {static String selected(android.content.Context c){return "lori";}}',
   'android/content/Context.java': `package android.content;
 public class Context {
  public static final int MODE_PRIVATE=0; public final java.io.File dir;

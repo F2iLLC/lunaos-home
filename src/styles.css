@@ -272,3 +272,9 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 }
 .luna-caption-floating { position: fixed; z-index: 1000; bottom: 20px; left: 5vw; width: 90vw; margin: 0; box-shadow: 0 4px 20px #0006; }
 .notebook-popup-caption { position: sticky; bottom: 0; margin: 20px 0 0; }
+
+.luna-voice-choices { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.luna-voice-choices button { border-radius: 999px; min-width: 140px; min-height: 52px; border: 2px solid #a99bb3; background: #383952; color: #fff5ef; }
+.luna-voice-choices button[aria-pressed="true"] { background: #f0cfed; border-color: #f0cfed; color: #262237; }
+.luna-voice-choices button[aria-pressed="true"]::before { content: '✓ '; }
+.luna-voice-choices button:focus-visible { outline: 3px solid #ffdc94; outline-offset: 4px; }

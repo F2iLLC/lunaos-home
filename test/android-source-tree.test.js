@@ -4,10 +4,41 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile, rm, symlink, link, lstat 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { prepareAndroid } from '../scripts/prepare-android.mjs';
+import { createHash } from 'node:crypto';
+import { pcmWave } from '../lib/vehicle-speech.js';
 
 const pkg = 'java/io/github/f2illc/lunaos/home/preview';
 const directPkg = 'java/io/github/f2illc/lunaos/directtlsprobe';
 const manifest = '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:usesCleartextTraffic="false"><activity android:name=".MainActivity" /></application></manifest>';
+
+test('Android bundles both validated voices, rejects mislabeled Lori, and removes omitted packs on rebuild', async t => {
+  const f = await fixture(t);
+  const variables = ['LUNA_HOME_VOICE_REPLY_DIRECTORY', 'LUNA_HOME_LORI_REPLY_DIRECTORY'];
+  const previous = variables.map(key => process.env[key]);
+  t.after(() => variables.forEach((key, i) => {
+    if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];
+  }));
+  const input = join(f.root, 'pack'); await mkdir(input);
+  const wav = pcmWave(Buffer.alloc(4800));
+  const prompts = JSON.parse(await readFile(new URL('../scripts/android-offline-voice-probe/reply-prompts.json', import.meta.url)));
+  const pack = { provider: 'ElevenLabs', voiceId: 'TbMNBJ27fH2U0VgpSNko', clips: prompts.map(clip => ({ ...clip, sha256: createHash('sha256').update(wav).digest('hex') })) };
+  for (const clip of prompts) await writeFile(join(input, `${clip.id}.wav`), wav);
+  const save = () => writeFile(join(input, 'pack.json'), JSON.stringify(pack));
+  await save(); variables.forEach(key => { process.env[key] = input; });
+  await prepareAndroid(f);
+  for (const folder of ['replies', 'replies-lori']) {
+    const destination = join(f.src, 'debug/assets', folder);
+    assert.equal((JSON.parse(await readFile(join(destination, 'pack.json')))).clips.length, prompts.length);
+    assert.deepEqual(await readFile(join(destination, `${prompts[0].id}.wav`)), wav);
+  }
+  pack.voiceId = 'wrong'; await save();
+  await assert.rejects(prepareAndroid(f), /wrong voice ID/);
+  await assert.rejects(readFile(join(f.src, 'debug/assets/replies-lori/pack.json')), { code: 'ENOENT' });
+  delete process.env.LUNA_HOME_LORI_REPLY_DIRECTORY;
+  await prepareAndroid(f);
+  assert.ok(await readFile(join(f.src, 'debug/assets/replies/pack.json')));
+  await assert.rejects(readdir(join(f.src, 'debug/assets/replies-lori')), { code: 'ENOENT' });
+});
 async function fixture(context) {
   const root = await mkdtemp(join(tmpdir(), 'home-source-tree-'));
   context.after(() => rm(root, { recursive: true, force: true }));

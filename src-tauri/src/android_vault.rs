@@ -19,6 +19,32 @@ pub struct LunaSnapshot {
     pub online_answers_enabled: Option<bool>,
     pub online_answers_available: Option<bool>,
     pub active_timers: Option<Vec<LunaTimerSnapshot>>,
+    pub selected_voice: Option<String>,
+    pub voices: Option<Vec<LunaVoiceOption>>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct LunaVoiceOption { pub id: String, pub label: String }
+
+#[derive(Serialize)]
+struct LunaVoiceRequest { voice: String }
+
+#[tauri::command]
+pub async fn set_luna_voice<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>, voice: String) -> Result<(), String> {
+    if window.label() != "main" || !matches!(voice.as_str(), "lori" | "original") {
+        return Err("Invalid Home voice selection".into());
+    }
+    state.0.run_mobile_plugin_async::<()>("setLunaVoice", LunaVoiceRequest { voice }).await
+        .map_err(|_| "Could not save Luna voice".into())
+}
+
+#[tauri::command]
+pub async fn preview_luna_voice<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>, voice: String) -> Result<(), String> {
+    if window.label() != "main" || !matches!(voice.as_str(), "lori" | "original") {
+        return Err("Invalid Home voice selection".into());
+    }
+    state.0.run_mobile_plugin_async::<()>("previewLunaVoice", LunaVoiceRequest { voice }).await
+        .map_err(|_| "Could not play voice preview".into())
 }
 
 #[derive(Deserialize, Serialize)]

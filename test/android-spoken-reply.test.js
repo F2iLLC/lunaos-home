@@ -10,7 +10,18 @@ test('bundled offline replies sequence exact clips, release playback, and recove
   t.after(() => rm(output, { recursive: true, force: true }));
   const manifest = JSON.parse(await readFile('scripts/android-offline-voice-probe/reply-prompts.json','utf8'));
   const fakes = {
-    'android/content/Context.java': 'package android.content; public class Context {public android.content.res.AssetManager getAssets(){return new android.content.res.AssetManager();}}',
+    'android/content/Context.java': `package android.content; public class Context {
+      public static final int MODE_PRIVATE=0;
+      public android.content.res.AssetManager getAssets(){return new android.content.res.AssetManager();}
+      public SharedPreferences getSharedPreferences(String n,int m){return new SharedPreferences();}
+      public static class SharedPreferences {
+        public static String saved="";public static boolean fail;
+        public String getString(String k,String d){return saved;}
+        public Editor edit(){return new Editor();}
+        public static class Editor {String next;public Editor putString(String k,String v){next=v;return this;}
+          public boolean commit(){if(fail)return false;saved=next;return true;}}
+      }
+    }`,
     'android/os/Handler.java': `package android.os; public class Handler {
       static final java.util.List<Runnable> tasks=new java.util.ArrayList<>(),timers=new java.util.ArrayList<>();
       public void post(Runnable r){tasks.add(r);}public void postDelayed(Runnable r,long ms){timers.add(r);}
@@ -19,9 +30,18 @@ test('bundled offline replies sequence exact clips, release playback, and recove
       public static void timeout(){if(!timers.isEmpty())timers.remove(0).run();}
     }`,
     'android/content/res/AssetFileDescriptor.java': 'package android.content.res; public class AssetFileDescriptor implements AutoCloseable {public java.io.FileDescriptor getFileDescriptor(){return new java.io.FileDescriptor();}public long getStartOffset(){return 0;}public long getLength(){return 100;}public void close(){}}',
-    'android/content/res/AssetManager.java': 'package android.content.res; public class AssetManager {public static final java.util.List<String> opened=new java.util.ArrayList<>(); public AssetFileDescriptor openFd(String p){opened.add(p);return new AssetFileDescriptor();}}',
+    'android/content/res/AssetManager.java': `package android.content.res; public class AssetManager {
+      public static boolean lori;
+      public java.io.InputStream open(String p)throws java.io.IOException {
+        if(p.equals("replies/pack.json")||(lori&&p.equals("replies-lori/pack.json")))return new java.io.ByteArrayInputStream(new byte[0]);
+        throw new java.io.IOException();
+      }
+      public static final java.util.List<String> opened=new java.util.ArrayList<>();
+      public AssetFileDescriptor openFd(String p){opened.add(p);return new AssetFileDescriptor();}
+    }`,
     'android/media/AudioAttributes.java': 'package android.media; public class AudioAttributes {public static final int USAGE_ASSISTANCE_ACCESSIBILITY=11,CONTENT_TYPE_SPEECH=1;public static class Builder {public Builder setUsage(int i){return this;}public Builder setContentType(int i){return this;}public AudioAttributes build(){return new AudioAttributes();}}}',
     'android/media/MediaPlayer.java': `package android.media; public class MediaPlayer {
+      public interface OnPreparedListener{void onPrepared(MediaPlayer p);}public void setOnPreparedListener(OnPreparedListener l){}public void prepareAsync(){prepare();}
       public interface OnCompletionListener{void onCompletion(MediaPlayer p);}public interface OnErrorListener{boolean onError(MediaPlayer p,int w,int e);}
       public static MediaPlayer last;public static boolean fail;public boolean released;public OnCompletionListener listener;public OnErrorListener error;
       public MediaPlayer(){last=this;}public void setAudioAttributes(AudioAttributes a){}public void setDataSource(java.io.FileDescriptor f,long s,long l){}
@@ -71,11 +91,42 @@ test('bundled offline replies sequence exact clips, release playback, and recove
           check(ReplyPlan.clips("Timer eight canceled.")[0].equals("cancel-8"));
           check(ReplyPlan.clips("Alarm stopped.").length==0);
           check(ReplyPlan.clips("untrusted speech")[0].equals("unsupported"));
+          android.content.Context context=new android.content.Context();
+          check(LunaVoice.selected(context).equals("original"));
+          AssetManager.lori=true;check(LunaVoice.selected(context).equals("lori"));
+          LunaVoice.select(context,"original");check(LunaVoice.selected(new android.content.Context()).equals("original"));
+          LunaVoice.select(context,"lori");
+          try{LunaVoice.select(context,"../other");throw new AssertionError();}catch(IllegalArgumentException expected){}
+          android.content.Context.SharedPreferences.fail=true;
+          try{LunaVoice.select(context,"original");throw new AssertionError();}catch(IllegalStateException expected){}
+          check(LunaVoice.selected(context).equals("lori"));android.content.Context.SharedPreferences.fail=false;
+          AssetManager.opened.clear();
+          PromptPlayer sequence=new PromptPlayer(context,"Timer one started for 60 seconds.",()->{});
+          sequence.start();LunaVoice.select(context,"original");
+          MediaPlayer.last.listener.onCompletion(MediaPlayer.last);
+          check(AssetManager.opened.equals(java.util.Arrays.asList("replies-lori/setting-timer.wav","replies-lori/minute-1.wav")));
+          sequence.close();AssetManager.lori=false;
+          try{LunaVoice.select(context,"lori");throw new AssertionError();}catch(IllegalArgumentException expected){}
+          check(LunaVoice.selected(context).equals("original"));
+          AssetManager.lori=true;AssetManager.opened.clear();
+          java.util.List<Boolean> previews=new java.util.ArrayList<>();
+          VoicePreview.play(context,"lori",previews::add);MediaPlayer first=MediaPlayer.last;
+          VoicePreview.play(context,"original",previews::add);MediaPlayer second=MediaPlayer.last;
+          check(first.released&&previews.equals(java.util.Arrays.asList(false)));
+          first.listener.onCompletion(first);check(previews.size()==1);
+          second.listener.onCompletion(second);check(second.released&&previews.equals(java.util.Arrays.asList(false,true)));
+          check(AssetManager.opened.equals(java.util.Arrays.asList("replies-lori/started-5-minute.wav","replies/started-5-minute.wav")));
+          check(LunaVoice.selected(context).equals("original"));
+          VoicePreview.play(context,"lori",previews::add);MediaPlayer bad=MediaPlayer.last;bad.error.onError(bad,1,1);
+          check(bad.released&&!previews.get(2));
+          VoicePreview.play(context,"lori",previews::add);MediaPlayer timed=MediaPlayer.last;Handler.timeout();check(timed.released&&!previews.get(3));
+          MediaPlayer.fail=true;VoicePreview.play(context,"lori",previews::add);check(MediaPlayer.last.released&&!previews.get(4));
+          try{VoicePreview.play(context,"../other",previews::add);throw new AssertionError();}catch(IllegalArgumentException expected){}
           System.out.println("Offline reply checks passed");
         }
       }`,
   };
-  const sources = ['QuestionPolicy', 'SpokenReply', 'PromptPlayer', 'ReplyPlan', 'TimerPhrase', 'TimerCommand'].map(name => 'scripts/android-offline-voice-probe/' + name + '.java');
+  const sources = ['QuestionPolicy', 'SpokenReply', 'PromptPlayer', 'LunaVoice', 'VoicePreview', 'ReplyPlan', 'TimerPhrase', 'TimerCommand'].map(name => 'scripts/android-offline-voice-probe/' + name + '.java');
   for (const [name, text] of Object.entries(fakes)) {
     const path = join(output, name);
     await mkdir(dirname(path), { recursive: true });
