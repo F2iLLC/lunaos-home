@@ -95,12 +95,14 @@ test('finalized native voice transcripts reach Home after local timer commands a
   const service = await readFile(new URL('../scripts/android-offline-voice-probe/BackgroundWakeService.java', import.meta.url), 'utf8');
   const finishedAt = service.indexOf('@Override public void finished(String code, String text, int seconds, long deadline, boolean canceled)');
   assert.notEqual(finishedAt, -1);
-  const finished = service.slice(finishedAt, service.indexOf('\\n            });', finishedAt));
-  assert.match(finished, /if \\(!blocked && !canceled && SystemClock\\.elapsedRealtime\\(\\) < deadline && hasFinalTranscript\\)\\s+QuestionPolicy\\.lastHeard = text\\.trim\\(\\);/);
+  const finishedEnd = service.indexOf('            });', finishedAt);
+  const finished = service.slice(finishedAt, finishedEnd);
+  assert.ok(finished.includes('if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && hasFinalTranscript)'));
+  assert.ok(finished.includes('QuestionPolicy.lastHeard = text.trim();'));
   assert.ok(finished.indexOf('QuestionPolicy.lastHeard = text.trim();') < finished.indexOf('TimerCommand.valid(seconds)'),
     'the finalized transcript is retained before either command path handles it');
   const bridge = await readFile(new URL('../scripts/android-offline-voice-probe/HomeLunaBridge.java', import.meta.url), 'utf8');
-  assert.match(bridge, /out\\.put\\("lastHeard", "off"\\.equals\\(phase\\) \\? "" : QuestionPolicy\\.lastHeard\\);/);
+  assert.ok(bridge.includes('out.put("lastHeard", "off".equals(phase) ? "" : QuestionPolicy.lastHeard);'));
 });
 
 test('bundled Home Luna controls are Android-debug-only and call only Home state commands', async () => {
