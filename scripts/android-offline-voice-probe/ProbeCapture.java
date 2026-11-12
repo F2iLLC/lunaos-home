@@ -29,6 +29,8 @@ final class ProbeCapture {
     private static final AtomicBoolean BUSY = new AtomicBoolean();
     private static final AtomicBoolean RECORDING = new AtomicBoolean();
     static boolean busy() { return BUSY.get(); }
+    /** Result codes for a music phrase: Spotify was asked, or nothing was sent. The status text says which. */
+    static final String MUSIC = "MUSIC_COMMAND", MUSIC_NOT_SENT = "MUSIC_NOT_SENT";
     static boolean recording() { return RECORDING.get(); }
     interface Listener {
         void visual(LunaFace.State state);
@@ -197,6 +199,7 @@ final class ProbeCapture {
         CommandAudio audio = commandAudio;
         if (audio != null) audio.close();
         closeCue();
+        MusicPlayer.release(context); // Every way out of the command window passes through here.
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
         catch (RuntimeException ignored) { }
@@ -261,7 +264,10 @@ final class ProbeCapture {
                         .invokeInt(new Object[] { engine.model.getPointer(), "luna" });
                     if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
                     phase = "RECOGNIZER";
-                    engine.phrases = new Recognizer(engine.model, 16000, wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
+                    // Wake listening also knows the music phrases. They join the same phrase list;
+                    // there is still exactly one fixed-phrase recognizer.
+                    engine.phrases = new Recognizer(engine.model, 16000, persistent ? MusicCommand.commandGrammar()
+                        : wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
                     if (wait) engine.freeForm = new Recognizer(engine.model, 16000);
                     if (persistent) synchronized (ENGINE_LOCK) { kept = engine; }
                 }
@@ -320,12 +326,16 @@ final class ProbeCapture {
                         Arrays.fill(samples, (short) 0);
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
-                            int seconds;
+                            int seconds, music;
                             if (!commandStage) {
                                 seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime(), TimerAlarmService.ringing()) : TimerPhrase.seconds(text);
                                 if (seconds == TimerCommand.STOP) Log.i("HomeVoiceProbe", "ALARM_STOP_WITHOUT_WAKE");
                             } else if (TimerCommand.valid(TimerCommand.parse(text))) {
                                 seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
+                            } else if (persistent && (music = MusicCommand.accept(wake, text, SystemClock.elapsedRealtime())) != 0) {
+                                // A structured action only; the words are not kept or passed on.
+                                matched = music; code = MUSIC; message = "";
+                                return;
                             } else if (questions && queued != null && !text.trim().isEmpty()) {
                                 String heard = decodeCaptured(queued, command, wake, samples, timing, 0);
                                 if (heard == null) continue;
@@ -336,6 +346,8 @@ final class ProbeCapture {
                                     message = "Supported timer command recognized. Microphone off.";
                                     return;
                                 }
+                                music = MusicCommand.accept(wake, heard, decoded);
+                                if (music != 0) { matched = music; code = MUSIC; message = ""; return; }
                                 if (wake.acceptQuestion(heard, decoded)) {
                                     code = "QUESTION_FINAL"; message = heard; return;
                                 }
@@ -397,13 +409,27 @@ final class ProbeCapture {
                 main.removeCallbacks(watchdog);
                 BUSY.set(false);
                 settleEngine();
+                if (MUSIC.equals(resultCode)) { finishMusic(seconds); return; }
                 if (!canceled) Log.i("HomeVoiceProbe", resultCode);
                 listener.finished(resultCode, resultMessage, seconds, deadline, canceled);
             });
         }
     }
 
+    // The microphone and audio focus are already released. The key is pressed here, not by the
+    // owner, because this is the Android-facing class both owners share; the owner still decides
+    // what happens next from the code and the status it is given.
+    private void finishMusic(int action) {
+        boolean stopped = canceled || blocked(context) || SystemClock.elapsedRealtime() >= deadline;
+        String status = stopped ? "Listening stopped first. Nothing was sent to Spotify." : MusicPlayer.send(context, action);
+        boolean sent = !stopped && status.equals(MusicControl.plan(action, true).status);
+        String resultCode = sent ? MUSIC : MUSIC_NOT_SENT;
+        if (!canceled) Log.i("HomeVoiceProbe", resultCode);
+        listener.finished(resultCode, status, action, deadline, canceled);
+    }
+
     private void openCommandWindow(WakeSession wake, CaptureTiming timing, boolean questions) {
+        MusicPlayer.hold(context);
         timing.report();
         timing.start(timing.bufferFrames, "COMMAND");
         deadline = Math.min(maximum, wake.deadline());

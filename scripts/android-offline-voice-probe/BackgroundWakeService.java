@@ -172,6 +172,15 @@ public final class BackgroundWakeService extends Service {
                                 scheduleCapture(played ? 250 : 2500);
                             });
                         } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
+                    } else if ("MUSIC_COMMAND".equals(code) || "MUSIC_NOT_SENT".equals(code)) {
+                        // The capture worker has already asked Spotify, or sent nothing; text says which.
+                        // Nothing is spoken and no activity is launched.
+                        TimerAlarmService.duck(false);
+                        visual = "MUSIC_COMMAND".equals(code) ? LunaFace.State.RESPONSE : LunaFace.State.RETRY;
+                        latest = text + " Wake-word listening remains enabled.";
+                        notifyStatus();
+                        Log.i("HomeVoiceProbe", "MUSIC_COMMAND_HANDLED");
+                        scheduleCapture(250);
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
                         visual = LunaFace.State.RETRY;

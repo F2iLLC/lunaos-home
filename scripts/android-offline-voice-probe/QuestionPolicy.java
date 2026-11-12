@@ -50,10 +50,23 @@ public final class QuestionPolicy {
             || bare.matches("(?:set|start|stop|pause|resume|okay stop|luna stop|turn it off|shut it off)(?: .*)?")
             || bare.matches("(?:[0-9]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty)(?: [a-z]+)? (?:seconds?|minutes?|hours?)(?: please)?");
     }
+    // Music is done on this device or not at all. A music phrase, a fragment of one, or a refused
+    // one is never sent on as a question. A question that only mentions music still is.
+    static boolean musicAttempt(String text) {
+        if (text == null) return false;
+        String bare = normalized(text);
+        if (bare.endsWith(" please")) bare = bare.substring(0, bare.length() - 7).trim();
+        return bare.matches("(?:play|skip|unpause|next|previous)(?: (?:the|this|that|some|my|a))?")
+            || bare.matches("(?:the |some |my )?(?:music|spotify)")
+            || bare.matches("(?:don't |do not )?(?:play|skip|unpause|pause|stop|resume)\\b.*\\b(?:music|songs?|tracks?|spotify)\\b.*")
+            || bare.matches("(?:next|previous|last) (?:song|track)\\b.*")
+            || bare.matches("go back\\b.*\\b(?:songs?|tracks?)\\b.*")
+            || bare.matches("turn (?:off |on )?the music\\b.*");
+    }
     public static boolean accepts(String text) {
         if (text == null || text.trim().isEmpty() || text.length() > 1000) return false;
         for (int i = 0; i < text.length(); i++) if (Character.isISOControl(text.charAt(i))) return false;
         String bare = normalized(text);
-        return !bare.isEmpty() && !bare.equals("hey luna") && !bare.contains("[unk]") && !timerAttempt(text);
+        return !bare.isEmpty() && !bare.equals("hey luna") && !bare.contains("[unk]") && !timerAttempt(text) && !musicAttempt(text);
     }
 }
