@@ -35,7 +35,7 @@ export const vaultDebugManifest = `<manifest xmlns:android="http://schemas.andro
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
+  <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent><intent><action android:name="android.speech.RecognitionService" /></intent><package android:name="com.spotify.music" /></queries>
   <application>
     <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleSetupActivity" android:exported="false" />
     <activity android:name="io.github.f2illc.lunaos.home.vehicle.VehicleConversationActivity" android:exported="false" />
@@ -200,7 +200,7 @@ export async function prepareAndroid({
   const voiceAssetRoot = join(debugRoot, 'assets/model');
   const vehicleRoot = new URL('./android/vehicle/', import.meta.url);
   const vehicleSources = ['VehicleTrip.java', 'VehicleState.java', 'VehicleRuntime.java', 'VehicleReceiver.java', 'VehiclePresence.java', 'VehicleAudioService.java', 'VehicleSetupActivity.java', 'VehicleLeadIn.java', 'VehicleGreetings.java', 'VehiclePlaybackGate.java', 'VehicleVoiceCache.java', 'VehicleConversationActivity.java', 'VehicleReplyPlayer.java', 'VehicleLatency.java', 'VehiclePassengers.java', 'VehiclePassengerState.java', 'VehiclePassengerSetup.java'];
-  const voiceSources = ['BackgroundWakeService.java', 'CommandAudio.java', 'HomeLunaBridge.java', 'LunaFace.java', 'NativeTimers.java', 'PendingTimerRequest.java', 'ProbeCapture.java', 'PromptPlayer.java', 'QuestionPolicy.java', 'QuestionReply.java', 'ReplyPlan.java', 'SpokenReply.java', 'TimerAlarmService.java', 'TimerCommand.java', 'TimerHandoffGate.java', 'TimerLedger.java', 'TimerPhrase.java', 'TimerReceiver.java', 'WakeSession.java'];
+  const voiceSources = ['BackgroundWakeService.java', 'CommandAudio.java', 'HomeLunaBridge.java', 'LunaFace.java', 'MusicCommand.java', 'MusicControl.java', 'MusicPlayer.java', 'NativeTimers.java', 'PendingTimerRequest.java', 'ProbeCapture.java', 'PromptPlayer.java', 'QuestionPolicy.java', 'QuestionReply.java', 'ReplyPlan.java', 'SpokenReply.java', 'TimerAlarmService.java', 'TimerCommand.java', 'TimerHandoffGate.java', 'TimerLedger.java', 'TimerPhrase.java', 'TimerReceiver.java', 'WakeSession.java'];
   const sourceRoot = new URL('./android/vault/', import.meta.url);
   const sources = ['VaultService.java', 'VaultStore.java', 'VaultRollback.java', 'VaultActivity.java', 'HomeVaultPlugin.kt'];
   const directRoot = new URL('./android-direct-tls-probe/', import.meta.url);

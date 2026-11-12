@@ -6,7 +6,7 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-  <queries><package android:name="com.android.deskclock" /></queries>
+  <queries><package android:name="com.android.deskclock" /><package android:name="com.spotify.music" /></queries>
   <application android:label="Home offline voice test" android:debuggable="true"
       android:extractNativeLibs="true" android:allowBackup="false" android:fullBackupContent="false">
     <activity android:name=".VoiceProbe" android:exported="true" />
