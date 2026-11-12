@@ -4,7 +4,7 @@ export function homeAvatarState(snapshot) {
   if (snapshot.capturePhase === 'response' && snapshot.replyPlaying === true) return 'talking';
   if ((snapshot.activeTimers || []).some(timer => Number(timer.remainingSeconds) === 0)) return 'working';
   if (['preparing', 'review', 'response', 'retry'].includes(snapshot.capturePhase)) return 'thinking';
-  if (snapshot.capturePhase === 'waiting' || snapshot.capturePhase === 'awake') return 'listening';
+  if (snapshot.capturePhase === 'awake') return 'listening';
   if (snapshot.status !== 'ready') return 'error';
   const availability = snapshot.listeningStatus;
   if (availability && availability !== 'enabled' && availability !== 'disabled') return 'error';

@@ -11,7 +11,7 @@ test('Home event mapping distinguishes deliberate sleep, listening, processing, 
   assert.equal(homeAvatarState(snapshot({listeningStatus:'muted',capturePhase:'off'})),'error');
   assert.equal(homeAvatarState(snapshot({listeningStatus:'locked',capturePhase:'off'})),'error');
   assert.equal(homeAvatarState(snapshot({listeningStatus:'disconnected',capturePhase:'off'})),'error');
-  assert.equal(homeAvatarState(snapshot({capturePhase:'waiting'})),'listening');
+  assert.equal(homeAvatarState(snapshot({capturePhase:'waiting'})),'idle');
   assert.equal(homeAvatarState(snapshot({capturePhase:'awake'})),'listening');
   assert.equal(homeAvatarState(snapshot({capturePhase:'preparing'})),'thinking');
   assert.equal(homeAvatarState(snapshot({capturePhase:'review'})),'thinking');
