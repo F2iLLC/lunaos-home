@@ -103,13 +103,20 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const timers = home.querySelector('#luna-timers');
   const timerStatus = home.querySelector('#luna-timer-status');
   let timerStatusTimeout;
+  let timerStatusClearTimeout;
   const announceTimerStatus = message => {
     if (timerStatusTimeout !== undefined) clearTimeout(timerStatusTimeout);
+    if (timerStatusClearTimeout !== undefined) clearTimeout(timerStatusClearTimeout);
     setText(timerStatus, message);
+    timerStatus.classList.add('is-visible');
     timerStatusTimeout = setTimeout(() => {
-      setText(timerStatus, '');
+      timerStatus.classList.remove('is-visible');
       timerStatusTimeout = undefined;
-    }, 4000);
+      timerStatusClearTimeout = setTimeout(() => {
+        setText(timerStatus, '');
+        timerStatusClearTimeout = undefined;
+      }, 500);
+    }, 3000);
   };
   const statusPollIntervalMs = 5000;
   // While Luna is listening her face follows her closely; otherwise it idles.

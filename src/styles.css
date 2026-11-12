@@ -92,7 +92,9 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .settings-gear svg { width: 28px; height: 28px; }
 .settings-gear:hover { background: #292e4b; }
 .settings-gear:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
-#luna-timer-status { min-height: 1.5em; margin: 8px 0 0; color: #d7fff3; font-size: 14px; }
+#luna-timer-status { min-height: 1.5em; margin: 8px 0 0; color: #d7fff3; font-size: 14px; opacity: 0; transition: opacity .5s ease; }
+#luna-timer-status.is-visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #luna-timer-status { transition: none; } }
 .luna-online-toggle { display: inline-flex; align-items: center; justify-content: center; width: min(100%, 520px); min-height: 64px; margin: 14px auto 0; padding: 16px 24px; border: 2px solid #8cefd9; border-radius: 18px; background: #d7fff3; color: #24273d; font-size: 17px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .luna-online-toggle[aria-pressed="true"] { background: #8cefd9; }
 .luna-online-toggle:focus-visible { outline: 4px solid #ffe4a3; outline-offset: 3px; }
