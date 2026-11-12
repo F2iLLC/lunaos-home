@@ -50,18 +50,21 @@ public final class QuestionPolicy {
             || bare.matches("(?:set|start|stop|pause|resume|okay stop|luna stop|turn it off|shut it off)(?: .*)?")
             || bare.matches("(?:[0-9]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty)(?: [a-z]+)? (?:seconds?|minutes?|hours?)(?: please)?");
     }
-    // Music is done on this device or not at all. A music phrase, a fragment of one, or a refused
-    // one is never sent on as a question. A question that only mentions music still is.
+    // Music is done by the Spotify app on this device or not at all. A music phrase, the start of
+    // one, or one with words added is never sent on as a question. Anything else that mentions
+    // music still is, for example "play a song about dragons". MusicCommand holds the list that
+    // is acted on; the music suite fails if the two drift apart.
+    private static final String MUSIC_PHRASES = "play music|play some music|play my music|play spotify|resume the music|unpause the music"
+        + "|pause the music|stop the music|pause music|stop music|turn off the music|turn the music off|pause spotify|stop spotify"
+        + "|next song|next track|skip this song|skip song|play the next song"
+        + "|previous song|previous track|last song|go back a song|play the previous song";
     static boolean musicAttempt(String text) {
         if (text == null) return false;
         String bare = normalized(text);
         if (bare.endsWith(" please")) bare = bare.substring(0, bare.length() - 7).trim();
-        return bare.matches("(?:play|skip|unpause|next|previous)(?: (?:the|this|that|some|my|a))?")
+        return bare.matches("(?:play|skip|unpause|next|previous)(?: (?:the|this|that|some|my|a))?(?: (?:music|song|track))?")
             || bare.matches("(?:the |some |my )?(?:music|spotify)")
-            || bare.matches("(?:don't |do not )?(?:play|skip|unpause|pause|stop|resume)\\b.*\\b(?:music|songs?|tracks?|spotify)\\b.*")
-            || bare.matches("(?:next|previous|last) (?:song|track)\\b.*")
-            || bare.matches("go back\\b.*\\b(?:songs?|tracks?)\\b.*")
-            || bare.matches("turn (?:off |on )?the music\\b.*");
+            || bare.matches("(?:don't |do not )?(?:" + MUSIC_PHRASES + ")(?: .*)?");
     }
     public static boolean accepts(String text) {
         if (text == null || text.trim().isEmpty() || text.length() > 1000) return false;

@@ -44,6 +44,7 @@ final class ProbeCapture {
     synchronized void stop() { closed = true; closeRecorder(); }
     private synchronized void closeRecorder() {
         RECORDING.set(false);
+        MusicPlayer.release(context); // Every way out of listening passes through here.
         if (recorder != null) { try { recorder.stop(); } catch (RuntimeException ignored) {} recorder.release(); recorder = null; }
     }
     private void show(String text, LunaFace.State state) {
@@ -61,6 +62,7 @@ final class ProbeCapture {
                 recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT,Math.max(minimum,12800));
                 if (recorder.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException();
                 recorder.startRecording(); RECORDING.set(true);
+                if (awake) MusicPlayer.hold(context); // Awake for a command: ask other media to go quiet.
             }
             show(awake ? "Your turn. Listening for your reply on the Mac." : "Listening for Hey Luna on your Mac.", awake ? LunaFace.State.AWAKE : LunaFace.State.WAITING);
             while (!closed && !blocked(context) && SystemClock.elapsedRealtime() < until && used < audio.length) {
@@ -88,7 +90,7 @@ final class ProbeCapture {
     }
     private void run() {
         String code="COMMAND_WINDOW_EXPIRED", text="No reply heard. Returning to Hey Luna.";
-        int seconds=0; long deadline=Long.MAX_VALUE;
+        int seconds=0, music=0; long deadline=Long.MAX_VALUE;
         WakeSession wake=new WakeSession(SystemClock.elapsedRealtime(),true);
         if(followUp) wake.beginFollowUp(SystemClock.elapsedRealtime());
         try {
@@ -118,11 +120,23 @@ final class ProbeCapture {
                 wake.decodeUntil(SystemClock.elapsedRealtime()+1000); deadline=wake.deadline();
                 seconds=wake.acceptFinal(normalized,SystemClock.elapsedRealtime());
                 if(TimerCommand.valid(seconds)) {code="COMMAND_MATCH";text="Timer command recognized.";break;}
+                // Music is parsed here like a timer, from the words the Mac recognized. Only the
+                // structured action is kept, and it never goes on to the hosted model.
+                music=MusicCommand.accept(wake,normalized,SystemClock.elapsedRealtime());
+                if(music!=0) break;
                 if(wake.acceptQuestion(heard,SystemClock.elapsedRealtime())) {code="QUESTION_FINAL";text=heard;break;}
                 break;
             }
             if(blocked(context)) {code="ACCESS_STOP";text="Listening stopped: unlock and unmute first.";}
         } catch(Exception failure) {code="HOST_UNAVAILABLE";text="Mac speech recognition unavailable. Listening stopped.";}
-        finally { closeRecorder(); BUSY.set(false); final String resultCode=code,resultText=text;final int duration=seconds;final long end=deadline;main.post(()->listener.finished(resultCode,resultText,duration,end,closed)); }
+        finally { closeRecorder(); BUSY.set(false); final String resultCode=code,resultText=text;final int duration=seconds,action=music;final long end=deadline;main.post(()->{
+            if(action==0) { listener.finished(resultCode,resultText,duration,end,closed); return; }
+            // The microphone and audio focus are released. Press the key, then report with the
+            // same result codes the wake service already reads.
+            boolean stopped=closed || blocked(context);
+            String status=stopped ? "Listening stopped first. Nothing was sent to Spotify." : MusicPlayer.send(context,action);
+            boolean sent=!stopped && status.equals(MusicControl.plan(action,true).status);
+            listener.finished(sent ? "MUSIC_COMMAND" : "MUSIC_NOT_SENT",status,action,end,closed);
+        }); }
     }
 }
