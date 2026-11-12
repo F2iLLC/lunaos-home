@@ -102,6 +102,15 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const refreshState = luna.querySelector('#refresh-luna-state');
   const timers = home.querySelector('#luna-timers');
   const timerStatus = home.querySelector('#luna-timer-status');
+  let timerStatusTimeout;
+  const announceTimerStatus = message => {
+    if (timerStatusTimeout !== undefined) clearTimeout(timerStatusTimeout);
+    setText(timerStatus, message);
+    timerStatusTimeout = setTimeout(() => {
+      setText(timerStatus, '');
+      timerStatusTimeout = undefined;
+    }, 4000);
+  };
   const statusPollIntervalMs = 5000;
   // While Luna is listening her face follows her closely; otherwise it idles.
   const listeningPollIntervalMs = 1000;
@@ -226,12 +235,12 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
           cancel.textContent = 'Stopping timer…';
           try {
             await window.__TAURI__.core.invoke('cancel_luna_timer', { id: Number(timer.id) });
-            timerStatus.textContent = `Timer ${timer.id} canceled.`;
+            announceTimerStatus(`Timer ${timer.id} canceled.`);
             await refreshSnapshot();
           } catch {
             cancel.disabled = false;
             cancel.textContent = 'Stop and cancel timer';
-            timerStatus.textContent = `Could not cancel timer ${timer.id}. Refresh status and try again.`;
+            announceTimerStatus(`Could not cancel timer ${timer.id}. Refresh status and try again.`);
           }
         });
         const details = document.createElement('div');
