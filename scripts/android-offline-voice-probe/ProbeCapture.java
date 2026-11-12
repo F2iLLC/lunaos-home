@@ -33,6 +33,9 @@ final class ProbeCapture {
     interface Listener {
         void visual(LunaFace.State state);
         void status(String text);
+        default void wake(String assistant) {}
+        default void transcript(String text, boolean isFinal) {}
+        default void speechActive() {}
         void finished(String code, String text, int seconds, long deadline, boolean canceled);
     }
     private final Context context;
@@ -320,6 +323,7 @@ final class ProbeCapture {
                         Arrays.fill(samples, (short) 0);
                         if (complete && !closed && SystemClock.elapsedRealtime() < deadline) {
                             String text = new JSONObject(current.getResult()).optString("text", "");
+                            if (commandStage) main.post(() -> { if (!canceled) listener.transcript(text, true); });
                             int seconds;
                             if (!commandStage) {
                                 seconds = wake != null ? wake.acceptFinal(text, SystemClock.elapsedRealtime(), TimerAlarmService.ringing()) : TimerPhrase.seconds(text);
@@ -329,6 +333,7 @@ final class ProbeCapture {
                             } else if (questions && queued != null && !text.trim().isEmpty()) {
                                 String heard = decodeCaptured(queued, command, wake, samples, timing, 0);
                                 if (heard == null) continue;
+                                main.post(() -> { if (!canceled) listener.transcript(heard, true); });
                                 long decoded = SystemClock.elapsedRealtime();
                                 seconds = wake.acceptFinal(heard, decoded);
                                 if (TimerCommand.valid(seconds)) {
@@ -373,6 +378,10 @@ final class ProbeCapture {
                             }
                             if (heard == WakeSession.WAKE) { current.reset(); openCommandWindow(wake, timing, questions); }
                         }
+                        if (count > 0 && !complete && commandStage) {
+                            String partial = new JSONObject(current.getPartialResult()).optString("partial", "");
+                            main.post(() -> { if (!canceled && !closed) { listener.speechActive(); listener.transcript(partial, false); } });
+                        }
                         SystemClock.sleep(10);
                     }
                     if (!closed && SystemClock.elapsedRealtime() >= deadline) {
@@ -404,6 +413,7 @@ final class ProbeCapture {
     }
 
     private void openCommandWindow(WakeSession wake, CaptureTiming timing, boolean questions) {
+        main.post(() -> { if (!canceled && !closed) listener.wake("luna"); });
         timing.report();
         timing.start(timing.bufferFrames, "COMMAND");
         deadline = Math.min(maximum, wake.deadline());

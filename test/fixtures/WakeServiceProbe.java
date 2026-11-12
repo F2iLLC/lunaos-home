@@ -14,10 +14,23 @@ public final class WakeServiceProbe {
  static void disable(BackgroundWakeService s) {s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.STOP),0,2);s.onDestroy();ProbeCapture.busy=false;}
  public static void main(String[] args) {
   BackgroundWakeService s=enable();ProbeCapture first=ProbeCapture.last;int starts=ProbeCapture.starts;
+  first.listener.wake("liam");
+  check(QuestionPolicy.activeAssistant.equals("liam") && QuestionPolicy.wakeEvent > 0);
+  first.listener.speechActive();first.listener.transcript("set a",false);
+  check(QuestionPolicy.commandSpeechActive && !QuestionPolicy.transcriptFinal && QuestionPolicy.lastHeard.equals("set a"));
+  first.listener.transcript("set a timer for one minute",true);
+  check(QuestionPolicy.transcriptFinal && QuestionPolicy.lastHeard.equals("set a timer for one minute"));
   Handler.advance(360000);check(ProbeCapture.last==first&&s.power.last.isHeld());
   first.finish("COMMAND_WINDOW_EXPIRED",0,true);Handler.advance(750);check(ProbeCapture.starts==starts+1);
   first.listener.finished("COMMAND_MATCH","late",60,SystemClock.now+10000,false);check(NativeTimers.read(s).free()==1);
+  first.listener.transcript("stale speech",true);
+  check(!QuestionPolicy.lastHeard.equals("stale speech"));
+  ProbeCapture.last.listener.wake("luna");
+  check(QuestionPolicy.lastHeard.isEmpty() && QuestionPolicy.replyCaption.isEmpty());
+  ProbeCapture.last.listener.transcript("set a timer for one minute",true);
   ProbeCapture.last.finish("COMMAND_MATCH",60,false);
+  check(QuestionPolicy.lastHeard.equals("set a timer for one minute"));
+  check(!QuestionPolicy.replyCaption.isEmpty());
   check(NativeTimers.read(s).deadlines[1]==SystemClock.now+60000);check(!ProbeCapture.busy()&&BackgroundWakeService.running);
   Handler.advance(1000);check(!ProbeCapture.busy()); // Replies pause capture, not the timer.
   SpokenReply.last.finish();Handler.advance(250);check(ProbeCapture.busy());

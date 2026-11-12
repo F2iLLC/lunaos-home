@@ -14,6 +14,9 @@ final class ProbeCapture {
     private static final AtomicBoolean BUSY = new AtomicBoolean(), RECORDING = new AtomicBoolean();
     interface Listener {
         void visual(LunaFace.State state); void status(String text);
+        default void wake(String assistant) {}
+        default void transcript(String text, boolean isFinal) {}
+        default void speechActive() {}
         void finished(String code, String text, int seconds, long deadline, boolean canceled);
     }
     private final Context context;
@@ -72,6 +75,7 @@ final class ProbeCapture {
                 boolean voiced = power / count > 40000; // RMS > 200 out of 32768.
                 if (!speech && voiced) {
                     speech = true;
+                    if (awake) main.post(() -> { if (!closed) listener.speechActive(); });
                     for (int i=0;i<leadCount;i++) audio[used++] = lead[(leadAt-leadCount+i+lead.length)%lead.length];
                 }
                 if (speech) {
@@ -90,7 +94,10 @@ final class ProbeCapture {
         String code="COMMAND_WINDOW_EXPIRED", text="No reply heard. Returning to Hey Luna.";
         int seconds=0; long deadline=Long.MAX_VALUE;
         WakeSession wake=new WakeSession(SystemClock.elapsedRealtime(),true);
-        if(followUp) wake.beginFollowUp(SystemClock.elapsedRealtime());
+        if(followUp) {
+            wake.beginFollowUp(SystemClock.elapsedRealtime());
+            main.post(() -> { if (!closed) listener.wake(QuestionPolicy.activeAssistant); });
+        }
         try {
             while(!closed && !blocked(context)) {
                 deadline=wake.deadline();
@@ -98,22 +105,27 @@ final class ProbeCapture {
                 byte[] pcm=capture(deadline,wake.awaitingCommand());
                 if(pcm==null) break;
                 String heard;
-                show("Working it out on your Mac. Microphone paused.", LunaFace.State.REVIEW);
+                show("Working it out on your Mac. Microphone paused.", wake.awaitingCommand() ? LunaFace.State.REVIEW : LunaFace.State.WAITING);
                 try { heard=QuestionReply.recognize(context,pcm); } finally { Arrays.fill(pcm,(byte)0); }
                 if(closed || blocked(context)) break;
                 String normalized=heard.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9' ]"," ").trim().replaceAll("\\s+"," ");
                 if(!wake.awaitingCommand()) {
-                    if(normalized.equals("hey luna") || normalized.startsWith("hey luna ")) {
+                    if(normalized.equals("hey luna") || normalized.startsWith("hey luna ") || normalized.equals("hey liam") || normalized.startsWith("hey liam ")) {
+                        final String assistant = normalized.startsWith("hey liam") ? "liam" : "luna";
+                        main.post(() -> { if (!closed) { listener.wake(assistant); listener.visual(LunaFace.State.AWAKE); } });
                         wake.acceptFinal("hey luna",SystemClock.elapsedRealtime());
                         normalized=normalized.substring(8).trim();
                         if(normalized.isEmpty()) continue;
-                        heard=normalized;
+                        // Preserve the actual recognized command, including casing/punctuation.
+                        heard=heard.replaceFirst("(?i)^\\s*hey[ ,]+(?:luna|liam)[ ,.!?:;-]*", "").trim();
                     } else {
                         seconds=wake.acceptFinal(normalized,SystemClock.elapsedRealtime(),TimerAlarmService.ringing());
                         if(seconds==TimerCommand.STOP) { code="COMMAND_MATCH";text="Alarm stopped.";break; }
                         continue;
                     }
                 }
+                final String recognized = heard;
+                main.post(() -> { if (!closed) { listener.transcript(recognized, true); listener.visual(LunaFace.State.REVIEW); } });
                 // Capture ended before the deadline; permit bounded remote decoding.
                 wake.decodeUntil(SystemClock.elapsedRealtime()+1000); deadline=wake.deadline();
                 seconds=wake.acceptFinal(normalized,SystemClock.elapsedRealtime());

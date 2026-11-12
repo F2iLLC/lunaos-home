@@ -148,3 +148,12 @@ test('no JS animation loop, changing geometry, blur or nonuniform face scaling e
   assert.match(css,/\[data-paused="true"\] \* \{ animation-play-state:paused/);
   assert.match(css,/@media \(prefers-reduced-motion:reduce\)/);
 });
+
+test('Liam wardrobe and disabled listening use attributes without rebuilding his face or resetting pose',()=>{
+  const h=harness(),avatar=mountLunaAvatar(h.host,{character:'liam',state:'thinking'});
+  avatar.update({scienceOutfit:true});assert.equal(h.svg.dataset.scienceOutfit,'true');assert.equal(h.svg.dataset.state,'thinking');
+  avatar.update({scienceOutfit:false,listeningDisabled:true});assert.equal(h.svg.dataset.listeningDisabled,'true');assert.equal(h.svg.dataset.character,'liam');
+  avatar.update({listeningDisabled:false});assert.equal(h.svg.dataset.listeningDisabled,'false');assert.equal(h.writes(),1);
+  assert.match(h.host.markup,/class="liam-hair"/);assert.match(h.host.markup,/class="liam-labcoat"/);assert.match(h.host.markup,/class="liam-goggles"/);
+  avatar.dispose();
+});

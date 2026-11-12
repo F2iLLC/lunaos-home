@@ -85,3 +85,17 @@
 .luna2[data-paused="true"] * { animation-play-state:paused !important; }
 .luna2[data-reduced-motion="true"] * { animation:none !important; transition:none !important; }
 @media (prefers-reduced-motion:reduce) { .luna2 * { animation:none !important; transition:none !important; } }
+/* Liam shares the face, pose groups, and controller. Wardrobe never remounts SVG. */
+.luna2 .liam-hair,.luna2 .liam-clothes,.luna2 .liam-goggles,.luna2 .liam-labcoat { display:none; }
+.luna2[data-character="liam"] .l2-pigtail,.luna2[data-character="liam"] .l2-front-hair,.luna2[data-character="liam"] .l2-accessories,.luna2[data-character="liam"] .l2-outfit-home,.luna2[data-character="liam"] .l2-outfit-enterprise { display:none; }
+.luna2[data-character="liam"] .liam-hair,.luna2[data-character="liam"] .liam-clothes { display:inline; }
+.luna2[data-character="liam"] .l2-sleeve { fill:#a3c9ef; }
+.luna2[data-character="liam"][data-science-outfit="true"] .liam-labcoat,.luna2[data-character="liam"][data-science-outfit="true"] .liam-goggles { display:inline; }
+.luna2[data-character="liam"][data-science-outfit="true"] .l2-sleeve { fill:#fffdf5; }
+.luna2[data-character="liam"][data-science-outfit="true"] .liam-goggles { animation:liam-adjust .7s ease-out 1; transform-origin:160px 80px; }
+.luna2[data-listening-disabled="true"] .l2-sleep-mask { opacity:1; }
+@keyframes liam-adjust { 50% { transform:translateY(-3px) rotate(-2deg); } }
+@media(prefers-reduced-motion:reduce) { .luna2 .liam-goggles { animation:none!important; } }
+.luna2[data-reduced-motion="true"] .liam-goggles,.luna2[data-paused="true"] .liam-goggles { animation:none; }
+.luna2[data-character="liam"] .l2-feet > path:nth-child(2) { fill:#8eafd8; }
+.luna2[data-character="liam"] .l2-feet > path:nth-child(3) { fill:#b9d7e9; }

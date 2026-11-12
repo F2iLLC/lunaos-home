@@ -3,7 +3,8 @@
  * @typedef {'idle'|'listening'|'thinking'|'talking'|'working'|'happy'|'error'|'sleeping'} LunaState
  * @typedef {'home'|'enterprise'} LunaOutfit
  * @typedef {{state?: LunaState, outfit?: LunaOutfit, size?: number|string,
- * reducedMotion?: boolean, audioLevel?: number, label?: string}} LunaAvatarProps
+ * reducedMotion?: boolean, audioLevel?: number, label?: string,
+ * character?: 'luna'|'liam', scienceOutfit?: boolean, listeningDisabled?: boolean}} LunaAvatarProps
  */
 export const LUNA_STATES = Object.freeze(['idle', 'listening', 'thinking', 'talking', 'working', 'happy', 'error', 'sleeping']);
 export const LUNA_OUTFITS = Object.freeze(['home', 'enterprise']);
@@ -86,6 +87,8 @@ function face() {
       ${moon(230, 109, .9)}
       <g class="l2-detail">${star(88, 119, .82)}${star(98, 99, .43)}</g>
     </g>
+    <g class="liam-hair" fill="#91b6e8" stroke="#647ba8"><path d="M75 147Q58 119 78 103 64 84 93 73 88 56 116 63 132 40 148 61 169 39 180 61 211 42 218 69 250 74 243 97 263 120 244 150L227 133 216 105 195 121 175 97 155 113 139 91 118 116 102 108 93 141Z"/><path d="M100 82q17-12 29-9m39-1q22-11 39 4" fill="none" stroke="#d8e8ff" stroke-width="6"/></g>
+    <g class="liam-goggles" stroke="#61728c" stroke-width="4"><path d="M91 83Q158 62 229 83" fill="none" stroke-width="10"/><rect x="104" y="67" width="48" height="33" rx="12" fill="#d4f2fa"/><rect x="168" y="67" width="48" height="33" rx="12" fill="#d4f2fa"/><path d="M152 80h16m-55-2 12-5m52 5 12-5" fill="none"/></g>
     <g class="l2-sleep-mask">
       <path d="M88 153 104 159M216 159 232 153" fill="none" stroke="#9b79cb" stroke-width="7"/>
       <path d="M104 146Q124 136 147 146 160 152 173 146 196 136 216 146L216 174Q198 193 177 178 160 168 143 178 122 193 104 174Z" fill="#b792ee" stroke="#f0d9ff" stroke-width="3"/>
@@ -110,13 +113,13 @@ function effects() {
 }
 
 /** Stable geometry: called once per mount, never per animation frame. */
-export function lunaAvatarMarkup({ state = 'idle', outfit: wardrobe = 'home', label = 'Luna', reducedMotion = false } = {}) {
+export function lunaAvatarMarkup({ state = 'idle', outfit: wardrobe = 'home', label = 'Luna', reducedMotion = false, character = 'luna', scienceOutfit = false, listeningDisabled = false } = {}) {
   if (!LUNA_STATES.includes(state) || !LUNA_OUTFITS.includes(wardrobe)) throw new TypeError('Unknown Luna presentation');
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="luna2" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escape(label)} — ${state}" data-state="${state}" data-outfit="${wardrobe}" data-reduced-motion="${Boolean(reducedMotion)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="luna2" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escape(label)} — ${state}" data-character="${character === 'liam' ? 'liam' : 'luna'}" data-science-outfit="${Boolean(scienceOutfit)}" data-listening-disabled="${Boolean(listeningDisabled)}" data-state="${state}" data-outfit="${wardrobe}" data-reduced-motion="${Boolean(reducedMotion)}">
     <ellipse class="l2-ground" cx="160" cy="351" rx="78" ry="5" fill="#a58cdd" opacity=".22"/>
     <g class="l2-character" fill="none" stroke="#806299" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
       ${pigtail('left')}${pigtail('right')}
-      <g class="l2-body">${boots()}${outfit()}${arm(false)}${arm(true)}</g>
+      <g class="l2-body">${boots()}${outfit()}<g class="liam-clothes"><path d="M127 277h66l6 46h-32l-7-28-7 28h-32Z" fill="#637ca9"/><path d="M124 234q36-23 72 0l7 56q-43 20-86 0Z" fill="#a3c9ef"/><path d="M132 235q28 32 56 0M146 242v21m28-21v21m-31 9h34v15h-34Z" fill="none" stroke="#617ca6"/><g class="liam-labcoat"><path d="m130 229 30 25 30-25 14 73-39 8-5-40-5 40-39-8Z" fill="#fffdf5"/><path d="m137 234-5 19 15 2-6 13 19-14 19 14-6-13 15-2-5-19M177 279h18v14h-18" fill="none" stroke="#9eaec1"/></g><g transform="translate(184 252)" fill="none" stroke="#526c99" stroke-width="1.5"><ellipse rx="10" ry="4"/><ellipse rx="10" ry="4" transform="rotate(60)"/><ellipse rx="10" ry="4" transform="rotate(120)"/><circle r="2" fill="#526c99"/></g></g>${arm(false)}${arm(true)}</g>
       ${face()}
       <g class="l2-hand-think"><path d="M116 247Q112 236 127 225L143 230Q141 247 126 255Z" class="l2-sleeve" fill="#d5b6f4"/><path d="M127 226 131 219 145 225 142 232Z" fill="#f6d4ee"/><path d="M132 221Q126 210 133 208L138 214Q134 201 141 203L146 215Q153 209 154 216L145 228Z" fill="#fff0df"/></g>
       <g class="l2-laptop"><path d="M106 312H219L232 331H101Z" fill="#bba0e3"/><path d="M139 281H229L219 328H130Z" fill="#9d80cb" stroke="#e7d2ff" stroke-width="3"/>${moon(180, 303, .46)}<path d="M102 333H230" stroke="#806299" stroke-width="4"/></g>
@@ -160,6 +163,8 @@ export function mountLunaAvatar(host, initial = {}) {
     if (!LUNA_STATES.includes(candidate.state) || !LUNA_OUTFITS.includes(candidate.outfit)) throw new TypeError('Unknown Luna presentation');
     props = candidate;
     write('state', props.state); write('outfit', props.outfit);
+    write('character', props.character === 'liam' ? 'liam' : 'luna');
+    write('scienceOutfit', Boolean(props.scienceOutfit)); write('listeningDisabled', Boolean(props.listeningDisabled));
     const label = `${props.label} — ${props.state}`;
     if (svg.getAttribute('aria-label') !== label) svg.setAttribute('aria-label', label);
     if (props.size !== undefined) {

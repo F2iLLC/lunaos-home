@@ -1,6 +1,7 @@
 // Only the preference is persisted. Reply text stays in memory.
 export function createLunaCaptions(button, { storage, document = globalThis.document, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   const key = 'luna-captions-enabled';
+  let character = 'Luna';
   let enabled = true, text = '', lastReply = '', wasSpeaking = false, expiry;
   const stopExpiry = () => { if (expiry !== undefined) clearTimer(expiry); expiry = undefined; };
   try { storage ??= window.localStorage; enabled = storage?.getItem(key) !== 'false'; } catch { /* Session preference still works. */ }
@@ -13,13 +14,13 @@ export function createLunaCaptions(button, { storage, document = globalThis.docu
   let previousRender = '';
   function render() {
     const popupOpen = document.querySelector('.notebook-popup')?.open === true;
-    const signature = JSON.stringify([enabled, text, popupOpen]);
+    const signature = JSON.stringify([enabled, text, popupOpen, character]);
     if (signature === previousRender) return;
     previousRender = signature;
     button.textContent = `Luna captions: ${enabled ? 'On' : 'Off'}`;
     button.setAttribute('aria-pressed', String(enabled));
     const inner = document.querySelector('.notebook-popup-caption');
-    const line = enabled && text ? `Luna: ${text}` : '';
+    const line = enabled && text ? `${character}: ${text}` : '';
     caption.textContent = line;
     caption.hidden = !line || popupOpen;
     if (inner) { inner.textContent = line; inner.hidden = !line; }
@@ -32,6 +33,7 @@ export function createLunaCaptions(button, { storage, document = globalThis.docu
   document.querySelector('.notebook-popup')?.addEventListener('close', render);
   render();
   return { update(snapshot) {
+    character = snapshot.activeAssistant === 'liam' ? 'Liam' : 'Luna';
     const next = snapshot.status === 'ready' && typeof snapshot.replyCaption === 'string' ? snapshot.replyCaption : '';
     const speaking = snapshot.capturePhase === 'response';
     if (next !== lastReply || (speaking && !wasSpeaking)) {

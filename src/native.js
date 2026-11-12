@@ -20,7 +20,14 @@ document.querySelector('#native-notices').hidden = false;
 if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ && window.__TAURI__?.core) {
   // Luna lives on the home page: her face shows what she is doing, running
   // timers sit under it, and the gear opens settings and troubleshooting.
-  const notebookPopup = createNotebookPopup();
+  let character = 'luna', scienceOutfit = false;
+  try { character = window.localStorage.getItem('home-character') === 'liam' ? 'liam' : 'luna'; scienceOutfit = window.localStorage.getItem('liam-science-outfit') === 'true'; } catch { /* Session choice still works. */ }
+  const applyCharacter = value => {
+    character = value === 'liam' ? 'liam' : 'luna';
+    avatar.update({ character, scienceOutfit, label: character === 'liam' ? 'Liam' : 'Luna' });
+  };
+  const notebookPopup = createNotebookPopup({ character, onCharacter: applyCharacter });
+  applyCharacter(character);
   const welcome = document.querySelector('#welcome');
   welcome.dataset.nativeHome = 'true';
   const gear = document.createElement('a');
@@ -67,7 +74,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       disconnected: 'Luna’s voice service disconnected. Press to retry listening.',
       unavailable: 'Luna’s voice service is unavailable. Open settings for details.',
     };
-    face.setAttribute('aria-label', labels[status] || labels.unavailable);
+    face.setAttribute('aria-label', (labels[status] || labels.unavailable).replaceAll('Luna', character === 'liam' ? 'Liam' : 'Luna'));
   };
   const homeTimers = home.querySelector('#home-timers');
   const luna = document.createElement('section');
@@ -83,6 +90,11 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <div id="luna-voice" class="luna-voice-choices" role="group" aria-label="Luna’s voice" aria-describedby="luna-voice-help luna-voice-status"></div>
     <p id="luna-voice-help">Tap a voice to select it and hear a sample: “Set for 5 minutes.” This is only a preview; no timer starts. Your choice stays saved for timer replies and online answers.</p>
     <p id="luna-voice-status" role="status" aria-live="polite"></p>
+    <h2>Companion</h2>
+    <label for="home-character">Home character</label><select id="home-character"><option value="luna">Luna</option><option value="liam">Liam</option></select>
+    <label for="liam-outfit">Liam’s wardrobe</label><select id="liam-outfit"><option value="everyday">Everyday hoodie</option><option value="science">Science lab coat and goggles</option></select>
+    <p>Say “Hey Luna” or “Hey Liam” to choose a companion. Both use the same voice service. Choose Liam’s science outfit here whenever you want it.</p>
+    <button id="open-assistant-drawer" type="button">Open notebook / calculator</button>
     <h2>Accessibility</h2>
     <button id="luna-captions-toggle" type="button" aria-pressed="true">Luna captions: On</button>
     <p>Show Luna’s replies as readable text. Captions clear six seconds after she finishes speaking.</p>
@@ -99,6 +111,17 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <button id="disable-luna-wake" type="button">Disable listening</button>
     <p>Active timers are on the home page.</p></div>`;
   document.querySelector('main').append(luna);
+  const characterChoice = luna.querySelector('#home-character'), outfitChoice = luna.querySelector('#liam-outfit');
+  characterChoice.value = character; outfitChoice.value = scienceOutfit ? 'science' : 'everyday';
+  characterChoice.addEventListener('change', () => {
+    applyCharacter(characterChoice.value); notebookPopup.setCharacter(character);
+    try { window.localStorage.setItem('home-character', character); } catch { /* Session only. */ }
+  });
+  outfitChoice.addEventListener('change', () => {
+    scienceOutfit = outfitChoice.value === 'science'; applyCharacter(character);
+    try { window.localStorage.setItem('liam-science-outfit', String(scienceOutfit)); } catch { /* Session only. */ }
+  });
+  luna.querySelector('#open-assistant-drawer').addEventListener('click', () => notebookPopup.open());
   const captions = createLunaCaptions(luna.querySelector('#luna-captions-toggle'), { document });
   const voiceSettings = createLunaVoiceSettings(luna.querySelector('#luna-voice'), luna.querySelector('#luna-voice-status'), {
     document, invoke: (command, args) => window.__TAURI__.core.invoke(command, args),
@@ -196,11 +219,12 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         const phase = phases[snapshot.capturePhase] ? snapshot.capturePhase : 'off';
         const commandReady = homeCommandReady(snapshot);
         home.dataset.commandReady = String(commandReady);
-        avatar.update({ state: homeAvatarState(snapshot) });
+        avatar.update({ state: homeAvatarState(snapshot), listeningDisabled: snapshot.listeningStatus === 'disabled' });
         setText(heardText, snapshot.status === 'ready' && phase !== 'off' && snapshot.lastHeard ? `Heard: “${snapshot.lastHeard}”` : '');
         heardText.hidden = !heardText.textContent;
-        notebookPopup.update(snapshot);
-        captions.update(snapshot);
+        void notebookPopup.update(snapshot);
+        characterChoice.value = character;
+        captions.update({ ...snapshot, activeAssistant: character });
         pollIntervalMs = snapshot.status === 'ready' && snapshot.listeningStatus === 'enabled' ? listeningPollIntervalMs : statusPollIntervalMs;
         if (snapshot.status !== 'ready') {
           const blocked = { permission: 'Microphone permission is unavailable.', muted: 'The microphone is muted.', locked: 'The device is locked.', disconnected: 'Luna’s voice service disconnected.' }[snapshot.listeningStatus];
@@ -215,7 +239,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
           const availabilityText = { permission: 'Microphone permission is unavailable. Open settings to review access.', muted: 'The microphone is muted. Luna is paused.', locked: 'The device is locked. Luna is paused.', disconnected: 'Luna’s voice service disconnected. Open settings to check it.', unavailable: 'Luna’s voice service is unavailable.' };
           setText(homeState, snapshot.listeningStatus === 'disabled' ? friendly.off
             : snapshot.listeningStatus === 'enabled' ? friendly[phase]
-              : availabilityText[snapshot.listeningStatus] || 'Luna’s voice status needs attention.');
+              : (availabilityText[snapshot.listeningStatus] || 'Luna’s voice status needs attention.'));
+          setText(homeState, homeState.textContent.replaceAll('Luna', character === 'liam' ? 'Liam' : 'Luna'));
           showListening(snapshot.listeningStatus === 'enabled', snapshot.listeningStatus, commandReady);
         }
       setText(stateDetails, snapshot.onlineAnswersEnabled ? 'Online answers are enabled.' : 'Online answers are off. Questions are not sent anywhere.');
@@ -267,6 +292,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
       }
     } catch {
       voiceSettings.unavailable();
+      void notebookPopup.update({ status: 'unavailable' });
       home.dataset.commandReady = 'false';
       stateText.textContent = 'Voice status unavailable.';
       stateDetails.textContent = 'Home could not confirm microphone or timer state.';

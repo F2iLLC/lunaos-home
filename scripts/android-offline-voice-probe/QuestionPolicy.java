@@ -8,6 +8,19 @@ public final class QuestionPolicy {
     static String notebookListId = "";
     static long notebookEvent;
     static String lastHeard = "";
+    static boolean transcriptFinal, commandSpeechActive;
+    static long wakeEvent;
+    static String activeAssistant = "luna", commandError = "";
+    static void beginWake(String assistant) {
+        activeAssistant = "liam".equals(assistant) ? "liam" : "luna";
+        wakeEvent++; lastHeard = ""; replyCaption = ""; commandError = "";
+        transcriptFinal = false; commandSpeechActive = false;
+        notebookListId = "";
+    }
+    static void transcript(String text, boolean isFinal) {
+        if (text == null || text.length() > 1000) return;
+        lastHeard = text.trim(); transcriptFinal = isFinal;
+    }
     static String replyCaption = "";
     static boolean replyWantsFollowUp, isFollowUp;
     static boolean takeFollowUp() { boolean next = replyWantsFollowUp; replyWantsFollowUp = false; return next; }
@@ -22,6 +35,7 @@ public final class QuestionPolicy {
         sessionId = java.util.UUID.randomUUID().toString();
         notebookListId = ""; notebookEvent++; lastHeard = ""; replyCaption = ""; replyWantsFollowUp = false; isFollowUp = false;
         notebookAnimation = ""; notebookUntil = 0;
+        transcriptFinal = false; commandSpeechActive = false; commandError = "";
     }
     static void notebookFeedback(String animation, String listId) {
         notebookFeedback(animation);
@@ -38,7 +52,7 @@ public final class QuestionPolicy {
     }
     private static String normalized(String text) {
         return text.toLowerCase(java.util.Locale.ROOT).trim().replaceAll("[.,!?]+$", "")
-            .replaceAll("\\s+", " ").replaceFirst("^hey luna[, ]+", "");
+            .replaceAll("\\s+", " ").replaceFirst("^hey (?:luna|liam)[, ]+", "");
     }
     static boolean timerAttempt(String text) {
         if (text == null) return false;
@@ -54,6 +68,6 @@ public final class QuestionPolicy {
         if (text == null || text.trim().isEmpty() || text.length() > 1000) return false;
         for (int i = 0; i < text.length(); i++) if (Character.isISOControl(text.charAt(i))) return false;
         String bare = normalized(text);
-        return !bare.isEmpty() && !bare.equals("hey luna") && !bare.contains("[unk]") && !timerAttempt(text);
+        return !bare.isEmpty() && !bare.equals("hey luna") && !bare.equals("hey liam") && !bare.contains("[unk]") && !timerAttempt(text);
     }
 }
