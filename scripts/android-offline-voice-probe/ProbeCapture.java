@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
@@ -85,6 +87,28 @@ final class ProbeCapture {
         }
     }
     private final boolean followUp;
+    // Once awake, other media is asked to go quiet while the microphone is on, so Luna is heard
+    // over it. Ducking, not pausing: nothing is left to resume, and "pause the music" is not
+    // undone by focus coming back. It is given back exactly once, when the microphone stops.
+    private AudioFocusRequest focus;
+    private synchronized void takeFocus() {
+        if (closed || focus != null || !persistent) return;
+        try {
+            AudioFocusRequest request = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .build();
+            if (((AudioManager) context.getSystemService(Context.AUDIO_SERVICE)).requestAudioFocus(request)
+                    == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) focus = request;
+        } catch (RuntimeException unavailable) { focus = null; }
+    }
+    private synchronized void giveFocusBack() {
+        AudioFocusRequest request = focus;
+        focus = null;
+        if (request == null) return;
+        try { ((AudioManager) context.getSystemService(Context.AUDIO_SERVICE)).abandonAudioFocusRequest(request); }
+        catch (RuntimeException ignored) { }
+    }
     private volatile CommandAudio commandAudio;
     private volatile boolean captureFailed;
     private final Runnable watchdog = new Runnable() {
@@ -157,6 +181,7 @@ final class ProbeCapture {
     // End microphone capture but keep the worker alive to decode what it heard.
     private synchronized void stopCapture() {
         RECORDING.set(false);
+        giveFocusBack();
         if (recorder == null) return;
         try { if (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) recorder.stop(); }
         catch (RuntimeException ignored) { }
@@ -194,6 +219,7 @@ final class ProbeCapture {
     private synchronized void closeRecorder() {
         closed = true;
         RECORDING.set(false);
+        giveFocusBack();
         CommandAudio audio = commandAudio;
         if (audio != null) audio.close();
         closeCue();
@@ -261,7 +287,7 @@ final class ProbeCapture {
                         .invokeInt(new Object[] { engine.model.getPointer(), "luna" });
                     if (word < 0) { code = "WAKE_WORD_OUT_OF_VOCABULARY"; message = "Model lacks Luna. Microphone off."; return; }
                     phase = "RECOGNIZER";
-                    engine.phrases = new Recognizer(engine.model, 16000, wait ? TimerPhrase.commandGrammar() : TimerPhrase.grammar());
+                    engine.phrases = new Recognizer(engine.model, 16000, wait ? (persistent ? MusicCommand.commandGrammar() : TimerPhrase.commandGrammar()) : TimerPhrase.grammar());
                     if (wait) engine.freeForm = new Recognizer(engine.model, 16000);
                     if (persistent) synchronized (ENGINE_LOCK) { kept = engine; }
                 }
@@ -326,6 +352,17 @@ final class ProbeCapture {
                                 if (seconds == TimerCommand.STOP) Log.i("HomeVoiceProbe", "ALARM_STOP_WITHOUT_WAKE");
                             } else if (TimerCommand.valid(TimerCommand.parse(text))) {
                                 seconds = wake.acceptFinal(text, SystemClock.elapsedRealtime());
+                            } else if (persistent && MusicCommand.valid(MusicCommand.parse(text))) {
+                                // A fixed music phrase, heard by the one fixed-phrase recognizer: no second decode.
+                                int action = MusicCommand.accept(wake, text, SystemClock.elapsedRealtime());
+                                if (MusicCommand.valid(action)) {
+                                    stopCapture();
+                                    MusicPlayer.Outcome result = MusicPlayer.send(context, action);
+                                    matched = action; code = result.sent ? "MUSIC_COMMAND" : "MUSIC_NOT_SENT";
+                                    message = result.status;
+                                    return;
+                                }
+                                seconds = WakeSession.NONE;
                             } else if (questions && queued != null && !text.trim().isEmpty()) {
                                 String heard = decodeCaptured(queued, command, wake, samples, timing, 0);
                                 if (heard == null) continue;
@@ -334,6 +371,13 @@ final class ProbeCapture {
                                 if (TimerCommand.valid(seconds)) {
                                     matched = seconds; code = "COMMAND_MATCH";
                                     message = "Supported timer command recognized. Microphone off.";
+                                    return;
+                                }
+                                int action = persistent ? MusicCommand.accept(wake, heard, decoded) : 0;
+                                if (MusicCommand.valid(action)) {
+                                    MusicPlayer.Outcome result = MusicPlayer.send(context, action);
+                                    matched = action; code = result.sent ? "MUSIC_COMMAND" : "MUSIC_NOT_SENT";
+                                    message = result.status;
                                     return;
                                 }
                                 if (wake.acceptQuestion(heard, decoded)) {
@@ -408,6 +452,7 @@ final class ProbeCapture {
         timing.start(timing.bufferFrames, "COMMAND");
         deadline = Math.min(maximum, wake.deadline());
         awake = true;
+        takeFocus();
         CommandAudio audio = new CommandAudio(WakeSession.COMMAND_MS);
         commandAudio = audio;
         new Thread(() -> pumpCommandAudio(audio), "home-voice-capture").start();

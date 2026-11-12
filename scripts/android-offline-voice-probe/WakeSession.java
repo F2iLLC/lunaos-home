@@ -75,6 +75,12 @@ public final class WakeSession {
     public void decodeUntil(long until) {
         if (awake && !finished) deadline = Math.min(end, until);
     }
+    /** Seam for MusicCommand.accept: a command only inside an open window, and taking one ends the exchange. */
+    boolean takeCommand(long now) {
+        if (!awake || expired(now)) return false;
+        finished = true;
+        return true;
+    }
     public boolean acceptQuestion(String text, long now) {
         if (!awake || expired(now) || timerAttempted || !QuestionPolicy.accepts(text)) return false;
         finished = true;
