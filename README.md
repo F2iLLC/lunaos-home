@@ -8,13 +8,14 @@ The product has three parts: a workflow plugin in the user's existing assistant,
 
 This is a separate project from enterprise LunaOS, publicly hosted under F2iLLC. Newly authored Home material is licensed under Apache-2.0. The bootstrap has merged; public source visibility is an early preview, not a usable V1 release.
 
-## A look inside
+## Screenshots
+
+These are captures from the installed Android preview on an Echo Show 8. The Home capture shows the voice service disconnected during that review; the expanded notebook drawer image uses placeholder text and contains no household list data.
 
 <p align="center">
-  <img src="screenshots/home.png" width="48%" alt="Luna OS Home welcome screen on an Echo Show 8">
-  <img src="screenshots/notebook-drawer.png" width="48%" alt="Luna OS Home notebook drawer expanded on an Echo Show 8">
+  <img src="docs/luna-2/evidence/echo-show-home-disconnected.png" width="48%" alt="Luna OS Home welcome screen on an Echo Show 8, with the voice service disconnected">
+  <img src="docs/luna-2/evidence/echo-show-notebook-drawer-expanded.png" width="48%" alt="Expanded Luna OS Home notebook drawer on an Echo Show 8">
 </p>
-<p align="center"><sub>Home · Notebook drawer</sub></p>
 
 ## What works today
 

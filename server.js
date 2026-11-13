@@ -15,6 +15,9 @@ const routes = new Map([
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],
   ['/draft-storage.js', ['draft-storage.js', 'text/javascript']],
   ['/notebook.js', ['notebook.js', 'text/javascript']],
+  ['/luna/avatar.js', ['luna/avatar.js', 'text/javascript']],
+  ['/luna/presentation.js', ['luna/presentation.js', 'text/javascript']],
+  ['/luna/avatar.css', ['luna/avatar.css', 'text/css']],
   ['/notebook-client.js', ['notebook-client.js', 'text/javascript']],
 ]);
 

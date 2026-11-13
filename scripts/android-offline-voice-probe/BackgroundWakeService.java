@@ -18,6 +18,8 @@ public final class BackgroundWakeService extends Service {
     private static final String CHANNEL = "local-wake-probe";
     private static final int LISTENING = 41;
     static boolean running;
+    static volatile boolean listeningRequested;
+    static volatile boolean replyPlaying;
     static LunaFace.State visual = LunaFace.State.OFF;
     static String latest = "Microphone off. Enable wake-word listening to start.";
     private final Handler handler = new Handler();
@@ -27,6 +29,11 @@ public final class BackgroundWakeService extends Service {
     private boolean destroyed, restarting, responding, followUpPending;
     private SpokenReply reply;
     private QuestionReply questionReply;
+    private String musicNotice = "";
+    private void clearMusicNotice() {
+        if (!musicNotice.isEmpty() && musicNotice.equals(QuestionPolicy.replyCaption)) QuestionPolicy.replyCaption = "";
+        musicNotice = "";
+    }
     private final Runnable watch = new Runnable() {
         @Override public void run() {
             if (destroyed || !running) return;
@@ -43,6 +50,8 @@ public final class BackgroundWakeService extends Service {
     };
     static void revoke(android.content.Context context) {
         QuestionPolicy.resetConversation();
+        listeningRequested = false;
+        replyPlaying = false;
         // Revoke synchronously, before Android delivers onDestroy or a queued callback.
         running = false;
         visual = LunaFace.State.OFF;
@@ -82,10 +91,10 @@ public final class BackgroundWakeService extends Service {
     }
     private void end(String text) {
         running = false; generation++; restarting = false; responding = false; followUpPending = false;
-        QuestionPolicy.replyWantsFollowUp = false;
+        QuestionPolicy.replyWantsFollowUp = false; clearMusicNotice();
         if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
         if (questionReply != null) questionReply.close(); questionReply = null;
-        latest = text; visual = LunaFace.State.OFF;
+        latest = text; visual = LunaFace.State.OFF; replyPlaying = false;
         if (capture != null) capture.stop();
         capture = null;
         handler.removeCallbacksAndMessages(null);
@@ -120,7 +129,10 @@ public final class BackgroundWakeService extends Service {
             capture = new ProbeCapture(this, true, true, true, followUp, new ProbeCapture.Listener() {
                 private boolean current() { return !destroyed && running && generation == id && capture != null; }
                 @Override public void visual(LunaFace.State state) {
-                    if (current()) { visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE); }
+                    if (!current()) return;
+                    visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE);
+                    // The next thing Luna hears takes down only the music notice, never a reply caption.
+                    if (state == LunaFace.State.AWAKE || state == LunaFace.State.REVIEW) clearMusicNotice();
                 }
                 @Override public void status(String text) {
                     if (!current()) return;
@@ -130,7 +142,11 @@ public final class BackgroundWakeService extends Service {
                 @Override public void finished(String code, String text, int seconds, long deadline, boolean canceled) {
                     if (!current()) return;
                     capture = null; releaseWakeLock();
-                    if (ProbeCapture.blocked(BackgroundWakeService.this)) {
+                    boolean blocked = ProbeCapture.blocked(BackgroundWakeService.this);
+                    boolean hasFinalTranscript = text != null && text.length() <= 1000 && !text.trim().isEmpty();
+                    if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && hasFinalTranscript)
+                        QuestionPolicy.lastHeard = text.trim();
+                    if (blocked) {
                         end("Listening disabled: lock, mute or permission change. Microphone off.");
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && TimerCommand.valid(seconds)) {
                         QuestionPolicy.notebookFeedback(null);
@@ -153,7 +169,6 @@ public final class BackgroundWakeService extends Service {
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)
                             && QuestionReply.enabled(BackgroundWakeService.this) && QuestionPolicy.accepts(text)) {
                         QuestionPolicy.notebookFeedback(null);
-                        QuestionPolicy.lastHeard = text;
                         QuestionPolicy.isFollowUp = followUp;
                         responding = true; visual = LunaFace.State.RESPONSE;
                         latest = "Answering online. Microphone paused; waiting resumes after the reply or if the service is unavailable.";
@@ -172,6 +187,18 @@ public final class BackgroundWakeService extends Service {
                                 scheduleCapture(played ? 250 : 2500);
                             });
                         } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
+                    } else if (!canceled && ("MUSIC_COMMAND".equals(code) || "MUSIC_NOT_SENT".equals(code))) {
+                        // The capture already asked Spotify (or found it missing). Say which, and keep listening.
+                        // A reason it was not sent stays up long enough to read, as a caption too.
+                        boolean sent = "MUSIC_COMMAND".equals(code);
+                        TimerAlarmService.duck(false);
+                        QuestionPolicy.notebookFeedback(null);
+                        visual = sent ? LunaFace.State.RESPONSE : LunaFace.State.RETRY;
+                        latest = text + " Wake-word listening remains enabled.";
+                        if (!sent) { musicNotice = text; QuestionPolicy.replyCaption = text; }
+                        notifyStatus();
+                        Log.i("HomeVoiceProbe", code);
+                        scheduleCapture(sent ? 250 : 2500);
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
                         visual = LunaFace.State.RETRY;
@@ -203,6 +230,7 @@ public final class BackgroundWakeService extends Service {
         visual = LunaFace.State.PREPARING;
         startForeground(LISTENING, notification(latest));
         running = true;
+        listeningRequested = true;
         beginCapture();
         if (running) handler.post(watch);
         return START_NOT_STICKY;
@@ -214,6 +242,7 @@ public final class BackgroundWakeService extends Service {
         if (running || capture != null)
             latest = "Wake-word listening stopped. Microphone off. Enable it to start again.";
         visual = LunaFace.State.OFF;
+        replyPlaying = false;
         if (capture != null) capture.stop();
         capture = null; running = false;
         handler.removeCallbacksAndMessages(null); releaseWakeLock(); stopForeground(true);
