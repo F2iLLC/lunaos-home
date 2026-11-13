@@ -70,3 +70,20 @@ test('Liam only calculates finalized mathematical speech and clears it on the ne
   await h.popup.update(snapshot({wakeEvent:1,capturePhase:'review',lastHeard:'What is 2 plus 3?',transcriptFinal:true}));assert.equal(h.$('.calculator-result').textContent,'5');
   await h.popup.update(snapshot({wakeEvent:2,activeAssistant:'liam',capturePhase:'awake'}));assert.equal(h.$('.calculator-result').textContent,'');
 });
+
+test('calculator tabs open the editor without asserting a result and keep notebook navigation working',()=>{
+  const h=harness(); h.popup.setCharacter('liam');
+  h.$('[data-calculator-tab="graph"]').click();
+  assert.equal(h.$('.calculator-entry').open,true);
+  assert.equal(h.$('#calculator-expression').value,'sin(x)');
+  assert.equal(h.$('.calculator-result').textContent,'');
+  h.$('#calculator-expression').value='sqrt(9) + 2^3';
+  h.$('[data-calculator-tab="science"]').click();
+  assert.equal(h.$('#calculator-expression').value,'sqrt(9) + 2^3','switching tools preserves the user’s expression');
+  h.$('.calculator-keys').children.find(b=>b.textContent==='Enter').click();
+  assert.equal(h.$('.calculator-result').textContent,'11');
+  h.$('[data-calculator-tab="notebook"]').click();
+  assert.equal(h.location.hash,'#notebook');
+  h.popup.setCharacter('luna');
+  assert.equal(h.$('.calculator-keys').hidden,true);
+});

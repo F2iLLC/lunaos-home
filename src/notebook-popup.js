@@ -1,6 +1,7 @@
 import { notebookRequest } from './notebook-client.js';
 import { voicePresentation } from './voice-presentation.js';
 import { calculate, expressionFromSpeech } from './calculator.js';
+import { drawerIcon, drawerDecorations, displaySticker } from './drawer-art.js';
 
 // One drawer, fed by the existing voice snapshot. Dismissal never changes voice state.
 export function createNotebookPopup({ request = notebookRequest, character = 'luna', onCharacter = () => {} } = {}) {
@@ -9,23 +10,27 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
   page.setAttribute('aria-labelledby', 'notebook-popup-title');
   page.innerHTML = `<button type="button" class="notebook-popup-handle" aria-label="Expand drawer" aria-expanded="false" aria-controls="notebook-popup"><span aria-hidden="true"></span></button>
     <button type="button" class="notebook-popup-close" aria-label="Close drawer">×</button>
-    <div class="drawer-binding" aria-hidden="true"></div>
-    <header class="drawer-header"><p class="notebook-popup-label">A LITTLE SPACE TO THINK</p><h2 id="notebook-popup-title">Luna’s Notebook</h2>
-      <svg class="drawer-doodles" viewBox="0 0 160 44" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m8 16 4-9 4 9 10 1-8 7 2 10-8-5-8 5 2-10-7-7Z M46 6a14 14 0 1 0 13 21A14 14 0 0 1 46 6Z M71 14c-8-10-17 3 0 15 17-12 8-25 0-15Z"/><path class="drawer-pencil" d="m89 30 3-10 16-15 7 7-16 15-10 3m3-10 7 7m7-20 7 7"/><path d="M132 22c-18-2-12-18-3-9-6-16 12-16 9 0 12-12 20 3 4 9 17 9 2 19-4 6-3 16-19 8-6-6Z"/></g></svg>
+    <div class="drawer-binding" aria-hidden="true">${'<i></i>'.repeat(14)}</div><div class="drawer-spine" aria-hidden="true"></div>${drawerDecorations()}
+    <header class="drawer-header"><span class="drawer-title-moon" aria-hidden="true">${drawerIcon('moon')}</span><p class="notebook-popup-label">A LITTLE SPACE TO THINK</p><h2 id="notebook-popup-title" tabindex="-1">Luna’s Notebook</h2>
+      <svg class="drawer-model-label" viewBox="0 0 180 20" aria-hidden="true"><text x="90" y="14" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="600" letter-spacing="2.3" fill="currentColor">GRAPHING CALCULATOR</text></svg><span class="drawer-doodles" aria-hidden="true">${drawerIcon('graph')}</span>
     </header>
     <div class="notebook-popup-scroll">
       <div class="drawer-lcd"><div class="drawer-status-row"><span class="drawer-phase" role="status"></span><svg class="drawer-wave" viewBox="0 0 60 20" aria-hidden="true"><path d="M1 10h7l4-7 6 14 6-14 6 14 6-14 6 14 4-7h13" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
-        <section><h3>I heard <small class="drawer-transcript-kind"></small></h3><p class="drawer-transcript" aria-live="polite" aria-atomic="true"></p></section>
-        <section><h3>Working on</h3><p class="drawer-working"></p></section>
-        <section><h3>Result <span class="drawer-sparkles" aria-hidden="true">✧ ✦ ✧</span></h3><p class="drawer-result" role="status"></p></section>
-        <svg class="drawer-mini" viewBox="0 0 66 58" aria-hidden="true"><path d="M11 34Q2 10 18 10L23 3 31 9 43 2 47 10Q66 13 57 35" fill="#9abce9" stroke="#64749a" stroke-width="2"/><ellipse cx="33" cy="34" rx="23" ry="20" fill="#fff0df" stroke="#64749a" stroke-width="2"/><path d="m10 26 9-15 9 7 12-8 15 17" fill="#9abce9" stroke="#64749a" stroke-width="2"/><g fill="#363249"><circle cx="25" cy="33" r="3"/><circle cx="42" cy="33" r="3"/></g><path d="M29 43q5 5 9 0" fill="none" stroke="#363249" stroke-width="2"/></svg>
+        <section class="drawer-heard"><h3>I heard: <small class="drawer-transcript-kind"></small></h3><p class="drawer-transcript" aria-live="polite" aria-atomic="true"></p></section>
+        <div class="drawer-lcd-trim" aria-hidden="true"><span class="lcd-battery">▥</span>${drawerIcon('graph')}${drawerIcon('flask')}</div>${displaySticker()}
       </div>
-      <section class="drawer-calculator" hidden><form class="calculator-form"><label for="calculator-expression">Calculate or graph</label><input id="calculator-expression" maxlength="240" autocomplete="off" spellcheck="false" placeholder="sqrt(9) + 2^3 or sin(x)"><p class="calculator-help">Radians · use * to multiply · graphs: −10 to 10</p><div class="calculator-keys"></div></form><p class="calculator-result" role="status"></p><div class="calculator-graph"></div></section>
+      <div class="drawer-notes">
+        <section class="drawer-plan"><h3 class="drawer-plan-heading">Plan:</h3><p class="drawer-working"></p></section>
+        <section class="drawer-next"><h3><span class="drawer-result-heading">Next:</span> <span class="drawer-sparkles" aria-hidden="true">✧ ✦ ✧</span></h3><p class="drawer-result" role="status"></p></section>
+      </div>
+      <section class="drawer-calculator" hidden><details class="calculator-entry"><summary>Calculate or graph</summary><form class="calculator-form"><label for="calculator-expression">Expression</label><input id="calculator-expression" maxlength="240" autocomplete="off" spellcheck="false" placeholder="sqrt(9) + 2^3 or sin(x)"><p class="calculator-help">Radians · use * to multiply · graphs: −10 to 10</p><button class="calculator-submit" type="submit">Calculate</button></form></details><p class="calculator-result" role="status"></p><div class="calculator-graph"></div></section>
       <section class="drawer-saved" hidden><h3 class="drawer-list-title"></h3><p class="notebook-popup-status" role="status"></p><ul class="notebook-popup-items"></ul></section>
       <p class="drawer-unavailable" role="status" hidden></p>
       <p class="notebook-popup-caption luna-caption" role="status" hidden></p>
     </div>
-    <nav class="drawer-tabs" aria-label="Assistant destinations"><button type="button" data-destination="lists"><span aria-hidden="true">☑</span>Lists</button><button type="button" data-destination="vault"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5Z" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>Vault</button><button type="button" data-destination="calendar"><span aria-hidden="true">▦</span>Calendar</button><button type="button" data-destination="settings"><span aria-hidden="true">⚙</span>Settings</button></nav>
+    <nav class="drawer-tabs notebook-tabs" aria-label="Notebook destinations">${['lists','vault','calendar','settings'].map(name => `<button type="button" data-destination="${name}"><span aria-hidden="true">${drawerIcon(name)}</span>${name[0].toUpperCase()+name.slice(1)}</button>`).join('')}</nav>
+    <nav class="drawer-tabs calculator-tabs" aria-label="Calculator destinations">${[['calculate','calculator','Calculator'],['graph','graph','Graph'],['science','flask','Science'],['notebook','notebook','Notebook'],['settings','settings','Settings']].map(([name,icon,label]) => `<button type="button" data-calculator-tab="${name}" aria-label="${label}"><span aria-hidden="true">${drawerIcon(icon)}</span><span class="drawer-tab-name">${label}</span></button>`).join('')}</nav>
+    <div class="calculator-keys" hidden></div>
     <div class="notebook-popup-actions"><button type="button" class="notebook-popup-edit">Open full notebook to edit</button></div>`;
   document.body.append(page);
   const $ = selector => page.querySelector(selector);
@@ -35,13 +40,16 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
   const text = (selector, value) => { const node = $(selector); if (node.textContent !== value) node.textContent = value; };
   function setCharacter(value) {
     character = value === 'liam' ? 'liam' : 'luna'; page.dataset.character = character;
-    text('h2', character === 'liam' ? 'LIAM TX-18' : 'Luna’s Notebook');
-    text('.notebook-popup-label', character === 'liam' ? 'SCIENCE • CURIOSITY • DISCOVERY' : 'A LITTLE SPACE TO THINK');
+    text('h2', character === 'liam' ? 'Liam TX-18' : 'Luna’s Notebook');
+    text('.notebook-popup-label', character === 'liam' ? 'GRAPHING CALCULATOR' : '');
+    text('.drawer-plan-heading', character === 'liam' ? 'Hypothesis:' : 'Plan:');
+    text('.drawer-result-heading', character === 'liam' ? 'Next Action:' : 'Next:');
+    $('.calculator-keys').hidden = character !== 'liam';
     $('.drawer-calculator').hidden = character !== 'liam';
   }
   function setExpanded(value) { page.dataset.expanded = String(value); handle.setAttribute('aria-expanded', String(value)); handle.setAttribute('aria-label', value ? 'Collapse drawer' : 'Expand drawer'); }
   function close() { manual = false; dismissed = true; generation++; setExpanded(false); if (page.open) page.close(); }
-  function open() { if (!page.open && !dismissed) { setExpanded(false); page.showModal(); } }
+  function open() { if (!page.open && !dismissed) { setExpanded(false); page.showModal(); $('h2').focus({ preventScroll:true }); } }
   $('.notebook-popup-close').addEventListener('click', close);
   page.addEventListener('cancel', e => { e.preventDefault(); close(); });
   page.addEventListener('click', e => { if (e.target !== page) return; const r = page.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close(); });
@@ -59,6 +67,7 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
   });
   const input = $('#calculator-expression');
   function runCalculator() {
+    $('.calculator-entry').open = true;
     $('.calculator-graph').replaceChildren();
     try {
       const output = calculate(input.value);
@@ -73,14 +82,24 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
       }
     } catch (error) { text('.calculator-result', error.message); page.dataset.calculation = 'error'; }
   }
+  for (const name of ['calculate', 'graph', 'science', 'notebook', 'settings']) $(`[data-calculator-tab="${name}"]`).addEventListener('click', () => {
+    if (name === 'notebook') { close(); location.hash = '#notebook'; return; }
+    if (name === 'settings') { $('[data-destination="settings"]').click(); return; }
+    $('.calculator-entry').open = true;
+    if (name === 'graph' && !input.value) input.value = 'sin(x)';
+    if (name === 'science' && !input.value) input.value = 'sqrt(9)';
+    input.focus();
+  });
   $('.calculator-form').addEventListener('submit', e => { e.preventDefault(); runCalculator(); });
   for (const [label, insert] of [['AC', ''], ['(', '('], [')', ')'], ['x²', '^2'], ['√', 'sqrt('], ['π', 'π'], ['Enter', null]]) {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+    button.dataset.key = label;
     button.setAttribute('aria-label', { AC: 'Clear calculation', 'x²': 'Square', '√': 'Square root', 'π': 'Pi' }[label] || label);
     button.addEventListener('click', () => {
       if (insert === null) { runCalculator(); return; }
       if (label === 'AC') { input.value = ''; text('.calculator-result', ''); $('.calculator-graph').replaceChildren(); page.dataset.calculation = ''; }
       else { const start = input.selectionStart ?? input.value.length, end = input.selectionEnd ?? start; input.setRangeText(insert, start, end, 'end'); }
+      $('.calculator-entry').open = true;
       input.focus();
     });
     $('.calculator-keys').append(button);
@@ -152,7 +171,7 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
       const heard = typeof snapshot.lastHeard === 'string' ? snapshot.lastHeard : '';
       const kind = snapshot.transcriptFinal === false ? 'Tentative' : snapshot.transcriptFinal === true ? 'Final' : 'Recognized';
       text('.drawer-transcript', heard || 'Waiting for recognized speech…'); text('.drawer-transcript-kind', heard ? kind : '');
-      text('.drawer-working', view.working); text('.drawer-result', view.result || 'No result yet.');
+      text('.drawer-working', character === 'liam' && view.state === 'wake' ? 'You called my name.' : view.working); text('.drawer-result', view.result || 'No result yet.');
       page.dataset.success = String(Boolean(view.result) && ['checkmark', 'new-page', 'scribble'].includes(snapshot.notebookAnimation));
       if (character === 'liam' && snapshot.transcriptFinal === true && heard !== lastVoiceCalculation) {
         lastVoiceCalculation = heard;

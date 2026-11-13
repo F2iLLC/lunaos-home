@@ -1,5 +1,7 @@
 # Live browser screenshots
 
+Latest: [November 12 reference design iteration](reference-v2/README.md) · [live preview](reference-v2/index.html). The screenshots below document the earlier drawer implementation.
+
 Captured from the running Home UI in Safari on November 12, 2026. These are browser screenshots, not concept art. The preview bundles the actual `src/native.js` entry point and production styles. Its native service and notebook boundaries supply **synthetic snapshots**; there is no microphone, vault, or remote write connection. The grocery success message and saved items demonstrate rendering only, not a completed real save. Calculator values and graphs are computed by the real local parser.
 
 ## Reproduce

@@ -157,3 +157,13 @@ test('Liam wardrobe and disabled listening use attributes without rebuilding his
   assert.match(h.host.markup,/class="liam-hair"/);assert.match(h.host.markup,/class="liam-labcoat"/);assert.match(h.host.markup,/class="liam-goggles"/);
   avatar.dispose();
 });
+
+test('Liam retains Luna’s exact shared face, skeleton and pose geometry in every state',()=>{
+  for (const state of LUNA_STATES) {
+    const luna = lunaAvatarMarkup({state});
+    for (const scienceOutfit of [false,true]) {
+      const liam = lunaAvatarMarkup({state,character:'liam',scienceOutfit});
+      assert.equal(liam.slice(liam.indexOf('>')+1), luna.slice(luna.indexOf('>')+1), `${state}: character selection only changes presentation attributes`);
+    }
+  }
+});

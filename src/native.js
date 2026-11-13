@@ -25,6 +25,10 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const applyCharacter = value => {
     character = value === 'liam' ? 'liam' : 'luna';
     avatar.update({ character, scienceOutfit, label: character === 'liam' ? 'Liam' : 'Luna' });
+    setText(document.querySelector('#welcome-heading'), character === 'liam' ? 'Welcome home, Liam.' : 'Welcome home.');
+    setText(document.querySelector('.header-note'), character === 'liam' ? 'A little room to think.' : 'A little room to breathe.');
+    const intro = document.querySelector('#welcome .intro');
+    setText(intro, character === 'liam' ? 'A curious mind at your side.\nExplore, ask, calculate, and discover together.' : 'A little less to carry.\nA little more space for you.');
   };
   const notebookPopup = createNotebookPopup({ character, onCharacter: applyCharacter });
   applyCharacter(character);
