@@ -25,6 +25,25 @@ final class ProbeCapture {
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile boolean closed;
     private AudioRecord recorder;
+    // While Luna listens for a command, other media is asked to go quiet (ducked, not paused, so
+    // "pause the music" is not undone when focus returns). Given back exactly once, with the microphone.
+    private AudioFocusRequest focus;
+    private synchronized void takeFocus() {
+        if (closed || focus != null) return;
+        try {
+            AudioFocusRequest request = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()).build();
+            if (((AudioManager)context.getSystemService(Context.AUDIO_SERVICE)).requestAudioFocus(request)
+                    == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) focus = request;
+        } catch (RuntimeException unavailable) { focus = null; }
+    }
+    private synchronized void giveFocusBack() {
+        AudioFocusRequest request = focus; focus = null;
+        if (request == null) return;
+        try { ((AudioManager)context.getSystemService(Context.AUDIO_SERVICE)).abandonAudioFocusRequest(request); }
+        catch (RuntimeException ignored) { }
+    }
     ProbeCapture(Context c, boolean capture, boolean wait, boolean persistent, boolean followUp, Listener listener) {
         if (!capture || !wait || !persistent) throw new IllegalArgumentException();
         context = c.getApplicationContext(); this.followUp = followUp; this.listener = listener;
@@ -47,6 +66,7 @@ final class ProbeCapture {
     synchronized void stop() { closed = true; closeRecorder(); }
     private synchronized void closeRecorder() {
         RECORDING.set(false);
+        giveFocusBack();
         if (recorder != null) { try { recorder.stop(); } catch (RuntimeException ignored) {} recorder.release(); recorder = null; }
     }
     private void show(String text, LunaFace.State state) {
@@ -64,6 +84,7 @@ final class ProbeCapture {
                 recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT,Math.max(minimum,12800));
                 if (recorder.getState() != AudioRecord.STATE_INITIALIZED) throw new IllegalStateException();
                 recorder.startRecording(); RECORDING.set(true);
+                if (awake) takeFocus();
             }
             show(awake ? "Your turn. Listening for your reply on the Mac." : "Listening for Hey Luna on your Mac.", awake ? LunaFace.State.AWAKE : LunaFace.State.WAITING);
             while (!closed && !blocked(context) && SystemClock.elapsedRealtime() < until && used < audio.length) {
@@ -130,6 +151,12 @@ final class ProbeCapture {
                 wake.decodeUntil(SystemClock.elapsedRealtime()+1000); deadline=wake.deadline();
                 seconds=wake.acceptFinal(normalized,SystemClock.elapsedRealtime());
                 if(TimerCommand.valid(seconds)) {code="COMMAND_MATCH";text="Timer command recognized.";break;}
+                int action=MusicCommand.accept(wake,normalized,SystemClock.elapsedRealtime());
+                if(MusicCommand.valid(action)) {
+                    // The microphone is already off and audio focus given back, so Spotify hears the key at full volume.
+                    MusicPlayer.Outcome sent=MusicPlayer.send(context,action);
+                    seconds=action; code=sent.sent?"MUSIC_COMMAND":"MUSIC_NOT_SENT"; text=sent.status; break;
+                }
                 if(wake.acceptQuestion(heard,SystemClock.elapsedRealtime())) {code="QUESTION_FINAL";text=heard;break;}
                 break;
             }

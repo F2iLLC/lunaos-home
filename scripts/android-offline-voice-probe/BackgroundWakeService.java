@@ -29,6 +29,11 @@ public final class BackgroundWakeService extends Service {
     private boolean destroyed, restarting, responding, followUpPending;
     private SpokenReply reply;
     private QuestionReply questionReply;
+    private String musicNotice = "";
+    private void clearMusicNotice() {
+        if (!musicNotice.isEmpty() && musicNotice.equals(QuestionPolicy.replyCaption)) QuestionPolicy.replyCaption = "";
+        musicNotice = "";
+    }
     private final Runnable watch = new Runnable() {
         @Override public void run() {
             if (destroyed || !running) return;
@@ -86,7 +91,7 @@ public final class BackgroundWakeService extends Service {
     }
     private void end(String text) {
         running = false; generation++; restarting = false; responding = false; followUpPending = false;
-        QuestionPolicy.replyWantsFollowUp = false;
+        QuestionPolicy.replyWantsFollowUp = false; clearMusicNotice();
         if (reply != null) reply.close(); reply = null; TimerAlarmService.duck(false);
         if (questionReply != null) questionReply.close(); questionReply = null;
         latest = text; visual = LunaFace.State.OFF; replyPlaying = false;
@@ -124,7 +129,10 @@ public final class BackgroundWakeService extends Service {
             capture = new ProbeCapture(this, true, true, true, followUp, new ProbeCapture.Listener() {
                 private boolean current() { return !destroyed && running && generation == id && capture != null; }
                 @Override public void visual(LunaFace.State state) {
-                    if (current()) { visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE); }
+                    if (!current()) return;
+                    visual = state; TimerAlarmService.duck(state == LunaFace.State.AWAKE);
+                    // The next thing Luna hears takes down only the music notice, never a reply caption.
+                    if (state == LunaFace.State.AWAKE || state == LunaFace.State.REVIEW) clearMusicNotice();
                 }
                 @Override public void wake(String assistant) { if (current()) QuestionPolicy.beginWake(assistant); }
                 @Override public void transcript(String text, boolean isFinal) { if (current()) QuestionPolicy.transcript(text, isFinal); }
@@ -188,6 +196,18 @@ public final class BackgroundWakeService extends Service {
                             visual = LunaFace.State.RETRY;
                             responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250);
                         }
+                    } else if (!canceled && ("MUSIC_COMMAND".equals(code) || "MUSIC_NOT_SENT".equals(code))) {
+                        // The capture already asked Spotify (or found it missing). Say which, and keep listening.
+                        // A reason it was not sent stays up long enough to read, as a caption too.
+                        boolean sent = "MUSIC_COMMAND".equals(code);
+                        TimerAlarmService.duck(false);
+                        QuestionPolicy.notebookFeedback(null);
+                        visual = sent ? LunaFace.State.RESPONSE : LunaFace.State.RETRY;
+                        latest = text + " Wake-word listening remains enabled.";
+                        if (!sent) { musicNotice = text; QuestionPolicy.replyCaption = text; }
+                        notifyStatus();
+                        Log.i("HomeVoiceProbe", code);
+                        scheduleCapture(sent ? 250 : 2500);
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
                         QuestionPolicy.commandError = "No complete command was confirmed. Please try again.";
