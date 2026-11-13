@@ -116,7 +116,7 @@ final class QuestionReply implements AutoCloseable {
                 public long getSize() { return wave.length; }
                 public void close() { }
             });
-            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) { QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); } else finish(); });
+            player.setOnPreparedListener(p -> { if (!closed && BackgroundWakeService.running && !ProbeCapture.blocked(context)) { QuestionPolicy.replyWantsFollowUp = followUp; QuestionPolicy.replyCaption = caption; p.start(); BackgroundWakeService.replyPlaying = true; } else finish(); });
             player.setOnCompletionListener(p -> { played = true; finish(); });
             player.setOnErrorListener((p, what, extra) -> { finish(); return true; });
             player.prepareAsync();
@@ -125,7 +125,7 @@ final class QuestionReply implements AutoCloseable {
     private void finish() { if (closed) return; close(); completion.done(played); }
     @Override public synchronized void close() {
         if (closed) return;
-        closed = true; main.removeCallbacksAndMessages(null);
+        closed = true; main.removeCallbacksAndMessages(null); BackgroundWakeService.replyPlaying = false;
         if (connection != null) connection.disconnect(); connection = null;
         if (player != null) player.release(); player = null;
         if (audio != null) Arrays.fill(audio, (byte) 0); audio = null;

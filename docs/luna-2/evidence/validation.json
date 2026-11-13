@@ -1,0 +1,54 @@
+{
+  "stage": "Luna 2.0 integrated app runtime review",
+  "baseline": "823f8c0",
+  "staticCombinationsReviewed": 16,
+  "sizeChecks": [48, 128, 256],
+  "avatarSvgNodes": 151,
+  "targetedSuite": {
+    "tests": 24,
+    "passed": 24,
+    "failed": 0,
+    "skipped": 0
+  },
+  "fullSuite": {
+    "tests": 478,
+    "passed": 356,
+    "failed": 36,
+    "skipped": 86,
+    "newFailureLabelsComparedToPriorIntegration": 0,
+    "originalBaselineFailures": 85,
+    "originalBaselineSkips": 86
+  },
+  "runtime": {
+    "device": "Echo Show 8, Android 11, API 30, armv7",
+    "installed": true,
+    "packageDataPreserved": true,
+    "homeSleepingStateCaptured": true,
+    "notebookDrawerCollapsedFraction": 0.28,
+    "notebookDrawerExpandedToFullWebView": true,
+    "notebookEditRouteNavigationVerified": true,
+    "notebookPreviewUsedPlaceholderContent": true,
+    "notebookDataMutatedDuringReview": false,
+    "commandReadyCueForcedOnDevice": false,
+    "targetReducedMotionTested": false,
+    "targetFrameIntervalMs": null,
+    "targetLongTaskMeasurements": null
+  },
+  "desktopGalleryBenchmark": {
+    "browser": "Microsoft Edge headless 157",
+    "viewport": [1256, 708],
+    "seconds": 10,
+    "frames": 600,
+    "fps": 60,
+    "p95FrameIntervalMs": 16.8,
+    "framesOver25ms": 0,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "targetDeviceEvidence": false
+  },
+  "notes": [
+    "The full application suite is not clean; its failure count differs from the original baseline.",
+    "The desktop gallery benchmark does not establish Echo Show performance or a frame-rate target.",
+    "Permission revocation, mute, lock, and the live command-ready window were not exercised on-device."
+  ]
+}

@@ -69,36 +69,36 @@ servers. She cannot sign in for you or choose music.
 Luna does not speak a confirmation.
 
 **When Spotify was asked.** The status reads `Asked Spotify to play.` (or
-`to pause.`, `for the next song.`, `for the previous song.`). Spotify does not
+`to pause.`, `to skip to the next song.`, `to go back a song.`). Spotify does not
 report back, so this is not a claim that anything is playing. Listening starts
 again a quarter of a second later, so the status is replaced almost at once. On
 the Home screen nothing is shown for a sent command; the music is the
 confirmation.
 
-**When nothing was sent.** The reason is left up long enough to read:
+**When the command could not be sent or delivery is uncertain.** The reason is
+left up long enough to read:
 
 - On the Home screen it appears as a caption, `Luna: Spotify is not installed
   on this device. Nothing was sent.`, for about six seconds or until Luna next
   hears something. It uses the caption Home already shows for Luna's replies,
-  so it is not shown if Luna captions are turned off. Home has no separate
-  face for this; it shows the waiting face.
+  so it is not shown if Luna captions are turned off. The retry state uses
+  Luna's thinking face, then returns to idle when listening resumes.
 - In the listening notification, and on the offline test app's status line, the
   same words stay for two and a half seconds before listening starts again.
 
 | Status | Meaning |
 | --- | --- |
 | `Spotify is not installed on this device. Nothing was sent.` | Spotify is missing or disabled. Nothing was sent to any app. |
-| `Could not reach Spotify. Nothing was sent.` | Android refused the broadcast. |
-| `Listening stopped first. Nothing was sent to Spotify.` | Listening was disabled, or the device was locked or muted, before the key could be sent. |
+| `Could not hand the command to Spotify. It may not have been received.` | A broadcast failed; delivery is uncertain because part of the key press may already have been sent. |
 
-Log codes are fixed words only: `MUSIC_COMMAND`, `MUSIC_NOT_SENT`,
-`MUSIC_COMMAND_SENT`, `MUSIC_COMMAND_NOT_SENT`, `MUSIC_COMMAND_UNDELIVERED`,
-`MUSIC_COMMAND_HANDLED` and `AUDIO_FOCUS_UNAVAILABLE`.
+Music result log codes are fixed words only: `MUSIC_COMMAND` and
+`MUSIC_NOT_SENT`.
 
 ### Hearing the next command
 
 While Luna is awake and the microphone is listening for a command, she holds
-short-term audio focus, which asks other media to go quiet. She gives it back
+short-term audio focus with ducking, which asks other media to lower its volume
+rather than pause. She gives it back
 when the microphone stops, however that happens: a command, a timeout,
 listening being disabled, or a failure.
 
@@ -184,8 +184,8 @@ do not show that Android delivers it or that Spotify acts on it.
 - a not-sent result sets the caption and the status and re-arms after two and
   a half seconds; a result code it does not know still ends listening.
 
-The Android-facing classes were compiled against the Android platform library.
-That shows they build, not that they work.
+These checks compile the Android-facing classes against test stand-ins. They
+do not establish that a packaged Android build works on a device.
 
 ## What is not verified
 

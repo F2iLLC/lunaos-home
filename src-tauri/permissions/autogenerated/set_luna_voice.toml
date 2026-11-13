@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-luna-voice"
+description = "Enables the set_luna_voice command without any pre-configured scope."
+commands.allow = ["set_luna_voice"]
+
+[[permission]]
+identifier = "deny-set-luna-voice"
+description = "Denies the set_luna_voice command without any pre-configured scope."
+commands.deny = ["set_luna_voice"]

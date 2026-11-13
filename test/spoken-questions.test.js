@@ -38,6 +38,23 @@ test('invalid or oversized questions never reach the providers',async t=>{
   for(const input of ['', 'a'.repeat(1001), 'line\nbreak'])assert.equal((await ask(input)).status,400);
   assert.equal((await ask('a'.repeat(5000))).status,413);assert.equal(calls.length,0);
 });
+
+test('device voice selection uses Lori or the configured original and rejects arbitrary voices', async t => {
+  const { ask, calls, url } = await relay(t, { cooldownMs: 0 });
+  assert.equal((await ask('A fictional question', { 'X-Home-Voice': 'lori' })).status, 200);
+  assert.equal(calls.at(-1).voiceId, 'TbMNBJ27fH2U0VgpSNko');
+  assert.equal((await ask('Another fictional question', { 'X-Home-Voice': 'original' })).status, 200);
+  assert.equal(calls.at(-1).voiceId, voiceId);
+  const count = calls.length;
+  assert.equal((await ask('Never forwarded', { 'X-Home-Voice': 'arbitrary' })).status, 400);
+  assert.equal(calls.length, count);
+  const confirmation = await fetch(url.replace('/question', '/confirmation'), {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Home-Voice': 'lori' },
+    body: JSON.stringify({ event: 'qwen_answers_enabled' }),
+  });
+  assert.equal(confirmation.status, 200);
+  assert.equal(calls.at(-1).voiceId, 'TbMNBJ27fH2U0VgpSNko');
+});
 test('provider failure is fixed-code only and never becomes invented audio',async t=>{
   const {ask}=await relay(t,{answer:async()=>{throw Error('private provider details');}});
   const response=await ask('fictional question');assert.equal(response.status,502);assert.equal(await response.text(),'');
