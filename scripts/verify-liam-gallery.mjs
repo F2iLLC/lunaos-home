@@ -15,7 +15,8 @@ const baseline = document.createElement('div'); baseline.innerHTML = lunaAvatarM
 for (const [key, value] of Object.entries(luna.element.dataset)) baseline.querySelector('svg').dataset[key] = value;
 assert.equal(luna.element.outerHTML, baseline.innerHTML, 'Luna markup remains identical');
 assert.equal(liam.element.getAttribute('viewBox'), '0 0 320 360');
-assert.equal(liam.element.querySelectorAll('.l2-pigtail').length, 0);
+assert.equal(liam.element.dataset.character, 'liam');
+assert.equal(liam.element.dataset.scienceOutfit, 'true');
 const faceSelectors = ['.l2-face-base', '.l2-cheeks', '.l2-eye-gaze', '.l2-eyes-shut', '.l2-eyes-blink', '.l2-brows', '.l2-mouth-smile', '.l2-mouth-small', '.l2-mouth-wide', '.l2-mouth-concern', '.l2-mouth-snore'];
 for (const selector of faceSelectors) assert.equal(liam.element.querySelector(selector).outerHTML, luna.element.querySelector(selector).outerHTML);
 for (const selector of ['.l2-arm', '.l2-hand-think', '.l2-head-pose']) {
@@ -79,4 +80,4 @@ assert.equal(gallery.window.CharacterPreview.verifyGallery().passed, true);
 gallery.window.dispatchEvent(new gallery.window.Event('pagehide'));
 for (const svg of doc.querySelectorAll('svg')) assert.equal(svg.dataset.paused, 'true');
 gallery.window.close(); dom.window.close();
-console.log('PASS: unchanged Luna markup; matching faces/poses; 1,600 stable state updates; mouth presets; disposal; invalid inputs; gallery controls; 16 exported SVGs. Browser motion/layout not tested.');
+console.log('PASS: production Luna markup; matching faces/poses; 1,600 stable state updates; mouth presets; disposal; invalid inputs; gallery controls; 16 exported SVGs. Browser motion/layout not tested.');

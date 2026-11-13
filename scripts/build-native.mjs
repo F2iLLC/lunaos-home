@@ -27,13 +27,16 @@ await writeFile(resolve(output, 'index.html'), html);
 await copyFile(resolve(root, 'src/styles.css'), resolve(output, 'styles.css'));
 await mkdir(resolve(output, 'luna'), { recursive: true });
 await copyFile(resolve(root, 'src/luna/avatar.css'), resolve(output, 'luna/avatar.css'));
+await mkdir(resolve(output, 'fonts'), { recursive: true });
+for (const name of ['PatrickHand-Regular.ttf', 'OFL-PatrickHand.txt']) await copyFile(resolve(root, 'src/fonts', name), resolve(output, 'fonts', name));
 await copyFile(resolve(root, 'src/windows-unlock.html'), resolve(output, 'windows-unlock.html'));
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const license = await readFile(resolve(root, 'LICENSE'), 'utf8');
 const zodLicense = await readFile(resolve(root, 'node_modules/zod/LICENSE'), 'utf8');
+const fontLicense = await readFile(resolve(root, 'src/fonts/OFL-PatrickHand.txt'), 'utf8');
 // Native dependency notices are added separately after Cargo resolves its lockfile.
 let nativeNotices = '';
 try { nativeNotices = await readFile(resolve(root, 'src-tauri/THIRD_PARTY_NOTICES.txt'), 'utf8'); }
 catch (error) { if (error.code !== 'ENOENT') throw error; }
-await writeFile(resolve(output, 'notices.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./styles.css"><title>Open-source notices · Luna OS Home</title></head><body><main class="vault"><a class="back-link" href="./index.html">Back home</a><h1>Open-source notices</h1><p>Returning home starts a fresh fictional draft.</p><h2>Luna OS Home · Apache-2.0</h2><pre>${escape(license)}</pre><h2>Zod · MIT</h2><pre>${escape(zodLicense)}</pre><h2>Native dependencies</h2><pre>${escape(nativeNotices || 'Native dependency notices have not been generated. This frontend-only preview is not a distributable native package.')}</pre></main></body></html>`);
+await writeFile(resolve(output, 'notices.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./styles.css"><title>Open-source notices · Luna OS Home</title></head><body><main class="vault"><a class="back-link" href="./index.html">Back home</a><h1>Open-source notices</h1><p>Returning home starts a fresh fictional draft.</p><h2>Luna OS Home · Apache-2.0</h2><pre>${escape(license)}</pre><h2>Zod · MIT</h2><pre>${escape(zodLicense)}</pre><h2>Patrick Hand · SIL Open Font License</h2><pre>${escape(fontLicense)}</pre><h2>Native dependencies</h2><pre>${escape(nativeNotices || 'Native dependency notices have not been generated. This frontend-only preview is not a distributable native package.')}</pre></main></body></html>`);
 console.log('Built the offline fictional draft frontend. No server or vault storage is included.');

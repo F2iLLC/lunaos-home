@@ -134,6 +134,9 @@ public final class BackgroundWakeService extends Service {
                     // The next thing Luna hears takes down only the music notice, never a reply caption.
                     if (state == LunaFace.State.AWAKE || state == LunaFace.State.REVIEW) clearMusicNotice();
                 }
+                @Override public void wake(String assistant) { if (current()) QuestionPolicy.beginWake(assistant); }
+                @Override public void transcript(String text, boolean isFinal) { if (current()) QuestionPolicy.transcript(text, isFinal); }
+                @Override public void speechActive() { if (current()) QuestionPolicy.commandSpeechActive = true; }
                 @Override public void status(String text) {
                     if (!current()) return;
                     if (text.startsWith("Listening stopped")) { end(text); return; }
@@ -143,9 +146,9 @@ public final class BackgroundWakeService extends Service {
                     if (!current()) return;
                     capture = null; releaseWakeLock();
                     boolean blocked = ProbeCapture.blocked(BackgroundWakeService.this);
-                    boolean hasFinalTranscript = text != null && text.length() <= 1000 && !text.trim().isEmpty();
-                    if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && hasFinalTranscript)
-                        QuestionPolicy.lastHeard = text.trim();
+                    QuestionPolicy.commandSpeechActive = false;
+                    // Recognition callbacks carry speech; finished text may be a diagnostic.
+                    if (!blocked && !canceled && SystemClock.elapsedRealtime() < deadline && "QUESTION_FINAL".equals(code)) QuestionPolicy.transcript(text, true);
                     if (blocked) {
                         end("Listening disabled: lock, mute or permission change. Microphone off.");
                     } else if (!canceled && SystemClock.elapsedRealtime() < deadline && TimerCommand.valid(seconds)) {
@@ -155,6 +158,7 @@ public final class BackgroundWakeService extends Service {
                         String result;
                         try { result = NativeTimers.execute(BackgroundWakeService.this, seconds); }
                         catch (RuntimeException failure) { result = "Timer change failed or is uncertain. Check the timer list before retrying."; }
+                        QuestionPolicy.replyCaption = result;
                         latest = result + " Microphone paused for reply; wake listening resumes afterward.";
                         notifyStatus();
                         Log.i("HomeVoiceProbe", "NATIVE_TIMER_COMMAND_HANDLED");
@@ -183,10 +187,15 @@ public final class BackgroundWakeService extends Service {
                                 questionReply = null; responding = false; releaseWakeLock(); TimerAlarmService.duck(false);
                                 latest = played ? "Answer playback finished. Returning to wake-word listening."
                                     : "Reply unavailable. A list change may have saved; check the notebook before retrying. Returning to wake-word listening.";
+                                if (!played) QuestionPolicy.commandError = "Reply unavailable. A list change may have saved; check Lists before retrying.";
                                 visual = played ? LunaFace.State.RESPONSE : LunaFace.State.RETRY; notifyStatus();
                                 scheduleCapture(played ? 250 : 2500);
                             });
-                        } catch (RuntimeException failure) { responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250); }
+                        } catch (RuntimeException failure) {
+                            QuestionPolicy.commandError = "Reply unavailable. Check Lists before retrying a change.";
+                            visual = LunaFace.State.RETRY;
+                            responding = false; releaseWakeLock(); TimerAlarmService.duck(false); scheduleCapture(250);
+                        }
                     } else if (!canceled && ("MUSIC_COMMAND".equals(code) || "MUSIC_NOT_SENT".equals(code))) {
                         // The capture already asked Spotify (or found it missing). Say which, and keep listening.
                         // A reason it was not sent stays up long enough to read, as a caption too.
@@ -201,12 +210,16 @@ public final class BackgroundWakeService extends Service {
                         scheduleCapture(sent ? 250 : 2500);
                     } else if ("COMMAND_WINDOW_EXPIRED".equals(code) || "LISTENING_DEADLINE".equals(code)) {
                         TimerAlarmService.duck(false);
+                        QuestionPolicy.commandError = "No complete command was confirmed. Please try again.";
                         visual = LunaFace.State.RETRY;
                         latest = text + " Wake-word listening remains enabled; preparing to listen again.";
                         notifyStatus();
                         Log.i("HomeVoiceProbe", "WAKE_LISTENING_RESUMING");
                         scheduleCapture(750);
-                    } else end(text + " Listening disabled. Microphone off. No timer started.");
+                    } else {
+                        QuestionPolicy.commandError = "The request could not be completed. Check voice settings and try again.";
+                        end(text + " Listening disabled. Microphone off. No timer started.");
+                    }
                 }
             });
             if (!capture.start()) end("Previous worker still closing. Listening disabled. Microphone off.");

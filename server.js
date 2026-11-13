@@ -9,6 +9,7 @@ import { VaultAccessError } from './lib/vault-sessions.js';
 const routes = new Map([
   ['/', ['index.html', 'text/html']],
   ['/styles.css', ['styles.css', 'text/css']],
+  ['/fonts/PatrickHand-Regular.ttf', ['fonts/PatrickHand-Regular.ttf', 'font/ttf']],
   ['/app.js', ['app.js', 'text/javascript']],
   ['/tasks.js', ['tasks.js', 'text/javascript']],
   ['/vault.js', ['vault.js', 'text/javascript']],

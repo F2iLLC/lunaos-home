@@ -94,6 +94,12 @@ public final class HomeMusicProbe {
             Result oneBreath = listen(true, false, false, 0, "Hey Luna, " + spoken[i][0]);
             check("MUSIC_COMMAND".equals(oneBreath.code) && oneBreath.seconds == actions[i], "one breath: " + spoken[i][0]);
             sentTo(Integer.parseInt(spoken[i][1]), "one breath " + spoken[i][0]);
+            Result liam = listen(true, false, false, 1, "Hey Liam.", spoken[i][0]);
+            check("MUSIC_COMMAND".equals(liam.code) && liam.seconds == actions[i], "Liam music result: " + spoken[i][0]);
+            sentTo(Integer.parseInt(spoken[i][1]), "Liam " + spoken[i][0]);
+            Result liamOneBreath = listen(true, false, false, 0, "Hey Liam, " + spoken[i][0]);
+            check("MUSIC_COMMAND".equals(liamOneBreath.code) && liamOneBreath.seconds == actions[i], "Liam one breath: " + spoken[i][0]);
+            sentTo(Integer.parseInt(spoken[i][1]), "Liam one breath " + spoken[i][0]);
         }
 
         // Spotify missing: a music result that says so, and nothing sent anywhere.

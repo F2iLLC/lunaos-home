@@ -61,6 +61,11 @@ public final class HomeLunaBridge {
             out.put("notebookListId", "off".equals(phase) ? "" : QuestionPolicy.notebookListId);
             out.put("notebookEvent", QuestionPolicy.notebookEvent);
             out.put("replyCaption", QuestionPolicy.replyCaption);
+            out.put("wakeEvent", QuestionPolicy.wakeEvent);
+            out.put("activeAssistant", QuestionPolicy.activeAssistant);
+            out.put("transcriptFinal", QuestionPolicy.transcriptFinal);
+            out.put("commandSpeechActive", QuestionPolicy.commandSpeechActive);
+            out.put("commandError", QuestionPolicy.commandError);
             out.put("lastHeard", "off".equals(phase) ? "" : QuestionPolicy.lastHeard);
             out.put("microphoneInUse", microphone);
             out.put("listeningEnabled", listeningRequested);

@@ -170,7 +170,7 @@ public class PowerManager {
   'io/github/f2illc/lunaos/home/voiceprobe/LunaFace.java': 'package io.github.f2illc.lunaos.home.voiceprobe; class LunaFace { enum State { OFF, PREPARING, WAITING, AWAKE, REVIEW, RESPONSE, RETRY } }',
   'io/github/f2illc/lunaos/home/voiceprobe/ProbeCapture.java': `package io.github.f2illc.lunaos.home.voiceprobe;
 class ProbeCapture {
- interface Listener {void visual(LunaFace.State s);void status(String s);void finished(String c,String t,int s,long d,boolean canceled);}
+ interface Listener {default void wake(String s) {} default void transcript(String s,boolean f) {} default void speechActive() {} void visual(LunaFace.State s);void status(String s);void finished(String c,String t,int s,long d,boolean canceled);}
  static boolean blocked, busy; static int starts, releases; static ProbeCapture last; static void releaseEngine() { releases++; }
  final Listener listener; boolean stopped; final boolean followUp;
  ProbeCapture(android.content.Context c,boolean audio,boolean wait,boolean persistent,boolean followUp,Listener l) {

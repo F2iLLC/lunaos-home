@@ -55,7 +55,7 @@ public final class MusicRoutingProbe {
         for (int group = 0; group < groups.length; group++) {
             for (String phrase : groups[group]) {
                 for (String spoken : new String[] {phrase, phrase.toUpperCase(java.util.Locale.ROOT), phrase + ".",
-                    "hey luna " + phrase, "Hey Luna, " + phrase + "?", phrase + " please"})
+                    "hey luna " + phrase, "Hey Luna, " + phrase + "?", "Hey Liam, " + phrase + "?", phrase + " please"})
                     check(!QuestionPolicy.accepts(spoken), "a music phrase is not a question: " + spoken);
                 WakeSession wake = awake();
                 check(!wake.acceptQuestion(phrase, 2000), "not sent on after the wake phrase: " + phrase);
@@ -63,7 +63,7 @@ public final class MusicRoutingProbe {
         }
         for (String phrase : offered) check(!QuestionPolicy.accepts(phrase), "grammar phrase is not a question: " + phrase);
         for (String spoken : fragments) {
-            for (String form : new String[] {spoken, "Hey Luna, " + spoken, spoken + "."})
+            for (String form : new String[] {spoken, "Hey Luna, " + spoken, "Hey Liam, " + spoken, spoken + "."})
                 check(!QuestionPolicy.accepts(form), "a music fragment is not a question: " + form);
             check(MusicCommand.parse(spoken) == 0, "a fragment is not a command: " + spoken);
             WakeSession wake = awake();
