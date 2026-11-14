@@ -18,6 +18,28 @@ public final class CommandAudioTest {
     public static void main(String[] args) throws Exception {
         short[] target = new short[CommandAudio.CHUNK_FRAMES];
 
+        // Reject invalid windows before multiplying or allocating, including
+        // values that used to wrap to a tiny buffer or a negative array size.
+        for (long window : new long[] {Long.MIN_VALUE, -1, 0, 30001,
+                Integer.MAX_VALUE, Long.MAX_VALUE / 16 + 1, Long.MAX_VALUE}) {
+            boolean rejected = false;
+            try { new CommandAudio(window); }
+            catch (IllegalArgumentException expected) { rejected = true; }
+            check(rejected, "invalid capture window rejected: " + window);
+        }
+        CommandAudio maximum = new CommandAudio(30000);
+        short[] second = filled(16000, 1);
+        for (int i = 0; i < 31; i++) maximum.offer(second, second.length);
+        check(maximum.capturedMs() == 30000 && maximum.droppedMs() == 1000,
+                "maximum window retains thirty seconds and counts overflow");
+        maximum.close();
+        CommandAudio minimum = new CommandAudio(1);
+        minimum.offer(target, target.length);
+        check(minimum.capturedMs() == 100, "short positive windows retain the minimum chunk");
+        minimum.close();
+        CommandAudio production = new CommandAudio(WakeSession.COMMAND_MS);
+        production.close();
+
         // Small reads from the recorder are coalesced and nothing is lost
         // while the reader is slow.
         CommandAudio audio = new CommandAudio(15000);
