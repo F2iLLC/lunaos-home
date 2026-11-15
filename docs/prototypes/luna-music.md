@@ -86,6 +86,8 @@ left up long enough to read:
 - In the listening notification, and on the offline test app's status line, the
   same words stay for two and a half seconds before listening starts again.
 
+These status messages are currently English-only; Home does not localize them.
+
 | Status | Meaning |
 | --- | --- |
 | `Spotify is not installed on this device. Nothing was sent.` | Spotify is missing or disabled. Nothing was sent to any app. |
@@ -116,6 +118,13 @@ Focus is not held while Luna speaks a timer confirmation or an answer. For a
 music command the key is sent after focus has been given back.
 
 ## Where it works
+
+You can tell the two supported development builds apart by the app name shown
+on the device: **Luna OS Home Preview** is the Home debug build, and **Home
+offline voice test** is the standalone offline test app. These are development
+builds; neither shows a separate build-type indicator inside the app. If the
+name is different, this page does not establish that the music feature is
+available in that build.
 
 **Home debug build.** Home has no speech recognizer on the device. Its capture
 class (`scripts/android/voice/HomeProbeCapture.java`) sends what the microphone
