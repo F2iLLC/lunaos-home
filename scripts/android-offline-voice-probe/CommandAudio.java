@@ -19,14 +19,27 @@ import java.util.Arrays;
  * and never leaves the device.
  */
 final class CommandAudio {
-    static final int CHUNK_FRAMES = 1600; // 100 ms at 16 kHz mono.
+    static final int SAMPLE_RATE_HZ = 16000;
+    private static final int FRAMES_PER_MS = SAMPLE_RATE_HZ / 1000;
+    static final int CHUNK_FRAMES = SAMPLE_RATE_HZ / 10; // 100 ms, mono.
+    // At most 960 KB of PCM per capture, including the current 25-second window.
+    static final long MAX_WINDOW_MS = 30000;
     private final short[] frames;
     private int written, read;
     private boolean sealed, closed;
     private long droppedFrames;
 
+    /**
+     * Retain 16 kHz mono PCM for a positive window of at most 30 seconds.
+     * Windows below 100 ms still reserve one complete decoder chunk.
+     * @throws IllegalArgumentException if the window is outside these bounds
+     */
     CommandAudio(long windowMs) {
-        frames = new short[(int) Math.max(CHUNK_FRAMES, windowMs * 16)];
+        if (windowMs <= 0 || windowMs > MAX_WINDOW_MS) {
+            throw new IllegalArgumentException("Command audio window must be between 1 and "
+                    + MAX_WINDOW_MS + " milliseconds");
+        }
+        frames = new short[(int) Math.max(CHUNK_FRAMES, windowMs * FRAMES_PER_MS)];
     }
 
     /** Append the first {@code count} samples. Returns false once sealed or closed. */
@@ -72,7 +85,7 @@ final class CommandAudio {
     synchronized boolean closed() { return closed; }
     /** How many samples live decoding has taken so far. */
     synchronized int consumed() { return read; }
-    synchronized long capturedMs() { return written / 16; }
-    synchronized long pendingMs() { return (written - read) / 16; }
-    synchronized long droppedMs() { return droppedFrames / 16; }
+    synchronized long capturedMs() { return written / FRAMES_PER_MS; }
+    synchronized long pendingMs() { return (written - read) / FRAMES_PER_MS; }
+    synchronized long droppedMs() { return droppedFrames / FRAMES_PER_MS; }
 }
