@@ -1,6 +1,6 @@
 # Vigil automated PR review (F2iLLC/vigil), calling the shared reusable workflow.
 #
-# - Model: Gemini 3.1 Flash-Lite, using the GEMINI_API_KEY Actions secret.
+# - Model: OpenAI GPT-6 Luna, using the OPENAI_API_KEY Actions secret.
 # - Runner: GitHub-hosted. This repository is PUBLIC, so it must never run on
 #   our self-hosted runners: a pull request from a fork could execute
 #   arbitrary code on our servers.
@@ -65,8 +65,8 @@ jobs:
       issues: write
     uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@06b99289d029b6f0a6c52a2501652a3c5d35b24b
     with:
-      model: gemini/gemini-3.1-flash-lite
+      model: openai/gpt-6-luna
       runner-json: '["ubuntu-latest"]'
     secrets:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       VIGIL_REVIEW_TOKEN: ${{ secrets.VIGIL_REVIEW_TOKEN }}
