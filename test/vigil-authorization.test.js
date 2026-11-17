@@ -106,5 +106,5 @@ test('Vigil privileges and forwarded secrets remain behind successful authorizat
   assert.match(prefix, /permissions:\n      pull-requests: read/);
   assert.match(privileged, /needs: authorize\n    if: needs\.authorize\.outputs\.allowed == 'true' && vars\.VIGIL_SKIP != 'true'/);
   assert.doesNotMatch(workflow, /secrets: inherit/);
-  assert.deepEqual([...workflow.matchAll(/secrets\.(\w+)/g)].map(match => match[1]), ['GEMINI_API_KEY', 'VIGIL_REVIEW_TOKEN']);
+  assert.deepEqual([...workflow.matchAll(/secrets\.(\w+)/g)].map(match => match[1]), ['OPENAI_API_KEY', 'VIGIL_REVIEW_TOKEN']);
 });
