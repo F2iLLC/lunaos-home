@@ -70,12 +70,16 @@ public final class QuestionPolicy {
     private static final String MUSIC = "play(?: (?:some|my))? (?:music|spotify)|unpause the music"
         + "|turn off the music|turn the music off|next (?:song|track)|skip(?: this song| song)?"
         + "|play the (?:next|previous) song|previous (?:song|track)|last song|go back a song"
+        + "|(?:pause|stop)(?: the)? music|(?:pause|stop) spotify|resume the music"
         + "|play|play the|music|skip the|pause the";
     static boolean musicAttempt(String text) {
         if (text == null) return false;
         String bare = normalized(text);
         if (bare.endsWith(" please")) bare = bare.substring(0, bare.length() - 7).trim();
-        return bare.matches(MUSIC);
+        // The same opening and closing MusicCommand allows, so a request put as a question
+        // ("can you play music") is acted on, or dropped as a fragment, and never answered.
+        return bare.matches(MUSIC)
+            || bare.replaceFirst("^(?:(?:can|could|would|will) you (?:please )?|please )", "").replaceFirst(" for me$", "").matches(MUSIC);
     }
     public static boolean accepts(String text) {
         if (text == null || text.trim().isEmpty() || text.length() > 1000) return false;

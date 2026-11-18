@@ -48,12 +48,31 @@ public final class MusicCommandTest {
             }
         }
 
+        // A request put as a question, or opened politely, is the same action. Only the opening
+        // and a trailing "for me" are allowed for; the rest must still be a whole table phrase.
+        for (int group = 0; group < GROUPS.length; group++) {
+            for (String phrase : GROUPS[group]) {
+                for (String opening : new String[] {"can you ", "could you ", "would you ", "will you ", "please ",
+                    "can you please ", "could you please "}) {
+                    for (String spoken : new String[] {opening + phrase, opening + phrase + "?", opening + phrase + " for me",
+                        "Hey Luna, " + opening + phrase + " for me please?", (opening + phrase).toUpperCase(java.util.Locale.ROOT)})
+                        check(MusicCommand.parse(spoken) == ACTIONS[group], "parses: " + spoken);
+                }
+                check(MusicCommand.parse(phrase + " for me") == ACTIONS[group], "parses: " + phrase + " for me");
+            }
+        }
+        // Bare timer words stay the timers' however they are asked for.
+        for (String timers : new String[] {"can you stop", "can you pause", "please stop", "could you resume", "can you turn it off"})
+            check(MusicCommand.parse(timers) == 0, "still a timer word: " + timers);
+
         // Strict, never repaired. At least one refusal for each group of phrases.
         for (String refused : REFUSED) check(MusicCommand.parse(refused) == 0, "refused: " + refused);
         for (String refused : new String[] {
             // play
-            "play", "play the", "play song", "play a song", "play music now", "replay music", "please play music",
-            "play music play music", "play music on spotify tomorrow", "can you play music",
+            "play", "play the", "play song", "play a song", "play music now", "replay music", "please",
+            "play music play music", "play music on spotify tomorrow", "can you", "can you play jazz",
+            "can you play music tomorrow", "can you not play music", "can i play music", "do you play music",
+            "please please play music", "can you can you play music", "play music for me for me", "for me",
             // pause
             "pause", "stop", "pause the", "pause the music now", "stop the musical", "stop the music stop the music",
             "do not stop the music", "turn off", "turn it off", "turn off the lights",

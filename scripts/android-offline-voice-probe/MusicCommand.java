@@ -3,6 +3,8 @@ package io.github.f2illc.lunaos.home.voiceprobe;
 /**
  * Deliberately narrow, complete-utterance parser for the four music actions. Structured
  * action only: no recognized text is kept. Anything outside the table is 0, never repaired.
+ * A request may be put as a question or open politely ("can you play music", "please skip");
+ * what is left must still be one whole phrase from the table.
  * Bare "pause", "stop", "resume" and the other timer words are not here; they stay the timers'.
  */
 final class MusicCommand {
@@ -22,12 +24,21 @@ final class MusicCommand {
     private static final String[][] GROUPS = {PLAY_PHRASES, PAUSE_PHRASES, NEXT_PHRASES, PREVIOUS_PHRASES};
     private static final int[] ACTIONS = {PLAY, PAUSE, NEXT, PREVIOUS};
 
-    /** The action for one complete phrase, with the normalization timers get; otherwise 0. */
-    static int parse(String text) {
-        String bare = TimerPhrase.normalizeCommand(text);
+    /** One polite or asking opening, and one trailing "for me". QuestionPolicy keeps the same two. */
+    static final String OPENING = "^(?:(?:can|could|would|will) you (?:please )?|please )";
+    static final String CLOSING = " for me$";
+
+    private static int table(String bare) {
         for (int group = 0; group < GROUPS.length; group++)
             for (String phrase : GROUPS[group]) if (bare.equals(phrase)) return ACTIONS[group];
         return 0;
+    }
+
+    /** The action for one complete phrase, with the normalization timers get; otherwise 0. */
+    static int parse(String text) {
+        String bare = TimerPhrase.normalizeCommand(text);
+        int action = table(bare);
+        return action != 0 ? action : table(bare.replaceFirst(OPENING, "").replaceFirst(CLOSING, ""));
     }
 
     /**
