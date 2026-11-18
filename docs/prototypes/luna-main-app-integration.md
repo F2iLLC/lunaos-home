@@ -264,11 +264,17 @@ node scripts/renew-spoken-question-relay-cert.mjs renew /private/path/host.json 
   --device-config /private/path/question-relay.next.json --days 90
 ```
 
-This issues a new certificate for the same key, subject and names, keeps the
+This supports the setup certificate's single plain common name (CN) subject
+and DNS/IP names. Certificates with additional subject attributes or other
+name types are refused before writing any files. It issues a new certificate
+for the same key, supported subject and names, keeps the
 replaced certificate beside the new one, and writes a device file carrying the
 new certificate and the unchanged token. `--device-config` must name a new
 file outside Git; `--days` defaults to 30 and may not exceed 397. It needs
 `openssl` (LibreSSL works) on the host and prints no secrets.
+Renewal preserves the existing private key and its access permissions so the
+relay service can continue reading it. Paths are checked through filesystem
+symlinks as well; their destinations must stay outside this checkout.
 
 Renewal is not finished until both ends change. Restart the relay so it serves
 the new certificate
