@@ -43,6 +43,15 @@
           <a href="#notebook">Open Luna's notebook <small>Lists Luna keeps for the household</small></a>
         </nav>
         <p class="entry-note">One small step, at your pace.</p>
+        <details id="clock-settings" class="clock-settings">
+          <summary>Clock screen saver</summary>
+          <p>Show the system clock and date over your Home wallpaper when Home is idle. Touch the screen, move the mouse, or press a key to return.</p>
+          <label class="clock-switch"><input id="clock-enabled" type="checkbox" checked> Show clock when idle</label>
+          <label for="clock-delay">Minutes before the clock appears</label>
+          <input id="clock-delay" type="number" min="1" max="120" step="1" value="5" required aria-describedby="clock-delay-help">
+          <p id="clock-delay-help">Choose 1–120 minutes. Applies on the welcome screen when drawers are closed. Uses this device’s time and time zone. This screen saver does not lock the device or change its sleep settings.</p>
+          <p id="clock-save-status" role="status"></p>
+        </details>
       </section>
       <section id="vault" class="vault" aria-labelledby="vault-heading" hidden>
         <a class="back-link" href="#welcome"><span aria-hidden="true">←</span> Back home</a>
@@ -163,5 +172,13 @@
     </main>
     <footer class="site-footer"><span>Made for a softer landing.</span><span class="footer-star" aria-hidden="true">✧</span><span>At your pace.</span><a id="native-notices" href="./notices.html" hidden>Open-source notices</a></footer>
   </div>
+  <dialog id="clock-screensaver" class="clock-screensaver" aria-label="Clock screen saver" aria-describedby="clock-wake-hint">
+    <div class="clock-face">
+      <p class="eyebrow">LUNA OS HOME</p>
+      <time></time>
+      <p class="clock-date"></p>
+    </div>
+    <p id="clock-wake-hint">Touch the screen, move the mouse, or press a key to return.</p>
+  </dialog>
 </body>
 </html>

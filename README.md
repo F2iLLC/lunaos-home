@@ -48,6 +48,8 @@ An [offline native shell probe](docs/prototypes/native-shell.md) bundles the int
 
 ## Run the starter
 
+The welcome screen shows a clock over the Home wallpaper after five idle minutes. Open **Clock screen saver** on the welcome screen (or in native Luna settings) to choose a delay from 1–120 minutes or turn it off. The preference stays on this device when local storage is available. The clock follows the device’s time, time zone, and regional format. Touch, mouse movement, or a key returns to Home. Drawers, other pages, and active voice replies keep the clock out of the way; wake commands and timer alerts bring Home back. This is an in-app screen saver: the device’s own sleep and lock settings still apply.
+
 Install Node.js 24 or newer. From this repository's directory:
 
 ```sh
