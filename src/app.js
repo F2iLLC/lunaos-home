@@ -3,6 +3,7 @@ import { notebookRequest } from './notebook-client.js';
 import { refreshDraft } from './vault.js';
 import { preserveSaveRoutes } from './draft-storage.js';
 import { mountLunaAvatar } from './luna/avatar.js';
+import { mountClockScreensaver } from './clock-screensaver.js';
 
 preserveSaveRoutes();
 
@@ -41,6 +42,7 @@ function showPage(moveFocus = true) {
 
 window.addEventListener('hashchange', () => showPage());
 showPage(false);
+mountClockScreensaver({ window, document });
 
 document.querySelector('#home-actions-toggle').addEventListener('click', event => {
   const toggle = event.currentTarget;

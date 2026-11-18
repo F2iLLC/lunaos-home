@@ -11,6 +11,7 @@ const routes = new Map([
   ['/styles.css', ['styles.css', 'text/css']],
   ['/fonts/PatrickHand-Regular.ttf', ['fonts/PatrickHand-Regular.ttf', 'font/ttf']],
   ['/app.js', ['app.js', 'text/javascript']],
+  ['/clock-screensaver.js', ['clock-screensaver.js', 'text/javascript']],
   ['/tasks.js', ['tasks.js', 'text/javascript']],
   ['/vault.js', ['vault.js', 'text/javascript']],
   ['/draft-client.js', ['draft-client.js', 'text/javascript']],

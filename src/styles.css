@@ -13,6 +13,27 @@ a { color: inherit; }
 button, input, select { font: inherit; }
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid #fff1cb; outline-offset: 6px; }
+.clock-settings { max-width: 460px; margin: 28px auto 0; text-align: left; color: #eee0ec; font-size: 14px; line-height: 1.6; }
+.clock-settings summary { width: fit-content; margin: auto; padding: 12px; cursor: pointer; }
+.clock-settings[open] { padding: 18px; border: 1px solid #a69ab04a; border-radius: 20px; background: #292e4be8; }
+.clock-settings label { display: block; margin-top: 16px; }
+.clock-settings .clock-switch { display: flex; align-items: center; gap: 10px; }
+.clock-settings input[type="checkbox"] { width: 22px; height: 22px; margin: 0; }
+.clock-settings input[type="number"] { display: block; width: 100%; min-height: 44px; margin-top: 8px; padding: 10px; border: 1px solid #a69ab0; border-radius: 10px; color: #fff5ef; background: #222740; }
+.clock-screensaver { position: fixed; inset: 0; width: 100%; max-width: none; height: 100%; height: 100dvh; max-height: none; margin: 0; padding: 24px; border: 0; color: #fff5ef; background: #303451; overflow: hidden; cursor: default; }
+.clock-screensaver[open] { display: grid; place-content: center; text-align: center; }
+.clock-screensaver::backdrop { background: #303451; }
+.clock-screensaver .landscape { position: absolute; }
+.clock-face { position: relative; text-shadow: 0 2px 30px #252e4a66; animation: clock-drift 180s ease-in-out infinite alternate; }
+.clock-face .eyebrow { margin: 0 0 24px; letter-spacing: .35em; }
+.clock-face time { display: block; font-size: clamp(44px, 15vw, 200px); font-weight: 250; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.055em; white-space: nowrap; }
+.clock-date { margin: 20px 0; font-size: clamp(17px, 3vw, 30px); font-weight: 350; }
+#clock-wake-hint { position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 24px; right: 24px; color: #fff5ef; font-size: 12px; }
+.clock-asleep { overflow: hidden; }
+.clock-asleep .shell { visibility: hidden; }
+.clock-asleep .luna2, .clock-asleep .luna2 * { animation-play-state: paused !important; }
+@keyframes clock-drift { from { transform: translate(-2vw, -2vh); } to { transform: translate(2vw, 2vh); } }
+@media (prefers-reduced-motion: reduce) { .clock-face { animation: none; } }
 h1:focus { outline: none; }
 .landscape { position: fixed; inset: 0; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, #252e4a 0%, #4d4a70 43%, #967b9b 75%, #e7aeaa 100%); }
 .horizon { position: absolute; inset: 35% -10% -20%; background: radial-gradient(ellipse at 50% 100%, #f5beb57a, transparent 65%); }
