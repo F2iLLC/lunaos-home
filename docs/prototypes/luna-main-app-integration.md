@@ -245,6 +245,40 @@ address: the bind fails, the relay exits, and launchd retries. The relay logs
 one readiness line and never question text, speech or secrets. Remove the
 agent with `launchctl bootout gui/$(id -u)/io.lunaos.home.question-relay`.
 
+### Renewing the relay certificate
+
+The relay certificate is self-signed and short-lived, and the Home app trusts
+exactly the certificate text in its private `question-relay.json`. When the
+certificate expires Luna answers no questions; local timers keep working. On
+the relay host, see how long it has left:
+
+```
+node scripts/renew-spoken-question-relay-cert.mjs check /private/path/host.json
+```
+
+It prints the expiry and fingerprint and exits 2 when fewer than 14 days
+remain (`--warn-days` changes that). To renew, on the relay host:
+
+```
+node scripts/renew-spoken-question-relay-cert.mjs renew /private/path/host.json \
+  --device-config /private/path/question-relay.next.json --days 90
+```
+
+This issues a new certificate for the same key, subject and names, keeps the
+replaced certificate beside the new one, and writes a device file carrying the
+new certificate and the unchanged token. `--device-config` must name a new
+file outside Git; `--days` defaults to 30 and may not exceed 397. It needs
+`openssl` (LibreSSL works) on the host and prints no secrets.
+
+Renewal is not finished until both ends change. Restart the relay so it serves
+the new certificate
+(`launchctl kickstart -k gui/$(id -u)/io.lunaos.home.question-relay`), then
+install the device file as the Home app's private `question-relay.json`. Luna
+cannot reach the relay between those two steps, so do them together. The app
+reads the file for each question; it does not need reinstalling. If the device
+step fails, copy the kept certificate back over the new one and restart the
+relay to return to the previous state until it expires.
+
 The relay asks Ollama to keep the Qwen model loaded for 30 minutes after each
 question. Without that, Ollama unloads the model after five idle minutes and
 the next spoken question waits several seconds for a cold start (observed on
