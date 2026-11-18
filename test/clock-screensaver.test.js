@@ -126,3 +126,64 @@ test('settings restore and save the device preference, validate input and tolera
   assert.match(blocked.status.textContent, /Set for this visit/);
   blocked.controller.dispose();
 });
+
+test('the waking tap never reaches a control behind the clock', () => {
+  const h = harness();
+  const reached = [];
+  for (const type of ['pointerdown', 'pointerup', 'click']) h.window.addEventListener(type, () => reached.push(type));
+  h.advance(60_000); assert.equal(h.visible, true);
+  for (const type of ['pointerdown', 'pointerup', 'click']) h.activity(type);
+  assert.deepEqual(reached, [], 'the waking pointer sequence stops at the clock');
+  assert.equal(h.visible, false);
+  h.controller.dispose();
+});
+
+test('mounted clock is blocked by other pages, open settings on Home, drawers and voice activity', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const voice = '#welcome .luna2[data-state="listening"], #welcome .luna2[data-state="thinking"], #welcome .luna2[data-state="talking"], #welcome .luna2[data-state="working"]';
+  const mount = ({ native = false } = {}) => {
+    const window = new EventTarget(), document = new EventTarget();
+    document.hidden = false; document.body = { classList: { add() {}, remove() {} } };
+    window.localStorage = { getItem: () => '1', setItem() {} };
+    const page = { welcome: { hidden: false }, drawer: null, commandReady: null, voice: null };
+    const settings = new EventTarget();
+    settings.open = false;
+    settings.querySelector = () => new EventTarget();
+    settings.closest = selector => (selector === '#welcome' && !native ? page.welcome : null);
+    const dialog = new EventTarget();
+    Object.assign(dialog, { shown: false, prepend() {}, querySelector: () => ({}),
+      showModal() { this.shown = true; }, close() { this.shown = false; } });
+    document.querySelector = selector => ({ '#clock-settings': settings, '#clock-screensaver': dialog,
+      '#luna .luna-panel': native ? { append() {} } : null, '.landscape': { cloneNode: () => ({}) },
+      '#welcome': page.welcome, 'dialog[open]:not(#clock-screensaver)': page.drawer,
+      '#home-luna[data-command-ready="true"]': page.commandReady, [voice]: page.voice })[selector] ?? null;
+    const controller = mountClockScreensaver({ window, document });
+    const idle = () => { controller.wake(); t.mock.timers.tick(60_000); return dialog.shown; };
+    return { page, settings, dialog, controller, idle };
+  };
+  const browser = mount();
+  assert.equal(browser.idle(), true, 'idle Home shows the clock');
+  for (const [name, block, clear] of [
+    ['another page', p => { p.page.welcome.hidden = true; }, p => { p.page.welcome.hidden = false; }],
+    ['open settings on Home', p => { p.settings.open = true; }, p => { p.settings.open = false; }],
+    ['an open drawer', p => { p.page.drawer = {}; }, p => { p.page.drawer = null; }],
+    ['a ready command window', p => { p.page.commandReady = {}; }, p => { p.page.commandReady = null; }],
+    ['voice activity', p => { p.page.voice = {}; }, p => { p.page.voice = null; }],
+  ]) {
+    block(browser);
+    assert.equal(browser.idle(), false, `${name} blocks the clock`);
+    clear(browser);
+    assert.equal(browser.idle(), true, `the clock returns after ${name}`);
+    block(browser); t.mock.timers.tick(1_000);
+    assert.equal(browser.dialog.shown, false, `${name} wakes a visible clock`);
+    clear(browser);
+  }
+  browser.controller.dispose();
+  // Native Settings is its own page: its controls are visible only while Home is hidden.
+  const native = mount({ native: true });
+  native.settings.open = true; native.page.welcome.hidden = true;
+  assert.equal(native.idle(), false, 'open native settings cannot be covered');
+  native.page.welcome.hidden = false;
+  assert.equal(native.idle(), true, 'a section left open in Settings does not disable the clock on Home');
+  native.controller.dispose();
+});
