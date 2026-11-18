@@ -7,6 +7,11 @@ pub struct LunaSnapshot {
     pub status: String,
     pub reason: String,
     pub capture_phase: String,
+    pub wake_event: Option<u64>,
+    pub active_assistant: Option<String>,
+    pub transcript_final: Option<bool>,
+    pub command_speech_active: Option<bool>,
+    pub command_error: Option<String>,
     pub notebook_animation: Option<String>,
     pub notebook_list_id: Option<String>,
     pub notebook_event: Option<u64>,
@@ -113,6 +118,12 @@ pub async fn get_luna_snapshot<R: Runtime>(
     }
     state.0.run_mobile_plugin_async::<LunaSnapshot>("lunaSnapshot", ()).await
         .map_err(|_| "Home voice status unavailable".into())
+}
+
+#[tauri::command]
+pub async fn summon_luna<R: Runtime>(window: tauri::WebviewWindow<R>, state: tauri::State<'_, Vault<R>>) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the local main window may summon Luna".into()); }
+    state.0.run_mobile_plugin_async::<()>("summonLuna", ()).await.map_err(|_| "Could not start a Luna command".into())
 }
 
 #[tauri::command]

@@ -34,6 +34,11 @@ class HomeVaultPlugin(private val activity: Activity) : Plugin(activity) {
         catch (_: Exception) { invoke.reject("Home voice status unavailable.") }
     }
 
+    @Command fun summonLuna(invoke: Invoke) {
+        try { HomeLunaBridge.summon(activity); invoke.resolve() }
+        catch (_: Exception) { invoke.reject("Could not listen. Allow microphone access and check the Mac relay.") }
+    }
+
     @Command fun enableLunaWake(invoke: Invoke) {
         try { HomeLunaBridge.enable(activity); invoke.resolve() }
         catch (_: Exception) { invoke.reject("Could not enable listening. Allow microphone access and check that the local model is installed.") }

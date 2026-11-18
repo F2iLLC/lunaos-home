@@ -70,6 +70,31 @@ public final class WakeServiceProbe {
   ProbeCapture.blocked=false;starts=ProbeCapture.starts;question.finish();Handler.advance(1000);check(ProbeCapture.starts==starts);s.onDestroy();
   s=enable();first=ProbeCapture.last;QuestionReply.enabled=false;first.busy=false;
   first.listener.finished("QUESTION_FINAL","why is the sky blue",0,SystemClock.now+10000,false);check(!BackgroundWakeService.running);s.onDestroy();QuestionReply.enabled=true;
+  // A tap with wake listening off opens one bounded command and never enables wake listening.
+  BackgroundWakeService.listeningRequested=false;
+  s=new BackgroundWakeService();
+  s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.SUMMON),0,1);
+  check(BackgroundWakeService.running && !BackgroundWakeService.listeningRequested && ProbeCapture.last.followUp);
+  ProbeCapture.last.finish("COMMAND_WINDOW_EXPIRED",0,false);
+  check(!BackgroundWakeService.running && !BackgroundWakeService.listeningRequested); s.onDestroy();
+  s=new BackgroundWakeService();
+  s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.SUMMON),0,1);
+  ProbeCapture.last.finish("COMMAND_MATCH",60,false);
+  check(BackgroundWakeService.running); SpokenReply.last.finish();
+  check(!BackgroundWakeService.running && !BackgroundWakeService.listeningRequested); s.onDestroy();
+  s=new BackgroundWakeService();
+  s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.SUMMON),0,1);
+  s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.START),0,2);
+  ProbeCapture.last.finish("COMMAND_WINDOW_EXPIRED",0,false); Handler.advance(750);
+  check(BackgroundWakeService.running && BackgroundWakeService.listeningRequested); disable(s);
+  // With wake listening on, a summon replaces only the waiting capture, ignores stale callbacks.
+  s=enable(); first=ProbeCapture.last;
+  s.onStartCommand(new Intent(s,BackgroundWakeService.class).setAction(BackgroundWakeService.SUMMON),0,2);
+  check(first.stopped && BackgroundWakeService.listeningRequested);
+  first.finish("COMMAND_MATCH",120,true); Handler.advance(100);
+  check(ProbeCapture.last!=first && ProbeCapture.last.followUp);
+  ProbeCapture.last.finish("COMMAND_WINDOW_EXPIRED",0,false); Handler.advance(750);
+  check(BackgroundWakeService.running && !ProbeCapture.last.followUp); disable(s);
   System.out.println("Wake service lifecycle checks passed ("+checks+" cases).");
  }
 }

@@ -497,3 +497,51 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 @media(prefers-reduced-motion:reduce) { .assistant-drawer,.assistant-drawer * { animation:none!important; transition:none!important; } }
 .assistant-drawer h2:focus { outline:none; }
 @media(min-width:700px) { .assistant-drawer[data-character="liam"] .notebook-popup-label { font-size:9px; letter-spacing:2px; } }
+
+/* An ambient home display; the companion and notebook appear for an exchange. */
+body:has(.home-display) { color-scheme:light; }
+body:has(.home-display) .landscape { background:linear-gradient(125deg,#f6eee8 0%,#eae6f4 52%,#e0e9e9 100%); }
+body:has(.home-display) .landscape > * { opacity:.15; }
+body:has(.home-display) .site-header,body:has(.home-display) .site-footer { color:#555269; }
+body:has(.home-display) .header-note { color:#777185; }
+.welcome[data-native-home="true"] { width:min(1200px,92%); padding:12px 0 90px; color:#37334a; }
+.welcome[data-native-home="true"] > :is(.eyebrow,h1,.intro,.entry-note,#home-actions-toggle,#home-actions) { display:none; }
+.home-display { display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:20px; text-align:left; }
+.display-clock { grid-column:1; grid-row:1 / 3; padding:30px 20px; }
+#home-date { font-size:clamp(14px,1.8vw,21px); color:#777185; margin:0 0 15px; }
+#home-clock { font-size:clamp(45px,6.5vw,90px); font-weight:300; letter-spacing:-.07em; white-space:nowrap; }
+.display-greeting { font-size:17px; color:#777185; margin:18px 0 40px; }
+.display-weather { display:flex; gap:16px; align-items:center; color:#665b72; }
+.display-weather > span { font-size:45px; color:#c09149; }
+.display-weather small { display:block; margin-top:7px; font-size:12px; color:#817989; }
+.display-card { border:1px solid #ffffffb3; border-radius:26px; background:#fffdfac9; padding:24px; box-shadow:0 12px 32px #4f3c6810; text-decoration:none; }
+.display-card h2 { font-size:clamp(20px,2.5vw,30px); font-weight:450; letter-spacing:-.025em; margin:12px 0; }
+.display-card p:not(.display-label) { font-size:14px; line-height:1.65; color:#7a7382; max-width:38ch; }
+.display-label { font-size:10px; font-weight:650; letter-spacing:.17em; color:#82768e; }
+.display-card-icon { float:right; font-size:27px; color:#a58ab3; }
+.display-day { grid-column:2 / 4; min-height:235px; }
+.display-card a,.display-card > span:last-child,.display-card button { color:#745a8a; font-weight:550; font-size:13px; }
+.display-day a { display:inline-block; margin-top:18px; text-decoration:none; }
+.display-notes { background:#f9f3e6cc; }.display-music { background:#e7e0f4cc; }
+.display-card button { background:#ffffff94; border:0; border-radius:30px; padding:12px 18px; cursor:pointer; }
+.home-display .luna-timer-section { grid-column:2 / 4; color:#484057; }
+.welcome[data-native-home="true"] .home-luna-face { position:fixed; left:30px; bottom:22px; z-index:3; width:58px; height:58px; margin:0; border:1px solid #ffffffbf; border-radius:50%; background:#766287; box-shadow:0 5px 25px #66537230; }
+.welcome[data-native-home="true"] .home-luna-face::before { content:'✦'; color:#fff6df; font-size:30px; }
+.welcome[data-native-home="true"] .home-luna-avatar-host { display:none; }
+.welcome[data-native-home="true"] #home-luna-state,.welcome[data-native-home="true"] #home-luna[data-command-ready="true"] #home-luna-state { position:fixed; bottom:35px; left:102px; width:auto; max-width:calc(100vw - 180px); transform:none; text-align:left; color:#756b80; font-size:12px; margin:0; }
+.welcome[data-native-home="true"] #home-luna-heard { display:none; }
+body:has(.home-display) .settings-gear { color:#766783; }
+body:has(.home-display):has(.assistant-drawer[open]) .home-display { opacity:.2; filter:blur(3px); pointer-events:none; }
+body:has(.home-display):has(.assistant-drawer[open]) .home-luna-face { left:34px; bottom:74px; background:none; border:0; box-shadow:none; width:auto; height:auto; pointer-events:none; }
+body:has(.home-display):has(.assistant-drawer[open]) .home-luna-face::before { display:none; }
+body:has(.home-display):has(.assistant-drawer[open]) .home-luna-avatar-host { display:block; }
+body:has(.home-display):has(.assistant-drawer[open]) #home-luna-state { left:20px; bottom:25px; max-width:260px; }
+@media(max-width:750px) {
+  .home-display { grid-template-columns:1fr 1fr; gap:12px; }
+  .display-clock { grid-column:1 / 3; grid-row:auto; padding:10px; }
+  .display-greeting { margin:10px 0 18px; }.display-weather { margin:12px 0; }
+  .display-day { grid-column:1 / 3; min-height:185px; }.display-card { padding:20px; border-radius:22px; }
+  .home-display .luna-timer-section { grid-column:1 / 3; }
+  body:has(.home-display):has(.assistant-drawer[open]) .home-luna-face { left:15px; bottom:auto; top:55px; }
+  body:has(.home-display):has(.assistant-drawer[open]) #home-luna-state { left:115px; top:90px; bottom:auto; max-width:calc(100vw - 145px); }
+}

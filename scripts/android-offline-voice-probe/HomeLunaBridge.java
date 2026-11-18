@@ -39,7 +39,7 @@ public final class HomeLunaBridge {
             boolean locked = ((KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE)).isDeviceLocked();
             boolean muted = ((AudioManager) context.getSystemService(Context.AUDIO_SERVICE)).isMicrophoneMute();
             String listeningStatus = !permission ? "permission" : locked ? "locked" : muted ? "muted"
-                : !listeningRequested ? "disabled" : BackgroundWakeService.running ? "enabled" : "disconnected";
+                : BackgroundWakeService.running ? "enabled" : !listeningRequested ? "disabled" : "disconnected";
             JSONArray timers = new JSONArray();
             TimerLedger ledger = NativeTimers.read(context);
             long now = SystemClock.elapsedRealtime();
@@ -105,6 +105,16 @@ public final class HomeLunaBridge {
         if (ProbeCapture.blocked(activity)) throw new IllegalStateException("Unlock, unmute and allow microphone access first");
         BackgroundWakeService.listeningRequested = true;
         activity.startForegroundService(new Intent(activity, BackgroundWakeService.class).setAction(BackgroundWakeService.START));
+    }
+
+    public static void summon(Activity activity) throws Exception {
+        if (!debugApiAvailable(activity)) throw new IllegalStateException("Debug Android API 26+ required");
+        if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestMicrophone(activity);
+            throw new IllegalStateException("Allow microphone access, then tap Luna again");
+        }
+        if (!modelAvailable(activity) || ProbeCapture.blocked(activity)) throw new IllegalStateException("Check the Mac relay, microphone and device lock");
+        activity.startForegroundService(new Intent(activity, BackgroundWakeService.class).setAction(BackgroundWakeService.SUMMON));
     }
 
     public static void disable(Context context) { BackgroundWakeService.revoke(context); }

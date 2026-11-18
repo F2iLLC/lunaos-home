@@ -188,7 +188,7 @@ test('Luna status polling follows visible route and document state at five-secon
   assert.equal(refreshButton.disabled, false, 'manual refresh re-enables its button after completion');
 });
 
-test('pressing Luna keeps the avatar idle while wake-word listening is enabled', async () => {
+test('tapping Luna summons a command without toggling wake-word listening', async () => {
   const harness = createHarness();
   await harness.start();
   const avatarHost = harness.document.querySelector('#welcome-luna');
@@ -198,7 +198,7 @@ test('pressing Luna keeps the avatar idle while wake-word listening is enabled',
   assert.equal(harness.document.querySelector('#welcome').dataset.nativeHome, 'true', 'native Home can use its compact landscape layout');
   harness.resolveSnapshot();
   await harness.flush();
-  assert.equal(face.attributes['aria-pressed'], 'false');
+  assert.equal(face.attributes['aria-haspopup'], 'dialog');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
 
   Object.assign(harness.state, { capturePhase: 'waiting', listeningStatus: 'enabled', listeningEnabled: true });
@@ -207,7 +207,7 @@ test('pressing Luna keeps the avatar idle while wake-word listening is enabled',
   await harness.untilSnapshotRequested();
   harness.resolveSnapshot();
   await waking;
-  assert.equal(face.attributes['aria-pressed'], 'true');
+  assert.equal(face.attributes['aria-haspopup'], 'dialog');
   assert.equal(face.children[0].querySelector('svg').dataset.state, 'idle');
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [1000]);
 
@@ -216,10 +216,10 @@ test('pressing Luna keeps the avatar idle while wake-word listening is enabled',
   await harness.untilSnapshotRequested();
   harness.resolveSnapshot();
   await sleeping;
-  assert.equal(face.attributes['aria-pressed'], 'false');
+  assert.equal(face.attributes['aria-haspopup'], 'dialog');
   assert.equal(face.disabled, false);
   assert.deepEqual([...harness.timers.values()].map(timer => timer.delay), [5000]);
-  assert.deepEqual(harness.calls.filter(command => /enable|disable/.test(command)), ['enable_luna_wake', 'disable_luna_wake']);
+  assert.deepEqual(harness.calls.filter(command => /summon|enable|disable/.test(command)), ['summon_luna', 'summon_luna']);
 });
 
 test('Luna stays awake, without her sleep mask, while she thinks or resets between requests', async () => {
@@ -231,7 +231,7 @@ test('Luna stays awake, without her sleep mask, while she thinks or resets betwe
     harness.resolveSnapshot();
     await harness.flush();
     assert.equal(face.children[0].querySelector('svg').dataset.state, shown);
-    assert.equal(face.attributes['aria-pressed'], phase === 'off' ? 'false' : 'true');
+    assert.equal(face.attributes['aria-haspopup'], 'dialog');
     if (phase !== 'off') { const [timer] = harness.timers.values(); harness.timers.clear(); timer.callback(); await harness.flush(); }
   }
 });
