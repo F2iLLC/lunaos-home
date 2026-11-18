@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer, request } from "node:https";
@@ -27,7 +30,11 @@ const TOKEN = "ab".repeat(32);
 // A disposable relay host directory: P-256 key, one-day certificate, host.json.
 function relayHost(
   t,
-  { san = "DNS:localhost,IP:127.0.0.1,IP:100.64.0.7", authority = true } = {},
+  {
+    san = "DNS:localhost,IP:127.0.0.1,IP:100.64.0.7",
+    authority = true,
+    subject = "/CN=localhost",
+  } = {},
 ) {
   const dir = mkdtempSync(path.join(tmpdir(), "home-relay-cert-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -42,13 +49,13 @@ function relayHost(
         "ec",
         "-pkeyopt",
         "ec_paramgen_curve:prime256v1",
-        "-noenc",
+        "-nodes",
         "-keyout",
         key,
         "-out",
         cert,
         "-subj",
-        "/CN=localhost",
+        subject,
         "-days",
         "1",
         "-addext",
@@ -119,6 +126,8 @@ test("renewal keeps key, names and token, and the device file trusts the new cer
   const host = relayHost(t);
   const before = readFileSync(host.file("relay-cert.pem"), "utf8");
   const keyBefore = readFileSync(host.file("relay-key.pem"), "utf8");
+  if (process.platform !== "win32") chmodSync(host.file("relay-key.pem"), 0o640);
+  const keyModeBefore = statSync(host.file("relay-key.pem")).mode;
   const result = await renewRelayCertificate({
     configPath: host.configPath,
     deviceConfigPath: host.deviceConfigPath,
@@ -129,6 +138,7 @@ test("renewal keeps key, names and token, and the device file trusts the new cer
   const after = readFileSync(host.file("relay-cert.pem"), "utf8");
   assert.notEqual(after, before);
   assert.equal(readFileSync(host.file("relay-key.pem"), "utf8"), keyBefore);
+  assert.equal(statSync(host.file("relay-key.pem")).mode, keyModeBefore);
   assert.equal(readFileSync(result.backup, "utf8"), before);
   assert.deepEqual(result.current.names, result.previous.names);
   assert.ok(
@@ -222,3 +232,80 @@ for (const authority of [true, false]) {
     assert.equal(result.current.authority, authority);
   });
 }
+
+test("private configuration paths cannot enter Git through a directory symlink", async (t) => {
+  const host = relayHost(t);
+  const root = path.resolve(import.meta.dirname, "..");
+  const alias = host.file("checkout");
+  symlinkSync(root, alias, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(
+    checkRelayCertificate({ configPath: path.join(alias, "package.json") }),
+    /outside Git/,
+  );
+  const deviceConfigPath = path.join(alias, `relay-regression-${path.basename(host.dir)}.json`);
+  const before = readFileSync(host.file("relay-cert.pem"));
+  await assert.rejects(
+    renewRelayCertificate({ configPath: host.configPath, deviceConfigPath, openssl }),
+    /outside Git/,
+  );
+  assert.equal(existsSync(deviceConfigPath), false);
+  assert.deepEqual(readFileSync(host.file("relay-cert.pem")), before);
+  assert.equal(readdirSync(host.dir).some(name => name.startsWith(".relay-renew-")), false);
+
+  // Configured certificate/key inputs must obey the same canonical-path rule.
+  for (const field of ["cert", "key"]) {
+    writeFileSync(host.configPath, JSON.stringify({
+      token: TOKEN,
+      cert: host.file("relay-cert.pem"),
+      key: host.file("relay-key.pem"),
+      [field]: path.join(alias, "package.json"),
+    }));
+    await assert.rejects(checkRelayCertificate({ configPath: host.configPath }), /outside Git/);
+  }
+});
+
+test("unsupported subjects are refused before renewal writes any files", async (t) => {
+  const host = relayHost(t, { subject: "/O=Example household/CN=localhost" });
+  const before = readFileSync(host.file("relay-cert.pem"));
+  await assert.rejects(
+    renewRelayCertificate({ ...host, openssl }),
+    /single plain common name/,
+  );
+  assert.deepEqual(readFileSync(host.file("relay-cert.pem")), before);
+  assert.equal(existsSync(host.deviceConfigPath), false);
+  assert.equal(readdirSync(host.dir).some(name => name.startsWith(".relay-renew-")), false);
+});
+
+test("a backup collision rolls back the newly written device file", async (t) => {
+  const host = relayHost(t);
+  const now = Date.now();
+  const before = readFileSync(host.file("relay-cert.pem"));
+  const backup = `${host.file("relay-cert.pem")}.replaced-${new Date(now).toISOString().replace(/[-:]|\..*/g, "")}`;
+  writeFileSync(backup, "existing backup");
+  await assert.rejects(renewRelayCertificate({ ...host, now, openssl }), { code: "EEXIST" });
+  assert.equal(readFileSync(backup, "utf8"), "existing backup");
+  assert.deepEqual(readFileSync(host.file("relay-cert.pem")), before);
+  assert.equal(existsSync(host.deviceConfigPath), false);
+  assert.equal(readdirSync(host.dir).some(name => name.startsWith(".relay-renew-")), false);
+});
+
+test("check CLI warns only below its configured threshold", async (t) => {
+  const host = relayHost(t);
+  // A one-day certificate has zero whole days remaining during this test.
+  // Negative thresholds are intentionally invalid, so use renewed certificates
+  // for the above/equal/below boundary cases.
+  await renewRelayCertificate({ ...host, days: 30, openssl });
+  const { daysRemaining } = await checkRelayCertificate(host);
+  for (const offset of [-1, 0, 1]) {
+    const result = spawnSync(process.execPath, [
+      "scripts/renew-spoken-question-relay-cert.mjs", "check", host.configPath,
+      "--warn-days", String(daysRemaining + offset),
+    ], { cwd: path.resolve(import.meta.dirname, ".."), encoding: "utf8" });
+    assert.ifError(result.error);
+    assert.equal(result.status, offset > 0 ? 2 : 0, result.stderr);
+    assert.match(result.stdout, /Relay certificate: expires .*SHA-256/);
+    assert.equal(result.stderr.includes("due for renewal"), offset > 0);
+    assert.equal((result.stdout + result.stderr).includes(TOKEN), false);
+    assert.equal((result.stdout + result.stderr).includes("BEGIN CERTIFICATE"), false);
+  }
+});
