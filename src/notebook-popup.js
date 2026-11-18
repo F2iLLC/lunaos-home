@@ -4,7 +4,7 @@ import { calculate, expressionFromSpeech } from './calculator.js';
 import { drawerIcon, drawerDecorations, displaySticker } from './drawer-art.js';
 
 // One drawer, fed by the existing voice snapshot. Dismissal never changes voice state.
-export function createNotebookPopup({ request = notebookRequest, character = 'luna', onCharacter = () => {} } = {}) {
+export function createNotebookPopup({ request = notebookRequest, character = 'luna', onCharacter = () => {}, now = () => Date.now(), idleMs = 15000 } = {}) {
   const page = document.createElement('dialog');
   page.id = 'notebook-popup'; page.className = 'notebook-popup assistant-drawer';
   page.setAttribute('aria-labelledby', 'notebook-popup-title');
@@ -35,6 +35,7 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
   document.body.append(page);
   const $ = selector => page.querySelector(selector);
   const handle = $('.notebook-popup-handle'), transcript = $('.drawer-transcript'), result = $('.drawer-result');
+  let idleSince, oneShot = false;
   let generation = 0, event, wakeEvent, previousPhase, sessionActive = false, dismissed = false, manual = false;
   let dragStart = null, dragged = false, lastVoiceCalculation;
   const text = (selector, value) => { const node = $(selector); if (node.textContent !== value) node.textContent = value; };
@@ -48,8 +49,9 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
     $('.drawer-calculator').hidden = character !== 'liam';
   }
   function setExpanded(value) { page.dataset.expanded = String(value); handle.setAttribute('aria-expanded', String(value)); handle.setAttribute('aria-label', value ? 'Collapse drawer' : 'Expand drawer'); }
-  function close() { manual = false; dismissed = true; generation++; setExpanded(false); if (page.open) page.close(); }
+  function close() { idleSince = undefined; manual = false; dismissed = true; generation++; setExpanded(false); if (page.open) page.close(); }
   function open() { if (!page.open && !dismissed) { setExpanded(false); page.showModal(); $('h2').focus({ preventScroll:true }); } }
+  for (const kind of ['pointerdown', 'keydown', 'input', 'scroll']) page.addEventListener(kind, () => { idleSince = now(); });
   $('.notebook-popup-close').addEventListener('click', close);
   page.addEventListener('cancel', e => { e.preventDefault(); close(); });
   page.addEventListener('click', e => { if (e.target !== page) return; const r = page.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close(); });
@@ -128,8 +130,9 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
   }
   setCharacter(character);
   return { element: page, setCharacter, close,
+    showError(message) { text('.drawer-phase', 'Could not start listening'); text('.drawer-working', message); },
     open() {
-      dismissed = false; manual = true;
+      dismissed = false; manual = true; idleSince = now();
       if (!sessionActive) { text('.drawer-transcript', 'No speech captured.'); text('.drawer-result', 'No result yet.'); }
       text('.drawer-working', 'Ready for your notes or calculation.');
       text('.drawer-phase', 'Opened manually');
@@ -137,6 +140,14 @@ export function createNotebookPopup({ request = notebookRequest, character = 'lu
     },
     async update(snapshot) {
       const view = voicePresentation(snapshot);
+      if (snapshot.listeningStatus === 'enabled') oneShot = snapshot.listeningEnabled === false;
+      const resting = view.state === 'idle' || ((oneShot || manual) && ['disabled', 'unavailable'].includes(view.state));
+      if (page.open && resting) {
+        if (idleSince === undefined) idleSince = now();
+        if (now() - idleSince >= idleMs) { close(); return; }
+      } else if (!manual) idleSince = undefined;
+      // A tap-only exchange leaves the reply readable while its microphone turns off.
+      if (oneShot && sessionActive && view.state === 'disabled') return;
       const timerRinging = (snapshot.activeTimers || []).some(timer => Number(timer.remainingSeconds) === 0);
       const blocked = ['disabled', 'unavailable'].includes(view.state) || timerRinging;
       const newWake = snapshot.wakeEvent !== undefined && snapshot.wakeEvent !== wakeEvent;

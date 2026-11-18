@@ -5,6 +5,7 @@ fn main() {
             "get_luna_snapshot",
             "notebook_request",
             "enable_luna_wake",
+            "summon_luna",
             "request_luna_microphone",
             "disable_luna_wake",
             "set_luna_online_answers",

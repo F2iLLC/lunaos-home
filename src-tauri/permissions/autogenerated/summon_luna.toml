@@ -1,0 +1,10 @@
+# Generated command permission for the local main window.
+[[permission]]
+identifier = "allow-summon-luna"
+description = "Listen for one command after a deliberate tap."
+commands.allow = ["summon_luna"]
+
+[[permission]]
+identifier = "deny-summon-luna"
+description = "Deny tap-to-listen."
+commands.deny = ["summon_luna"]

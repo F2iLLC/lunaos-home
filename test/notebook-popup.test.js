@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 const bundle = await build({ entryPoints: ['src/notebook-popup.js'], bundle: true, write: false, format: 'iife', globalName: 'Popup' });
-function harness(request = async () => ({status:'read',notebook:{lists:[]}})) {
+function harness(request = async () => ({status:'read',notebook:{lists:[]}}), options = {}) {
   const node = () => ({ children:[], nodes:new Map(), attrs:{}, handlers:{}, dataset:{}, open:false, value:'', textContent:'',
     setAttribute(k,v){this.attrs[k]=v;},addEventListener(k,v){this.handlers[k]=v;},setPointerCapture(){}, focus(){},
     dispatch(k,e={}){this.handlers[k]?.(e);},click(e={}){this.dispatch('click',e);},append(...v){this.children.push(...v);},replaceChildren(...v){this.children=v;},
@@ -12,7 +12,7 @@ function harness(request = async () => ({status:'read',notebook:{lists:[]}})) {
   });
   const document={body:node(),createElement:node,createElementNS:node,querySelector:()=>node()},location={hash:''};
   const {createNotebookPopup}=new Function('document','location',bundle.outputFiles[0].text+';return Popup;')(document,location);
-  const characters=[];const popup=createNotebookPopup({request,onCharacter:c=>characters.push(c)}),page=document.body.children[0];
+  const characters=[];const popup=createNotebookPopup({...options,request,onCharacter:c=>characters.push(c)}),page=document.body.children[0];
   return {popup,page,$:s=>page.querySelector(s),location,characters};
 }
 const snapshot=(fields={})=>({status:'ready',listeningStatus:'enabled',capturePhase:'waiting',wakeEvent:0,notebookEvent:0,lastHeard:'',replyCaption:'',...fields});
@@ -86,4 +86,29 @@ test('calculator tabs open the editor without asserting a result and keep notebo
   assert.equal(h.location.hash,'#notebook');
   h.popup.setCharacter('luna');
   assert.equal(h.$('.calculator-keys').hidden,true);
+});
+
+test('overlay dismisses after idle, retains active work, and a new summon reopens it', async () => {
+  let now = 0;
+  const h = harness(undefined, { now: () => now });
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'awake'}));
+  now = 30000;
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'response',replyPlaying:true}));
+  assert.equal(h.page.open,true);
+  await h.popup.update(snapshot({wakeEvent:1}));
+  now += 14000; await h.popup.update(snapshot({wakeEvent:1})); assert.equal(h.page.open,true);
+  h.page.dispatch('pointerdown'); now += 14000;
+  await h.popup.update(snapshot({wakeEvent:1})); assert.equal(h.page.open,true);
+  now += 1001; await h.popup.update(snapshot({wakeEvent:1})); assert.equal(h.page.open,false);
+  await h.popup.update(snapshot({wakeEvent:2,capturePhase:'awake'})); assert.equal(h.page.open,true);
+});
+test('tap-only response remains readable after microphone turns off, then idles away', async () => {
+  let now = 0; const h = harness(undefined, {now:()=>now});
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'awake',listeningEnabled:false}));
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'response',listeningEnabled:false,replyCaption:'Saved.'}));
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'off',listeningStatus:'disabled',listeningEnabled:false}));
+  assert.equal(h.page.open,true); assert.equal(h.$('.drawer-result').textContent,'Saved.');
+  now = 15001;
+  await h.popup.update(snapshot({wakeEvent:1,capturePhase:'off',listeningStatus:'disabled',listeningEnabled:false}));
+  assert.equal(h.page.open,false);
 });

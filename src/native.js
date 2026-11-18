@@ -41,13 +41,27 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   gear.setAttribute('aria-label', 'Settings and Luna troubleshooting');
   gear.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4Z" transform="translate(-1 0)" fill="currentColor"/></svg>';
   welcome.append(gear);
-  // Pressing Luna controls wake listening. Her presentation follows the native snapshot.
+  const display = document.createElement('div');
+  display.className = 'home-display';
+  display.innerHTML = `<section class="display-clock" aria-label="Clock"><p id="home-date"></p><time id="home-clock"></time><p class="display-greeting">A little room for your day.</p><div class="display-weather"><span aria-hidden="true">☀</span><div>Weather<small>Weather is not connected yet</small></div></div></section>
+    <section class="display-card display-day"><span class="display-card-icon" aria-hidden="true">▦</span><p class="display-label">COMING UP</p><h2>A little breathing room.</h2><p>Connect a calendar to see what’s next. Calendar is not available yet.</p><a href="#checklist">See today’s checklist <span aria-hidden="true">↗</span></a></section>
+    <a class="display-card display-notes" href="#notebook"><span class="display-card-icon" aria-hidden="true">✎</span><p class="display-label">YOUR NOTEBOOK</p><h2>Every little list.</h2><p>Groceries, plans, and things to remember.</p><span>Open notebook ↗</span></a>
+    <section class="display-card display-music"><span class="display-card-icon" aria-hidden="true">♫</span><p class="display-label">A LITTLE MUSIC</p><h2>Set the mood.</h2><p>Tap Luna and ask to play music on Spotify.</p><button id="display-summon" type="button">Ask Luna <span aria-hidden="true">✦</span></button></section>`;
+  welcome.append(display);
+  const updateClock = () => {
+    const date = new Date();
+    setText(display.querySelector('#home-date'), date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }));
+    setText(display.querySelector('#home-clock'), date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }));
+  };
+  updateClock();
+  const clockInterval = window.setInterval?.(updateClock, 1000);
+  window.addEventListener?.('pagehide', () => clearInterval(clockInterval), { once: true });
+  // A tap requests one command; wake listening remains a separate setting.
   const face = document.createElement('button');
   face.type = 'button';
   face.id = 'home-luna-toggle';
   face.className = 'home-luna-face';
-  face.setAttribute('aria-pressed', 'false');
-  face.setAttribute('aria-label', 'Luna’s voice status is loading. Press to enable Hey Luna listening.');
+  face.setAttribute('aria-label', 'Tap to ask Luna. Voice status is loading.');
   welcomeAvatarHost.className = 'home-luna-avatar-host';
   welcomeAvatarHost.replaceWith(face);
   face.append(welcomeAvatarHost);
@@ -64,24 +78,14 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   face.after(home);
   const homeState = home.querySelector('#home-luna-state');
   const heardText = home.querySelector('#home-luna-heard');
-  let listening = false;
   const showListening = (on, status = on ? 'enabled' : 'disabled', commandReady = false) => {
-    if (listening !== on) {
-      listening = on;
-      face.setAttribute('aria-pressed', on ? 'true' : 'false');
-    }
-    const labels = {
-      enabled: commandReady ? 'Luna heard Hey Luna and is waiting for your command. Press to turn listening off.' : 'Luna is listening for Hey Luna. Press to turn listening off.',
-      disabled: 'Luna is asleep and wake-word listening is disabled. Press to turn it on.',
-      permission: 'Luna cannot listen because microphone permission is unavailable. Press to retry.',
-      muted: 'Luna cannot listen because the microphone is muted. Press to retry.',
-      locked: 'Luna cannot listen while this device is locked. Press to retry.',
-      disconnected: 'Luna’s voice service disconnected. Press to retry listening.',
-      unavailable: 'Luna’s voice service is unavailable. Open settings for details.',
-    };
-    face.setAttribute('aria-label', (labels[status] || labels.unavailable).replaceAll('Luna', character === 'liam' ? 'Liam' : 'Luna'));
+    const statusLabel = ({ enabled: commandReady ? 'Luna is waiting for your command.' : 'Wake-word listening is enabled.', disabled: 'Wake-word listening is disabled.', permission: 'Microphone permission is unavailable.', muted: 'The microphone is muted.', locked: 'The device is locked.', disconnected: 'Voice service disconnected.', unavailable: 'Voice service is unavailable.' })[status] || 'Voice service is unavailable.';
+    face.setAttribute('aria-label', `${statusLabel} Tap to ask ${character === 'liam' ? 'Liam' : 'Luna'}. Listen for one command.`);
+    face.setAttribute('aria-haspopup', 'dialog');
   };
   const homeTimers = home.querySelector('#home-timers');
+  const timers = home.querySelector('#luna-timers');
+  display.append(homeTimers);
   const luna = document.createElement('section');
   luna.id = 'luna';
   luna.className = 'vault';
@@ -89,7 +93,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   luna.innerHTML = `<a class="back-link" href="#welcome">← Back home</a>
     <div class="checklist-intro"><p class="eyebrow">SETTINGS</p>
     <h1 id="luna-heading" tabindex="-1">Luna settings.</h1>
-    <p>Wake listening and Luna timers belong to this Home app. Nothing listens until you turn it on. Use this page when something is not working.</p></div>
+    <p>Wake listening and Luna timers belong to this Home app. Tap Luna for one command, or enable wake-word listening for hands-free use. Use this page when something is not working.</p></div>
     <div class="list-panel luna-panel">
     <h2>Voice</h2>
     <div id="luna-voice" class="luna-voice-choices" role="group" aria-label="Luna’s voice" aria-describedby="luna-voice-help luna-voice-status"></div>
@@ -113,7 +117,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
     <button id="allow-luna-mic" type="button">Allow microphone</button>
     <button id="enable-luna-wake" class="primary-button" type="button">Enable wake-word listening</button>
-    <button id="disable-luna-wake" type="button">Disable listening</button>
+    <button id="disable-luna-wake" type="button">Turn off wake-word listening</button>
     <p>Active timers are on the home page.</p></div>`;
   document.querySelector('main').append(luna);
   const characterChoice = luna.querySelector('#home-character'), outfitChoice = luna.querySelector('#liam-outfit');
@@ -136,7 +140,6 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const onlineAnswers = luna.querySelector('#luna-online-answers');
   const onlineHelp = luna.querySelector('#luna-online-help');
   const refreshState = luna.querySelector('#refresh-luna-state');
-  const timers = home.querySelector('#luna-timers');
   const timerStatus = home.querySelector('#luna-timer-status');
   let timerStatusTimeout;
   let timerStatusClearTimeout;
@@ -241,7 +244,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
           const statusText = { disabled: 'Wake-word listening is disabled. Microphone off.', enabled: phases[snapshot.capturePhase] || 'Microphone is on.', permission: 'Microphone permission is unavailable. Listening is off.', muted: 'Microphone is muted. Listening is paused.', locked: 'Device is locked. Listening is paused.', disconnected: 'Voice service disconnected. Listening is off.', unavailable: 'Voice service is unavailable.' };
           setText(stateText, statusText[snapshot.listeningStatus] || phases[phase]);
           const timerRinging = (snapshot.activeTimers || []).some(timer => Number(timer.remainingSeconds) === 0);
-          const friendly = { off: 'Luna is asleep. The microphone is off. Press to wake.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: commandReady ? 'Speak now. Luna is listening for your command.' : timerRinging ? 'Luna is handling an active timer.' : 'I’m listening…', review: 'Let me think…', response: snapshot.replyPlaying === true ? 'Luna is speaking…' : 'One moment…', retry: 'I didn’t catch that. Say “Hey Luna” to try again.' };
+          const friendly = { off: 'Tap Luna to ask. Wake word is off.', preparing: 'Luna is waking up…', waiting: 'Say “Hey Luna” when you need me.', awake: commandReady ? 'Speak now. Luna is listening for your command.' : timerRinging ? 'Luna is handling an active timer.' : 'I’m listening…', review: 'Let me think…', response: snapshot.replyPlaying === true ? 'Luna is speaking…' : 'One moment…', retry: 'I didn’t catch that. Say “Hey Luna” to try again.' };
           const availabilityText = { permission: 'Microphone permission is unavailable. Open settings to review access.', muted: 'The microphone is muted. Luna is paused.', locked: 'The device is locked. Luna is paused.', disconnected: 'Luna’s voice service disconnected. Open settings to check it.', unavailable: 'Luna’s voice service is unavailable.' };
           setText(homeState, snapshot.listeningStatus === 'disabled' ? friendly.off
             : snapshot.listeningStatus === 'enabled' ? friendly[phase]
@@ -329,18 +332,22 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
   });
   void refreshSnapshot(true);
-  // Turning listening on or off is always the person's own press, on Luna
-  // herself or in settings.
-  face.addEventListener('click', async () => {
-    const stopping = listening;
+  // Summoning never toggles the wake-word preference.
+  const summon = async () => {
     face.disabled = true;
+    notebookPopup.open();
     let failed = false;
-    try { await window.__TAURI__.core.invoke(stopping ? 'disable_luna_wake' : 'enable_luna_wake'); }
+    try { await window.__TAURI__.core.invoke('summon_luna'); }
     catch { failed = true; }
     finally { face.disabled = false; await refreshSnapshot(); }
-    if (failed) homeState.textContent = stopping ? 'Luna could not confirm that listening stopped. Open the gear to check.'
-      : 'Luna could not start listening. Open the gear to allow the microphone.';
-  });
+    if (failed) {
+      const message = 'Could not start listening. Open Settings to allow the microphone and check the Mac relay.';
+      homeState.textContent = message;
+      notebookPopup.showError(message);
+    }
+  };
+  face.addEventListener('click', summon);
+  display.querySelector('#display-summon').addEventListener('click', summon);
   luna.querySelector('#allow-luna-mic').addEventListener('click', async () => {
       try { await window.__TAURI__.core.invoke('request_luna_microphone'); }
       catch { stateText.textContent = 'Could not request microphone access.'; }

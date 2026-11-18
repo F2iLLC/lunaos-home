@@ -323,7 +323,7 @@ final class ProbeCapture {
                     show(wait ? "MICROPHONE ON locally. Waiting for Hey Luna" + (persistent ? " until disabled." : " (up to 5 minutes).") + " Pause after the wake phrase."
                         : "MICROPHONE ON. Say: Hey Luna, set a timer for ten seconds.",
                         wait ? LunaFace.State.WAITING : LunaFace.State.AWAKE);
-                    if (followUp && questions && wake != null) {
+                    if (followUp && wake != null) {
                         wake.beginFollowUp(SystemClock.elapsedRealtime());
                         openCommandWindow(wake, timing, questions);
                     }
