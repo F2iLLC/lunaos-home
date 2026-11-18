@@ -83,3 +83,10 @@ test('a spoken question invites a session-scoped follow-up with bounded question
   await ask('another topic', { 'X-Home-Session': session });
   assert.equal(prompts[3], 'another topic');
 });
+test('with no notebook configured, a list request says so instead of pointing at the screen', async t => {
+  const {ask,calls}=await relay(t);const response=await ask('start a shopping list');
+  assert.equal(response.status,200);
+  assert.equal(calls.length,1,'the hosted model is not asked');
+  assert.equal(calls[0].text,'My notebook is unavailable right now.');
+  assert.equal(Buffer.from(response.headers.get('x-home-reply-text'),'base64').toString('utf8'),'My notebook is unavailable right now.');
+});
