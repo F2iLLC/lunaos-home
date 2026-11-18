@@ -55,7 +55,9 @@ public final class MusicRoutingProbe {
         for (int group = 0; group < groups.length; group++) {
             for (String phrase : groups[group]) {
                 for (String spoken : new String[] {phrase, phrase.toUpperCase(java.util.Locale.ROOT), phrase + ".",
-                    "hey luna " + phrase, "Hey Luna, " + phrase + "?", "Hey Liam, " + phrase + "?", phrase + " please"})
+                    "hey luna " + phrase, "Hey Luna, " + phrase + "?", "Hey Liam, " + phrase + "?", phrase + " please",
+                    "can you " + phrase + "?", "Hey Luna, could you please " + phrase + " for me?", "please " + phrase,
+                    "would you " + phrase + " for me please", "will you " + phrase})
                     check(!QuestionPolicy.accepts(spoken), "a music phrase is not a question: " + spoken);
                 WakeSession wake = awake();
                 check(!wake.acceptQuestion(phrase, 2000), "not sent on after the wake phrase: " + phrase);
@@ -144,7 +146,8 @@ public final class MusicRoutingProbe {
             "next", "previous", "the music", "play music trivia with me", "last song the beatles recorded",
             "next song on the practice list", "play the next song on my road trip list", "play a song about dragons",
             "add play music to my to do list", "start a music list",
-            "play a game with me", "who wrote the first song", "is it safe to play outside today",
+            "play a game with me", "who wrote the first song", "can you play a game with me",
+            "can you play music trivia with me", "can you tell me what music is", "please tell me a story", "is it safe to play outside today",
             "add milk to the grocery list", "add bananas too", "create a list of movies to watch", "start a packing list",
             "mark laundry as done", "yes", "no"}) {
             check(QuestionPolicy.accepts(text), "ordinary question accepted: " + text);

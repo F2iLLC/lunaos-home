@@ -20,9 +20,14 @@ repeated `Hey Luna` and a trailing `please` are ignored, as they are for timers.
 
 The list is exact. Nothing is guessed or repaired into a music command:
 `play music tomorrow`, `don't play music`, `stop the music in five minutes`,
-`next song twice` and `play song` press no button and start no timer. A polite
-opening is not understood in this rung either: `please play music` is not a
-music command, though `play music please` is.
+`next song twice` and `play song` press no button and start no timer.
+
+A phrase from the table may be asked for rather than said flat. One opening,
+`can you`, `could you`, `would you`, `will you` or `please` (or `can you
+please`), and a trailing `for me`, are set aside before the table is checked:
+`can you play music?`, `please skip` and `could you pause the music for me`
+are music commands. What is left must still be a whole phrase from the table:
+`can you play jazz` and `can you play music tomorrow` are not.
 
 Wording that is not on the list is treated like any other speech. If online
 answers are on, it may be sent on as a question and answered. Only the exact
@@ -154,6 +159,9 @@ do not show that Android delivers it or that Spotify acts on it.
 
 `node --test test/android-music-routing.test.js`:
 
+- a table phrase asked for with one of the openings above parses to the same
+  action and is never a question; bare timer words asked for the same way stay
+  timer words;
 - every phrase in the table parses to its action, and every phrase offered to
   the recognizer parses back to an action;
 - wording outside the list is no music action and no timer, and timer words
@@ -227,6 +235,5 @@ automated, installed, audible and owner-confirmed evidence separately.
 - Spotify only, on the same device. No other player, speaker or account.
 - No playing by name: no song, artist, album or playlist requests.
 - Bare `stop` and `pause` never mean the music.
-- Polite openings such as `please play music` are not understood.
 - No now-playing display, no volume control, no spoken confirmation.
 - No Spotify Web API or Connect, and no stored sign-in.
