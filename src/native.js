@@ -1,3 +1,4 @@
+import { createHeardLine } from './heard-line.js';
 import { createOfflineDraftClient } from '../lib/offline-drafts.js';
 import { useOfflineDraftClient } from './draft-client.js';
 import { createLunaCaptions } from './luna-captions.js';
@@ -210,6 +211,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
     void refreshSnapshot();
   });
+  const heardLine = createHeardLine();
   const refreshSnapshot = async announce => {
     if (snapshotRefreshInFlight) return;
     snapshotRefreshInFlight = true;
@@ -224,7 +226,7 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
         const commandReady = homeCommandReady(snapshot);
         home.dataset.commandReady = String(commandReady);
         avatar.update({ state: homeAvatarState(snapshot), listeningDisabled: snapshot.listeningStatus === 'disabled' });
-        setText(heardText, snapshot.status === 'ready' && phase !== 'off' && snapshot.lastHeard ? `Heard: “${snapshot.lastHeard}”` : '');
+        setText(heardText, heardLine(snapshot, phase));
         heardText.hidden = !heardText.textContent;
         void notebookPopup.update(snapshot);
         characterChoice.value = character;
