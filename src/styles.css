@@ -411,30 +411,46 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-heig
 .calculator-keys button:active { transform:translateY(2px); box-shadow:inset 0 0 0 2px #faf6ff,0 1px #7775aa; }
 .calculator-graph svg { width:100%; max-height:220px; background:#d6e9db; border:1px solid #7792a5; border-radius:8px; }
 /* Keep the welcome character visible above the half-height drawer. */
-body:has(.assistant-drawer[open]) .site-header { padding:22px 5% 10px; }
-body:has(.assistant-drawer[open]) main { justify-content:flex-start; }
-body:has(.assistant-drawer[open]) .welcome { padding:0; width:96%; }
-body:has(.assistant-drawer[open]) .home-luna-face .luna2 { width:min(32vw,16dvh)!important; height:min(32vw,16dvh)!important; }
-body:has(.assistant-drawer[open]) .home-luna-face { margin:0 auto 4px; }
-body:has(.assistant-drawer[open]) .home-luna { margin:0 auto 13px; }
-body:has(.assistant-drawer[open]) #home-luna-state { font-size:clamp(10px,2.5vw,19px); margin:0; }
-body:has(.assistant-drawer[open]) #luna-timer-status:empty { display:none; }
-body:has(.assistant-drawer[open]) #home-luna-heard { display:none; }
-body:has(.assistant-drawer[open]) .site-header { justify-content:space-between; padding:14px 5% 4px; }
-body:has(.assistant-drawer[open]) .header-note { display:block; font-size:clamp(9px,1.9vw,18px); }
-body:has(.assistant-drawer[open]) .brand { font-size:clamp(9px,1.7vw,16px); letter-spacing:.22em; gap:8px; min-height:32px; }
-body:has(.assistant-drawer[open]) #home-luna[data-command-ready="true"] #home-luna-state { padding:4px 9px; border:0; background:transparent; color:#e3f7ff; font-weight:400; }
-body:has(.assistant-drawer[open]) #home-luna[data-command-ready="true"] #home-luna-state::before { display:none; }
-body:has(.assistant-drawer[open]) .welcome .eyebrow { margin:3px 0 7px; font-size:clamp(7px,1.5vw,12px); }
-body:has(.assistant-drawer[open]) .welcome h1 { font-size:clamp(30px,7vw,66px); }
-body:has(.assistant-drawer[open]) .welcome .intro { margin:10px 0; font-size:clamp(12px,2.4vw,20px); line-height:1.4; }
-body:has(.assistant-drawer[open]) .home-actions,body:has(.assistant-drawer[open]) #home-actions-toggle,body:has(.assistant-drawer[open]) .entry-note,body:has(.assistant-drawer[open]) .site-footer { display:none; }
-body:has(.assistant-drawer[open]) .settings-gear { bottom:61dvh; width:36px; height:36px; right:3%; }
-body:has(.assistant-drawer[open]) .settings-gear svg { width:22px; height:22px; }
-body:has(.assistant-drawer[open]) .landscape { background:linear-gradient(#2d3154,#514777 24%,#aa84ae 40%,#d39bb7 47%,#a79ac5 75%,#b9a2c6); }
-body:has(.assistant-drawer[open]) .hill-far { bottom:37%; height:21%; }
-body:has(.assistant-drawer[open]) .hill-middle { bottom:33%; height:24%; }
-body:has(.assistant-drawer[open]) .hill-near { bottom:22%; height:36%; opacity:.8; }
+/* Wide landscape screens (the kitchen display): the companion lives in the lower-left corner at
+   one size, and the drawer slides in from the right beside them instead of rising underneath. */
+@media (min-width:900px) and (orientation:landscape) {
+  .welcome[data-native-home="true"] .home-luna-face { position:fixed; left:34px; bottom:74px; z-index:3; margin:0; }
+  .welcome[data-native-home="true"] #home-luna-state { position:fixed; left:14px; bottom:22px; z-index:3; width:268px; margin:0; text-align:center; }
+  .welcome[data-native-home="true"] #home-luna[data-command-ready="true"] #home-luna-state { left:148px; transform:translateX(-50%); width:max-content; max-width:268px; margin:0; }
+  dialog.assistant-drawer:not([data-expanded="true"]) { inset:12px 14px 12px auto; margin:0; width:min(940px,calc(100vw - 310px)); height:auto; max-height:none; animation-name:notebook-drawer-in-right; }
+  body:has(.assistant-drawer[open]) .welcome > .eyebrow,body:has(.assistant-drawer[open]) .welcome > h1,body:has(.assistant-drawer[open]) .welcome > .intro,
+  body:has(.assistant-drawer[open]) #home-luna-heard,body:has(.assistant-drawer[open]) .home-actions,body:has(.assistant-drawer[open]) #home-actions-toggle,
+  body:has(.assistant-drawer[open]) .entry-note,body:has(.assistant-drawer[open]) .site-footer,body:has(.assistant-drawer[open]) .header-note,
+  body:has(.assistant-drawer[open]) .settings-gear { visibility:hidden; }
+}
+@keyframes notebook-drawer-in-right { from { transform:translateX(105%); } to { transform:translateX(0); } }
+/* Everywhere else the drawer rises from the bottom and the page makes room above it. */
+@media (max-width:899px), (orientation:portrait) {
+  body:has(.assistant-drawer[open]) .site-header { padding:22px 5% 10px; }
+  body:has(.assistant-drawer[open]) main { justify-content:flex-start; }
+  body:has(.assistant-drawer[open]) .welcome { padding:0; width:96%; }
+  body:has(.assistant-drawer[open]) .home-luna-face .luna2 { width:min(32vw,16dvh)!important; height:min(32vw,16dvh)!important; }
+  body:has(.assistant-drawer[open]) .home-luna-face { margin:0 auto 4px; }
+  body:has(.assistant-drawer[open]) .home-luna { margin:0 auto 13px; }
+  body:has(.assistant-drawer[open]) #home-luna-state { font-size:clamp(10px,2.5vw,19px); margin:0; }
+  body:has(.assistant-drawer[open]) #luna-timer-status:empty { display:none; }
+  body:has(.assistant-drawer[open]) #home-luna-heard { display:none; }
+  body:has(.assistant-drawer[open]) .site-header { justify-content:space-between; padding:14px 5% 4px; }
+  body:has(.assistant-drawer[open]) .header-note { display:block; font-size:clamp(9px,1.9vw,18px); }
+  body:has(.assistant-drawer[open]) .brand { font-size:clamp(9px,1.7vw,16px); letter-spacing:.22em; gap:8px; min-height:32px; }
+  body:has(.assistant-drawer[open]) #home-luna[data-command-ready="true"] #home-luna-state { padding:4px 9px; border:0; background:transparent; color:#e3f7ff; font-weight:400; }
+  body:has(.assistant-drawer[open]) #home-luna[data-command-ready="true"] #home-luna-state::before { display:none; }
+  body:has(.assistant-drawer[open]) .welcome .eyebrow { margin:3px 0 7px; font-size:clamp(7px,1.5vw,12px); }
+  body:has(.assistant-drawer[open]) .welcome h1 { font-size:clamp(30px,7vw,66px); }
+  body:has(.assistant-drawer[open]) .welcome .intro { margin:10px 0; font-size:clamp(12px,2.4vw,20px); line-height:1.4; }
+  body:has(.assistant-drawer[open]) .home-actions,body:has(.assistant-drawer[open]) #home-actions-toggle,body:has(.assistant-drawer[open]) .entry-note,body:has(.assistant-drawer[open]) .site-footer { display:none; }
+  body:has(.assistant-drawer[open]) .settings-gear { bottom:61dvh; width:36px; height:36px; right:3%; }
+  body:has(.assistant-drawer[open]) .settings-gear svg { width:22px; height:22px; }
+  body:has(.assistant-drawer[open]) .landscape { background:linear-gradient(#2d3154,#514777 24%,#aa84ae 40%,#d39bb7 47%,#a79ac5 75%,#b9a2c6); }
+  body:has(.assistant-drawer[open]) .hill-far { bottom:37%; height:21%; }
+  body:has(.assistant-drawer[open]) .hill-middle { bottom:33%; height:24%; }
+  body:has(.assistant-drawer[open]) .hill-near { bottom:22%; height:36%; opacity:.8; }
+}
 @media(min-width:700px) {
   .assistant-drawer { padding-left:88px; padding-right:140px; }
   .assistant-drawer[data-character="liam"] { padding-left:42px; padding-right:128px; }
