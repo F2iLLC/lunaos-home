@@ -114,6 +114,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     <p id="luna-online-label">Use my Mac for speech recognition and Qwen answers</p>
     <p id="luna-online-help">Configure the private Mac relay before enabling online answers. When listening is enabled, speech segments go to your Mac for wake-word and command recognition. Changing this setting stops listening.</p>
     <button id="refresh-luna-state" type="button">Refresh status</button>
+    <button id="retry-luna-voice" type="button">Retry voice connection</button>
+    <p id="luna-retry-status" role="status" aria-live="polite"></p>
     <p>Allow microphone access, then choose Enable. Locking, muting, or revoking permission stops listening. Timers continue when listening is disabled.</p>
     <button id="allow-luna-mic" type="button">Allow microphone</button>
     <button id="enable-luna-wake" class="primary-button" type="button">Enable wake-word listening</button>
@@ -140,6 +142,8 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
   const onlineAnswers = luna.querySelector('#luna-online-answers');
   const onlineHelp = luna.querySelector('#luna-online-help');
   const refreshState = luna.querySelector('#refresh-luna-state');
+  const retryVoice = luna.querySelector('#retry-luna-voice');
+  const retryStatus = luna.querySelector('#luna-retry-status');
   const timerStatus = home.querySelector('#luna-timer-status');
   let timerStatusTimeout;
   let timerStatusClearTimeout;
@@ -315,6 +319,20 @@ if (typeof __ANDROID_VAULT_DEBUG__ !== 'undefined' && __ANDROID_VAULT_DEBUG__ &&
     }
   };
   refreshState.addEventListener('click', refreshSnapshot);
+  retryVoice.addEventListener('click', async () => {
+    retryVoice.disabled = true;
+    retryStatus.textContent = 'Reconnecting voice listening…';
+    try {
+      // This is an explicit owner action: enableLunaWake may activate the mic.
+      await window.__TAURI__.core.invoke('enable_luna_wake');
+      retryStatus.textContent = 'Voice listening restarted. Checking connection…';
+    } catch {
+      retryStatus.textContent = 'Could not restart voice listening. Check microphone permission, device lock or mute, and the Mac connection.';
+    } finally {
+      await refreshSnapshot();
+      retryVoice.disabled = false;
+    }
+  });
   onlineAnswers.addEventListener('click', async () => {
     const enabled = onlineAnswers.getAttribute('aria-pressed') !== 'true';
     onlineAnswers.disabled = true;
