@@ -63,7 +63,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@58edcb475a036070c29f4144d5250db75f3c706b
+    uses: F2iLLC/vigil/.github/workflows/reusable-vigil.yml@bb51692b707fedd2f39cc4c26884950649523f87
     with:
       model: openai/gpt-6-luna
       runner-json: '["ubuntu-latest"]'
